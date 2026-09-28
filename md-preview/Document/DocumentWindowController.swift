@@ -400,6 +400,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         refreshOpenInLLMItem()
         refreshOpenActionsItem()
         updateEditToolbarItem()
+        // Folder and untitled windows count too.
+        WhatsNewWindow.presentIfNeeded(over: documentWindow)
         if let fileURL {
             NSDocumentController.shared.noteNewRecentDocumentURL(fileURL)
             renderCurrentDocument(text: markdown, fileURL: fileURL)
@@ -563,7 +565,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         }
     }
 
-    private static let didOfferDefaultHandlerKey = "MarkdownPreview.didOfferAsDefaultHandler"
+    /// Also read by `WhatsNewWindow` as a sign of earlier use.
+    static let didOfferDefaultHandlerKey = "MarkdownPreview.didOfferAsDefaultHandler"
 
     private func offerToBecomeDefaultHandlerIfNeeded() {
         let key = Self.didOfferDefaultHandlerKey

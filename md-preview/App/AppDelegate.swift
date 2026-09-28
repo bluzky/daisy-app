@@ -104,6 +104,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var pendingTerminationSaveCount = 0
     private var terminationSaveFailed = false
 
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        WhatsNewWindow.noteLaunch()
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         CrashReporter.start()
         let storedAppearance = AppearanceMode.migrateLegacyValue()
@@ -126,6 +130,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         installSettingsMenuItem()
         NSApp.windowsMenu?.delegate = self
         installAppMenuItems()
+        installWhatsNewMenuItem()
         installViewMenuItemIcons()
         hasFinishedLaunching = true
         if !didReceiveOpenURLsDuringLaunch {
@@ -1112,6 +1117,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                                  keyEquivalent: "")
         cliItem.target = self
         appMenu.insertItem(cliItem, at: appMenu.index(of: updatesItem) + 1)
+    }
+
+    private func installWhatsNewMenuItem() {
+        guard let helpMenu = NSApp.helpMenu,
+              helpMenu.items.first(where: { $0.action == #selector(showWhatsNew(_:)) }) == nil
+        else { return }
+
+        let item = NSMenuItem(title: L("What’s New in Markdown Preview"),
+                              action: #selector(showWhatsNew(_:)),
+                              keyEquivalent: "")
+        item.target = self
+        helpMenu.addItem(item)
+    }
+
+    @objc private func showWhatsNew(_ sender: Any?) {
+        WhatsNewWindow.present(over: activeDocumentWindowController?.window)
     }
 
     private func installSidebarViewMenuItems() {
