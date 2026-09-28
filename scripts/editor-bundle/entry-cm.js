@@ -12,7 +12,7 @@ import {
   defaultKeymap, history, historyKeymap, indentLess, insertTab,
 } from "@codemirror/commands"
 import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete"
-import { markdown, markdownLanguage, markdownKeymap } from "@codemirror/lang-markdown"
+import { markdown, markdownLanguage, markdownKeymap, insertNewlineContinueMarkupCommand } from "@codemirror/lang-markdown"
 import { yamlFrontmatter } from "@codemirror/lang-yaml"
 import {
   syntaxTree, syntaxTreeAvailable, ensureSyntaxTree, syntaxHighlighting, HighlightStyle,
@@ -1220,6 +1220,69 @@ const tableEditors = StateField.define({
   provide: (field) => EditorView.decorations.from(field),
 })
 
+// Completed task markers stay rendered while typing the label, including an empty item.
+class TaskCheckboxWidget extends WidgetType {
+  constructor(from, checked) { super(); this.from = from; this.checked = checked }
+  eq(other) { return this.from === other.from && this.checked === other.checked }
+  toDOM(view) {
+    const wrapper = document.createElement('span')
+    wrapper.className = 'cm-md-task-marker'
+    wrapper.dataset.sourceFrom = String(this.from)
+    const checkbox = document.createElement('input')
+    checkbox.type = 'checkbox'
+    checkbox.checked = this.checked
+    checkbox.setAttribute('aria-label', this.checked ? 'Mark task incomplete' : 'Mark task complete')
+    checkbox.addEventListener('mousedown', event => {
+      event.preventDefault()
+      event.stopPropagation()
+    })
+    checkbox.addEventListener('change', () => {
+      const keyboardFocused = document.activeElement === checkbox
+      view.dispatch({ changes: { from: this.from, to: this.from + 1,
+        insert: checkbox.checked ? 'x' : ' ' }, userEvent: 'input' })
+      if (!keyboardFocused) view.focus()
+    })
+    wrapper.append(checkbox, document.createTextNode(" "))
+    return wrapper
+  }
+  updateDOM(wrapper) {
+    // Reuse the focused input when toggling; replacing it also loses Tab order.
+    if (Number(wrapper.dataset.sourceFrom) !== this.from) return false
+    const checkbox = wrapper.querySelector('input')
+    checkbox.checked = this.checked
+    checkbox.setAttribute('aria-label', this.checked ? 'Mark task incomplete' : 'Mark task complete')
+    return true
+  }
+  ignoreEvent() { return true }
+}
+
+// CodeMirror's default second-item behavior creates a loose list. An empty
+// task should instead leave the list on the second Enter, like other editors.
+const continueTightTaskList = insertNewlineContinueMarkupCommand({ nonTightLists: false })
+function continueTaskList(view) {
+  if (!view.state.selection.ranges.every(range => range.empty
+      && /^[ \t]*(?:>[ \t]*)*[-+*][ \t]+\[[ xX]\](?:[ \t]|$)/.test(
+        view.state.doc.lineAt(range.head).text))) return false
+  return continueTightTaskList({
+    state: view.state,
+    dispatch: transaction => {
+      // A blank separator prevents the next paragraph from becoming a lazy
+      // continuation of the task above it in Markdown.
+      const state = transaction.state
+      const changes = state.changeByRange(range => {
+        const line = state.doc.lineAt(range.head)
+        if (range.empty && line.text === '' && line.number > 1
+            && state.doc.line(line.number - 1).text.trim() !== '') {
+          return { changes: { from: range.head, insert: state.lineBreak },
+            range: EditorSelection.cursor(range.head + state.lineBreak.length) }
+        }
+        return { range }
+      })
+      view.dispatch([transaction, state.update(changes, { userEvent: 'input', scrollIntoView: true })])
+    },
+  })
+}
+
 const hide = Decoration.replace({})
 const bulletDeco = Decoration.replace({ widget: new TextWidget("•", "cm-md-bullet") })
 const activeBulletDeco = Decoration.mark({ class: "cm-md-bullet-source" })
@@ -1336,6 +1399,8 @@ const quoteLine = (depth, starts, ends, gap) => {
 // hanging indent, and the source indentation is hidden like a nested
 // marker's.
 const listContinuationLine = Decoration.line({ class: "cm-md-list-continuation" })
+const taskLine = Decoration.line({ class: "cm-md-task-line" })
+const completedTaskLine = Decoration.line({ class: "cm-md-task-completed" })
 const codeLine = Decoration.line({ class: "cm-md-codeblock" })
 const codeLineFirst = Decoration.line({ class: "cm-md-codeblock cm-md-codeblock-first" })
 const codeLineLast = Decoration.line({ class: "cm-md-codeblock cm-md-codeblock-last" })
@@ -1702,6 +1767,10 @@ function buildDecorations(view, detectedCodeCache) {
   }
   const isActiveFence = (node) => currentFindTouches(state, node.from, node.to)
     || (activeFence != null && node.from <= activeFence.from && node.to >= activeFence.to)
+  // Auto-closing brackets can form a valid task before the user types `]`.
+  // Keep its source editable until the caret has left the brackets.
+  const editingTaskMarker = (bracket) => sourceCaret != null
+    && sourceCaret > bracket && sourceCaret < bracket + 3
   const decoratedLines = new Set()
   const listDepthPositions = new Set()
   const lineOnce = (pos, deco) => {
@@ -1754,7 +1823,15 @@ function buildDecorations(view, detectedCodeCache) {
 
     const isTask = /^[-+*]$/.test(marker)
       && /^\s*\[[ xX]\](\s|$)/.test(line.text.slice(markerTo - line.from))
-    if (/^[-+*]$/.test(marker) && !isTask) {
+    if (isTask) {
+      const task = line.text.slice(markerTo - line.from).match(/^[ \t]*\[([ xX])\][ \t]?/)
+      const bracket = markerTo + task[0].indexOf('[')
+      if (editingTaskMarker(bracket)) return
+      lineOnce(line.from, taskLine)
+      if (task[1] !== ' ') lineOnce(line.from, completedTaskLine)
+      ranges.push(Decoration.replace({ widget: new TaskCheckboxWidget(bracket + 1, task[1] !== ' ') })
+        .range(markerFrom, markerTo + task[0].length))
+    } else if (/^[-+*]$/.test(marker)) {
       if (touchesLineOf(markerFrom)) {
         ranges.push(activeBulletDeco.range(markerFrom, markerTo))
         if (separator.length > 0) {
@@ -2123,15 +2200,32 @@ function buildDecorations(view, detectedCodeCache) {
           // list starts at its first item, so "first" is a position check.
           const isFirstItem = node.from === listStack[listStack.length - 1]
           const isNested = listStack.length > 1
-          if (!isFirstItem) {
-            let number = state.doc.lineAt(node.from).number - 1
+          // Keep the separator while editing any line of an item so moving
+          // to a continuation cannot pull the caret upward. Inactive loose lists use
+          // the same compact item spacing as Read Mode.
+          const itemLine = state.doc.lineAt(node.from)
+          const preserveBlankBefore = touches(itemLine.from, node.to) && itemLine.number > 1
+            && state.doc.line(itemLine.number - 1).text.trim() === ""
+          if (!isFirstItem && !preserveBlankBefore) {
+            let number = itemLine.number - 1
             while (number > 0 && state.doc.line(number).text.trim() === "") {
               lineOnce(state.doc.line(number).from, blockSeparatorLine(0))
               number--
             }
           }
-          if (!isFirstItem || isNested) lineOnce(node.from, listItemGapLine)
+          if ((!isFirstItem || isNested) && !preserveBlankBefore) lineOnce(node.from, listItemGapLine)
           eachLine(node.from, node.to, listItemLine)
+          if (/^[ \t]*[-+*][ \t]+\[[xX]\](?:[ \t]|$)/.test(state.doc.sliceString(node.from, itemLine.to))) {
+            // Nested lists own their completion state. Keep the parent's
+            // continuation paragraphs styled, including those after a sublist.
+            let from = node.from
+            for (let child = node.node.firstChild; child; child = child.nextSibling) {
+              if (child.name !== "BulletList" && child.name !== "OrderedList") continue
+              eachLine(from, state.doc.lineAt(child.from).from - 1, completedTaskLine)
+              from = state.doc.lineAt(child.to).to + 1
+            }
+            eachLine(from, node.to, completedTaskLine)
+          }
           lineOnce(node.from, listDepthLine(listStack.length))
           listDepthPositions.add(state.doc.lineAt(node.from).from)
           // Continuation lines of this item (not nested markers, not blank)
@@ -2166,10 +2260,15 @@ function buildDecorations(view, detectedCodeCache) {
         if (name === "ListMark") {
           const mark = state.doc.sliceString(node.from, node.to)
           const line = state.doc.lineAt(node.from)
-          // Task items (`- [ ]`) keep their literal marker; turning the dash
-          // into a bullet dot leaves a confusing "• [ ]" hybrid.
           const isTask = /^\s*\[[ xX]\](\s|$)/.test(line.text.slice(node.to - line.from))
-          if ((mark === "-" || mark === "*" || mark === "+") && !isTask) {
+          if (isTask && /^[-+*]$/.test(mark)) {
+            const task = line.text.slice(node.to - line.from).match(/^[ \t]*\[([ xX])\][ \t]?/)
+            const bracket = node.to + task[0].indexOf('[')
+            if (editingTaskMarker(bracket)) return
+            lineOnce(line.from, taskLine)
+            ranges.push(Decoration.replace({ widget: new TaskCheckboxWidget(bracket + 1, task[1] !== ' ') })
+              .range(node.from, node.to + task[0].length))
+          } else if ((mark === "-" || mark === "*" || mark === "+") && !isTask) {
             // Both forms occupy the same fixed-width hanging box. Keep the
             // active dash editable, but hide its source separator so the dash
             // can sit at the rendered bullet position without moving text.
@@ -2916,6 +3015,7 @@ window.MDEditor = {
           // paragraphReflow deliberately omitted: the preview renders
           // single newlines as hard breaks, so the
           // editor keeps them visible instead of joining lines.
+          Prec.highest(keymap.of([{ key: "Enter", run: continueTaskList }])),
           keymap.of([
             { key: "Mod-b", run: toggleInlineMark("**") },
             { key: "Mod-i", run: toggleInlineMark("*") },
