@@ -245,11 +245,25 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
     private weak var webScrollView: NSScrollView?
     nonisolated(unsafe) private var scrollBoundsObserver: NSObjectProtocol?
 
-    override init(frame frameRect: NSRect) {
+    /// A spare's empty page also loads the math and code renderers, so it
+    /// can take most documents without a full page load.
+    private let isSpare: Bool
+
+    convenience init(spare: Bool) {
+        self.init(frame: .zero, spare: spare)
+    }
+
+    override convenience init(frame frameRect: NSRect) {
+        self.init(frame: frameRect, spare: false)
+    }
+
+    private init(frame frameRect: NSRect, spare: Bool) {
+        isSpare = spare
         let config = WKWebViewConfiguration()
         config.setURLSchemeHandler(assetScheme, forURLScheme: MarkdownAssetScheme.scheme)
         config.userContentController.addUserScript(Self.disableContextMenuScript)
         config.userContentController.add(messageBridge, name: HostBridge.name)
+        Self.disableUserInstalledFonts(in: config.preferences)
         webView = PreviewWKWebView(frame: .zero, configuration: config)
         super.init(frame: frameRect)
 
@@ -329,13 +343,15 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         let markdown = Self.warmupMarkdown
         let contentWidth = ContentWidthSetting.current.renderWidth
         let themeOverrides = Self.currentThemeOverrides()
+        let preloadsMathAndCode = isSpare
         Task { @concurrent [weak self] in
             let rendered = Self.timedRender(label: "warmup",
                                             markdown: markdown,
                                             assetBaseHref: baseHref,
                                             contentWidth: contentWidth,
                                             themeOverrides: themeOverrides,
-                                            warmup: true)
+                                            warmup: true,
+                                            preloadsMathAndCode: preloadsMathAndCode)
             await self?.applyWarmup(rendered)
         }
     }
@@ -355,6 +371,34 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
     }
 
     required init?(coder: NSCoder) { fatalError() }
+
+    /// Reader fonts are all system fonts, and DOMPurify strips page styles,
+    /// so pages never need user-installed fonts. Turning them off stops WebKit
+    /// registering those fonts with the font service during start-up, which
+    /// blocks the main thread (about 30 ms of cold launch).
+    private static func disableUserInstalledFonts(in preferences: WKPreferences) {
+        let selector = NSSelectorFromString("_setShouldAllowUserInstalledFonts:")
+        guard preferences.responds(to: selector) else { return }
+        typealias Setter = @convention(c) (AnyObject, Selector, Bool) -> Void
+        let setter = unsafeBitCast(preferences.method(for: selector), to: Setter.self)
+        setter(preferences, selector, false)
+    }
+
+    /// True once the empty launch page has loaded and no document has been
+    /// shown yet, so a new window can adopt this reader as is.
+    var isReadyAsSpare: Bool {
+        renderGeneration == 0 && isPageReady && superview == nil
+    }
+
+    /// True once any `display()` has been requested.
+    var hasRequestedDocument: Bool { renderGeneration > 0 }
+
+    /// True when the last displayed document can look different after its
+    /// first paint: math, Mermaid and script highlighting render later, and
+    /// images load later and can change without the Markdown changing.
+    private(set) var lastDisplayMayChangeAfterFirstPaint = true
+    private var lastContentProcessReload: Date?
+    private var pendingContentProcessReload: DispatchWorkItem?
 
     override func layout() {
         super.layout()
@@ -382,6 +426,8 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
     }
 
     func display(markdown: String, assetBaseURL: URL? = nil) {
+        pendingContentProcessReload?.cancel()
+        pendingContentProcessReload = nil
         currentMarkdown = markdown
         isPointerOverMermaidFigure = false
         assetScheme.setBaseURL(assetBaseURL)
@@ -418,7 +464,8 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
                                                 assetBaseHref: String,
                                                 contentWidth: MarkdownHTML.ContentWidth,
                                                 themeOverrides: MarkdownHTML.ThemeOverrides? = nil,
-                                                warmup: Bool = false) -> MarkdownHTML.RenderedHTML {
+                                                warmup: Bool = false,
+                                                preloadsMathAndCode: Bool = false) -> MarkdownHTML.RenderedHTML {
         let t0 = DispatchTime.now()
         let rendered = MarkdownHTML.render(markdown: markdown,
                                            allowsScroll: true,
@@ -427,6 +474,7 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
                                            contentWidth: contentWidth,
                                            themeOverrides: themeOverrides,
                                            warmup: warmup,
+                                           preloadsMathAndCode: preloadsMathAndCode,
                                            pageTopClearance: MarkdownHTML.appPageTopClearance)
         let elapsedMs = Int(
             (Double(DispatchTime.now().uptimeNanoseconds - t0.uptimeNanoseconds)
@@ -464,6 +512,8 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
             mermaid: rendered.containsMermaid,
             code: rendered.containsCode
         )
+        lastDisplayMayChangeAfterFirstPaint = fingerprint.math || fingerprint.mermaid || fingerprint.code
+            || rendered.articleHTML.range(of: "<img", options: .caseInsensitive) != nil
 
         // Fast path: the loaded page already has every renderer the new doc
         // needs — swap the article body via JS instead of reloading the
@@ -519,9 +569,15 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
     /// unconditional so a warmup-only page rendered under the old settings
     /// can't be fast-pathed into later.
     func reloadPreviewForSettingChange() {
+        discardLoadedPage()
+        reloadPreview()
+    }
+
+    /// Makes the next `display()` load a full page instead of updating the
+    /// loaded one.
+    func discardLoadedPage() {
         loadedFingerprint = nil
         isPageReady = false
-        reloadPreview()
     }
 
     /// User theme colors read at render time. The Quick Look extension
@@ -1598,6 +1654,31 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         else { return target }
         components.fragment = fragment
         return components.url ?? target
+    }
+
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        // The page is gone, so the next display() must load it again rather
+        // than call into it. Load it now so the preview is not left blank,
+        // but at most once every few seconds, in case the document itself
+        // makes the process stop; a stop inside that window reloads when it
+        // ends. A new display() cancels the pending reload.
+        discardLoadedPage()
+        let interval: TimeInterval = 5
+        let wait = lastContentProcessReload.map { interval - Date().timeIntervalSince($0) } ?? 0
+        guard wait > 0 else {
+            lastContentProcessReload = Date()
+            reloadPreview()
+            return
+        }
+        guard pendingContentProcessReload == nil else { return }
+        let reload = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            pendingContentProcessReload = nil
+            lastContentProcessReload = Date()
+            reloadPreview()
+        }
+        pendingContentProcessReload = reload
+        DispatchQueue.main.asyncAfter(deadline: .now() + wait, execute: reload)
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
