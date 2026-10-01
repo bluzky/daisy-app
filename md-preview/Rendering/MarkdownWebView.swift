@@ -136,12 +136,6 @@ struct SourceScrollAnchor {
     }
 }
 
-struct MarkdownTableEditRequest {
-    let startLine: Int
-    let endLine: Int
-    let edits: [MarkdownTableEdit]
-}
-
 /// User-selectable article layout, persisted across launches. Quick Look
 /// always renders the centered column; this setting only drives the app.
 /// Lives here (not AppDelegate.swift) because this file is compiled into
@@ -199,12 +193,11 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
     /// finishes. Unlike heightDidChange, this also fires when the new
     /// document happens to lay out at the same height as the old one.
     var contentDidReplace: (() -> Void)?
+    var taskCheckboxToggled: ((Int, Bool) -> Void)?
     var zoomDidChange: ((CGFloat) -> Void)?
     var fragmentLinkActivated: ((String) -> Void)?
     var pointerDocumentYDidChange: ((CGFloat) -> Void)?
     var localMarkdownLinkActivated: ((URL) -> Void)?
-    var taskCheckboxToggled: ((Int, Bool) -> Void)?
-    var tableEditRequested: ((MarkdownTableEditRequest) -> Void)?
     var scrollDidChange: (() -> Void)?
     private let assetScheme = MarkdownAssetScheme()
     private var currentAssetBase: URL?
@@ -250,6 +243,7 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         config.setURLSchemeHandler(assetScheme, forURLScheme: MarkdownAssetScheme.scheme)
         config.userContentController.addUserScript(Self.disableContextMenuScript)
         config.userContentController.add(messageBridge, name: HostBridge.name)
+        Self.disableUserInstalledFonts(in: config.preferences)
         webView = PreviewWKWebView(frame: .zero, configuration: config)
         super.init(frame: frameRect)
 
@@ -358,6 +352,28 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
 
     required init?(coder: NSCoder) { fatalError() }
 
+    /// Reader fonts are all system fonts, and DOMPurify strips page styles,
+    /// so pages never need user-installed fonts. Turning them off stops WebKit
+    /// registering those fonts with the font service during start-up, which
+    /// blocks the main thread (about 30 ms of cold launch).
+    private static func disableUserInstalledFonts(in preferences: WKPreferences) {
+        let selector = NSSelectorFromString("_setShouldAllowUserInstalledFonts:")
+        guard preferences.responds(to: selector) else { return }
+        typealias Setter = @convention(c) (AnyObject, Selector, Bool) -> Void
+        let setter = unsafeBitCast(preferences.method(for: selector), to: Setter.self)
+        setter(preferences, selector, false)
+    }
+
+    /// True once any `display()` has been requested.
+    var hasRequestedDocument: Bool { renderGeneration > 0 }
+
+    /// True when the last displayed document can look different after its
+    /// first paint: math, Mermaid and script highlighting render later, and
+    /// images load later and can change without the Markdown changing.
+    private(set) var lastDisplayMayChangeAfterFirstPaint = true
+    private var lastContentProcessReload: Date?
+    private var pendingContentProcessReload: DispatchWorkItem?
+
     override func layout() {
         super.layout()
         configureWebKitScrollView()
@@ -384,6 +400,8 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
     }
 
     func display(markdown: String, assetBaseURL: URL? = nil) {
+        pendingContentProcessReload?.cancel()
+        pendingContentProcessReload = nil
         currentMarkdown = markdown
         isPointerOverMermaidFigure = false
         assetScheme.setBaseURL(assetBaseURL)
@@ -470,6 +488,8 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
             mermaid: rendered.containsMermaid,
             code: rendered.containsCode
         )
+        lastDisplayMayChangeAfterFirstPaint = fingerprint.math || fingerprint.mermaid || fingerprint.code
+            || rendered.articleHTML.range(of: "<img", options: .caseInsensitive) != nil
 
         // Fast path: the loaded page already has every renderer the new doc
         // needs — swap the article body via JS instead of reloading the
@@ -525,9 +545,15 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
     /// unconditional so a warmup-only page rendered under the old settings
     /// can't be fast-pathed into later.
     func reloadPreviewForSettingChange() {
+        discardLoadedPage()
+        reloadPreview()
+    }
+
+    /// Makes the next `display()` load a full page instead of updating the
+    /// loaded one.
+    func discardLoadedPage() {
         loadedFingerprint = nil
         isPageReady = false
-        reloadPreview()
     }
 
     /// User theme colors read at render time. The Quick Look extension
@@ -572,6 +598,10 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         guard let dict = body as? [String: Any],
               let kind = dict["kind"] as? String else { return }
         switch kind {
+        case "taskCheckbox":
+            guard let line = dict["line"] as? Int, line > 0,
+                  let checked = dict["checked"] as? Bool else { return }
+            taskCheckboxToggled?(line, checked)
         case "height":
             guard let value = dict["value"] as? NSNumber else { return }
             let raw = ceil(CGFloat(truncating: value))
@@ -606,54 +636,6 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
             pasteboard.setString(text, forType: .string)
-        case "taskCheckbox":
-            guard let line = dict["line"] as? NSNumber,
-                  let checked = dict["checked"] as? NSNumber else { return }
-            taskCheckboxToggled?(line.intValue, checked.boolValue)
-        case "tableContextMenu":
-            presentTableContextMenu(dict)
-        case "tableEdit":
-            guard let operation = dict["operation"] as? String,
-                  let start = dict["start"] as? NSNumber,
-                  let end = dict["end"] as? NSNumber,
-                  let row = dict["row"] as? NSNumber,
-                  let column = dict["column"] as? NSNumber else { return }
-            let edit: MarkdownTableEdit
-            switch operation {
-            case "setCell":
-                guard let value = dict["value"] as? String else { return }
-                edit = .setCell(row: row.intValue, column: column.intValue, markdown: value)
-            case "insertRowBefore":
-                edit = .insertRowBefore(row.intValue)
-            case "insertRowAfter", "insertRow":
-                edit = .insertRowAfter(row.intValue)
-            case "deleteRow":
-                edit = .deleteRow(row.intValue)
-            case "insertColumnBefore":
-                edit = .insertColumnBefore(column.intValue)
-            case "insertColumnAfter", "insertColumn":
-                edit = .insertColumnAfter(column.intValue)
-            case "deleteColumn":
-                edit = .deleteColumn(column.intValue)
-            default:
-                return
-            }
-            var edits: [MarkdownTableEdit] = []
-            if operation != "setCell", let pendingValue = dict["pendingValue"] as? String {
-                let pendingRow = (dict["pendingRow"] as? NSNumber)?.intValue ?? row.intValue
-                let pendingColumn = (dict["pendingColumn"] as? NSNumber)?.intValue ?? column.intValue
-                edits.append(.setCell(
-                    row: pendingRow,
-                    column: pendingColumn,
-                    markdown: pendingValue
-                ))
-            }
-            edits.append(edit)
-            tableEditRequested?(MarkdownTableEditRequest(
-                startLine: start.intValue,
-                endLine: end.intValue,
-                edits: edits
-            ))
         case "scroll":
             guard let value = dict["value"] as? String else { return }
             switch value {
@@ -670,26 +652,6 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
             }
         default:
             break
-        }
-    }
-
-    private func presentTableContextMenu(_ payload: [String: Any]) {
-        guard let token = payload["token"] as? String else { return }
-        let context = TableContextMenuPresenter.Context(
-            canInsertRowAbove: (payload["canInsertRowAbove"] as? NSNumber)?.boolValue ?? false,
-            canDuplicateRow: (payload["canDuplicateRow"] as? NSNumber)?.boolValue ?? false,
-            canDeleteRow: (payload["canDeleteRow"] as? NSNumber)?.boolValue ?? false,
-            canDeleteColumn: (payload["canDeleteColumn"] as? NSNumber)?.boolValue ?? false,
-            showsDuplicateRow: (payload["showsDuplicateRow"] as? NSNumber)?.boolValue ?? false
-        )
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            let presenter = TableContextMenuPresenter(context: context) { [weak self] operation in
-                guard let self else { return }
-                let script = "window.MdPreview && window.MdPreview.performTableContextAction(\(self.javaScriptStringLiteral(token)), \(self.javaScriptStringLiteral(operation)))"
-                self.webView.evaluateJavaScript(script) { _, _ in }
-            }
-            presenter.present(in: self.webView)
         }
     }
 
@@ -1518,8 +1480,8 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
                  decidePolicyFor navigationAction: WKNavigationAction,
                  decisionHandler: @escaping @MainActor @Sendable (WKNavigationActionPolicy) -> Void) {
         if navigationAction.navigationType == .linkActivated, let url = navigationAction.request.url {
-            activateLink(url)
             decisionHandler(.cancel)
+            activateLink(url)
             return
         }
         decisionHandler(.allow)
@@ -1542,7 +1504,7 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
                     NSWorkspace.shared.open(resolved)
                 }
             } else if url.scheme != MarkdownAssetScheme.scheme {
-                NSWorkspace.shared.open(url)
+                ExternalLinkOpener.open(url, window: window)
             }
     }
 
@@ -1554,7 +1516,8 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
                   let file = MarkdownAssetResolution.fileURL(for: source) else { return }
             target = Self.reattachingFragment(of: source, to: file)
         } else {
-            guard ["https", "http", "mailto", "file"].contains(source.scheme?.lowercased() ?? "") else { return }
+            guard ["https", "http", "mailto", "file"].contains(source.scheme?.lowercased() ?? "")
+                || ExternalLinkPolicy.isExternal(source) else { return }
             target = source
         }
         let menu = NSMenu()
@@ -1604,6 +1567,31 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         else { return target }
         components.fragment = fragment
         return components.url ?? target
+    }
+
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        // The page is gone, so the next display() must load it again rather
+        // than call into it. Load it now so the preview is not left blank,
+        // but at most once every few seconds, in case the document itself
+        // makes the process stop; a stop inside that window reloads when it
+        // ends. A new display() cancels the pending reload.
+        discardLoadedPage()
+        let interval: TimeInterval = 5
+        let wait = lastContentProcessReload.map { interval - Date().timeIntervalSince($0) } ?? 0
+        guard wait > 0 else {
+            lastContentProcessReload = Date()
+            reloadPreview()
+            return
+        }
+        guard pendingContentProcessReload == nil else { return }
+        let reload = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            pendingContentProcessReload = nil
+            lastContentProcessReload = Date()
+            reloadPreview()
+        }
+        pendingContentProcessReload = reload
+        DispatchQueue.main.asyncAfter(deadline: .now() + wait, execute: reload)
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {

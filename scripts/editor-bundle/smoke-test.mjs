@@ -426,6 +426,16 @@ dom.window.document.body.appendChild(headingHost)
 const headingEditor = dom.window.MDEditor.create(headingHost, "### Stable heading", {})
 check("unfocused leading heading source stays hidden",
   headingHost.querySelector(".cm-md-heading-source-hidden")?.textContent === "### ")
+headingEditor.focus()
+headingEditor.select(4, 10)
+check("ordinary heading range selection keeps source hidden",
+  headingHost.querySelector(".cm-md-heading-source-hidden")?.textContent === "### ")
+const headingContent = headingHost.querySelector(".cm-content")
+headingContent.dispatchEvent(new dom.window.CompositionEvent("compositionstart", { bubbles: true }))
+headingEditor.select(4, 9)
+check("IME composition range reveals heading source",
+  headingHost.querySelector(".cm-md-heading-source-hidden") == null)
+headingContent.dispatchEvent(new dom.window.CompositionEvent("compositionend", { bubbles: true }))
 headingEditor.exec("h0")
 check("Normal Text removes the heading marker",
   headingEditor.getMarkdown() === "Stable heading")
@@ -606,6 +616,26 @@ check("inactive indented code hides source indentation",
     && indentedCodeLines.at(-1)?.textContent === "</script>")
 indentedCodeEditor.destroy()
 
+const nativeCodeHost = document.createElement('div')
+document.body.appendChild(nativeCodeHost)
+const nativeCodeSource = 'Before\n\n```text\nfirst\nsecond\n```\n\nBetween\n\n```\nthird\n```\n\nAfter'
+const nativeCodeEditor = dom.window.MDEditor.create(nativeCodeHost, nativeCodeSource, {})
+const nativeCards = [...nativeCodeHost.querySelectorAll('.cm-md-code-card')]
+check('each editable code block has one native scroll wrapper',
+  nativeCards.length === 2 && nativeCards[0].querySelectorAll('.cm-md-codeblock').length === 2)
+check('native code wrappers exclude surrounding paragraphs and separators',
+  nativeCards.every(card => !/Before|Between|After/.test(card.textContent)
+    && card.querySelector('.cm-md-block-separator') == null))
+nativeCodeEditor.select(nativeCodeSource.indexOf('second') + 3)
+nativeCodeEditor.insert('X')
+check('editing inside a native code wrapper preserves source positions',
+  nativeCodeEditor.getMarkdown() === nativeCodeSource.replace('second', 'secXond'))
+nativeCodeHost.querySelector('.cm-content').dispatchEvent(new dom.window.KeyboardEvent('keydown', {
+  key: 'z', code: 'KeyZ', ctrlKey: true, bubbles: true, cancelable: true,
+}))
+check('native code wrapper editing supports undo', nativeCodeEditor.getMarkdown() === nativeCodeSource)
+nativeCodeEditor.destroy()
+
 const listLikeCodeHost = dom.window.document.createElement("div")
 dom.window.document.body.appendChild(listLikeCodeHost)
 const listLikeCodeEditor = dom.window.MDEditor.create(
@@ -640,6 +670,30 @@ check("Setext source line uses collapsed overlay styling",
   setextHost.querySelector(".cm-md-setext-marker-line") != null
   && setextHost.querySelector(".cm-md-setext-source")?.textContent === "=====")
 setextEditor.destroy()
+
+const markerHost = dom.window.document.createElement("div")
+dom.window.document.body.appendChild(markerHost)
+const markerSource = "## [Unreleased]\n\n- **Bold** and *italic*\n\n[Real link](https://example.com)"
+const markerEditor = dom.window.MDEditor.create(markerHost, markerSource, {})
+for (const position of [0, markerSource.indexOf("Bold"), markerSource.indexOf("Real link")]) {
+  markerEditor.select(position)
+  check(`Markdown markers do not inherit code metadata colors at ${position}`,
+    markerHost.querySelector(".hl-meta") == null)
+}
+check("actual Markdown links retain link styling", markerHost.querySelector(".cm-md-link") != null)
+check("marker styling preserves Markdown source", markerEditor.getMarkdown() === markerSource)
+markerEditor.destroy()
+
+const preprocessorHost = dom.window.document.createElement("div")
+dom.window.document.body.appendChild(preprocessorHost)
+const preprocessorSource = "```c\n#include <stdio.h>\nint answer = 42;\n```"
+const preprocessorEditor = dom.window.MDEditor.create(preprocessorHost, preprocessorSource, {})
+for (const position of [0, preprocessorSource.indexOf("include")]) {
+  preprocessorEditor.select(position)
+  check(`code preprocessors keep metadata highlighting at ${position}`,
+    preprocessorHost.querySelector(".hl-meta")?.textContent.includes("#include"))
+}
+preprocessorEditor.destroy()
 
 const leadingCodeHost = dom.window.document.createElement("div")
 dom.window.document.body.appendChild(leadingCodeHost)
@@ -763,6 +817,8 @@ check("typing an opening fence inserts its own closing fence",
 const emptyCodeLine = autoFenceHost.querySelector(".cm-md-codeblock-first")
 check("auto-closed empty code line keeps its caret buffer after the language widget",
   emptyCodeLine?.querySelector(".cm-md-code-language + .cm-widgetBuffer") != null)
+check('empty code block keeps its editable line in a native scroll wrapper',
+  emptyCodeLine?.closest('.cm-md-code-card') != null)
 autoFenceEditor.insert("body")
 check("auto-closed fence leaves the cursor in its content",
   autoFenceEditor.getMarkdown() === "intro\n```\nbody\n```")
@@ -1049,10 +1105,8 @@ const selectedBottomRight = dragTableHost.querySelector(
 )
 check("dragging across rows and columns selects the anchor-to-head rectangle",
   dragSelectedWidget?.querySelectorAll(".is-table-part-selected").length === 4
-    && selectedTopLeft?.classList.contains("is-table-selection-top")
-    && selectedTopLeft?.classList.contains("is-table-selection-left")
-    && selectedBottomRight?.classList.contains("is-table-selection-bottom")
-    && selectedBottomRight?.classList.contains("is-table-selection-right"))
+    && selectedTopLeft?.classList.contains("is-table-part-selected")
+    && selectedBottomRight?.classList.contains("is-table-part-selected"))
 check("cell-range selection persists after pointer release without native text selection",
   dragSelectedWidget?.classList.contains("is-table-range-selected")
     && dom.window.getSelection()?.rangeCount === 0)
@@ -1063,7 +1117,7 @@ dragSelectedWidget?.dispatchEvent(new dom.window.KeyboardEvent("keydown", {
 }))
 check("Escape clears a dragged cell range",
   dragSelectedWidget?.querySelectorAll(".is-table-part-selected").length === 0)
-dragStartCell?.dispatchEvent(new dom.window.MouseEvent("mousedown", {
+const nativeCellClickAllowed = dragStartCell?.dispatchEvent(new dom.window.MouseEvent("mousedown", {
   button: 0,
   buttons: 1,
   clientX: 100,
@@ -1083,9 +1137,8 @@ dragStartCell?.dispatchEvent(new dom.window.MouseEvent("click", {
   bubbles: true,
   cancelable: true,
 }))
-check("an ordinary cell click still restores the editing caret",
-  dom.window.getSelection()?.rangeCount === 1
-    && dragStartCell?.contains(dom.window.getSelection()?.anchorNode))
+check("an ordinary cell click allows native caret placement and selection",
+  nativeCellClickAllowed === true)
 const dragHeaderCell = dragTableHost.querySelector(
   '[data-table-row="0"][data-table-column="1"]'
 )

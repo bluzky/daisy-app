@@ -77,11 +77,11 @@ extension DocumentWindowController {
             // well raced the anchor hand-off and re-laid the preview out
             // twice, which showed as jitter during the mode switch. The
             // formatting accessory likewise stays mounted until the overlay
-            // has faded — removing it earlier reflows the content area in
-            // the middle of the crossfade.
+            // is hidden — removing it earlier reflows the content area in
+            // the middle of the visibility swap.
             self.exitEditMode(rerender: true,
                               preserveUnsavedChanges: true,
-                              hidesAccessoryAfterFade: true) {}
+                              hidesAccessoryAfterSwap: true) {}
         }
     }
 
@@ -431,7 +431,7 @@ extension DocumentWindowController {
 
     private func exitEditMode(rerender: Bool,
                               preserveUnsavedChanges: Bool = false,
-                              hidesAccessoryAfterFade: Bool = false,
+                              hidesAccessoryAfterSwap: Bool = false,
                               completion: @escaping () -> Void) {
         guard let split = mainSplit else {
             completion()
@@ -443,11 +443,15 @@ extension DocumentWindowController {
         split.editorViewController?.pasteImageRequested = nil
         split.editorViewController?.imageClicked = nil
         documentWindow.makeFirstResponder(nil)
-        let overlayHidden: (() -> Void)? = hidesAccessoryAfterFade
-            ? { [weak self] in self?.dismissEditChrome() }
-            : nil
+        let overlayHidden: @MainActor () -> Void = { [weak self] in
+            if hidesAccessoryAfterSwap { self?.dismissEditChrome() }
+            else { self?.updateEditToolbarItem() }
+        }
         split.exitEditMode(waitForPreviewRender: rerender,
-                           overlayHidden: overlayHidden) { [weak self] in
+                           renderPreview: { [weak self] in
+            guard rerender, let self, let markdown = self.currentMarkdown else { return }
+            self.renderCurrentDocument(text: markdown, fileURL: self.currentFileURL)
+        }, overlayHidden: overlayHidden) { [weak self] in
             guard let self else {
                 completion()
                 return
@@ -457,9 +461,6 @@ extension DocumentWindowController {
             }
             if self.editBar == nil {
                 self.updateEditToolbarItem()
-            }
-            if rerender, let markdown = self.currentMarkdown {
-                self.renderCurrentDocument(text: markdown, fileURL: self.currentFileURL)
             }
             completion()
         }
@@ -537,153 +538,26 @@ extension DocumentWindowController {
         let diskState = diskFileState(for: currentFileURL, expectedMarkdown: baseline)
         saveEditedMarkdown(updated, diskState: diskState) { [weak self] result in
             guard let self else { return }
+            let markdown: String
             switch result {
             case .saved:
-                self.currentMarkdown = updated
-                if let url = self.currentFileURL {
-                    self.markdownDocument?.replaceContents(markdown: updated, fileURL: url)
-                    self.renderCurrentDocument(text: updated, fileURL: url)
-                }
+                markdown = updated
             case let .reloaded(externalMarkdown):
-                self.currentMarkdown = externalMarkdown
-                if let url = self.currentFileURL {
-                    self.markdownDocument?.replaceContents(markdown: externalMarkdown, fileURL: url)
-                    self.renderCurrentDocument(text: externalMarkdown, fileURL: url)
-                }
+                markdown = externalMarkdown
             case .cancelled:
                 self.rerenderCurrentPreview()
+                return
             }
-        }
-    }
-
-    func applyTableEdit(_ request: MarkdownTableEditRequest) {
-        guard !isEditing,
-              let baseline = currentMarkdown else {
-            rerenderCurrentPreview()
-            return
-        }
-        let updated = request.edits.reduce(Optional(baseline)) { markdown, edit in
-            markdown.flatMap {
-                MarkdownTableSource.applying(
-                    edit,
-                    fromLine: request.startLine,
-                    throughLine: request.endLine,
-                    in: $0
-                )
-            }
-        }
-        guard let updated,
-              updated != baseline else {
-            rerenderCurrentPreview()
-            return
-        }
-
-        let diskState = diskFileState(for: currentFileURL, expectedMarkdown: baseline)
-        let actionName = tableUndoActionName(for: request.edits)
-        saveEditedMarkdown(updated, diskState: diskState) { [weak self] result in
-            guard let self else { return }
-            switch result {
-            case .saved:
-                self.currentMarkdown = updated
-                if let url = self.currentFileURL {
-                    self.markdownDocument?.replaceContents(markdown: updated, fileURL: url)
-                    self.renderCurrentDocument(text: updated, fileURL: url)
-                    self.registerTableUndo(
-                        restoring: baseline,
-                        expectedCurrentMarkdown: updated,
-                        fileURL: url,
-                        actionName: actionName
-                    )
-                }
-            case let .reloaded(externalMarkdown):
-                self.tableUndoManager.removeAllActions()
-                self.currentMarkdown = externalMarkdown
-                if let url = self.currentFileURL {
-                    self.markdownDocument?.replaceContents(markdown: externalMarkdown, fileURL: url)
-                    self.renderCurrentDocument(text: externalMarkdown, fileURL: url)
-                }
-            case .cancelled:
-                self.rerenderCurrentPreview()
-            }
-        }
-    }
-
-    private func tableUndoActionName(for edits: [MarkdownTableEdit]) -> String {
-        for edit in edits.reversed() {
-            switch edit {
-            case .setCell:
-                return NSLocalizedString("Edit Table Cell", comment: "Table edit undo action")
-            case .insertRowBefore, .insertRowAfter:
-                return NSLocalizedString("Add Row", comment: "Table edit undo action")
-            case .deleteRow:
-                return NSLocalizedString("Delete Row", comment: "Table edit undo action")
-            case .insertColumnBefore, .insertColumnAfter:
-                return NSLocalizedString("Add Column", comment: "Table edit undo action")
-            case .deleteColumn:
-                return NSLocalizedString("Delete Column", comment: "Table edit undo action")
-            }
-        }
-        return NSLocalizedString("Edit Table", comment: "Table edit undo action")
-    }
-
-    private func registerTableUndo(restoring markdown: String,
-                                   expectedCurrentMarkdown: String,
-                                   fileURL: URL,
-                                   actionName: String) {
-        tableUndoManager.registerUndo(withTarget: self) { target in
-            target.restoreTableMarkdown(
-                markdown,
-                expectedCurrentMarkdown: expectedCurrentMarkdown,
-                fileURL: fileURL,
-                actionName: actionName
-            )
-        }
-        tableUndoManager.setActionName(actionName)
-    }
-
-    private func restoreTableMarkdown(_ markdown: String,
-                                      expectedCurrentMarkdown: String,
-                                      fileURL: URL,
-                                      actionName: String) {
-        guard !isEditing,
-              !isTableUndoSaveInFlight,
-              currentFileURL?.standardizedFileURL == fileURL.standardizedFileURL,
-              currentMarkdown == expectedCurrentMarkdown else {
-            tableUndoManager.removeAllActions()
-            return
-        }
-
-        // Register while UndoManager is actively undoing or redoing so AppKit
-        // puts this inverse operation on the opposite stack immediately. The
-        // file write can become asynchronous if sandbox permission is needed.
-        registerTableUndo(
-            restoring: expectedCurrentMarkdown,
-            expectedCurrentMarkdown: markdown,
-            fileURL: fileURL,
-            actionName: actionName
-        )
-        isTableUndoSaveInFlight = true
-        let diskState = diskFileState(for: currentFileURL,
-                                      expectedMarkdown: expectedCurrentMarkdown)
-        saveEditedMarkdown(markdown, diskState: diskState) { [weak self] result in
-            guard let self else { return }
-            self.isTableUndoSaveInFlight = false
-            switch result {
-            case .saved:
-                self.currentMarkdown = markdown
-                self.markdownDocument?.replaceContents(markdown: markdown, fileURL: fileURL)
-                self.renderCurrentDocument(text: markdown, fileURL: fileURL)
-            case let .reloaded(externalMarkdown):
-                self.tableUndoManager.removeAllActions()
-                self.currentMarkdown = externalMarkdown
-                self.markdownDocument?.replaceContents(
-                    markdown: externalMarkdown,
-                    fileURL: fileURL
-                )
-                self.renderCurrentDocument(text: externalMarkdown, fileURL: fileURL)
-            case .cancelled:
-                self.tableUndoManager.removeAllActions()
-                self.rerenderCurrentPreview()
+            // Read Mode can be previewing an unsaved editor draft. A saved or
+            // reloaded result replaces that session, including its disk baseline.
+            self.editorDraftMarkdown = nil
+            self.editorBaselineMarkdown = nil
+            self.editorChangeRevision = 0
+            self.hasUnsavedEditorChanges = false
+            self.currentMarkdown = markdown
+            if let url = self.currentFileURL {
+                self.markdownDocument?.replaceContents(markdown: markdown, fileURL: url)
+                self.renderCurrentDocument(text: markdown, fileURL: url)
             }
         }
     }
@@ -716,7 +590,8 @@ extension DocumentWindowController {
         alert.addButton(withTitle: NSLocalizedString("Reload from Disk", comment: "Conflict alert button"))
         alert.addButton(withTitle: NSLocalizedString("Cancel", comment: "Alert button"))
         alert.beginSheetModal(for: documentWindow) { [weak self] response in
-            guard let self else {
+            guard let self,
+                  self.currentFileURL?.standardizedFileURL == fileURL.standardizedFileURL else {
                 completion(.cancelled)
                 return
             }
@@ -761,7 +636,8 @@ extension DocumentWindowController {
         alert.addButton(withTitle: overwriteTitle)
         alert.addButton(withTitle: NSLocalizedString("Cancel", comment: "Alert button"))
         alert.beginSheetModal(for: documentWindow) { [weak self] response in
-            guard let self, response == .alertFirstButtonReturn else {
+            guard let self, response == .alertFirstButtonReturn,
+                  self.currentFileURL?.standardizedFileURL == fileURL.standardizedFileURL else {
                 completion(.cancelled)
                 return
             }
@@ -774,6 +650,12 @@ extension DocumentWindowController {
         to url: URL,
         completion: @escaping (EditedMarkdownSaveResult) -> Void
     ) {
+        // Conflict and permission sheets can outlive a rename or navigation.
+        // Never recreate the old path or apply its result to another document.
+        guard currentFileURL?.standardizedFileURL == url.standardizedFileURL else {
+            completion(.cancelled)
+            return
+        }
         if write(text, to: url) {
             completion(.saved)
             return
@@ -794,7 +676,8 @@ extension DocumentWindowController {
             comment: "Save panel permission message"
         )
         panel.beginSheetModal(for: documentWindow) { [weak self] response in
-            guard let self, response == .OK, let chosen = panel.url else {
+            guard let self, response == .OK, let chosen = panel.url,
+                  self.currentFileURL?.standardizedFileURL == url.standardizedFileURL else {
                 completion(.cancelled)
                 return
             }

@@ -15,6 +15,7 @@ extension NSToolbarItem.Identifier {
     static let inspector = NSToolbarItem.Identifier("Inspector")
     static let share = NSToolbarItem.Identifier("Share")
     static let search = NSToolbarItem.Identifier("Search")
+    static let searchForDocument = NSToolbarItem.Identifier("SearchForDocument")
     /// The sidebar show/hide toggle. The raw value predates the mode picker
     /// and is kept so saved toolbar layouts still resolve.
     static let sidebarMenu = NSToolbarItem.Identifier("SidebarMenu")
@@ -44,18 +45,15 @@ extension DocumentWindowController {
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         // Inside the sidebar's titlebar area: the pane picker at the leading
         // edge, the show/hide toggle at the trailing edge next to the
-        // separator. Pre-26 there is no sidebar-tracking region, so the two
-        // sit together at the leading edge instead.
+        // separator. The tracking separator is available on every supported
+        // macOS version and keeps these controls above the sidebar.
         // The toggle is the system item: AppKit lays it out correctly when
         // the sidebar section collapses, and it reaches
         // MainSplitViewController.toggleSidebar(_:) through the responder
         // chain.
-        let leading: [NSToolbarItem.Identifier]
-        if #available(macOS 26.0, *) {
-            leading = [.sidebarMode, .flexibleSpace, .toggleSidebar, .sidebarTrackingSeparator]
-        } else {
-            leading = [.toggleSidebar, .sidebarMode]
-        }
+        let leading: [NSToolbarItem.Identifier] = [
+            .sidebarMode, .flexibleSpace, .toggleSidebar, .sidebarTrackingSeparator
+        ]
         let identifiers: [NSToolbarItem.Identifier] = leading + [
             .navigation,
             .flexibleSpace,
@@ -74,6 +72,22 @@ extension DocumentWindowController {
         return identifiers
     }
 
+    /// Repair the old pre-26 default without resetting customized toolbars.
+    func migrateLegacySidebarToolbarIfNeeded(in toolbar: NSToolbar) {
+        guard #unavailable(macOS 26.0) else { return }
+        let identifiers = toolbar.items.map(\.itemIdentifier)
+        guard !identifiers.contains(.sidebarTrackingSeparator),
+              Array(identifiers.prefix(2)) == [.toggleSidebar, .sidebarMode] else { return }
+        toolbar.removeItem(at: 1)
+        toolbar.removeItem(at: 0)
+        let leading: [NSToolbarItem.Identifier] = [
+            .sidebarMode, .flexibleSpace, .toggleSidebar, .sidebarTrackingSeparator
+        ]
+        for (index, identifier) in leading.enumerated() {
+            toolbar.insertItem(withItemIdentifier: identifier, at: index)
+        }
+    }
+
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         var identifiers: [NSToolbarItem.Identifier] = [
             .toggleSidebar,
@@ -89,6 +103,7 @@ extension DocumentWindowController {
             .inspector,
             .share,
             .search,
+            .searchForDocument,
             .printDocument,
             .exportPDF,
             .exportDocument,
@@ -101,6 +116,69 @@ extension DocumentWindowController {
             identifiers.insertAfterOpenActions(.openInLLM)
         }
         return identifiers
+    }
+
+    /// Restore shared preferences into this window's independent toolbar.
+    /// Keep a complete item order alongside AppKit's opaque configuration.
+    func restoreToolbarItemOrder(_ toolbar: NSToolbar) {
+        let key = "MainToolbar.expandedItemIdentifiers"
+        if let saved = UserDefaults.standard.stringArray(forKey: key) {
+            toolbar.itemIdentifiers = saved.map { NSToolbarItem.Identifier($0) }
+        }
+    }
+
+    /// Save migrations immediately, before another window can restore them.
+    func observeAndPersistToolbarPreferences(_ toolbar: NSToolbar) {
+        toolbarItemOrderPersistenceReady = true
+        saveToolbarItemOrder(toolbar)
+        saveToolbarDisplayPreferences(toolbar)
+        toolbarPreferenceObservations = [
+            toolbar.observe(\.displayMode) { [weak self] _, _ in
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, let toolbar = self.documentWindow.toolbar else { return }
+                    self.saveToolbarDisplayPreferences(toolbar)
+                }
+            },
+            toolbar.observe(\.isVisible) { [weak self] _, _ in
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, let toolbar = self.documentWindow.toolbar else { return }
+                    self.saveToolbarDisplayPreferences(toolbar)
+                }
+            }
+        ]
+    }
+
+    func toolbarWillAddItem(_ notification: Notification) {
+        persistCustomizedToolbarItemOrder()
+    }
+
+    func toolbarDidRemoveItem(_ notification: Notification) {
+        persistCustomizedToolbarItemOrder()
+    }
+
+    private func persistCustomizedToolbarItemOrder() {
+        guard toolbarItemOrderPersistenceReady, !sidebarToolbarSyncInProgress else { return }
+        // willAdd is delivered before insertion. Save after AppKit finishes
+        // the operation, including reorder and default-set replacement.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, let toolbar = self.documentWindow.toolbar else { return }
+            self.saveToolbarItemOrder(toolbar)
+            self.syncSidebarToolbarState()
+        }
+    }
+
+    private func saveToolbarItemOrder(_ toolbar: NSToolbar) {
+        let complete = SidebarToolbarItemOrder.complete(
+            toolbar.items.map { $0.itemIdentifier.rawValue },
+            removedPlacement: collapsedSidebarModePlacement
+        )
+        UserDefaults.standard.set(complete, forKey: "MainToolbar.expandedItemIdentifiers")
+    }
+
+    /// The canonical item order is saved only on item edits or initialization.
+    /// Display changes in another window must not overwrite that shared order.
+    private func saveToolbarDisplayPreferences(_ toolbar: NSToolbar) {
+        UserDefaults.standard.set(toolbar.configuration, forKey: "MainToolbar.configuration")
     }
 
     func toolbar(_ toolbar: NSToolbar,
@@ -120,6 +198,7 @@ extension DocumentWindowController {
         case .alwaysOnTop: return makeAlwaysOnTopItem(willBeInsertedIntoToolbar: flag)
         case .share: return makeShareItem()
         case .search: return makeSearchItem()
+        case .searchForDocument: return makeSearchForDocumentItem()
         case .printDocument: return makePrintItem()
         case .exportPDF: return makeExportPDFItem()
         case .exportDocument: return makeExportItem()
@@ -130,25 +209,28 @@ extension DocumentWindowController {
         }
     }
 
-    /// Back and forward as an AppKit-owned group rather than an
-    /// `NSSegmentedControl` in a custom view. A toolbar only keeps window-drag
-    /// regions around items it draws itself, so hosting a control here is what
-    /// cost the toolbar its drag surface in the first place.
+    /// The system's paired navigation control: an `NSToolbarItemGroup` built
+    /// by the segmented convenience constructor, which is what draws the
+    /// divider between the chevrons. `labels` stays nil — a non-nil labels
+    /// array reserves per-segment label width and is what made the pair wider
+    /// than the system's own back/forward.
     private func makeNavigationItem(willBeInsertedIntoToolbar: Bool) -> NSToolbarItem {
         let back = NSLocalizedString("Back", comment: "Navigation toolbar back button")
         let forward = NSLocalizedString("Forward", comment: "Navigation toolbar forward button")
-        let backImage = NSImage(systemSymbolName: "chevron.left", accessibilityDescription: back) ?? NSImage()
-        let forwardImage = NSImage(systemSymbolName: "chevron.right", accessibilityDescription: forward) ?? NSImage()
+        let backImage = NSImage(systemSymbolName: "chevron.backward", accessibilityDescription: back) ?? NSImage()
+        let forwardImage = NSImage(systemSymbolName: "chevron.forward", accessibilityDescription: forward) ?? NSImage()
 
         let item = NSToolbarItemGroup(itemIdentifier: .navigation,
                                       images: [backImage, forwardImage],
                                       selectionMode: .momentary,
-                                      labels: [back, forward],
+                                      labels: nil,
                                       target: self,
                                       action: #selector(navigateHistory(_:)))
         item.label = NSLocalizedString("Navigation", comment: "Navigation toolbar item label")
         item.paletteLabel = NSLocalizedString("Back and Forward", comment: "Navigation toolbar palette label")
         item.isNavigational = true
+        // Keep both arrows visible when the toolbar runs out of room.
+        item.controlRepresentation = .expanded
         item.autovalidates = false
         item.subitems.first?.toolTip = back
         item.subitems.last?.toolTip = forward

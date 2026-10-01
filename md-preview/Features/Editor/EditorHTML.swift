@@ -3,7 +3,7 @@ import Foundation
 
 nonisolated enum EditorHTML {
     /// Space reserved for the editable language control above fenced code.
-    static let codeLanguageHeaderHeight: CGFloat = 20
+    static let codeLanguageHeaderHeight: CGFloat = 28
 
     struct Configuration {
         var fullWidth = false
@@ -41,7 +41,7 @@ nonisolated enum EditorHTML {
             --secondary: -apple-system-secondary-label;
             --quote-border: -apple-system-quaternary-label;
             --grid: -apple-system-separator;
-            --accent: -apple-system-control-accent;
+            --accent: var(--link);
             --link: rgb(0, 104, 218);
             --code-bg: #f9f9f9;
             --code-border: #f0f0f0;
@@ -61,6 +61,7 @@ nonisolated enum EditorHTML {
             padding: 0;
             height: 100%;
             overflow: hidden;
+            overscroll-behavior-x: none;
             background: \(lightPageBackground);
         }
         @media (prefers-color-scheme: dark) {
@@ -83,7 +84,9 @@ nonisolated enum EditorHTML {
            this block — and it sets .cm-scroller to monospace. Win on
            specificity (#editor), not on order. */
         #editor .cm-scroller {
-            overflow: auto;
+            overflow-x: hidden;
+            overflow-y: auto;
+            overscroll-behavior-x: none;
             /* Keep page gutters outside the editable content column. */
             padding-inline: \(MarkdownHTML.pagePaddingHorizontal)px;
             /* Document clearance is outside contenteditable and scrolls
@@ -280,6 +283,45 @@ nonisolated enum EditorHTML {
             padding-inline-start: 2.1em;
             text-indent: -2.1em;
         }
+        .cm-md-task-completed {
+            color: var(--secondary);
+            text-decoration: line-through;
+        }
+        #editor .cm-md-task-line {
+            text-indent: 0 !important;
+        }
+        .cm-md-task-marker {
+            display: inline;
+        }
+        .cm-md-task-marker input {
+            appearance: none;
+            -webkit-appearance: none;
+            font: inherit;
+            width: 0.9em;
+            height: 0.9em;
+            margin: 0;
+            margin-inline-start: calc(-0.9em - 0.25em);
+            margin-inline-end: 0.25em;
+            vertical-align: calc(0.5cap - 0.45em);
+            border: 1.5px solid var(--grid);
+            border-radius: 25%;
+            background: transparent;
+            position: relative;
+            cursor: pointer;
+        }
+        .cm-md-task-marker input:checked {
+            border-color: var(--accent);
+            background: var(--accent);
+        }
+        .cm-md-task-marker input:checked::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M4.4 8.4 L7 11 L11.6 5.4" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>');
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: 100% 100%;
+        }
         .cm-md-bullet {
             display: inline-block;
             width: 2.1em;
@@ -302,7 +344,7 @@ nonisolated enum EditorHTML {
             transform: translateY(-50%);
             width: 0;
             height: 0;
-            border: 0.2em solid var(--accent);
+            border: 0.2em solid var(--link);
             border-radius: 50%;
         }
         /* Keep the active raw "- " marker in the same hanging box as the
@@ -330,7 +372,7 @@ nonisolated enum EditorHTML {
             box-sizing: border-box;
             font-variant-numeric: tabular-nums;
         }
-        .cm-md-ordered { color: var(--accent); }
+        .cm-md-ordered { color: var(--link); }
         .cm-md-ordered-source { color: var(--secondary); }
         /* Continuation lines of an item keep the depth padding but no hanging
            indent, so they align with the item text like the preview. */
@@ -352,70 +394,65 @@ nonisolated enum EditorHTML {
             border-top: 1px solid var(--grid);
             vertical-align: top;
         }
+        #editor .cm-md-code-card {
+            position: relative;
+            container-type: inline-size;
+            display: grid;
+            grid-template-columns: max-content;
+            /* Classic horizontal scrollbars must not stretch the code rows
+               or introduce a second scrollbar that shifts the sticky header. */
+            grid-auto-rows: max-content;
+            align-content: start;
+            overflow-x: auto;
+            overflow-y: hidden;
+            border: 0.5px solid var(--code-border);
+            border-radius: 16px;
+            background: var(--code-bg);
+        }
         #editor .cm-md-codeblock {
             font-family: ui-monospace, "SF Mono", Menlo, monospace;
             font-size: 1em;
             line-height: 1.3;
             position: relative;
-            /* Use real borders so WebKit snaps the same 0.5px width as the
-               read-mode card on both Retina and standard-density displays. */
-            padding: 0 16px;
-            border-inline: 0.5px solid transparent;
-            overflow-x: auto;
-            overflow-y: hidden;
-            scrollbar-width: none;
+            padding: 0;
+            white-space: pre;
+            min-width: 100cqw;
         }
-        #editor .cm-content.cm-lineWrapping > .cm-md-codeblock { white-space: pre; }
         #editor .cm-md-code-scroll-text {
             display: inline-block;
-            min-width: var(--code-scroll-width, 0px);
+            padding-inline: 16px;
         }
-        #editor .cm-md-codeblock-last { scrollbar-width: thin; }
-        /* The code card is painted on a z:-2 pseudo instead of the line
-           itself, so it matches the preview's opaque --code-bg and never
-           covers the native selection or the caret. */
-        #editor .cm-md-codeblock::before {
-            content: "";
-            position: absolute;
-            inset: 0;
-            z-index: -2;
-            background: var(--code-bg);
-            min-width: calc(var(--code-scroll-width, 0px) + 32px);
+        #editor .cm-md-codeblock:not(.cm-md-code-wrapped):not(:has(.cm-md-code-scroll-text)) {
+            box-sizing: border-box;
+            padding-inline-start: 16px;
         }
-        #editor .cm-content > .cm-line.cm-md-codeblock-first {
-            padding-top: 16px;
-            border-top: 0.5px solid transparent;
-            position: relative;
+        #editor .cm-md-codeblock:not(.cm-md-code-wrapped):not(:has(.cm-md-code-scroll-text)) .cm-md-code-language {
+            margin-inline-start: -7px;
         }
-        #editor .cm-md-codeblock-first::before {
-            border-radius: 8px 8px 0 0;
-        }
-        #editor .cm-md-codeblock-last {
-            padding-bottom: 16px;
-            border-bottom: 0.5px solid transparent;
-        }
-        #editor .cm-md-codeblock-last::before {
-            border-radius: 0 0 8px 8px;
-        }
-        /* A single content line owns both ends of the card. */
-        #editor .cm-md-codeblock-first.cm-md-codeblock-last::before {
-            border-radius: 8px;
-        }
-        /* Reserve a header row so the language never competes with code,
-           including wrapped lines and blocks at the start of a document. */
-        #editor .cm-content > .cm-line.cm-md-codeblock-first:has(.cm-md-code-language) {
+        #editor .cm-md-codeblock-first { padding-top: 16px; }
+        #editor .cm-md-codeblock-last { padding-bottom: 16px; }
+        #editor .cm-md-codeblock-first:has(.cm-md-code-language) {
             padding-top: calc(16px + \(codeLanguageHeaderHeight)px);
         }
         #editor .cm-md-code-fence-source-hidden {
             visibility: hidden;
         }
         #editor .cm-md-code-language {
-            position: absolute;
+            /* Native sticky positioning keeps controls fixed during async
+               scrolling, before JavaScript receives the scroll event. */
+            position: sticky;
             /* Text starts at the same 16px inset as the read-only label:
                subtract the input's padding and 1px border. */
             inset-inline-start: 9px;
-            max-width: calc(100% - 21px);
-            top: 9px;
+            margin-inline: 9px 10px;
+            margin-top: calc(-8px - \(codeLanguageHeaderHeight)px);
+            margin-bottom: 8px;
+            width: calc(100cqw - 19px);
+            height: 28px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            cursor: default;
             z-index: 1;
             line-height: 1;
             white-space: nowrap;
@@ -423,6 +460,8 @@ nonisolated enum EditorHTML {
         #editor .cm-md-code-language-input {
             display: block;
             width: 14em;
+            flex: 0 1 14em;
+            margin-inline-end: auto;
             max-width: 100%;
             min-width: 4.5em;
             box-sizing: border-box;
@@ -434,6 +473,18 @@ nonisolated enum EditorHTML {
             font: 11px/14px -apple-system, BlinkMacSystemFont, sans-serif;
             outline: none;
         }
+        #editor .cm-md-code-action {
+            display: inline-flex; align-items: center; justify-content: center;
+            flex: none; width: 28px; height: 28px; padding: 0;
+            appearance: none; border: 0; border-radius: 50%;
+            color: var(--secondary); background: transparent; cursor: pointer;
+        }
+        #editor .cm-md-code-action:hover { color: var(--text); background: color-mix(in srgb, var(--text) 10%, transparent); }
+        #editor .cm-md-code-action:focus-visible { outline: 2px solid AccentColor; outline-offset: 1px; }
+        #editor .cm-md-code-card-wrapped { grid-template-columns: minmax(0, 1fr); }
+        #editor .cm-md-code-wrapped { min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; padding-inline: 16px; }
+        #editor .cm-md-code-wrapped .cm-md-code-scroll-text { display: inline; padding-inline: 0; }
+        #editor .cm-md-code-wrapped .cm-md-code-language { position: relative; inset-inline-start: auto; margin-inline: -7px; }
         #editor .cm-md-code-language-input::placeholder {
             color: var(--secondary);
             opacity: 0.8;
@@ -516,7 +567,7 @@ nonisolated enum EditorHTML {
             position: relative;
             width: fit-content;
             /* Outer spacing comes from the block separator lines, matching
-               the preview's .md-table-scroll margin. */
+               the preview's table margin. */
             margin: 0;
             max-width: 100%;
             overflow: visible;
@@ -547,7 +598,6 @@ nonisolated enum EditorHTML {
         }
         .cm-md-table-grid th {
             font-weight: 600;
-            background: color-mix(in srgb, Canvas 94%, var(--grid));
         }
         .cm-md-table-cell {
             min-height: calc(\(MarkdownHTML.bodyFontSize)px * \(MarkdownHTML.bodyLineHeight));
@@ -564,34 +614,13 @@ nonisolated enum EditorHTML {
             opacity: 0.72;
             pointer-events: none;
         }
+        /* Match the document's quiet, text-first editing surface. The caret
+           identifies the insertion point; a tint marks the active cell. */
         .cm-md-table-cell:focus {
-            outline: 2px solid var(--accent);
-            outline-offset: -2px;
             background: color-mix(in srgb, var(--accent) 8%, transparent);
         }
         .cm-md-table-cell.is-table-part-selected {
-            --table-selection-top-edge: 0 0 transparent;
-            --table-selection-right-edge: 0 0 transparent;
-            --table-selection-bottom-edge: 0 0 transparent;
-            --table-selection-left-edge: 0 0 transparent;
-            background: color-mix(in srgb, var(--accent) 14%, Canvas);
-            box-shadow:
-                var(--table-selection-top-edge),
-                var(--table-selection-right-edge),
-                var(--table-selection-bottom-edge),
-                var(--table-selection-left-edge);
-        }
-        .cm-md-table-cell.is-table-selection-top {
-            --table-selection-top-edge: inset 0 1px color-mix(in srgb, var(--accent) 52%, transparent);
-        }
-        .cm-md-table-cell.is-table-selection-right {
-            --table-selection-right-edge: inset -1px 0 color-mix(in srgb, var(--accent) 52%, transparent);
-        }
-        .cm-md-table-cell.is-table-selection-bottom {
-            --table-selection-bottom-edge: inset 0 -1px color-mix(in srgb, var(--accent) 52%, transparent);
-        }
-        .cm-md-table-cell.is-table-selection-left {
-            --table-selection-left-edge: inset 1px 0 color-mix(in srgb, var(--accent) 52%, transparent);
+            background: color-mix(in srgb, var(--accent) 16%, transparent);
         }
         /* Page scrolling lets WebKit own the native toolbar backdrop.
            The macOS 15 editor keeps its internal scroller. */
@@ -599,6 +628,10 @@ nonisolated enum EditorHTML {
         html[data-page-scrolling="true"] body {
             height: auto;
             overflow: visible;
+        }
+        html[data-page-scrolling="true"] {
+            overflow-x: hidden;
+            overflow-y: auto;
         }
         html[data-page-scrolling="true"] #editor,
         html[data-page-scrolling="true"] .cm-editor { height: auto; }
@@ -664,6 +697,7 @@ nonisolated enum EditorHTML {
                     {
                         pageScrolling: \(usesPageScrolling),
                         onDirty: function () { post("dirty"); },
+                        onCopyCode: function (text) { post({ kind: "copyCode", value: text }); },
                         onFormattingChange: function (state) {
                             post({ kind: "formattingState", heading: state.heading, commands: state.commands });
                         },

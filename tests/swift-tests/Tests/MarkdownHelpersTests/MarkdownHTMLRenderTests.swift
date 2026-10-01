@@ -39,7 +39,6 @@ final class MarkdownHTMLRenderTests: XCTestCase {
         XCTAssertTrue(rendered.articleHTML.contains("<img src=\"notes-pictures/1.png\""))
         XCTAssertTrue(rendered.html.contains("<base href=\"md-asset:///Users/me/notes/\">"))
         XCTAssertFalse(rendered.html.contains("kind: 'imageClick'"))
-        XCTAssertTrue(rendered.html.contains("a, button, input, img"))
     }
 
     func testYamlFrontmatterRendersAsTableBeforeDocumentBody() {
@@ -421,8 +420,8 @@ final class MarkdownHTMLRenderTests: XCTestCase {
         XCTAssertFalse(stylesheet.contains("::-webkit-selection"))
         XCTAssertFalse(stylesheet.contains("::-moz-selection"))
         // Code UI is not document text. The generated language label and
-        // copy control may opt out, but the Markdown content must not.
-        let allowedSelectors = ["pre[data-code-language]::before", ".md-code-copy"]
+        // card header may opt out, but the Markdown content must not.
+        let allowedSelectors = ["pre[data-code-language]::before", ".md-code-header"]
         XCTAssertEqual(nonSelectableRules.count, allowedSelectors.count)
         for selector in allowedSelectors {
             XCTAssertTrue(nonSelectableRules.contains { $0.contains(selector) }, selector)
@@ -488,7 +487,7 @@ final class MarkdownHTMLRenderTests: XCTestCase {
         XCTAssertTrue(css.contains("--text: -apple-system-label;"))
         XCTAssertTrue(css.contains("--secondary: -apple-system-secondary-label;"))
         XCTAssertTrue(css.contains("--grid: -apple-system-separator;"))
-        XCTAssertTrue(css.contains("--accent: -apple-system-control-accent;"))
+        XCTAssertTrue(css.contains("--accent: var(--link);"))
         XCTAssertTrue(css.contains("h1 { font-size: 2em; }"))
         XCTAssertTrue(css.contains("h6 { font-size: 0.846em; }"))
         // The highlighting palette is declared once and consumed by class rules.
@@ -686,7 +685,7 @@ final class MarkdownHTMLRenderTests: XCTestCase {
 
         XCTAssertTrue(rendered.html.contains("li:first-child { margin-top: 0; }"))
         XCTAssertTrue(rendered.html.contains("ul { list-style: none; }"))
-        XCTAssertTrue(rendered.html.contains(".md-code-wrap > pre { margin: 0; }"))
+        XCTAssertTrue(rendered.html.contains(".md-code-wrap > pre { margin: 0;"))
         XCTAssertTrue(rendered.html.contains(".md-code-wrap {"))
         XCTAssertTrue(rendered.html.contains("margin: \(MarkdownHTML.paragraphSpacing)px 0 0;"))
     }
@@ -2380,17 +2379,8 @@ final class MarkdownHTMLRenderTests: XCTestCase {
         XCTAssertTrue(rendered.articleHTML.contains(
             "<td data-table-row=\"1\" data-table-column=\"1\" data-table-markdown=\"10\" align=\"right\">10</td>"
         ), rendered.articleHTML)
-        XCTAssertTrue(rendered.html.contains("function enableTableEditing(root = document)"))
-        XCTAssertFalse(rendered.html.contains("md-table-edge-action"))
-        XCTAssertTrue(rendered.html.contains("kind: 'tableContextMenu'"))
-        XCTAssertTrue(rendered.html.contains("cell.dataset.placeholder = placeholder"))
-        XCTAssertTrue(rendered.html.contains("function selectTablePart(cell, operation)"))
-        XCTAssertTrue(rendered.html.contains("event.key === 'Backspace' || event.key === 'Delete'"))
-        XCTAssertTrue(rendered.html.contains("selectTableRange(tableCellDrag.cell, cell)"))
-        XCTAssertTrue(rendered.html.contains("window.getSelection()?.removeAllRanges()"))
-        XCTAssertTrue(rendered.html.contains(".md-table-editor .is-table-selection-left"))
-        XCTAssertTrue(rendered.html.contains("cell.hasAttribute('data-table-markdown')"))
-        XCTAssertTrue(rendered.html.contains("cell.dataset.tableOriginal = cell.dataset.tableMarkdown || ''"))
+        XCTAssertFalse(rendered.html.contains("kind: 'tableEdit'"))
+        XCTAssertFalse(rendered.html.contains("kind: 'tableContextMenu'"))
     }
 
     func testRenderedTableCellsRetainOriginalMarkdownForSourceAwareEditing() throws {

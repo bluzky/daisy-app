@@ -24,13 +24,14 @@ nonisolated extension MarkdownHTML {
         /* Semantic system colors. WebKit resolves them for the element's own
            color scheme, so the forced-scheme attribute and the media query
            below both get the right appearance without a second palette, and
-           the page follows the system accent and increased-contrast settings. */
+           labels and separators follow increased-contrast settings.
+           Accent colors follow the theme's link color. */
         --text: -apple-system-label;
         --secondary: -apple-system-secondary-label;
         --tertiary: -apple-system-tertiary-label;
         --quote-border: -apple-system-quaternary-label;
         --grid: -apple-system-separator;
-        --accent: -apple-system-control-accent;
+        --accent: var(--link);
         --link: rgb(0, 104, 218);
         --aside-bg: #f5f5f7;
         --aside-border: #696969;
@@ -410,52 +411,35 @@ nonisolated extension MarkdownHTML {
     .md-code-wrap {
         position: relative;
         margin: \(paragraphSpacing)px 0 0;
+        background: var(--code-bg);
+        border: 0.5px solid var(--code-border);
+        border-radius: 16px;
+        overflow: hidden;
     }
-    .md-code-wrap > pre { margin: 0; }
-    .md-code-copy {
-        position: absolute;
-        top: 8px;
-        right: 8px;
-        appearance: none;
-        min-width: 56px;
-        height: 24px;
-        padding: 0 10px;
-        border: none;
-        border-radius: 8px;
-        color: var(--secondary);
-        background: color-mix(in srgb, var(--text) 10%, var(--code-bg));
-        font: 500 11px/1 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
-        cursor: pointer;
-        opacity: 0;
-        transition: opacity 120ms ease,
-                    color 120ms ease,
-                    background-color 120ms ease,
-                    transform 120ms ease;
+    .md-code-wrap > pre { margin: 0; border: 0; border-radius: 0; padding-top: 8px; }
+    .md-code-wrap > pre::before { display: none; }
+    .md-code-wrap.is-wrapped > pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+    .md-code-header {
+        box-sizing: content-box;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        height: 28px;
+        padding: 8px 10px 0 16px;
         user-select: none;
         -webkit-user-select: none;
-        z-index: 2;
+        cursor: default;
     }
-    .md-code-wrap:hover .md-code-copy,
-    .md-code-wrap:focus-within .md-code-copy,
-    .md-code-copy.is-copied {
-        opacity: 1;
+    .md-code-language { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+        color: var(--secondary); font: 11px/14px -apple-system, BlinkMacSystemFont, sans-serif; }
+    .md-code-action {
+        display: inline-flex; align-items: center; justify-content: center;
+        flex: none; width: 28px; height: 28px; padding: 0;
+        appearance: none; border: 0; border-radius: 50%;
+        color: var(--secondary); background: transparent; cursor: pointer;
     }
-    .md-code-copy:hover {
-        color: var(--text);
-        background: color-mix(in srgb, var(--text) 16%, var(--code-bg));
-    }
-    .md-code-copy:active {
-        background: color-mix(in srgb, var(--text) 22%, var(--code-bg));
-        transform: scale(0.97);
-    }
-    .md-code-copy:focus-visible {
-        outline: none;
-        box-shadow: 0 0 0 3px color-mix(in srgb, AccentColor 60%, transparent);
-    }
-    @media (prefers-reduced-motion: reduce) {
-        .md-code-copy { transition: none; }
-        .md-code-copy:active { transform: none; }
-    }
+    .md-code-action:hover { color: var(--text); background: color-mix(in srgb, var(--text) 10%, transparent); }
+    .md-code-action:focus-visible { outline: 2px solid AccentColor; outline-offset: 1px; }
     .mermaid-figure {
         position: relative;
         margin: \(largeBlockSpacing)px auto 0;
@@ -669,7 +653,7 @@ nonisolated extension MarkdownHTML {
         padding-inline-start: var(--mdp-list-indent);
         padding-inline-end: 0;
     }
-    ol > li::marker { color: var(--accent); font-variant-numeric: tabular-nums; }
+    ol > li::marker { color: var(--link); font-variant-numeric: tabular-nums; }
     /* No text marker: it would paint as a selected box beside every item.
        The gutter comes from the list padding, a 0.4em circle is painted in
        its place, and copying a list yields its Markdown source, bullets
@@ -684,7 +668,7 @@ nonisolated extension MarkdownHTML {
         top: calc(0.5lh - 0.2em);
         width: 0;
         height: 0;
-        border: 0.2em solid var(--accent);
+        border: 0.2em solid var(--link);
         border-radius: 50%;
     }
     li { margin-top: \(listItemSpacing)px; }
@@ -706,8 +690,8 @@ nonisolated extension MarkdownHTML {
         width: 0.9em;
         height: 0.9em;
         margin: 0;
-        margin-inline-start: calc(-0.9em - var(--mdp-list-gap));
-        margin-inline-end: var(--mdp-list-gap);
+        margin-inline-start: calc(-0.9em - 0.25em);
+        margin-inline-end: 0.25em;
         vertical-align: calc(0.5cap - 0.45em);
         border: 1.5px solid var(--grid);
         border-radius: 25%;
@@ -748,63 +732,6 @@ nonisolated extension MarkdownHTML {
     :is(th, td)[align="center"] { text-align: center; }
     :is(th, td)[align="right"] { text-align: right; }
     :is(th, td)[align="left"] { text-align: left; }
-
-    .md-table-editor {
-        position: relative;
-        display: inline-block;
-        width: fit-content;
-        margin: \(largeBlockSpacing)px 0 0;
-        max-width: 100%;
-        overflow: visible;
-    }
-    .md-table-scroll {
-        width: fit-content;
-        max-width: 100%;
-        overflow-x: auto;
-    }
-    .md-table-scroll > table { margin-top: 0; }
-    .md-table-editor:focus { outline: none; }
-    .md-table-editor th,
-    .md-table-editor td { cursor: text; }
-    .md-table-editor th[data-placeholder]:empty::before {
-        content: attr(data-placeholder);
-        color: var(--secondary);
-        font-weight: 400;
-        opacity: 0.72;
-        pointer-events: none;
-    }
-    .md-table-editor th.is-editing,
-    .md-table-editor td.is-editing {
-        outline: 2px solid var(--accent);
-        outline-offset: -2px;
-        background: color-mix(in srgb, var(--accent) 8%, transparent);
-        white-space: pre-wrap;
-    }
-    .md-table-editor .is-table-part-selected {
-        --table-selection-top-edge: 0 0 transparent;
-        --table-selection-right-edge: 0 0 transparent;
-        --table-selection-bottom-edge: 0 0 transparent;
-        --table-selection-left-edge: 0 0 transparent;
-        background: color-mix(in srgb, var(--accent) 14%, Canvas);
-        box-shadow:
-            var(--table-selection-top-edge),
-            var(--table-selection-right-edge),
-            var(--table-selection-bottom-edge),
-            var(--table-selection-left-edge);
-    }
-    .md-table-editor .is-table-selection-top {
-        --table-selection-top-edge: inset 0 1px color-mix(in srgb, var(--accent) 52%, transparent);
-    }
-    .md-table-editor .is-table-selection-right {
-        --table-selection-right-edge: inset -1px 0 color-mix(in srgb, var(--accent) 52%, transparent);
-    }
-    .md-table-editor .is-table-selection-bottom {
-        --table-selection-bottom-edge: inset 0 -1px color-mix(in srgb, var(--accent) 52%, transparent);
-    }
-    .md-table-editor .is-table-selection-left {
-        --table-selection-left-edge: inset 1px 0 color-mix(in srgb, var(--accent) 52%, transparent);
-    }
-    .md-table-editor.is-saving { opacity: 0.72; }
 
     hr {
         border: 0;
@@ -894,7 +821,7 @@ nonisolated extension MarkdownHTML {
         }
 
         /* Interaction affordances are screen-only. */
-        .md-code-copy,
+        .md-code-action,
         .md-search-burst,
         .mermaid-hud { display: none !important; }
         mark.md-search-highlight,
@@ -927,7 +854,6 @@ nonisolated extension MarkdownHTML {
         /* Inner scrollers can't scroll on paper — let them wrap instead of
            clipping their overflow. */
         :root:not(.\(previewPrintClass)) .md-code-wrap,
-        :root:not(.\(previewPrintClass)) .md-table-scroll,
         :root:not(.\(previewPrintClass)) table,
         :root:not(.\(previewPrintClass)) pre {
             overflow: visible !important;

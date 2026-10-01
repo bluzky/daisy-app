@@ -6,6 +6,7 @@
 //
 
 import Cocoa
+import os
 import UniformTypeIdentifiers
 
 
@@ -13,7 +14,9 @@ import UniformTypeIdentifiers
 // reachable from AppKit through an @objc entry point, and `NSWindowController` has
 // no such method to override, so without this conformance the implementation below
 // is never called: no menu item ever gets its state, and the failure is silent.
-final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSToolbarDelegate, NSSharingServicePickerToolbarItemDelegate, NSSearchFieldDelegate, NSMenuDelegate, NSMenuItemValidation, NSPopoverDelegate {
+final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSToolbarDelegate, NSSharingServicePickerToolbarItemDelegate, NSSearchFieldDelegate, NSMenuDelegate, NSMenuItemValidation, NSToolbarItemValidation, NSPopoverDelegate {
+
+    var fileSearchPalette: FileSearchPanelController?
 
     enum NavigationIntent {
         case normal
@@ -77,6 +80,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     /// When sidebar navigation starts from edit mode, the newly loaded file
     /// should return to edit mode instead of dropping the user into preview.
     var pendingEditModeURL: URL?
+    var searchOpenRequestID: UUID?
     var autoSaveTimer: Timer?
     var autoSaveTimerID: UUID?
     var isPerformingAutomaticSave = false
@@ -114,7 +118,12 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     let themesPopoverEscapeMonitor = EscapeKeyMonitor()
     weak var searchField: NSSearchField?
     /// The Table of Contents / Project Navigator picker in the toolbar.
-    weak var sidebarModeItem: NSToolbarItemGroup?
+    var sidebarModeItem: NSToolbarItemGroup?
+    /// The original position and spacer while sidebar-only items are removed.
+    var collapsedSidebarModePlacement: SidebarToolbarItemOrder.Placement?
+    var sidebarToolbarSyncInProgress = false
+    var toolbarItemOrderPersistenceReady = false
+    var toolbarPreferenceObservations: [NSKeyValueObservation] = []
     /// Timestamp of the last click handled by the sidebar mode picker.
     var sidebarToolbarHandledEventTimestamp: TimeInterval?
     var findBar: FindBar?
@@ -122,12 +131,9 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     /// titlebar accessory — so showing it never pushes the tab bar down.
     /// Mounted once at setup and toggled via isHidden.
     weak var findBarOverlay: NSView?
-    weak var findBarHairline: NSView?
     var searchMode: SearchMode = .contains
     var pendingFindWork: DispatchWorkItem?
     static let findDebounceDelay: TimeInterval = 0.10
-    let tableUndoManager = UndoManager()
-    var isTableUndoSaveInFlight = false
 
     var documentWindow: NSWindow {
         guard let window else {
@@ -204,25 +210,28 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
                 self?.present(url: url)
             }
         }
-        split.onToggleTaskCheckbox = { [weak self] line, checked in
-            self?.toggleTaskCheckbox(onLine: line, checked: checked)
-        }
-        split.onEditTable = { [weak self] request in
-            self?.applyTableEdit(request)
-        }
         documentWindow.contentViewController = split
         documentWindow.setContentSize(NSSize(width: 1100, height: 720))
         documentWindow.center()
         documentWindow.setFrameAutosaveName("MainWindow")
 
-        let toolbar = NSToolbar(identifier: "MainToolbar")
+        // AppKit broadcasts item mutations between toolbars with a shared ID.
+        // Collapse is per-window, so share saved preferences, not live items.
+        let toolbar = NSToolbar(identifier: "MainToolbar-\(UUID().uuidString)")
         toolbar.delegate = self
         toolbar.displayMode = .iconOnly
         toolbar.allowsUserCustomization = true
-        toolbar.autosavesConfiguration = true
+        toolbar.autosavesConfiguration = false
         documentWindow.toolbar = toolbar
+        if let saved = UserDefaults.standard.dictionary(forKey: "MainToolbar.configuration")
+            ?? UserDefaults.standard.dictionary(forKey: "NSToolbar Configuration MainToolbar") {
+            toolbar.setConfiguration(saved)
+        }
         documentWindow.toolbarStyle = .automatic
+        restoreToolbarItemOrder(toolbar)
         replaceZoomToolbarItemIfNeeded(in: toolbar)
+        migrateLegacySidebarToolbarIfNeeded(in: toolbar)
+        observeAndPersistToolbarPreferences(toolbar)
 
         installFindBar()
         applyWindowBackgroundTheme()
@@ -328,6 +337,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     }
 
     func windowWillClose(_ notification: Notification) {
+        searchOpenRequestID = nil
         fullscreenToolbarTheme.restore()
         fileWatcher?.cancel()
         fileWatcher = nil
@@ -353,12 +363,10 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         applyWindowBackgroundTheme()
     }
 
-    func windowWillReturnUndoManager(_ window: NSWindow) -> UndoManager? {
-        isEditing ? nil : tableUndoManager
-    }
+    /// A saved image of the document, decoding while the window is built.
+    var pendingSnapshot: DocumentSnapshotCache.Prefetch?
 
     func display(markdown: String, fileURL: URL?) {
-        tableUndoManager.removeAllActions()
         currentFileURL = fileURL
         currentMarkdown = markdown
         resetAutoSaveFeedback()
@@ -369,7 +377,17 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
             ?? NSLocalizedString("Untitled", comment: "Window title when no document is open")
         updateWindowSubtitle()
         attachToExistingTabGroupIfNeeded()
+        if let pendingSnapshot {
+            self.pendingSnapshot = nil
+            (documentWindow.contentViewController as? MainSplitViewController)?
+                .showSnapshot(pendingSnapshot)
+        }
         documentWindow.makeKeyAndOrderFront(nil)
+        #if DEBUG
+        Logger.perf.debug(
+            "[mdp-perf-open] window-shown t=\(DispatchTime.now().uptimeNanoseconds, privacy: .public)"
+        )
+        #endif
         // Tab placement is settled once the window is shown; a window opened
         // via "Open in New Window" goes back to normal tabbing afterwards
         // (it can host or join tabs on explicit request, but plain opens no
@@ -380,6 +398,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         refreshOpenInLLMItem()
         refreshOpenActionsItem()
         updateEditToolbarItem()
+        // Folder and untitled windows count too.
+        WhatsNewWindow.presentIfNeeded(over: documentWindow)
         if let fileURL {
             NSDocumentController.shared.noteNewRecentDocumentURL(fileURL)
             renderCurrentDocument(text: markdown, fileURL: fileURL)
@@ -393,6 +413,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     }
 
     func present(url: URL, intent: NavigationIntent) {
+        searchOpenRequestID = nil
         let fragment = url.fragment?.removingPercentEncoding
         let url = Self.fileURLWithoutFragment(url)
         let preserveEditMode = isEditing || pendingEditModeURL != nil
@@ -408,7 +429,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     }
 
     func present(url: URL, preservingEditMode: Bool,
-                         intent: NavigationIntent, fragment: String?) {
+                         intent: NavigationIntent, fragment: String?, loadedMarkdown: String? = nil) {
         if url.isExistingDirectory {
             pendingEditModeURL = nil
             openFolder(url)
@@ -422,7 +443,6 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
             return
         }
         let restoredScrollPosition = commitNavigation(to: url, intent: intent)
-        tableUndoManager.removeAllActions()
 
         // Switching to a different file blanks the preview so the previous
         // doc doesn't linger on screen during sheet dismissal + load.
@@ -453,7 +473,11 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         } else {
             split?.prepareToScrollAfterNavigation(to: nil)
         }
-        loadFile(at: url)
+        if let loadedMarkdown {
+            applyLoadedMarkdown(loadedMarkdown, fileURL: url)
+        } else {
+            loadFile(at: url)
+        }
         startWatching(url)
         offerToBecomeDefaultHandlerIfNeeded()
     }
@@ -543,7 +567,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         }
     }
 
-    private static let didOfferDefaultHandlerKey = "MarkdownPreview.didOfferAsDefaultHandler"
+    /// Also read by `WhatsNewWindow` as a sign of earlier use.
+    static let didOfferDefaultHandlerKey = "MarkdownPreview.didOfferAsDefaultHandler"
 
     private func offerToBecomeDefaultHandlerIfNeeded() {
         let key = Self.didOfferDefaultHandlerKey

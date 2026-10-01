@@ -39,16 +39,18 @@ extension EditorPreviewLayoutTests {
             "Deep bullet", "Nested ordered item", "Nested quotation.", "greeting", "Left cell", "Center cell",
             "After first mixed image.", "After diagram.", "هذه فقرة عربية لاختبار اتجاه النص والمحاذاة.",
             "After extra blank lines.", "Final mixed paragraph.", "After equations.", "After alerts.",
-            "After reference image.", "After raw HTML.", "Final extended paragraph."
+            "After reference image.", "After raw HTML.", "Final extended paragraph.",
+            "Unchecked task", "Completed task"
         ], imageCount: 4, editorImageCount: 2,
            readSelectors: ["h1": 3, "h2": 4, "h3": 1, "h4": 1, "h5": 1, "h6": 1,
                            "table": 3, "input[type=checkbox]": 2, "input[type=checkbox]:checked": 1,
                            ".mermaid svg": 1, ".katex": 3, ".math-error": 0, ".mermaid-error": 0,
                            ".markdown-alert": 5, ".footnotes": 1, "details summary": 1, "hr": 2],
-           editorSelectors: [".cm-md-table-grid": 2, ".cm-md-mermaid-stage svg": 1, ".cm-md-frontmatter": 6],
-           editorSourceSnippets: ["[ ] Unchecked task", "[x] Completed task", "$x_1 + x_2$", "[!NOTE]", "[!TIP]",
+           editorSelectors: [".cm-md-table-grid": 2, ".cm-md-mermaid-stage svg": 1, ".cm-md-frontmatter": 6, ".cm-md-table-cell .cm-md-strong": 1,
+                             ".cm-md-task-marker input": 2, ".cm-md-task-marker input:checked": 1],
+           editorSourceSnippets: ["$x_1 + x_2$", "[!NOTE]", "[!TIP]",
                                   "[!IMPORTANT]", "[!WARNING]", "[!CAUTION]", "[reference link][destination]",
-                                  "![Reference picture][picture]", "[^first]", "<details>", "**bold cell**"],
+                                  "![Reference picture][picture]", "[^first]", "<details>"],
            sourceRepresentationReason: "The comprehensive file includes read-rendered features that intentionally remain source in the editor",
            localParityTexts: ["Mixed formatting document", "bold phrase", "italic phrase", "inlineToken",
                               "Deep bullet", "Nested ordered item", "greeting", "Left cell", "Center cell",
@@ -79,14 +81,15 @@ extension EditorPreviewLayoutTests {
             "Extended mixed document", "bold introduction", "After equations.", "Note body with", "Tip body.",
             "Important body.", "Warning body.", "Caution body.", "After alerts.", "After reference image.",
             "After raw HTML.", "Formatting", "Example", "Inline table styles", "Escaped pipe", "finalValue",
-            "Final extended paragraph."
+            "Final extended paragraph.", "Unchecked task", "Completed task"
         ], imageCount: 2, editorImageCount: 0,
            readSelectors: [".katex": 3, ".math-error": 0, ".markdown-alert": 5, ".footnotes": 1,
                            "details summary": 1, "p[align=center] img": 1, "table": 2, "input[type=checkbox]": 2],
-           editorSelectors: [".cm-md-frontmatter": 6, ".cm-md-table-grid": 1, ".katex": 0, "details": 0],
-           editorSourceSnippets: ["[ ] Unchecked task", "[x] Completed task", "$x_1 + x_2$", "[!NOTE]", "[!TIP]", "[!IMPORTANT]", "[!WARNING]", "[!CAUTION]",
-                                  "[reference link][destination]", "![Reference picture][picture]", "[^first]", "<details>", "**bold cell**"],
-           sourceRepresentationReason: "Math, footnotes, alerts, reference syntax, HTML, and formatted table cells remain editable source",
+           editorSelectors: [".cm-md-frontmatter": 6, ".cm-md-table-grid": 1, ".katex": 0, "details": 0, ".cm-md-table-cell .cm-md-strong": 1,
+                             ".cm-md-task-marker input": 2, ".cm-md-task-marker input:checked": 1],
+           editorSourceSnippets: ["$x_1 + x_2$", "[!NOTE]", "[!TIP]", "[!IMPORTANT]", "[!WARNING]", "[!CAUTION]",
+                                  "[reference link][destination]", "![Reference picture][picture]", "[^first]", "<details>"],
+           sourceRepresentationReason: "Math, footnotes, alerts, reference syntax, and HTML remain editable source; table cells render inline formatting",
            localParityTexts: ["Extended mixed document", "bold introduction", "After equations.", "After alerts.",
                               "After reference image.", "After raw HTML.", "Formatting", "Example", "finalValue",
                               "Final extended paragraph."], height: 14000))
@@ -169,7 +172,7 @@ extension EditorPreviewLayoutTests {
             After code blocks.
             """, texts: ["Before code blocks.", "let exampleValue", "print", "Between code blocks.",
                            "unlabelledExample", "secondExampleLine", "indentedExample", "anotherIndentedLine", "After code blocks."],
-                           readSelectors: ["pre": 3], editorSelectors: [".cm-md-code-language": 2]))
+                           readSelectors: ["pre": 3], editorSelectors: [".cm-md-code-language": 3]))
     }
 
     func testTableColumnsAndWrappedCells() async throws {

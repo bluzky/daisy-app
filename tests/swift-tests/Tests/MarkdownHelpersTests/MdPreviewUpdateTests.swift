@@ -309,120 +309,133 @@ final class MdPreviewUpdateTests: XCTestCase {
     }
 
     @MainActor
-    func testTableHeaderPlaceholderAccessibilityUsesDelegatedUpdates() async throws {
-        let webView = try await loadHarness(
-            articleAttributes: "",
-            stubsWebKitMessageHandler: true
-        )
-        let article = MarkdownHTML.render(
-            markdown: """
-            | | Name |
+    func testReaderTablesStayReadOnlyAcrossUpdates() async throws {
+        let webView = try await loadHarness(articleAttributes: "", stubsWebKitMessageHandler: true)
+        let pasteboard = NSPasteboard.general
+        let savedItems = (pasteboard.pasteboardItems ?? []).map { item in
+            let copy = NSPasteboardItem()
+            for type in item.types {
+                if let data = item.data(forType: type) { copy.setData(data, forType: type) }
+            }
+            return copy
+        }
+        var copiedChangeCount: Int?
+        defer {
+            if pasteboard.changeCount == copiedChangeCount {
+                pasteboard.clearContents()
+                pasteboard.writeObjects(savedItems)
+            }
+        }
+        let article = MarkdownHTML.render(markdown: """
+            | Name | Value |
             | --- | --- |
-            | First | Ada |
-            """,
-            vendorLoading: .lazy
-        ).articleHTML
+            | **Ada** | [Link](https://example.com) |
+
+            - [ ] Pending
+            - [x] Done
+            """, vendorLoading: .lazy).articleHTML
         let document = MarkdownHTML.javaScriptStringLiteral(article)
-
-        // Instrument the WebKit APIs that caused the regression. Unlike a
-        // source-string assertion, these counters remain valid if functions
-        // or event-handler registration are reordered.
-        _ = try await webView.evaluateJavaScript("""
-        (() => {
-            window.__tableHeaderInnerTextReads = 0;
-            window.__tableCellInputListenerRegistrations = 0;
-
-            const innerText = Object.getOwnPropertyDescriptor(
-                HTMLElement.prototype,
-                'innerText'
-            );
-            if (!innerText || typeof innerText.get !== 'function') {
-                throw new Error('HTMLElement.innerText getter unavailable');
+        // Cover first population, morphdom, and the innerHTML fallback.
+        for path in ["initial", "morph", "fallback"] {
+            if path == "fallback" {
+                _ = try await webView.evaluateJavaScript("window.morphdom = undefined; true")
             }
-            const patchedInnerText = {
-                configurable: innerText.configurable,
-                enumerable: innerText.enumerable,
-                get() {
-                    if (this.matches?.('th[data-table-column]')) {
-                        window.__tableHeaderInnerTextReads += 1;
-                    }
-                    return innerText.get.call(this);
-                }
-            };
-            if (innerText.set) {
-                patchedInnerText.set = function (value) {
-                    return innerText.set.call(this, value);
-                };
+            _ = try await webView.evaluateJavaScript("window.MdPreview.update(\(document)); true")
+            let result = try await webView.evaluateJavaScript("""
+            (() => {
+                window.__hostMessages = [];
+                const cell = document.querySelector('td');
+                const table = cell.closest('table');
+                const before = table.outerHTML;
+                const height = table.getBoundingClientRect().height;
+                cell.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+                cell.click();
+                cell.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'x' }));
+                const context = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+                cell.dispatchEvent(context);
+                const paste = new Event('paste', { bubbles: true, cancelable: true });
+                cell.dispatchEvent(paste);
+                const range = document.createRange();
+                range.selectNodeContents(cell);
+                const selection = window.getSelection();
+                selection.removeAllRanges();
+                selection.addRange(range);
+                const selectedText = selection.toString();
+                return JSON.stringify({
+                    unchanged: table.outerHTML === before,
+                    stableHeight: table.getBoundingClientRect().height === height,
+                    editable: !!document.querySelector('[contenteditable="plaintext-only"], [contenteditable="true"]'),
+                    editorCount: document.querySelectorAll('.md-table-editor').length,
+                    contextPrevented: context.defaultPrevented,
+                    pastePrevented: paste.defaultPrevented,
+                    selectedText,
+                    link: table.querySelector('a').getAttribute('href'),
+                    mutations: window.__hostMessages.filter(message =>
+                        ['tableEdit', 'tableContextMenu', 'taskCheckbox'].includes(message.kind)).length
+                });
+            })()
+            """)
+            let json = try XCTUnwrap(result as? String)
+            let state = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
+            for key in ["unchanged", "stableHeight"] {
+                XCTAssertEqual(state[key] as? Bool, true, "\(path): \(key): \(json)")
             }
-            Object.defineProperty(HTMLElement.prototype, 'innerText', patchedInnerText);
+            for key in ["editable", "contextPrevented", "pastePrevented"] {
+                XCTAssertEqual(state[key] as? Bool, false, "\(path): \(key): \(json)")
+            }
+            XCTAssertEqual(state["editorCount"] as? Int, 0, json)
+            XCTAssertEqual(state["mutations"] as? Int, 0, json)
+            XCTAssertEqual(state["selectedText"] as? String, "Ada", json)
+            pasteboard.clearContents()
+            copiedChangeCount = pasteboard.changeCount
+            XCTAssertTrue(webView.responds(to: NSSelectorFromString("copy:")))
+            webView.perform(NSSelectorFromString("copy:"), with: nil)
+            // WebKit can change pasteboard ownership before its text arrives.
+            for _ in 0..<100 {
+                if pasteboard.string(forType: .string) != nil { break }
+                try await Task.sleep(for: .milliseconds(10))
+            }
+            copiedChangeCount = pasteboard.changeCount
+            XCTAssertEqual(pasteboard.string(forType: .string), "Ada", "\(path): native clipboard")
+            XCTAssertEqual(state["link"] as? String, "https://example.com", json)
+        }
+    }
 
-            const addEventListener = EventTarget.prototype.addEventListener;
-            EventTarget.prototype.addEventListener = function (type, listener, options) {
-                if (type === 'input' && this instanceof HTMLTableCellElement) {
-                    window.__tableCellInputListenerRegistrations += 1;
+    @MainActor
+    func testReaderTaskCheckboxesRequireHostAcrossUpdates() async throws {
+        for hasBridge in [false, true] {
+            let webView = try await loadHarness(articleAttributes: "", stubsWebKitMessageHandler: hasBridge)
+            let article = MarkdownHTML.javaScriptStringLiteral(MarkdownHTML.render(
+                markdown: "# Tasks\n\n- [ ] Pending\n- [x] Done\n\n| A | B |\n| --- | --- |\n| C | D |",
+                vendorLoading: .lazy
+            ).articleHTML)
+            for path in ["initial", "morph", "fallback"] {
+                if path == "fallback" {
+                    _ = try await webView.evaluateJavaScript("window.morphdom = undefined; true")
                 }
-                return addEventListener.call(this, type, listener, options);
-            };
-            return true;
-        })()
-        """)
-
-        // Exercise both the initial populate and the morph path. Table setup
-        // must stay idempotent and the delegated input handler must keep the
-        // placeholder's accessibility label in sync.
-        _ = try await webView.evaluateJavaScript(
-            "window.MdPreview.update(\(document)); true"
-        )
-        _ = try await webView.evaluateJavaScript(
-            "window.MdPreview.update(\(document)); true"
-        )
-
-        let result = try await webView.evaluateJavaScript("""
-        (() => {
-            const headers = document.querySelectorAll(
-                '.md-table-editor th[data-table-column]'
-            );
-            const empty = headers[0];
-            const named = headers[1];
-            const initialEmptyLabel = empty.getAttribute('aria-label');
-            const initialNamedLabel = named.getAttribute('aria-label');
-
-            empty.textContent = 'Renamed';
-            empty.dispatchEvent(new Event('input', { bubbles: true }));
-            const renamedLabel = empty.getAttribute('aria-label');
-
-            empty.textContent = '';
-            empty.dispatchEvent(new Event('input', { bubbles: true }));
-            const restoredLabel = empty.getAttribute('aria-label');
-
-            return JSON.stringify({
-                editorCount: document.querySelectorAll('.md-table-editor').length,
-                scrollCount: document.querySelectorAll('.md-table-scroll').length,
-                headerCount: headers.length,
-                headerInnerTextReads: window.__tableHeaderInnerTextReads,
-                tableCellInputListenerRegistrations:
-                    window.__tableCellInputListenerRegistrations,
-                placeholder: empty.dataset.placeholder || '',
-                initialEmptyLabel,
-                initialNamedLabel,
-                renamedLabel,
-                restoredLabel,
-            });
-        })()
-        """)
-        let json = try XCTUnwrap(result as? String)
-        let state = try JSONDecoder().decode(TableHeaderPlaceholderState.self, from: Data(json.utf8))
-
-        XCTAssertEqual(state.editorCount, 1, json)
-        XCTAssertEqual(state.scrollCount, 1, json)
-        XCTAssertEqual(state.headerCount, 2, json)
-        XCTAssertEqual(state.headerInnerTextReads, 0, json)
-        XCTAssertEqual(state.tableCellInputListenerRegistrations, 0, json)
-        XCTAssertEqual(state.placeholder, "Column 1", json)
-        XCTAssertEqual(state.initialEmptyLabel, "Column 1", json)
-        XCTAssertNil(state.initialNamedLabel, json)
-        XCTAssertNil(state.renamedLabel, json)
-        XCTAssertEqual(state.restoredLabel, "Column 1", json)
+                _ = try await webView.evaluateJavaScript("MdPreview.update(\(article)); true")
+                let state = try await webView.evaluateJavaScript("""
+                (() => {
+                    window.__hostMessages = [];
+                    const boxes = [...document.querySelectorAll('.task-list-item-checkbox')];
+                    boxes.forEach(box => box.click());
+                    const messages = window.__hostMessages.filter(m => m.kind === 'taskCheckbox');
+                    return {
+                        disabled: boxes.every(box => box.disabled),
+                        checked: boxes.map(box => box.checked),
+                        lines: messages.map(m => m.line),
+                        values: messages.map(m => m.checked),
+                        editableTables: document.querySelectorAll('table [contenteditable="true"], .md-table-editor').length
+                    };
+                })()
+                """) as! [String: Any]
+                XCTAssertEqual(state["disabled"] as? Bool, !hasBridge, path)
+                XCTAssertEqual(state["checked"] as? [Bool], hasBridge ? [true, false] : [false, true], path)
+                XCTAssertEqual(state["lines"] as? [Int], hasBridge ? [3, 4] : [], path)
+                XCTAssertEqual(state["values"] as? [Bool], hasBridge ? [true, false] : [], path)
+                XCTAssertEqual(state["editableTables"] as? Int, 0, path)
+            }
+        }
     }
 
     /// Builds the harness page — bundled DOMPurify + morphdom, the shipped
@@ -443,7 +456,7 @@ final class MdPreviewUpdateTests: XCTestCase {
               <script>
               window.webkit = {
                   messageHandlers: {
-                      mdPreviewHost: { postMessage() {} }
+                      mdPreviewHost: { postMessage(message) { (window.__hostMessages ||= []).push(message); } }
                   }
               };
               </script>
@@ -495,6 +508,7 @@ final class MdPreviewUpdateTests: XCTestCase {
         <!DOCTYPE html>
         <html><head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>\(MarkdownHTML.stylesheet)</style>
         <script>\(purifyJS)</script>
         <script>\(morphdomJS)</script>
         \(webKitMessageHandlerStub)
@@ -573,17 +587,4 @@ private struct WarmupArticleState: Decodable {
     private enum CodingKeys: String, CodingKey {
         case warmup, opacity, keyedBlocks, paragraphText
     }
-}
-
-private struct TableHeaderPlaceholderState: Decodable {
-    let editorCount: Int
-    let scrollCount: Int
-    let headerCount: Int
-    let headerInnerTextReads: Int
-    let tableCellInputListenerRegistrations: Int
-    let placeholder: String
-    let initialEmptyLabel: String?
-    let initialNamedLabel: String?
-    let renamedLabel: String?
-    let restoredLabel: String?
 }

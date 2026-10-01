@@ -272,6 +272,8 @@ nonisolated enum MarkdownHTML {
                          colorScheme: ColorScheme? = nil,
                          documentFont: DocumentFontSetting = .current,
                          readerLayout: ReaderLayoutSetting = .current,
+                         strictLineBreaks: Bool = StrictLineBreaksSetting.current,
+                         textAlignment: TextAlignmentSetting = .current,
                          renderExtensionConfiguration: RenderExtensionConfiguration = .allEnabled) -> String {
         render(markdown: markdown,
                allowsScroll: allowsScroll,
@@ -280,6 +282,8 @@ nonisolated enum MarkdownHTML {
                colorScheme: colorScheme,
                documentFont: documentFont,
                readerLayout: readerLayout,
+               strictLineBreaks: strictLineBreaks,
+               textAlignment: textAlignment,
                renderExtensionConfiguration: renderExtensionConfiguration).html
     }
 
@@ -292,6 +296,8 @@ nonisolated enum MarkdownHTML {
                        themeOverrides: ThemeOverrides? = nil,
                        documentFont: DocumentFontSetting = .current,
                        readerLayout: ReaderLayoutSetting = .current,
+                       strictLineBreaks: Bool = StrictLineBreaksSetting.current,
+                       textAlignment: TextAlignmentSetting = .current,
                        warmup: Bool = false,
                        pageTopClearance: CGFloat = 0,
                        highlightsCode: Bool = true,
@@ -311,7 +317,8 @@ nonisolated enum MarkdownHTML {
             math.processedMarkdown,
             sourceLineOffset: sourceLineOffset,
             sourceMarkdown: body,
-            highlightsCode: highlightsCode
+            highlightsCode: highlightsCode,
+            strictLineBreaks: strictLineBreaks
         )
         let mermaidResult = renderMermaidBlocks(in: formatted)
         let mathResult = renderMathBlocks(in: mermaidResult.html, with: math)
@@ -323,7 +330,8 @@ nonisolated enum MarkdownHTML {
         let footnoteReferenceHTML = renderFootnoteReferences(in: extensionRun.html, with: footnotes)
         let footnoteDefinitions = renderFootnoteDefinitions(
             footnotes,
-            sourceLineOffset: sourceLineOffset
+            sourceLineOffset: sourceLineOffset,
+            strictLineBreaks: strictLineBreaks
         )
         let headingsHTML = injectHeadingIDs(in: footnoteReferenceHTML + footnoteDefinitions.html)
         // Direction inference scans every rendered block. Most documents
@@ -359,8 +367,11 @@ nonisolated enum MarkdownHTML {
       allowsScroll
       ? """
         <style>
-        html { overflow: auto !important; }
+        html { overflow-x: hidden !important; overflow-y: auto !important; overscroll-behavior-x: none; }
         body { overflow: visible !important; }
+        /* Keep vertical gestures on the page: overflow-x:auto otherwise makes
+           overflow-y:auto, and even 1px of article overflow can swallow a wheel gesture. */
+        article.markdown-body { overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; overflow-wrap: anywhere; }
         </style>
         """ : ""
         let contentWidthOverride: String
@@ -487,6 +498,7 @@ nonisolated enum MarkdownHTML {
         \(contentWidthOverride)
         \(documentFontOverride)
         \(readerLayoutBlock)
+        \(textAlignment.styleBlock)
         \(sanitizerBlock)
         \(morphBlock)
         \(hostBridgeScript)

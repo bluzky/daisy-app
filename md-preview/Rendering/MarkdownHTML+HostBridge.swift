@@ -66,8 +66,8 @@ nonisolated extension MarkdownHTML {
     <script>
     (() => {
         const localized = {
-            copy: \(javaScriptStringLiteral(NSLocalizedString("Copy", comment: "Code block copy button"))),
-            copied: \(javaScriptStringLiteral(NSLocalizedString("Copied", comment: "Code block copy confirmation"))),
+            wrapCode: \(javaScriptStringLiteral(NSLocalizedString("Wrap code", comment: "Code block wrap button"))),
+            unwrapCode: \(javaScriptStringLiteral(NSLocalizedString("Unwrap code", comment: "Code block unwrap button"))),
             copyCode: \(javaScriptStringLiteral(NSLocalizedString("Copy code", comment: "Code block copy button accessibility label"))),
             codeCopied: \(javaScriptStringLiteral(NSLocalizedString("Code copied", comment: "Code block copy confirmation accessibility label")))
         };
@@ -184,6 +184,13 @@ nonisolated extension MarkdownHTML {
             }
         }, true);
 
+        const codeIcon = (kind) => '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ({
+            copy: '<rect x="4" y="8" width="12" height="13" rx="3"/><path d="M8 8V6a3 3 0 0 1 3-3h6a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3h-1"/>',
+            check: '<path d="m5 12 4 4L19 6"/>',
+            wrap: '<path d="M4 6h16M4 11h12a4 4 0 0 1 0 8h-5m3-3-3 3 3 3M4 16h3"/>',
+            unwrap: '<path d="M4 6h16M4 12h16m-4-4 4 4-4 4M4 18h7"/>'
+        })[kind] + '</svg>';
+
         function decorateCodeBlocks(root = document) {
             root.querySelectorAll('pre > code').forEach((code) => {
                 const pre = code.parentElement;
@@ -197,12 +204,28 @@ nonisolated extension MarkdownHTML {
                 pre.parentNode.insertBefore(wrap, pre);
                 wrap.appendChild(pre);
 
+                const header = document.createElement('div');
+                header.className = 'md-code-header';
+                const language = document.createElement('span');
+                language.className = 'md-code-language';
+                language.textContent = pre.dataset.codeLanguage || 'text';
+                header.appendChild(language);
+                const toggle = document.createElement('button');
+                toggle.type = 'button';
+                toggle.className = 'md-code-action md-code-toggle-wrap';
+                toggle.innerHTML = codeIcon('wrap');
+                toggle.title = localized.wrapCode;
+                toggle.setAttribute('aria-label', toggle.title);
+                toggle.setAttribute('aria-pressed', 'false');
+                header.appendChild(toggle);
                 const button = document.createElement('button');
                 button.type = 'button';
-                button.className = 'md-code-copy';
-                button.textContent = localized.copy;
+                button.className = 'md-code-action md-code-copy';
+                button.innerHTML = codeIcon('copy');
+                button.title = localized.copyCode;
                 button.setAttribute('aria-label', localized.copyCode);
-                wrap.appendChild(button);
+                header.appendChild(button);
+                wrap.insertBefore(header, pre);
             });
         }
 
@@ -211,7 +234,7 @@ nonisolated extension MarkdownHTML {
             for (let i = 0; i < selection.rangeCount; i += 1) {
                 fragment.appendChild(selection.getRangeAt(i).cloneContents());
             }
-            const buttons = fragment.querySelectorAll('.md-code-copy');
+            const buttons = fragment.querySelectorAll('.md-code-header');
             buttons.forEach((button) => button.remove());
             return { fragment, removedButtons: buttons.length > 0 };
         }
@@ -315,7 +338,7 @@ nonisolated extension MarkdownHTML {
         }
 
         async function copyCodeBlock(button) {
-            const wrap = button.parentElement;
+            const wrap = button.closest('.md-code-wrap');
             const code = wrap && wrap.querySelector('pre > code');
             if (!code) return;
             const text = code.textContent || '';
@@ -357,396 +380,36 @@ nonisolated extension MarkdownHTML {
                 } catch (e) {}
             }
             if (!copied) return;
-            button.textContent = localized.copied;
+            button.innerHTML = codeIcon('check');
+            button.title = localized.codeCopied;
             button.setAttribute('aria-label', localized.codeCopied);
             button.classList.add('is-copied');
             clearTimeout(button.__mdCopyTimer);
             button.__mdCopyTimer = setTimeout(() => {
-                button.textContent = localized.copy;
+                button.innerHTML = codeIcon('copy');
+                button.title = localized.copyCode;
                 button.setAttribute('aria-label', localized.copyCode);
                 button.classList.remove('is-copied');
             }, 1100);
         }
 
         document.addEventListener('click', (event) => {
+            const toggle = event.target.closest('.md-code-toggle-wrap');
+            if (toggle) {
+                event.preventDefault();
+                event.stopPropagation();
+                const wrapped = toggle.closest('.md-code-wrap').classList.toggle('is-wrapped');
+                toggle.setAttribute('aria-pressed', String(wrapped));
+                toggle.title = wrapped ? localized.unwrapCode : localized.wrapCode;
+                toggle.setAttribute('aria-label', toggle.title);
+                toggle.innerHTML = codeIcon(wrapped ? 'unwrap' : 'wrap');
+                return;
+            }
             const button = event.target.closest('.md-code-copy');
             if (!button) return;
             event.preventDefault();
             event.stopPropagation();
             copyCodeBlock(button);
-        });
-
-        function enableTaskCheckboxes() {
-            if (!hasHostBridge) return;
-            document.querySelectorAll('.task-list-item-checkbox').forEach((checkbox) => {
-                checkbox.disabled = false;
-            });
-        }
-
-        let activeTableCell = null;
-        let nextTableContextToken = 1;
-        let pendingTableContextAction = null;
-        let selectedTablePart = null;
-        let tableCellDrag = null;
-        let suppressNextTableClick = false;
-
-        function tableMessage(cell, operation, value, pendingValue, pendingCell) {
-            const table = cell && cell.closest('table[data-source-start][data-source-end]');
-            if (!table || table.dataset.tableSaving === '1') return false;
-            const start = Number(table.dataset.sourceStart);
-            const end = Number(table.dataset.sourceEnd);
-            const row = Number(cell.dataset.tableRow);
-            const column = Number(cell.dataset.tableColumn);
-            if (![start, end, row, column].every(Number.isInteger)) return false;
-            table.dataset.tableSaving = '1';
-            table.closest('.md-table-editor')?.classList.add('is-saving');
-            const message = { kind: 'tableEdit', operation, start, end, row, column };
-            if (typeof value === 'string') message.value = value;
-            if (typeof pendingValue === 'string') {
-                message.pendingValue = pendingValue;
-                message.pendingRow = Number(pendingCell?.dataset.tableRow ?? row);
-                message.pendingColumn = Number(pendingCell?.dataset.tableColumn ?? column);
-            }
-            return post(message);
-        }
-
-        function finishTableCellEdit(save) {
-            const cell = activeTableCell;
-            if (!cell) return;
-            activeTableCell = null;
-            const original = cell.dataset.tableOriginal || '';
-            const value = (cell.innerText || '').replace(/\\n+/g, ' ').trim();
-            cell.contentEditable = 'false';
-            cell.classList.remove('is-editing');
-            if (!save) {
-                cell.innerHTML = cell.__mdOriginalHTML || '';
-                return;
-            }
-            if (value !== original) {
-                tableMessage(cell, 'setCell', value);
-            } else {
-                cell.innerHTML = cell.__mdOriginalHTML || '';
-            }
-        }
-
-        function beginTableCellEdit(cell) {
-            if (!hasHostBridge || !cell) return false;
-            if (cell === activeTableCell) return true;
-            clearTablePartSelection();
-            finishTableCellEdit(true);
-            // Never fall back to rendered text. Without exact source metadata,
-            // editing could silently flatten links, emphasis, code, images, or
-            // other inline Markdown into plain text.
-            if (!cell.hasAttribute('data-table-markdown')) return false;
-            cell.__mdOriginalHTML = cell.innerHTML;
-            cell.dataset.tableOriginal = cell.dataset.tableMarkdown || '';
-            cell.textContent = cell.dataset.tableOriginal;
-            cell.contentEditable = 'plaintext-only';
-            cell.classList.add('is-editing');
-            activeTableCell = cell;
-            cell.focus();
-            const selection = window.getSelection();
-            if (selection) {
-                const range = document.createRange();
-                range.selectNodeContents(cell);
-                range.collapse(false);
-                selection.removeAllRanges();
-                selection.addRange(range);
-            }
-            return true;
-        }
-
-        function clearTablePartSelection() {
-            document.querySelectorAll('.is-table-part-selected').forEach((cell) => {
-                cell.classList.remove(
-                    'is-table-part-selected',
-                    'is-table-selection-top',
-                    'is-table-selection-right',
-                    'is-table-selection-bottom',
-                    'is-table-selection-left'
-                );
-            });
-            selectedTablePart?.editor.classList.remove(
-                'is-table-row-selected',
-                'is-table-column-selected',
-                'is-table-range-selected'
-            );
-            selectedTablePart?.editor.removeAttribute('aria-label');
-            selectedTablePart = null;
-        }
-
-        function applyTableSelection(cell, kind, bounds) {
-            if (!cell) return;
-            finishTableCellEdit(true);
-            clearTablePartSelection();
-            const editor = cell.closest('.md-table-editor');
-            const table = cell.closest('table');
-            if (!editor || !table) return;
-            const items = Array.from(table.querySelectorAll('[data-table-row][data-table-column]'))
-                .filter((item) => {
-                    const row = Number(item.dataset.tableRow);
-                    const column = Number(item.dataset.tableColumn);
-                    return row >= bounds.top && row <= bounds.bottom
-                        && column >= bounds.left && column <= bounds.right;
-                });
-            items.forEach((item) => {
-                item.classList.add('is-table-part-selected');
-                const row = Number(item.dataset.tableRow);
-                const column = Number(item.dataset.tableColumn);
-                if (row === bounds.top) item.classList.add('is-table-selection-top');
-                if (column === bounds.right) item.classList.add('is-table-selection-right');
-                if (row === bounds.bottom) item.classList.add('is-table-selection-bottom');
-                if (column === bounds.left) item.classList.add('is-table-selection-left');
-            });
-            editor.classList.add(
-                kind === 'row'
-                    ? 'is-table-row-selected'
-                    : kind === 'column'
-                        ? 'is-table-column-selected'
-                        : 'is-table-range-selected'
-            );
-            window.getSelection()?.removeAllRanges();
-            selectedTablePart = { cell, kind, editor, bounds };
-            editor.tabIndex = 0;
-            if (kind === 'range') {
-                const rowCount = bounds.bottom - bounds.top + 1;
-                const columnCount = bounds.right - bounds.left + 1;
-                editor.setAttribute(
-                    'aria-label',
-                    `Selected ${rowCount} rows by ${columnCount} columns.`
-                );
-            } else {
-                const row = Number(cell.dataset.tableRow);
-                const column = Number(cell.dataset.tableColumn);
-                const number = kind === 'row' ? row : column + 1;
-                editor.setAttribute(
-                    'aria-label',
-                    `Selected ${kind} ${number}. Press Delete to remove it.`
-                );
-            }
-            editor.focus({ preventScroll: true });
-        }
-
-        function selectTablePart(cell, operation) {
-            if (!cell) return;
-            const table = cell.closest('table');
-            if (!table) return;
-            const row = Number(cell.dataset.tableRow);
-            const column = Number(cell.dataset.tableColumn);
-            const kind = operation === 'selectRow' ? 'row' : 'column';
-            const bounds = kind === 'row'
-                ? { top: row, right: table.rows[0].cells.length - 1, bottom: row, left: 0 }
-                : { top: 0, right: column, bottom: table.rows.length - 1, left: column };
-            applyTableSelection(cell, kind, bounds);
-        }
-
-        function selectTableRange(anchorCell, headCell) {
-            if (!anchorCell || !headCell || anchorCell.closest('table') !== headCell.closest('table')) {
-                return;
-            }
-            const anchorRow = Number(anchorCell.dataset.tableRow);
-            const anchorColumn = Number(anchorCell.dataset.tableColumn);
-            const headRow = Number(headCell.dataset.tableRow);
-            const headColumn = Number(headCell.dataset.tableColumn);
-            applyTableSelection(anchorCell, 'range', {
-                top: Math.min(anchorRow, headRow),
-                right: Math.max(anchorColumn, headColumn),
-                bottom: Math.max(anchorRow, headRow),
-                left: Math.min(anchorColumn, headColumn)
-            });
-        }
-
-        function performTableStructure(cell, operation) {
-            if (!cell) return;
-            const table = cell.closest('table');
-            const editingCell = activeTableCell && activeTableCell.closest('table') === table
-                ? activeTableCell : null;
-            let pendingValue = null;
-            if (editingCell) {
-                const value = (editingCell.innerText || '').replace(/\\n+/g, ' ').trim();
-                if (value !== (editingCell.dataset.tableOriginal || '')) pendingValue = value;
-                else editingCell.innerHTML = editingCell.__mdOriginalHTML || '';
-                activeTableCell = null;
-                editingCell.contentEditable = 'false';
-                editingCell.classList.remove('is-editing');
-            }
-            tableMessage(cell, operation, null, pendingValue, editingCell);
-        }
-
-        function requestNativeTableContextMenu(cell) {
-            const table = cell.closest('table');
-            const row = Number(cell.dataset.tableRow);
-            const columnCount = table?.rows[0]?.cells.length || 1;
-            const token = String(nextTableContextToken++);
-            pendingTableContextAction = { token, cell };
-            post({
-                kind: 'tableContextMenu',
-                token,
-                canInsertRowAbove: row > 0,
-                canDuplicateRow: false,
-                canDeleteRow: row > 0,
-                canDeleteColumn: columnCount > 1,
-                showsDuplicateRow: false
-            });
-        }
-
-        function enableTableEditing(root = document) {
-            if (!hasHostBridge) return;
-            root.querySelectorAll('table[data-source-start][data-source-end]').forEach((table) => {
-                if (table.closest('.md-table-editor')) return;
-                const editor = document.createElement('div');
-                editor.className = 'md-table-editor';
-                table.parentNode.insertBefore(editor, table);
-                const scroll = document.createElement('div');
-                scroll.className = 'md-table-scroll';
-                editor.appendChild(scroll);
-                scroll.appendChild(table);
-                table.querySelectorAll('th[data-table-column]').forEach((cell) => {
-                    const column = Number(cell.dataset.tableColumn);
-                    const placeholder = `Column ${column + 1}`;
-                    cell.dataset.placeholder = placeholder;
-                    // `innerText` forces layout when the table is already in
-                    // the live document. Header emptiness only depends on the
-                    // authored content, so `textContent` is sufficient here.
-                    if (!(cell.textContent || '').trim()) cell.textContent = '';
-                    updateTableHeaderAccessibilityLabel(cell);
-                });
-            });
-        }
-
-        function updateTableHeaderAccessibilityLabel(cell) {
-            const placeholder = cell.dataset.placeholder;
-            if (!placeholder) return;
-            if ((cell.textContent || '').trim()) cell.removeAttribute('aria-label');
-            else cell.setAttribute('aria-label', placeholder);
-        }
-
-        if (hasHostBridge) {
-            // One delegated listener covers both initial and morphed tables.
-            document.addEventListener('input', (event) => {
-                const cell = event.target.closest?.(
-                    '.md-table-editor th[data-table-column]'
-                );
-                if (cell) updateTableHeaderAccessibilityLabel(cell);
-            });
-        }
-
-        document.addEventListener('mousedown', (event) => {
-            if (event.button !== 0) return;
-            const cell = event.target.closest?.('.md-table-editor th, .md-table-editor td');
-            if (!cell) return;
-            const row = Number(cell.dataset.tableRow);
-            const column = Number(cell.dataset.tableColumn);
-            if (!Number.isInteger(row) || row < 0 || !Number.isInteger(column)) return;
-            tableCellDrag = {
-                cell,
-                table: cell.closest('table'),
-                row,
-                column,
-                head: cell,
-                active: false
-            };
-        }, true);
-
-        document.addEventListener('mousemove', (event) => {
-            if (!tableCellDrag) return;
-            const hitTarget = document.elementFromPoint?.(event.clientX, event.clientY);
-            const cell = hitTarget?.closest?.('.md-table-editor th, .md-table-editor td')
-                || event.target.closest?.('.md-table-editor th, .md-table-editor td');
-            if (!cell || cell.closest('table') !== tableCellDrag.table) {
-                return;
-            }
-            if (cell === tableCellDrag.cell && !tableCellDrag.active) return;
-            if (cell === tableCellDrag.head) return;
-            event.preventDefault();
-            tableCellDrag.active = true;
-            tableCellDrag.head = cell;
-            selectTableRange(tableCellDrag.cell, cell);
-        }, true);
-
-        document.addEventListener('mouseup', (event) => {
-            if (tableCellDrag?.active) {
-                event.preventDefault();
-                window.getSelection()?.removeAllRanges();
-                suppressNextTableClick = true;
-            }
-            tableCellDrag = null;
-        }, true);
-
-        document.addEventListener('click', (event) => {
-            if (suppressNextTableClick) {
-                suppressNextTableClick = false;
-                event.preventDefault();
-                event.stopPropagation();
-                return;
-            }
-            const cell = event.target.closest('.md-table-editor th, .md-table-editor td');
-            if (!cell) {
-                clearTablePartSelection();
-                finishTableCellEdit(true);
-                return;
-            }
-            if (event.target.closest('a, button, input, img')) return;
-            if (beginTableCellEdit(cell)) event.preventDefault();
-        });
-
-        document.addEventListener('contextmenu', (event) => {
-            const cell = event.target.closest('.md-table-editor th, .md-table-editor td');
-            if (!cell) return;
-            event.preventDefault();
-            beginTableCellEdit(cell);
-            requestNativeTableContextMenu(cell);
-        });
-
-        document.addEventListener('keydown', (event) => {
-            if (selectedTablePart && event.target === selectedTablePart.editor) {
-                if (event.key === 'Escape') {
-                    event.preventDefault();
-                    clearTablePartSelection();
-                    return;
-                }
-                if (event.key === 'Backspace' || event.key === 'Delete') {
-                    event.preventDefault();
-                    if (selectedTablePart.kind === 'range') return;
-                    const selection = selectedTablePart;
-                    clearTablePartSelection();
-                    performTableStructure(
-                        selection.cell,
-                        selection.kind === 'row' ? 'deleteRow' : 'deleteColumn'
-                    );
-                    return;
-                }
-            }
-            if (!activeTableCell || event.target !== activeTableCell) return;
-            if (event.key === 'Escape') {
-                event.preventDefault();
-                finishTableCellEdit(false);
-            } else if (event.key === 'Enter' || event.key === 'Tab') {
-                event.preventDefault();
-                finishTableCellEdit(true);
-            }
-        });
-
-        document.addEventListener('paste', (event) => {
-            if (!activeTableCell || event.target !== activeTableCell || !event.clipboardData) return;
-            event.preventDefault();
-            document.execCommand('insertText', false, event.clipboardData.getData('text/plain'));
-        });
-
-        document.addEventListener('change', (event) => {
-            const checkbox = event.target.closest('.task-list-item-checkbox');
-            if (!checkbox || !hasHostBridge) return;
-            const item = checkbox.closest('[data-source-line]');
-            const sourceLine = item && Number(item.dataset.sourceLine);
-            if (!Number.isInteger(sourceLine) || sourceLine < 1) {
-                checkbox.checked = !checkbox.checked;
-                return;
-            }
-            checkbox.disabled = true;
-            if (!post({ kind: 'taskCheckbox', line: sourceLine, checked: checkbox.checked })) {
-                checkbox.checked = !checkbox.checked;
-                checkbox.disabled = false;
-            }
         });
 
         // Registered on window so it runs after every document-level copy
@@ -756,8 +419,6 @@ nonisolated extension MarkdownHTML {
         window.addEventListener('copy', (event) => {
             const selection = window.getSelection();
             if (!selection || selection.rangeCount === 0 || !event.clipboardData) return;
-            // A cell being edited copies its own text like any text field.
-            if (activeTableCell) return;
             const { fragment, removedButtons } = selectionFragment(selection);
             const markdown = markdownForSelection(selection);
             if (markdown !== null) {
@@ -849,6 +510,20 @@ nonisolated extension MarkdownHTML {
         // ALLOWED_URI_REGEXP extends DOMPurify's default safe-URL list with
         // `md-asset:` so markdown image references that resolve to the
         // document's base directory (![alt](relative/path.png)) keep working.
+        // Preserve external destinations only on HTML anchors. Keeping the
+        // normal URI policy keeps app schemes out of src, SVG href, etc.
+        if (typeof DOMPurify !== 'undefined' && DOMPurify.addHook) {
+            const blockedLinkScheme = /^(?:\(ExternalLinkPolicy.blockedSchemes.joined(separator: "|"))):/i;
+            const externalLinkScheme = /^[a-z][a-z0-9+.-]*:/i;
+            DOMPurify.addHook('uponSanitizeAttribute', (node, data) => {
+                if (node.namespaceURI === 'http://www.w3.org/1999/xhtml'
+                    && node.nodeName === 'A' && data.attrName === 'href'
+                    && externalLinkScheme.test(data.attrValue)
+                    && !blockedLinkScheme.test(data.attrValue)) {
+                    data.forceKeepAttr = true;
+                }
+            });
+        }
         const SANITIZE_CONFIG = {
             FORBID_TAGS: ['style', 'form', 'iframe', 'object',
                           'embed', 'meta', 'link', 'base'],
@@ -875,22 +550,25 @@ nonisolated extension MarkdownHTML {
         const reappliers = [];
         const renderers = new Map();
         window.MdPreview = window.MdPreview || {};
-        window.MdPreview.performTableContextAction = (token, operation) => {
-            if (!pendingTableContextAction || pendingTableContextAction.token !== token) return false;
-            const pending = pendingTableContextAction;
-            pendingTableContextAction = null;
-            if (operation === 'selectRow' || operation === 'selectColumn') {
-                selectTablePart(pending.cell, operation);
-            } else {
-                performTableStructure(pending.cell, operation);
-            }
-            return true;
-        };
         // Legacy one-function renderers remain supported while bundled
         // extensions move to registerRenderer().
         window.MdPreview.registerReapplier = (fn) => {
             if (typeof fn === 'function') reappliers.push(fn);
         };
+        function enableTaskCheckboxes() {
+            document.querySelectorAll('.task-list-item-checkbox').forEach(box => {
+                box.disabled = !hasHostBridge;
+            });
+        }
+        document.addEventListener('change', event => {
+            const box = event.target;
+            if (!hasHostBridge ||
+                !box.matches('.task-list-item-checkbox')) return;
+            const line = Number(box.closest('[data-source-line]')?.dataset.sourceLine);
+            if (!Number.isInteger(line) || line < 1) return;
+            post({ kind: 'taskCheckbox', line, checked: box.checked });
+        });
+        reappliers.push(enableTaskCheckboxes);
         function mdHash(s) {
             let h = 5381;
             for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
@@ -1043,8 +721,6 @@ nonisolated extension MarkdownHTML {
             for (const renderer of renderers.values()) {
                 try { renderer.beforeUpdate?.(article); } catch (e) { /* one bad apple shouldn't block others */ }
             }
-            finishTableCellEdit(false);
-            clearTablePartSelection();
             // DOM-diff fast path: morph the live article toward the incoming
             // HTML so finished Mermaid SVGs, KaTeX output, and highlighted
             // code survive the update instead of being re-rendered. Skipped
@@ -1064,7 +740,6 @@ nonisolated extension MarkdownHTML {
                     // Pre-shape the incoming tree so the decorators' wrappers
                     // pair one-to-one with the live DOM during the diff.
                     decorateCodeBlocks(next);
-                    enableTableEditing(next);
                     keyExpensiveBlocks(article);
                     keyExpensiveBlocks(next);
                     morphdom(article, next, MORPH_OPTIONS);
@@ -1090,9 +765,7 @@ nonisolated extension MarkdownHTML {
                 // the innerHTML swap leaves fresh undecorated nodes behind.
                 if (!morphed) {
                     decorateCodeBlocks();
-                    enableTableEditing();
                 }
-                enableTaskCheckboxes();
                 window.MdPreview.renderAll(article);
             }
             perfLog('MdPreview.update' + (morphed ? ' (morphdom)' : ''), '(+' + (perfNow() - tStart).toFixed(1) + 'ms)');

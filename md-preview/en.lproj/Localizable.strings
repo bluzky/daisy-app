@@ -299,3 +299,71 @@
 "Keeps every Markdown Preview window in front of other apps, including windows you open later. A window in full screen is left alone until it comes back out." = "Keeps every Markdown Preview window in front of other apps, including windows you open later. A window in full screen is left alone until it comes back out.";
 "Open documents in tabs" = "Open documents in tabs";
 "A file opened from Finder joins the front window as a tab instead of getting one of its own — Open in New Window still opens a window." = "A file opened from Finder joins the front window as a tab instead of getting one of its own — Open in New Window still opens a window.";
+
+/* Search for Document */
+"Search for Document…" = "Search for Document…";
+"Search files by name" = "Search files by name";
+"No matching files" = "No matching files";
+"Open a folder to search its files" = "Open a folder to search its files";
+"Open Folder…" = "Open Folder…";
+"Showing the first %d files in this project" = "Showing the first %d files in this project";
+"↑↓ browse · ↩ open · ⌘↩ new tab · ⌥↩ new window" = "↑↓ browse · ↩ open · ⌘↩ new tab · ⌥↩ new window";
+"Search for Document" = "Search for Document";
+"Search for a file by name" = "Search for a file by name";
+
+/* What's New */
+"What’s New in Markdown Preview" = "What’s New in Markdown Preview";
+"What’s New in Markdown Preview %@" = "What’s New in Markdown Preview %@";
+"Release Notes" = "Release Notes";
+"Continue" = "Continue";
+"Find any document fast" = "Find any document fast";
+"Press ⇧⌘O and type part of a file name to open it from the current project." = "Press ⇧⌘O and type part of a file name to open it from the current project.";
+"Redesigned formatting bar" = "Redesigned formatting bar";
+"On macOS 26 and later, the formatting bar uses Liquid Glass, with headings, links, lists, and styles in compact groups." = "On macOS 26 and later, the formatting bar uses Liquid Glass, with headings, links, lists, and styles in compact groups.";
+"Redesigned code blocks" = "Redesigned code blocks";
+"Wrap long lines with one click. Code blocks now use rounded cards that show their language." = "Wrap long lines with one click. Code blocks now use rounded cards that show their language.";
+
+/* Reading preferences */
+"Strict line breaks" = "Strict line breaks";
+"Join ordinary source lines into flowing paragraphs. Turn this off to preserve every line break. Applies to reading view and Quick Look previews." = "Join ordinary source lines into flowing paragraphs. Turn this off to preserve every line break. Applies to reading view and Quick Look previews.";
+
+/* App link approvals */
+"Reset App Link Approvals" = "Reset App Link Approvals";
+"App links" = "App links";
+"Ask again before opening custom app links. Approvals are saved per URL scheme and shared with Quick Look." = "Ask again before opening custom app links. Approvals are saved per URL scheme and shared with Quick Look.";
+"No application can open this link" = "No application can open this link";
+"OK" = "OK";
+"Allow this document to open “%@”?" = "Allow this document to open “%@”?";
+"Allow" = "Allow";
+"Always Allow" = "Always Allow";
+"Allow all %@: links in documents and Quick Look." = "Allow all %@: links in documents and Quick Look.";
+
+/* App language */
+"Language" = "Language";
+"System Default" = "System Default";
+"Quit and reopen Markdown Preview to apply language changes. This setting only affects the app, not Quick Look previews." = "Quit and reopen Markdown Preview to apply language changes. This setting only affects the app, not Quick Look previews.";
+
+/* Settings organization */
+"Saving" = "Saving";
+"External apps & tools" = "External apps & tools";
+"Text & layout" = "Text & layout";
+"Markdown" = "Markdown";
+"Outline" = "Outline";
+"Customize the selected theme’s font, spacing and colors. Reset restores that theme’s defaults; global Reading preferences stay unchanged." = "Customize the selected theme’s font, spacing and colors. Reset restores that theme’s defaults; global Reading preferences stay unchanged.";
+"Clicking a link to another Markdown file opens it in a separate window. Turn this off to open it in the current window." = "Clicking a link to another Markdown file opens it in a separate window. Turn this off to open it in the current window.";
+"Customize…" = "Customize…";
+"Each theme remembers its colors, font and layout. Original also remembers your appearance choice. Reset restores the selected theme’s defaults." = "Each theme remembers its colors, font and layout. Original also remembers your appearance choice. Reset restores the selected theme’s defaults.";
+"Fonts, spacing and colors" = "Fonts, spacing and colors";
+"Highlight outline section under the pointer" = "Highlight outline section under the pointer";
+"Open Markdown links in new windows" = "Open Markdown links in new windows";
+"Text size also applies to Quick Look previews. Zooming a document window with ⌘+ and ⌘− changes it too. Fonts and reading layout live in Appearance settings." = "Text size also applies to Quick Look previews. Zooming a document window with ⌘+ and ⌘− changes it too. Fonts and reading layout live in Appearance settings.";
+"Themes" = "Themes";
+"This theme uses a fixed appearance. Choose Original to change it." = "This theme uses a fixed appearance. Choose Original to change it.";
+
+/* Reading text alignment */
+"Text alignment" = "Text alignment";
+"Left" = "Left";
+"Center" = "Center";
+"Right" = "Right";
+"Justified" = "Justified";
+"Alignment applies to prose in reading view and Quick Look. Automatic follows the document. Code, tables and explicit HTML alignment are preserved." = "Alignment applies to prose in reading view and Quick Look. Automatic follows the document. Code, tables and explicit HTML alignment are preserved.";

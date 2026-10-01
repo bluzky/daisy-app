@@ -104,23 +104,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var pendingTerminationSaveCount = 0
     private var terminationSaveFailed = false
 
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        WhatsNewWindow.noteLaunch()
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         CrashReporter.start()
         let storedAppearance = AppearanceMode.migrateLegacyValue()
+        ThemePreset.migrateLegacyValues()
         let appearanceMode = ThemePreset.applied().requiredAppearance ?? storedAppearance
         if appearanceMode != storedAppearance { AppearanceMode.current = appearanceMode }
         applyAppearanceMode(appearanceMode, reloadPreviews: false)
+        // Capture launch settings before another instance can change them while
+        // we're inactive, even if this user never opens the Settings window.
+        SettingsModel.shared.refreshFromExternalSources()
         installAppearanceMenuItems()
         installContentWidthMenuItems()
         installSidebarViewMenuItems()
         installEditModeMenuItem()
         installFormatMenu()
         installNewTabMenuItem()
+        installSearchForDocumentMenuItem()
         installFileExportMenuItems()
         installGoMenu()
         installSettingsMenuItem()
         NSApp.windowsMenu?.delegate = self
         installAppMenuItems()
+        installWhatsNewMenuItem()
         installViewMenuItemIcons()
         hasFinishedLaunching = true
         if !didReceiveOpenURLsDuringLaunch {
@@ -130,6 +140,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationDidBecomeActive(_ notification: Notification) {
         UsageAnalyticsReporter.recordAppBecameActive()
+        guard hasFinishedLaunching else { return }
+        let model = SettingsModel.shared
+        let changed = model.appliedPreset != ThemePreset.applied()
+            || model.appearance != AppearanceMode.current
+            || model.themeColors != ThemeColorsSetting.current
+            || model.documentFont != DocumentFontSetting.current
+            || model.readerLayout != ReaderLayoutSetting.current
+            || model.textAlignment != TextAlignmentSetting.current
+            || model.strictLineBreaks != StrictLineBreaksSetting.current
+        let languageChanged = model.appLanguage != AppLanguageSetting.selection()
+        guard changed || languageChanged else { return }
+        model.refreshFromExternalSources()
+        // Language changes take effect on relaunch; only refresh their picker now.
+        guard changed else { return }
+        // Repaint only when another instance changed the shared reading look.
+        applyAppearanceMode(ThemePreset.applied().requiredAppearance ?? AppearanceMode.current,
+                            reloadPreviews: true)
     }
 
     func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool {
@@ -317,6 +344,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         applyAppearanceMode(resolved, reloadPreviews: true)
     }
 
+    func applyTextAlignmentSetting(_ setting: TextAlignmentSetting) {
+        guard setting != TextAlignmentSetting.current else { return }
+        TextAlignmentSetting.current = setting
+        reloadDocumentPreviewsForSettingChange()
+    }
+
+    func applyStrictLineBreaksSetting(_ enabled: Bool) {
+        guard enabled != StrictLineBreaksSetting.current else { return }
+        StrictLineBreaksSetting.current = enabled
+        reloadDocumentPreviewsForSettingChange()
+    }
+
     func applyContentWidthSetting(_ setting: ContentWidthSetting) {
         guard setting != ContentWidthSetting.current else { return }
         ContentWidthSetting.current = setting
@@ -425,6 +464,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @IBAction func openDocument(_ sender: Any?) {
         NSDocumentController.shared.openDocument(sender)
+    }
+
+    private var recentFilesPalette: FileSearchPanelController?
+
+    @objc func searchForDocument(_ sender: Any?) {
+        if let controller = activeDocumentWindowController {
+            controller.searchForDocument(sender)
+            return
+        }
+        if let palette = recentFilesPalette {
+            palette.view.window?.makeKeyAndOrderFront(nil)
+            return
+        }
+        let palette = FileSearchPanelController(projectRoot: nil)
+        palette.onOpen = { url, _ in
+            NSDocumentController.shared.openDocument(withContentsOf: url, display: true) { _, _, error in
+                if let error { NSApp.presentError(error) }
+            }
+        }
+        palette.onRequestOpenFolder = { NSDocumentController.shared.openDocument(nil) }
+        palette.onDismiss = { [weak self] in self?.recentFilesPalette = nil }
+        recentFilesPalette = palette
+        palette.present(relativeTo: NSApp.mainWindow)
     }
 
     @IBAction func performFindPanelAction(_ sender: Any?) {
@@ -797,6 +859,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         fileMenu.insertItem(item, at: insertIndex)
     }
 
+    private func installSearchForDocumentMenuItem() {
+        guard let fileMenu = topLevelSubmenu(matching: Self.fileMenuTitles),
+              fileMenu.items.first(where: {
+                  $0.action == #selector(DocumentWindowController.searchForDocument(_:))
+              }) == nil else { return }
+
+        // nil target, as with New Tab: resolves through the responder chain to
+        // the key document window's controller, which decides whether there is
+        // a project to search.
+        let item = NSMenuItem(title: L("Search for Document…"),
+                              action: #selector(DocumentWindowController.searchForDocument(_:)),
+                              keyEquivalent: "o")
+        item.keyEquivalentModifierMask = [.command, .shift]
+        let openIndex = fileMenu.items
+            .firstIndex { $0.action == #selector(openDocument(_:)) }
+        fileMenu.insertItem(item, at: openIndex.map { $0 + 1 } ?? 0)
+    }
+
     private func installFileExportMenuItems() {
         guard let fileMenu = topLevelSubmenu(matching: Self.fileMenuTitles),
               let pdfIndex = fileMenu.items.firstIndex(where: {
@@ -1089,6 +1169,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                                  keyEquivalent: "")
         cliItem.target = self
         appMenu.insertItem(cliItem, at: appMenu.index(of: updatesItem) + 1)
+    }
+
+    private func installWhatsNewMenuItem() {
+        guard let helpMenu = NSApp.helpMenu,
+              helpMenu.items.first(where: { $0.action == #selector(showWhatsNew(_:)) }) == nil
+        else { return }
+
+        let item = NSMenuItem(title: L("What’s New in Markdown Preview"),
+                              action: #selector(showWhatsNew(_:)),
+                              keyEquivalent: "")
+        item.target = self
+        helpMenu.addItem(item)
+    }
+
+    @objc private func showWhatsNew(_ sender: Any?) {
+        WhatsNewWindow.present(over: activeDocumentWindowController?.window)
     }
 
     private func installSidebarViewMenuItems() {

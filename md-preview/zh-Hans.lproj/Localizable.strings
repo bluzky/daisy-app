@@ -292,10 +292,78 @@
 "Serif" = "衬线";
 "Rounded" = "圆体";
 "Monospace" = "等宽";
-"The font also applies to Quick Look previews. Zooming a document window with ⌘+ and ⌘− changes the text size." = "字体设置也会应用于“快速查看”预览。使用 ⌘+ 和 ⌘− 缩放文稿窗口会改变文字大小。";
+"The font also applies to Quick Look previews. Zooming a document window with ⌘+ and ⌘− changes the text size." = "字体设置也会应用于“快速查看”预览。使用 ⌘+ 和 ⌘− 缩放文稿窗口会改变文本大小。";
 
 /* Settings — Windows */
 "Windows" = "窗口";
 "Keeps every Markdown Preview window in front of other apps, including windows you open later. A window in full screen is left alone until it comes back out." = "让所有 Markdown Preview 窗口始终显示在其他 App 前面，包括之后打开的窗口。窗口进入全屏时不会置顶，退出全屏后会恢复。";
 "Open documents in tabs" = "以标签页打开文稿";
 "A file opened from Finder joins the front window as a tab instead of getting one of its own — Open in New Window still opens a window." = "从“访达”打开的文件会作为标签页加入最前面的窗口，而不是各自新建一个窗口——“在新窗口中打开”仍会打开新窗口。";
+
+/* Search for Document */
+"Search for Document…" = "搜索文稿…";
+"Search files by name" = "按名称搜索文件";
+"No matching files" = "没有匹配的文件";
+"Open a folder to search its files" = "打开一个文件夹以搜索其中的文件";
+"Open Folder…" = "打开文件夹…";
+"Showing the first %d files in this project" = "仅显示此项目中的前 %d 个文件";
+"↑↓ browse · ↩ open · ⌘↩ new tab · ⌥↩ new window" = "↑↓ 浏览 · ↩ 打开 · ⌘↩ 新标签页 · ⌥↩ 新窗口";
+"Search for Document" = "搜索文稿";
+"Search for a file by name" = "按名称搜索文件";
+
+/* What's New */
+"What’s New in Markdown Preview" = "Markdown Preview 的新功能";
+"What’s New in Markdown Preview %@" = "Markdown Preview %@ 的新功能";
+"Release Notes" = "发布说明";
+"Continue" = "继续";
+"Find any document fast" = "快速查找任意文稿";
+"Press ⇧⌘O and type part of a file name to open it from the current project." = "按下 ⇧⌘O 并输入文件名的一部分，即可打开当前项目中的文件。";
+"Redesigned formatting bar" = "全新设计的格式栏";
+"On macOS 26 and later, the formatting bar uses Liquid Glass, with headings, links, lists, and styles in compact groups." = "在 macOS 26 及更高版本上，格式栏采用 Liquid Glass 设计，标题、链接、列表和样式分组排列，更加紧凑。";
+"Redesigned code blocks" = "全新设计的代码块";
+"Wrap long lines with one click. Code blocks now use rounded cards that show their language." = "一键为长代码行换行。代码块现采用圆角卡片设计，并显示其语言。";
+
+/* Reading preferences */
+"Strict line breaks" = "严格换行";
+"Join ordinary source lines into flowing paragraphs. Turn this off to preserve every line break. Applies to reading view and Quick Look previews." = "将普通源文本行合并为连续段落。关闭此选项可保留每个换行。适用于阅读视图和快速查看预览。";
+
+/* App link approvals */
+"Reset App Link Approvals" = "重置应用链接授权";
+"App links" = "应用链接";
+"Ask again before opening custom app links. Approvals are saved per URL scheme and shared with Quick Look." = "打开自定义应用链接前重新询问。授权按 URL 协议保存，并与快速查看共享。";
+"No application can open this link" = "没有可打开此链接的应用";
+"OK" = "好";
+"Allow this document to open “%@”?" = "允许此文稿打开“%@”吗？";
+"Allow" = "允许";
+"Always Allow" = "始终允许";
+"Allow all %@: links in documents and Quick Look." = "允许文稿和快速查看中的所有 %@: 链接。";
+
+/* App language */
+"Language" = "语言";
+"System Default" = "跟随系统";
+"Quit and reopen Markdown Preview to apply language changes. This setting only affects the app, not Quick Look previews." = "退出并重新打开 Markdown Preview 以应用语言更改。此设置仅影响应用，不影响快速查看预览。";
+
+/* Settings organization */
+"Saving" = "保存";
+"External apps & tools" = "外部 App 与工具";
+"Text & layout" = "文本与布局";
+"Markdown" = "Markdown";
+"Outline" = "大纲";
+"Customize the selected theme’s font, spacing and colors. Reset restores that theme’s defaults; global Reading preferences stay unchanged." = "自定所选主题的字体、间距和颜色。重置会恢复该主题的默认设置，不会更改全局阅读偏好设置。";
+"Clicking a link to another Markdown file opens it in a separate window. Turn this off to open it in the current window." = "点按指向其他 Markdown 文件的链接时，在新窗口中打开。关闭此选项则在当前窗口中打开。";
+"Customize…" = "自定…";
+"Each theme remembers its colors, font and layout. Original also remembers your appearance choice. Reset restores the selected theme’s defaults." = "每个主题都会保留各自的颜色、字体和布局设置。“Original”主题还会保留您的外观选择。重置会恢复所选主题的默认设置。";
+"Fonts, spacing and colors" = "字体、间距和颜色";
+"Highlight outline section under the pointer" = "高亮显示指针下的大纲章节";
+"Open Markdown links in new windows" = "在新窗口中打开 Markdown 链接";
+"Text size also applies to Quick Look previews. Zooming a document window with ⌘+ and ⌘− changes it too. Fonts and reading layout live in Appearance settings." = "文本大小也适用于快速查看预览。使用 ⌘+ 和 ⌘− 缩放文稿窗口也会更改文本大小。字体和阅读布局可在“外观”设置中调整。";
+"Themes" = "主题";
+"This theme uses a fixed appearance. Choose Original to change it." = "此主题使用固定外观。选择“Original”主题即可更改外观。";
+
+/* Reading text alignment */
+"Text alignment" = "文本对齐";
+"Left" = "左对齐";
+"Center" = "居中";
+"Right" = "右对齐";
+"Justified" = "两端对齐";
+"Alignment applies to prose in reading view and Quick Look. Automatic follows the document. Code, tables and explicit HTML alignment are preserved." = "对齐方式适用于阅读视图和快速查看中的正文。“自动”遵循文稿的对齐方式。代码、表格和 HTML 中明确指定的对齐方式保持不变。";
