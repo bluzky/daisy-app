@@ -171,6 +171,42 @@ final class MdPreviewUpdateTests: XCTestCase {
         XCTAssertEqual(result?["toggleCount"] as? Int, 1)
     }
 
+    /// Heading ids are positional (`md-heading-N`), so inserting a heading
+    /// above a collapsed one shifts every later id. Collapse state must follow
+    /// the heading's content, not its index.
+    @MainActor
+    func testCollapsedHeadingStateSurvivesEarlierHeadingInsertion() async throws {
+        let webView = try await loadHarness(
+            articleAttributes: "",
+            extraHeadScripts: MarkdownHTML.collapsibleHeadersScript
+        )
+
+        func articleHTML(_ markdown: String) -> String {
+            MarkdownHTML.javaScriptStringLiteral(
+                MarkdownHTML.render(markdown: markdown, vendorLoading: .lazy).articleHTML
+            )
+        }
+        let before = articleHTML("# A\n\nalpha\n\n# B\n\nbeta\n\n# C\n\ngamma")
+        let after = articleHTML("# New\n\nfresh\n\n# A\n\nalpha\n\n# B\n\nbeta\n\n# C\n\ngamma")
+
+        _ = try await webView.evaluateJavaScript("window.MdPreview.update(\(before)); true")
+        _ = try await webView.evaluateJavaScript("""
+            document.querySelectorAll('h1')[2].querySelector('.mdp-collapse-toggle').click(); true
+            """)
+        _ = try await webView.evaluateJavaScript("window.MdPreview.update(\(after)); true")
+
+        let result = try await webView.evaluateJavaScript("""
+            (() => {
+                const hidden = {};
+                document.querySelectorAll('.markdown-body > p').forEach((p) => {
+                    hidden[p.textContent] = p.classList.contains('mdp-collapsed-section');
+                });
+                return hidden;
+            })()
+            """) as? [String: Bool]
+        XCTAssertEqual(result, ["fresh": false, "alpha": false, "beta": false, "gamma": true])
+    }
+
     @MainActor
     func testWarmupArticleTakesInnerHTMLReplaceBeforeMorphing() async throws {
         let webView = try await loadHarness(
