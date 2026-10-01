@@ -263,6 +263,10 @@ nonisolated enum MarkdownHTML {
         let containsMath: Bool
         let containsMermaid: Bool
         let containsCode: Bool
+        /// Render extensions whose assets this page carries; a loaded page
+        /// can only take a body swap if it already has the ones the next
+        /// document needs.
+        let activeExtensionIDs: Set<String>
     }
 
     static func makeHTML(from markdown: String,
@@ -355,11 +359,12 @@ nonisolated enum MarkdownHTML {
         let containsMath = mathResult.containsMath || footnoteDefinitions.containsMath
         let containsMermaid = mermaidResult.containsMermaid || footnoteDefinitions.containsMermaid
         let containsCode = detectHighlightableCode(in: bodyHTML)
-        let extensionAssets = activeRenderExtensions(
+        let activeExtensions = activeRenderExtensions(
             in: bodyHTML,
             markdown: body,
             configuration: renderExtensionConfiguration
-        ).map { $0.assets(mode: vendorLoading) }
+        )
+        let extensionAssets = activeExtensions.map { $0.assets(mode: vendorLoading) }
         let extensionCSS = extensionAssets.map(\.css)
             .filter { !$0.isEmpty }
             .joined(separator: "\n")
@@ -520,7 +525,8 @@ nonisolated enum MarkdownHTML {
             markdown: markdown,
             containsMath: containsMath,
             containsMermaid: containsMermaid,
-            containsCode: containsCode
+            containsCode: containsCode,
+            activeExtensionIDs: Set(activeExtensions.map(\.id))
         )
     }
 
