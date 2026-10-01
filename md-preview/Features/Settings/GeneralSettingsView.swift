@@ -90,6 +90,16 @@ struct GeneralSettingsView: View {
                 Text(L("The app the Open button in the document toolbar uses first. Its menu still offers every other installed app."))
                 Text(L("Adds mdp, md-preview, and markdown-preview to your PATH. Run it again after updating the app to refresh the commands."))
             }
+
+            Section {
+                Button(L("Reset App Link Approvals")) {
+                    ExternalLinkPolicy.reset(defaults: AppearanceMode.sharedDefaults())
+                }
+            } header: {
+                Text(L("App links"))
+            } footer: {
+                Text(L("Ask again before opening custom app links. Approvals are saved per URL scheme and shared with Quick Look."))
+            }
         }
         .formStyle(.grouped)
         .onAppear {
