@@ -977,6 +977,7 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         (() => {
             const el = document.getElementById('md-heading-\(index)');
             if (!el) return null;
+            window.MdPreview?.revealElement?.(el);
             const rect = el.getBoundingClientRect();
             return rect.top + (window.scrollY || document.documentElement.scrollTop || 0);
         })();
@@ -1015,6 +1016,7 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
                 }
             }
             if (!el) return null;
+            window.MdPreview?.revealElement?.(el);
             const rect = el.getBoundingClientRect();
             return rect.top + (window.scrollY || document.documentElement.scrollTop || 0);
         })();

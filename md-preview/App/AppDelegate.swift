@@ -149,6 +149,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             || model.readerLayout != ReaderLayoutSetting.current
             || model.textAlignment != TextAlignmentSetting.current
             || model.strictLineBreaks != StrictLineBreaksSetting.current
+            || model.enabledRenderExtensionIDs != RenderExtensionPreferences.currentConfiguration.enabledIDs
         let languageChanged = model.appLanguage != AppLanguageSetting.selection()
         guard changed || languageChanged else { return }
         model.refreshFromExternalSources()

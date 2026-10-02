@@ -64,6 +64,7 @@ nonisolated extension MarkdownHTML {
   static let collapsibleHeadersScript = """
     <script>
     (() => {
+      const toggleLabelTemplate = \(javaScriptStringLiteral(NSLocalizedString("Toggle \"%@\" section", comment: "Collapsible heading toggle accessibility label")));
       const headingSelector = [
         'article.markdown-body > h1',
         'article.markdown-body > h2',
@@ -113,6 +114,36 @@ nonisolated extension MarkdownHTML {
         }
         window.MdPreviewHost?.pushHeight?.();
       }
+
+      // Collapsed sections are display:none, so an element inside one has no
+      // layout box to scroll to. Expand whatever hides `el` — its own section
+      // when it is content, and every collapsed ancestor heading — so
+      // navigation (outline clicks, fragment links) can measure and reach it.
+      function revealElement(el) {
+        const article = el && el.closest('.markdown-body');
+        if (!article) return;
+        let top = el;
+        while (top.parentElement && top.parentElement !== article) top = top.parentElement;
+        let owner = top;
+        while (owner && !/^H[1-6]$/.test(owner.tagName)) owner = owner.previousElementSibling;
+        if (!owner) return;
+        let changed = false;
+        function expand(heading) {
+          if (heading.dataset.mdpCollapsed !== 'true') return;
+          heading.dataset.mdpCollapsed = 'false';
+          changed = true;
+        }
+        if (owner !== top) expand(owner);
+        let minLevel = headingLevel(owner);
+        for (let node = owner.previousElementSibling; node; node = node.previousElementSibling) {
+          if (/^H[1-6]$/.test(node.tagName) && headingLevel(node) < minLevel) {
+            expand(node);
+            minLevel = headingLevel(node);
+          }
+        }
+        if (changed) reconcileVisibility(document);
+      }
+      if (window.MdPreview) window.MdPreview.revealElement = revealElement;
 
       function toggle(heading) {
         heading.dataset.mdpCollapsed = heading.dataset.mdpCollapsed === 'true' ? 'false' : 'true';
@@ -166,7 +197,7 @@ nonisolated extension MarkdownHTML {
           const toggleButton = document.createElement('button');
           toggleButton.type = 'button';
           toggleButton.className = 'mdp-collapse-toggle';
-          toggleButton.setAttribute('aria-label', `Toggle "${heading.textContent.trim()}" section`);
+          toggleButton.setAttribute('aria-label', toggleLabelTemplate.replace('%@', () => heading.textContent.trim()));
           toggleButton.addEventListener('click', () => toggle(heading));
           heading.prepend(toggleButton);
         }

@@ -207,6 +207,41 @@ final class MdPreviewUpdateTests: XCTestCase {
         XCTAssertEqual(result, ["fresh": false, "alpha": false, "beta": false, "gamma": true])
     }
 
+    /// Collapsed sections are display:none, so navigation to a heading inside
+    /// one would measure a zero-size box. `revealElement` must expand the
+    /// collapsed ancestors (and the owning section for plain content).
+    @MainActor
+    func testRevealElementExpandsCollapsedAncestors() async throws {
+        let webView = try await loadHarness(
+            articleAttributes: "",
+            extraHeadScripts: MarkdownHTML.collapsibleHeadersScript
+        )
+        let doc = MarkdownHTML.javaScriptStringLiteral(
+            MarkdownHTML.render(
+                markdown: "# Top\n\n## Nested\n\ninner text\n\n# Other\n\nouter text",
+                vendorLoading: .lazy
+            ).articleHTML
+        )
+        _ = try await webView.evaluateJavaScript("window.MdPreview.update(\(doc)); true")
+
+        let result = try await webView.evaluateJavaScript("""
+            (() => {
+                document.querySelector('h1').querySelector('.mdp-collapse-toggle').click();
+                const h2 = document.querySelector('h2');
+                const p = document.querySelector('p');
+                const hiddenBefore = h2.classList.contains('mdp-collapsed-section')
+                    && p.classList.contains('mdp-collapsed-section');
+                window.MdPreview.revealElement(h2);
+                return {
+                    hiddenBefore,
+                    visibleAfter: !h2.classList.contains('mdp-collapsed-section'),
+                    contentVisible: !p.classList.contains('mdp-collapsed-section')
+                };
+            })()
+            """) as? [String: Bool]
+        XCTAssertEqual(result, ["hiddenBefore": true, "visibleAfter": true, "contentVisible": true])
+    }
+
     @MainActor
     func testWarmupArticleTakesInnerHTMLReplaceBeforeMorphing() async throws {
         let webView = try await loadHarness(
