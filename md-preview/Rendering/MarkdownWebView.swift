@@ -204,20 +204,15 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
     private let messageBridge = HostBridge()
 
     private struct RendererFingerprint: Equatable {
-        let math: Bool
-        let mermaid: Bool
-        let code: Bool
-        let extensions: Set<String>
+        let scriptAssetIDs: Set<String>
 
         /// True if every renderer the new doc needs is already loaded — the
         /// gate for the fast-path innerHTML swap.
         func covers(_ other: RendererFingerprint) -> Bool {
-            (!other.math || math)
-                && (!other.mermaid || mermaid)
-                && (!other.code || code)
-                && other.extensions.isSubset(of: extensions)
+            other.scriptAssetIDs.isSubset(of: scriptAssetIDs)
         }
     }
+    private static let lateRenderingAssetIDs: Set<String> = ["math", "mermaid", "code"]
     private var loadedFingerprint: RendererFingerprint?
     private var isPageReady = false
     // Bumped on every display() call so a slower render finishing after a
@@ -237,6 +232,7 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
     private var didMagnifyDuringCurrentGesture = false
     private var isPointerOverMermaidFigure = false
     private var currentMarkdown: String?
+    private var currentDocumentID = "page"
     private weak var webScrollView: NSScrollView?
     nonisolated(unsafe) private var scrollBoundsObserver: NSObjectProtocol?
 
@@ -345,10 +341,7 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
               !isPageReady,
               loadedFingerprint == nil else { return }
         loadedFingerprint = RendererFingerprint(
-            math: rendered.containsMath,
-            mermaid: rendered.containsMermaid,
-            code: rendered.containsCode,
-            extensions: rendered.activeExtensionIDs
+            scriptAssetIDs: rendered.scriptAssetIDs
         )
         webView.loadHTMLString(rendered.html, baseURL: nil)
     }
@@ -402,10 +395,13 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
             ?? MarkdownAssetResolution.rootBaseHref
     }
 
-    func display(markdown: String, assetBaseURL: URL? = nil) {
+    func display(markdown: String,
+                 assetBaseURL: URL? = nil,
+                 documentID: String = "page") {
         pendingContentProcessReload?.cancel()
         pendingContentProcessReload = nil
         currentMarkdown = markdown
+        currentDocumentID = documentID
         isPointerOverMermaidFigure = false
         assetScheme.setBaseURL(assetBaseURL)
         currentAssetBase = assetBaseURL
@@ -421,7 +417,8 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
                                             assetBaseHref: baseHref,
                                             contentWidth: contentWidth,
                                             themeOverrides: themeOverrides,
-                                            renderExtensionConfiguration: renderExtensionConfiguration)
+                                            renderExtensionConfiguration: renderExtensionConfiguration,
+                                            documentID: documentID)
             #if DEBUG
             let renderFinishedAt = DispatchTime.now().uptimeNanoseconds
             await self?.applyDisplayDebug(
@@ -444,6 +441,7 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
                                                 contentWidth: MarkdownHTML.ContentWidth,
                                                 themeOverrides: MarkdownHTML.ThemeOverrides? = nil,
                                                 renderExtensionConfiguration: MarkdownHTML.RenderExtensionConfiguration,
+                                                documentID: String = "page",
                                                 warmup: Bool = false) -> MarkdownHTML.RenderedHTML {
         let t0 = DispatchTime.now()
         let rendered = MarkdownHTML.render(markdown: markdown,
@@ -454,6 +452,7 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
                                            themeOverrides: themeOverrides,
                                            warmup: warmup,
                                            pageTopClearance: MarkdownHTML.appPageTopClearance,
+                                           documentID: documentID,
                                            renderExtensionConfiguration: renderExtensionConfiguration)
         let elapsedMs = Int(
             (Double(DispatchTime.now().uptimeNanoseconds - t0.uptimeNanoseconds)
@@ -487,12 +486,10 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         // off-main — drop the stale result so the latest article wins.
         guard generation == renderGeneration else { return }
         let fingerprint = RendererFingerprint(
-            math: rendered.containsMath,
-            mermaid: rendered.containsMermaid,
-            code: rendered.containsCode,
-            extensions: rendered.activeExtensionIDs
+            scriptAssetIDs: rendered.scriptAssetIDs
         )
-        lastDisplayMayChangeAfterFirstPaint = fingerprint.math || fingerprint.mermaid || fingerprint.code
+        lastDisplayMayChangeAfterFirstPaint = !fingerprint.scriptAssetIDs
+            .isDisjoint(with: Self.lateRenderingAssetIDs)
             || rendered.articleHTML.range(of: "<img", options: .caseInsensitive) != nil
 
         // Fast path: the loaded page already has every renderer the new doc
@@ -506,13 +503,14 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
             webView.callAsyncJavaScript(
                 """
                 if (!window.MdPreview) return false;
-                window.MdPreview.update(articleHTML, { baseHref, source });
+                window.MdPreview.update(articleHTML, { baseHref, source, documentID });
                 return true;
                 """,
                 arguments: [
                     "articleHTML": rendered.articleHTML,
                     "baseHref": currentBaseHref,
                     "source": rendered.markdown,
+                    "documentID": currentDocumentID,
                 ],
                 in: nil,
                 in: .page
@@ -541,7 +539,9 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
 
     func reloadPreview() {
         guard let currentMarkdown else { return }
-        display(markdown: currentMarkdown, assetBaseURL: currentAssetBase)
+        display(markdown: currentMarkdown,
+                assetBaseURL: currentAssetBase,
+                documentID: currentDocumentID)
     }
 
     /// Full reload (no fast-path) so render-time settings — appearance,
@@ -977,7 +977,7 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         (() => {
             const el = document.getElementById('md-heading-\(index)');
             if (!el) return null;
-            window.MdPreview?.revealElement?.(el);
+            window.MdPreview?.reveal?.(el);
             const rect = el.getBoundingClientRect();
             return rect.top + (window.scrollY || document.documentElement.scrollTop || 0);
         })();
@@ -1016,7 +1016,7 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
                 }
             }
             if (!el) return null;
-            window.MdPreview?.revealElement?.(el);
+            window.MdPreview?.reveal?.(el);
             const rect = el.getBoundingClientRect();
             return rect.top + (window.scrollY || document.documentElement.scrollTop || 0);
         })();
@@ -1068,25 +1068,14 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
             const isWordChar = (ch) => /[A-Za-z0-9_]/.test(ch);
 
             const needle = query.toLocaleLowerCase();
-            // checkVisibility() forces layout, and KaTeX/Mermaid pages have
-            // many text nodes per parent — cache by parent so we hit it once.
-            const visibilityCache = new WeakMap();
             const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
                 acceptNode(node) {
                     const parent = node.parentElement;
-                    if (!parent || parent.closest('script, style, textarea, mark.md-search-highlight')) {
+                    if (!parent || parent.closest(
+                        'script, style, textarea, mark.md-search-highlight, [data-mdp-search-exclude]'
+                    )) {
                         return NodeFilter.FILTER_REJECT;
                     }
-                    // KaTeX/Mermaid stash hidden MathML / source mirrors with
-                    // getBoundingClientRect.top===0 — scrolling to those would
-                    // jump the doc to the top with nothing visible.
-                    let visible = visibilityCache.get(parent);
-                    if (visible === undefined) {
-                        visible = typeof parent.checkVisibility !== 'function'
-                            || parent.checkVisibility();
-                        visibilityCache.set(parent, visible);
-                    }
-                    if (!visible) return NodeFilter.FILTER_REJECT;
                     // Don't double-lowercase here; the inner loop already does
                     // one .toLocaleLowerCase() per node and an .indexOf, which
                     // short-circuits cheaply on non-matching text.
@@ -1158,6 +1147,7 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
             window.__mdPreviewSearchIndex = index;
             const current = marks[index];
             current.classList.add('md-search-highlight-current');
+            window.MdPreview?.reveal?.(current);
 
             // Return document-space bounds so the native host can decide
             // whether the match is already visible before scrolling to it.

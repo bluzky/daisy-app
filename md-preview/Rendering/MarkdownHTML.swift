@@ -265,9 +265,8 @@ nonisolated enum MarkdownHTML {
         /// Extension CSS is separate: warmup includes every enabled CSS asset.
         let scriptAssetIDs: Set<String>
 
-        // Temporary host compatibility accessors. RenderedHTML stores only
-        // scriptAssetIDs; these keep MarkdownWebView's existing fingerprint
-        // bridge source-compatible until its separate migration slice.
+        /// Convenience checks retained for renderer-output tests. Hosts make
+        /// fast-path decisions from `scriptAssetIDs` directly.
         var containsMath: Bool { scriptAssetIDs.contains("math") }
         var containsMermaid: Bool { scriptAssetIDs.contains("mermaid") }
         var containsCode: Bool { scriptAssetIDs.contains("code") }
@@ -285,6 +284,7 @@ nonisolated enum MarkdownHTML {
                          readerLayout: ReaderLayoutSetting = .current,
                          strictLineBreaks: Bool = StrictLineBreaksSetting.current,
                          textAlignment: TextAlignmentSetting = .current,
+                         documentID: String = "page",
                          renderExtensionConfiguration: RenderExtensionConfiguration = .allEnabled) -> String {
         render(markdown: markdown,
                allowsScroll: allowsScroll,
@@ -295,6 +295,7 @@ nonisolated enum MarkdownHTML {
                readerLayout: readerLayout,
                strictLineBreaks: strictLineBreaks,
                textAlignment: textAlignment,
+               documentID: documentID,
                renderExtensionConfiguration: renderExtensionConfiguration).html
     }
 
@@ -312,6 +313,7 @@ nonisolated enum MarkdownHTML {
                        warmup: Bool = false,
                        pageTopClearance: CGFloat = 0,
                        highlightsCode: Bool = true,
+                       documentID: String = "page",
                        renderExtensionConfiguration: RenderExtensionConfiguration = .allEnabled) -> RenderedHTML {
         let frontmatter = MarkdownFrontmatter.split(markdown)
         let body = frontmatter.body
@@ -497,6 +499,9 @@ nonisolated enum MarkdownHTML {
         // The Markdown source rides along for copy-as-source. `</` is escaped
         // inside the string literal so a fence containing `</script>` cannot
         // end the element.
+        let documentIDBlock = """
+        <script>window.MdPreview = window.MdPreview || {}; window.MdPreview.documentID = \(javaScriptStringLiteral(documentID).replacingOccurrences(of: "</", with: "<\\/"));</script>
+        """
         let sourceBlock = warmup ? "" : """
         <script>window.MdPreview = window.MdPreview || {}; window.MdPreview.source = \(javaScriptStringLiteral(markdown).replacingOccurrences(of: "</", with: "<\\/"));</script>
         """
@@ -526,6 +531,7 @@ nonisolated enum MarkdownHTML {
         \(sanitizerBlock)
         \(morphBlock)
         \(hostBridgeScript)
+        \(documentIDBlock)
         \(sourceBlock)
         \(mathBlock.head)
         \(mermaidBlock.head)

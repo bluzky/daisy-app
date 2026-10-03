@@ -12,6 +12,8 @@ import UniformTypeIdentifiers
 
 class PreviewProvider: QLPreviewProvider, QLPreviewingController {
 
+    private let documentID = UUID().uuidString
+
     func providePreview(for request: QLFilePreviewRequest) async throws -> QLPreviewReply {
         #if DEBUG
         // Debug-only perf instrumentation on the shared `Logger.perf` (its
@@ -45,6 +47,7 @@ class PreviewProvider: QLPreviewProvider, QLPreviewingController {
             from: text,
             allowsScroll: true,
             colorScheme: colorScheme,
+            documentID: documentID,
             renderExtensionConfiguration: RenderExtensionPreferences.currentConfiguration
         )
         let baseDirectory = request.fileURL.deletingLastPathComponent()

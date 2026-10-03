@@ -44,6 +44,12 @@ nonisolated extension MarkdownHTML {
                     throwOnError: false,
                     output: 'htmlAndMathml'
                 });
+                // KaTeX emits visually hidden MathML beside visible HTML.
+                // Find includes extension-hidden document content, but this
+                // renderer mirror must not create duplicate matches.
+                el.querySelectorAll('.katex-mathml').forEach((mirror) => {
+                    mirror.setAttribute('data-mdp-search-exclude', '');
+                });
                 el.dataset.mathDone = '1';
             } catch (err) {
                 el.classList.add('math-error');

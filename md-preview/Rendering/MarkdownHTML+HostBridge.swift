@@ -877,7 +877,10 @@ nonisolated extension MarkdownHTML {
             if (!tmpl) return;
             const article = document.querySelector('.markdown-body');
             const keepHidden = !!(article && article.dataset.warmup === '1');
-            window.MdPreview.update(tmpl.innerHTML, { keepHidden });
+            window.MdPreview.update(tmpl.innerHTML, {
+                keepHidden,
+                documentID: window.MdPreview.documentID
+            });
             tmpl.remove();
         }
         // Body-end hook: inline-mode documents call this right after the

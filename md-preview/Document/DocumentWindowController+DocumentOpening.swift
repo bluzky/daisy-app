@@ -206,11 +206,15 @@ extension DocumentWindowController {
     }
 
     func renderCurrentDocument(text: String, fileURL: URL?) {
+        let documentID = fileURL?.standardizedFileURL.absoluteString
+            ?? markdownDocument?.untitledDocumentID
+            ?? untitledDocumentID
         (documentWindow.contentViewController as? MainSplitViewController)?
             .display(markdown: text,
                      fileName: fileURL?.lastPathComponent
                          ?? NSLocalizedString("Untitled", comment: "Untitled document name"),
                      url: fileURL,
-                     assetBaseURL: fileURL?.deletingLastPathComponent())
+                     assetBaseURL: fileURL?.deletingLastPathComponent(),
+                     documentID: documentID)
     }
 }
