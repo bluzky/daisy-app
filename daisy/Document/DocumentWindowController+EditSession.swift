@@ -9,7 +9,7 @@ import Cocoa
 import UniformTypeIdentifiers
 
 extension DocumentWindowController {
-    func enterEditMode(autofocus: Bool = false) {
+    func enterEditMode(autofocus: Bool = false, appendingEntry: String? = nil) {
         guard let split = mainSplit, !split.isEditingDocument,
               let markdown = editorDraftMarkdown ?? currentMarkdown else {
             NSSound.beep()
@@ -21,7 +21,8 @@ extension DocumentWindowController {
         let editor = split.enterEditMode(
             markdown: markdown,
             assetBaseURL: currentFileURL?.deletingLastPathComponent(),
-            autofocus: autofocus
+            autofocus: autofocus,
+            appendingEntry: appendingEntry
         )
         editor.cancelRequested = { [weak self] in
             self?.previewPendingEdits()

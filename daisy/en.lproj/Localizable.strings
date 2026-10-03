@@ -58,8 +58,6 @@
 "Reset Colors" = "Reset Colors";
 "Restores the default Normal theme." = "Restores the default Normal theme.";
 "Current theme: %@" = "Current theme: %@";
-"Send anonymous crash reports" = "Send anonymous crash reports";
-"Crash reports contain diagnostic details such as stack traces and OS and app versions. They may include technical file paths; Daisy does not deliberately attach document contents or personal information." = "Crash reports contain diagnostic details such as stack traces and OS and app versions. They may include technical file paths; Daisy does not deliberately attach document contents or personal information.";
 "Share anonymous usage analytics" = "Share anonymous usage analytics";
 "When enabled, Daisy sends at most one event per day when the app becomes active, linked to a random installation identifier. It also sends the app version, macOS major version, processor architecture, and locale country or region. This is used only to count daily and monthly active installations and understand basic platform compatibility. It does not send document contents, file names or paths, actions, screens, precise location, personal information, or advertising identifiers." = "When enabled, Daisy sends at most one event per day when the app becomes active, linked to a random installation identifier. It also sends the app version, macOS major version, processor architecture, and locale country or region. This is used only to count daily and monthly active installations and understand basic platform compatibility. It does not send document contents, file names or paths, actions, screens, precise location, personal information, or advertising identifiers.";
 
@@ -396,3 +394,21 @@
 "Warning" = "Warning";
 "Caution" = "Caution";
 "Toggle \"%@\" section" = "Toggle \"%@\" section";
+
+/* Quick Capture */
+"Quick Capture" = "Quick Capture";
+"Quick Capture shortcut" = "Quick Capture shortcut";
+"Press the shortcut in any app to open Inbox.md in Daisy with a new dated heading, ready to type." = "Press the shortcut in any app to open Inbox.md in Daisy with a new dated heading, ready to type.";
+"Shortcut" = "Shortcut";
+"Reset" = "Reset";
+"Type shortcut…" = "Type shortcut…";
+"That shortcut is already used by another app. Pick a different one." = "That shortcut is already used by another app. Pick a different one.";
+"Capture folder" = "Capture folder";
+"Not chosen yet" = "Not chosen yet";
+"Choose…" = "Choose…";
+"Choose" = "Choose";
+"Choose where Quick Capture keeps Inbox.md" = "Choose where Quick Capture keeps Inbox.md";
+"Choose a Quick Capture folder first." = "Choose a Quick Capture folder first.";
+"The Quick Capture folder can’t be reached. Choose it again in Settings." = "The Quick Capture folder can’t be reached. Choose it again in Settings.";
+"Daisy has to keep running to listen for the shortcut." = "Daisy has to keep running to listen for the shortcut.";
+"Open Inbox" = "Open Inbox";

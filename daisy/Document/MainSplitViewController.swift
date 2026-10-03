@@ -346,6 +346,7 @@ final class MainSplitViewController: NSSplitViewController {
     private var isEditorDOMReady = false
     private var pendingPreviewScrollProgress: CGFloat = 0
     private var shouldAutofocusEditor = false
+    private var pendingAppendedEntry: String?
 
     var isEditingDocument: Bool {
         isEditorPreparing || isEditorVisible || isEditorExiting
@@ -358,13 +359,14 @@ final class MainSplitViewController: NSSplitViewController {
     @discardableResult
     func enterEditMode(markdown: String,
                        assetBaseURL: URL? = nil,
-                       autofocus: Bool = false) -> EditorViewController {
+                       autofocus: Bool = false,
+                       appendingEntry: String? = nil) -> EditorViewController {
         // Do not invalidate an exit that still owes its caller a completion.
         if isEditorExiting, let editor = cachedEditorViewController { return editor }
         if let editor = editorViewController {
             editor.load(markdown: markdown, assetBaseURL: assetBaseURL)
             if autofocus {
-                editor.focusEditor()
+                editor.focusEditor(appendingEntry: appendingEntry)
             }
             return editor
         }
@@ -397,6 +399,7 @@ final class MainSplitViewController: NSSplitViewController {
         isEditorDOMReady = false
         pendingPreviewScrollProgress = previewScrollProgress
         shouldAutofocusEditor = autofocus
+        pendingAppendedEntry = appendingEntry
         // A completed exit may still have a fallback deadline scheduled.
         // Clear its restoration machinery before the next editing session.
         contentViewController?.prepareToRestoreSourceScrollAnchor(nil)
@@ -559,7 +562,7 @@ final class MainSplitViewController: NSSplitViewController {
                 self.refreshFindAfterModeChange()
                 if self.shouldAutofocusEditor {
                     self.shouldAutofocusEditor = false
-                    editorVC.focusEditor()
+                    editorVC.focusEditor(appendingEntry: self.pendingAppendedEntry)
                 }
             }
         }
@@ -608,6 +611,7 @@ final class MainSplitViewController: NSSplitViewController {
             self.isEditorPreparing = false
             self.isEditorVisible = false
             self.shouldAutofocusEditor = false
+            self.pendingAppendedEntry = nil
 
             var didRevealPreview = false
             let revealPreview = { [weak self, weak editorVC] in

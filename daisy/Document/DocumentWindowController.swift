@@ -82,6 +82,9 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     /// When sidebar navigation starts from edit mode, the newly loaded file
     /// should return to edit mode instead of dropping the user into preview.
     var pendingEditModeURL: URL?
+    /// Set with `pendingEditModeURL` when the editor should open focused with
+    /// a new entry appended at the end (Quick Capture's inbox).
+    var pendingEditModeAppendedEntry: String?
     var searchOpenRequestID: UUID?
     var autoSaveTimer: Timer?
     var autoSaveTimerID: UUID?
