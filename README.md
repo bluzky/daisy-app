@@ -1,7 +1,7 @@
-<h1 align="center">Markdown Preview</h1>
+<h1 align="center">Daisy</h1>
 
 <p align="center">
-  <img src="docs/markdown-logo.svg" width="128" alt="Markdown Preview logo" />
+  <img src="docs/markdown-logo.svg" width="128" alt="Daisy logo" />
 </p>
 
 <p align="center">
@@ -24,11 +24,11 @@
 
 ---
 
-> Drop a `.md` on the icon (or set Markdown Preview as your default handler) and get a clean, scrollable preview with a real document outline — no Electron, no browser tab.
+> Drop a `.md` on the icon (or set Daisy as your default handler) and get a clean, scrollable preview with a real document outline — no Electron, no browser tab.
 
 ## Installation
 
-Markdown Preview is available in the official [Homebrew cask repository](https://formulae.brew.sh/cask/markdown-preview):
+Daisy is available in the official [Homebrew cask repository](https://formulae.brew.sh/cask/markdown-preview):
 
 ```sh
 brew install --cask markdown-preview
@@ -70,7 +70,7 @@ Or grab the latest signed and notarized DMG from the [Releases](https://github.c
 
 **App language:** Choose **Settings → General → Language** to use a bundled translation independently of your system language. Quit and reopen the app to apply the choice to settings, menus, and document controls. **System Default** removes the app override and follows macOS again. This preference persists across launches and affects only the app; Quick Look previews continue to use their system-selected language. Available languages are discovered from the app’s bundled translations.
 
-Settings groups window behavior, saving, and external tools under **General**. **Reading** contains text size, content width, text alignment, Markdown line breaks, and outline highlighting. **Appearance** contains themes and their font, spacing, and color customization; resetting a theme leaves global Reading preferences unchanged. **Extensions** controls code highlighting, callouts, math, Mermaid, and heading enhancements in document windows and Quick Look previews. Mermaid and Colorful headings also affect Edit Mode: turning Mermaid off shows diagram fences as plain code, and turning Colorful headings off restores plain heading colors.
+Settings groups window behavior, saving, and external tools under **General**. **Reading** contains text size, content width, text alignment, Markdown line breaks, and outline highlighting. **Appearance** contains themes and their font, spacing, and color customization; resetting a theme leaves global Reading preferences unchanged. **Extensions** controls code highlighting, callouts, math, Mermaid, heading enhancements, and slash commands. Most apply in document windows and Quick Look previews. Mermaid and Colorful headings also affect Edit Mode: turning Mermaid off shows diagram fences as plain code, and turning Colorful headings off restores plain heading colors. Slash commands work only in Edit Mode.
 
 **Text alignment:** Choose **Settings → Reading → Text & layout → Text alignment** for Automatic, Left, Center, Right, or Justified prose. Automatic preserves the document’s existing alignment, including right-to-left text. This global preference persists across launches and theme changes, updates open reading views immediately, and applies to Quick Look when reopened. Code, tables, and explicit HTML alignment remain unchanged. Justification leaves the final paragraph line naturally aligned; enable Strict line breaks to join ordinary source wraps into flowing paragraphs.
 
@@ -79,7 +79,7 @@ Single source newlines remain visible by default. Enable **Settings → Reading 
 - **Native rendering** — `WKWebView` pipeline backed by [swift-markdown](https://github.com/swiftlang/swift-markdown), with heading anchors and link handling. Bare `http://` and `https://` URLs are clickable in the app and Quick Look previews.
 - **Read Mode** — select and copy text, follow links, and browse tables. Click task checkboxes to save each change directly to the file. Tables and Quick Look previews remain read-only.
 - **App links** — Read Mode and Quick Look support custom URL schemes. Before opening an unapproved custom link with a registered app, a compact dialog names the app and offers Cancel, Allow, and Always Allow, with Cancel as the default. For an unapproved custom link with no registered app, an alert reports that no application can open the link. Use Copy Link in the context menu to inspect the destination. “Always Allow” saves approval for that URL scheme across documents, app restarts, and Quick Look. Reset approvals in Settings → General → App links. HTTP, HTTPS, mailto, and the app’s own `md-preview:` links open without this prompt, even after resetting approvals. Executable URLs and literal `file://` links remain blocked; embedded resources cannot launch custom app links.
-- **Edit Mode** — edit Markdown in place with a formatting toolbar for headings, emphasis, lists, quotes, code, and links. Table cells show inline formatting until focused, then reveal their Markdown syntax for editing. Task markers become checkboxes once you finish typing the closing bracket; Enter continues a task list, and Enter on an empty task exits it. Toggle it from the toolbar or with <kbd>⌘E</kbd>, then save with <kbd>⌘S</kbd>.
+- **Edit Mode** — edit Markdown in place with a formatting toolbar for headings, emphasis, lists, quotes, code, and links. Table cells show inline formatting until focused, then reveal their Markdown syntax for editing. Task markers become checkboxes once you finish typing the closing bracket; Enter continues a task list, and Enter on an empty task exits it. Type `/` at the start of a line or after a space for a menu of blocks (headings, lists, code, tables, images, Mermaid diagrams, callouts); picking one converts the line, and `/image` opens a file picker and copies the chosen image next to the document like a paste. Toggle it from the toolbar or with <kbd>⌘E</kbd>, then save with <kbd>⌘S</kbd>.
 - **Code highlighting** — fenced code and Obsidian-style `==highlight==` markers render with bundled highlighting. Disable it in **Settings → Extensions** to keep code plain and markers literal.
 - **Callouts** — GitHub-style blockquote alerts such as `> [!NOTE]` render as callouts. Disable them in **Settings → Extensions** to retain ordinary blockquotes and markers.
 - **Mermaid diagrams** — when enabled in **Settings → Extensions**, fenced `mermaid` code blocks render as diagrams in both app and Quick Look previews, using a bundled offline renderer.
@@ -123,13 +123,13 @@ Build and run the `markdown-preview` scheme. Swift Package Manager will resolve 
 
 ### Crash reporting
 
-Release builds submit native crash reports to the `pluk-inc/markdown-preview` Sentry project. The integration does not collect performance traces, session data, breadcrumbs, network requests, user information, document contents, or file paths. Users can turn reporting off in Markdown Preview > Settings > Privacy; on later launches, the Sentry SDK will not initialize at all.
+Release builds submit native crash reports to the `pluk-inc/markdown-preview` Sentry project. The integration does not collect performance traces, session data, breadcrumbs, network requests, user information, document contents, or file paths. Users can turn reporting off in Daisy > Settings > Privacy; on later launches, the Sentry SDK will not initialize at all.
 
 The committed DSN is a public client key. Release archives upload the app dSYM with `sentry-cli`; authenticate locally with `sentry-cli login` and keep that authentication token outside the repository.
 
 ### Anonymous usage analytics
 
-Release builds can submit at most one anonymous `app became active` event per installation per UTC day when Markdown Preview becomes active. The event contains a random installation identifier, app version, macOS major version, processor architecture, locale country or region, and the flag that prevents PostHog from creating a person profile. It is used to count daily and monthly active installations and understand basic platform compatibility. It does not contain document contents, file names or paths, actions, screens, precise location, personal information, or advertising identifiers. Users can disable it from Settings > Privacy.
+Release builds can submit at most one anonymous `app became active` event per installation per UTC day when Daisy becomes active. The event contains a random installation identifier, app version, macOS major version, processor architecture, locale country or region, and the flag that prevents PostHog from creating a person profile. It is used to count daily and monthly active installations and understand basic platform compatibility. It does not contain document contents, file names or paths, actions, screens, precise location, personal information, or advertising identifiers. Users can disable it from Settings > Privacy.
 
 The PostHog project token is injected from the gitignored `Secrets.xcconfig`. Copy `Secrets.xcconfig.example` to `Secrets.xcconfig` and set `POSTHOG_PROJECT_TOKEN` before making a release build. If the token is absent, or for a Debug build, analytics remains disabled. Every event disables GeoIP enrichment, and the PostHog project must also be configured to discard IP data in Project Settings > General.
 
@@ -185,7 +185,7 @@ Pull requests are welcome. For larger changes, please open an issue first to dis
 
 ## Support
 
-Markdown Preview is free and MIT-licensed. If it saved you a browser tab, you can [buy us a coffee](https://buymeacoffee.com/pluk).
+Daisy is free and MIT-licensed. If it saved you a browser tab, you can [buy us a coffee](https://buymeacoffee.com/pluk).
 
 ## Acknowledgments
 - [Amore](http://amore.computer/) — MacOS release automation (signing, notarization, DMG, hosting, appcast)

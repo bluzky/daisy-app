@@ -42,7 +42,19 @@ to an open editor through `__mdEditor.setExtensionState`. Each module lives in
 its own `Compartment`, so toggling reconfigures it live without recreating the
 editor or losing selection and undo history. A module the host does not
 mention stays enabled. Quick Look never loads the editor, so it only sees the
-render side. Editor-only extensions are not supported yet.
+render side.
+
+An extension may also be editor-only (`SlashCommandsExtension`): it returns
+`false` from `isActive` and `affectsPreview`, so it never touches rendered
+output and Settings captions it "Editor". The capability can also carry
+`css` (static, emitted into the editor page, so scope it to a class the module
+adds) and `options` (plain string pairs, such as localized labels, passed to
+the module's `extensions(options, host)` at creation; `host.callbacks` holds the
+callbacks the page gave the editor).
+
+A slash command normally carries a template (`convert`). One with `host` names a
+host action instead (`SLASH_HOST_ACTIONS`, e.g. `pickImage`), posts a message to
+the app, and is hidden when the page has no matching callback.
 
 ## Assets and fast path
 

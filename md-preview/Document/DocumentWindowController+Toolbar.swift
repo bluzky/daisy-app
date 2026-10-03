@@ -315,7 +315,7 @@ extension DocumentWindowController {
             label: NSLocalizedString("Always on Top", comment: "Always on Top toolbar item label"),
             action: #selector(toggleAlwaysOnTop(_:))
         )
-        item.toolTip = NSLocalizedString("Keep Markdown Preview windows in front of other apps",
+        item.toolTip = NSLocalizedString("Keep Daisy windows in front of other apps",
                                          comment: "Always on Top toolbar item tooltip")
         button.toolTip = item.toolTip
         button.state = isAlwaysOnTop ? .on : .off

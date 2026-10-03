@@ -1,11 +1,71 @@
 //
 //  DocumentWindowController+ImageHandling.swift
-//  Markdown Preview
+//  Daisy
 //
 
 import AppKit
+import UniformTypeIdentifiers
 
 extension DocumentWindowController {
+    /// One image going into the editor, from the clipboard or the picker.
+    private struct ImageInsertion {
+        enum Origin { case pasted, picked }
+
+        let origin: Origin
+        let markdownURL: URL
+        let editor: EditorViewController
+        let from: Int
+        let to: Int
+        /// Produces the image file. `isNew` marks a file created for this
+        /// insertion, which is removed again if the editor rejects the text.
+        let obtain: () throws -> (url: URL, isNew: Bool)
+
+        var placementError: String {
+            switch origin {
+            case .pasted:
+                NSLocalizedString(
+                    "The pasted image could not be placed next to the Markdown file.",
+                    comment: "Image paste destination error"
+                )
+            case .picked:
+                NSLocalizedString(
+                    "The image could not be placed next to the Markdown file.",
+                    comment: "Image insert destination error"
+                )
+            }
+        }
+
+        var insertionError: String {
+            switch origin {
+            case .pasted:
+                NSLocalizedString(
+                    "The pasted image could not be inserted into the document.",
+                    comment: "Image paste insertion error"
+                )
+            case .picked:
+                NSLocalizedString(
+                    "The image could not be inserted into the document.",
+                    comment: "Image insert insertion error"
+                )
+            }
+        }
+
+        var permissionMessage: String {
+            switch origin {
+            case .pasted:
+                NSLocalizedString(
+                    "Choose the folder containing this Markdown file to save the pasted image.",
+                    comment: "Image paste permission message"
+                )
+            case .picked:
+                NSLocalizedString(
+                    "Choose the folder containing this Markdown file to save the image.",
+                    comment: "Image insert permission message"
+                )
+            }
+        }
+    }
+
     func pasteImage(at from: Int, replacing to: Int) {
         guard isEditing,
               let markdownURL = currentFileURL,
@@ -22,57 +82,80 @@ extension DocumentWindowController {
             return
         }
 
-        do {
-            try insertPastedImage(data,
-                                  forMarkdownFile: markdownURL,
-                                  editor: editor,
-                                  from: from,
-                                  to: to)
-        } catch {
-            presentImagePermissionPanel(data,
-                                        markdownURL: markdownURL,
-                                        editor: editor,
-                                        from: from,
-                                        to: to)
+        insertImage(ImageInsertion(
+            origin: .pasted,
+            markdownURL: markdownURL,
+            editor: editor,
+            from: from,
+            to: to,
+            obtain: { (try MarkdownAssetResolution.savePastedImage(data, forMarkdownFile: markdownURL), true) }
+        ))
+    }
+
+    /// `/image` in the editor: choose a file, then insert it like a paste.
+    /// An image already inside the document's folder is linked in place;
+    /// anything else is copied into the pictures folder.
+    func pickImage(at from: Int, replacing to: Int) {
+        guard isEditing,
+              let markdownURL = currentFileURL,
+              let editor = mainSplit?.editorViewController else { return }
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.image]
+        panel.message = NSLocalizedString("Choose an image to insert.", comment: "Image picker message")
+        panel.beginSheetModal(for: documentWindow) { [weak self] response in
+            guard let self, response == .OK, let chosen = panel.url else { return }
+            self.insertImage(ImageInsertion(
+                origin: .picked,
+                markdownURL: markdownURL,
+                editor: editor,
+                from: from,
+                to: to,
+                obtain: {
+                    if MarkdownAssetResolution.isInsideFolder(chosen, ofMarkdownFile: markdownURL) {
+                        return (chosen, false)
+                    }
+                    return (try MarkdownAssetResolution.importImage(
+                        from: chosen,
+                        forMarkdownFile: markdownURL
+                    ), true)
+                }
+            ))
         }
     }
 
-    private func insertPastedImage(_ data: Data,
-                                   forMarkdownFile markdownURL: URL,
-                                   editor: EditorViewController,
-                                   from: Int,
-                                   to: Int) throws {
-        let imageURL = try MarkdownAssetResolution.savePastedImage(
-            data,
-            forMarkdownFile: markdownURL
-        )
-        guard let relativePath = MarkdownAssetResolution.markdownPath(
+    private func insertImage(_ insertion: ImageInsertion) {
+        do {
+            try performInsertion(insertion)
+        } catch {
+            presentImagePermissionPanel(insertion)
+        }
+    }
+
+    private func performInsertion(_ insertion: ImageInsertion) throws {
+        let (imageURL, isNew) = try insertion.obtain()
+        guard let markdown = MarkdownAssetResolution.imageMarkdown(
             for: imageURL,
-            from: markdownURL
+            from: insertion.markdownURL
         ) else {
-            try? FileManager.default.removeItem(at: imageURL)
+            if isNew { try? FileManager.default.removeItem(at: imageURL) }
             throw NSError(domain: "MarkdownPreview.ImagePaste",
                           code: 2,
-                          userInfo: [NSLocalizedDescriptionKey: NSLocalizedString(
-                              "The pasted image could not be placed next to the Markdown file.",
-                              comment: "Image paste destination error"
-                          )])
+                          userInfo: [NSLocalizedDescriptionKey: insertion.placementError])
         }
-        let label = imageURL.deletingPathExtension().lastPathComponent
-        editor.insertMarkdown(
-            "![\(label)](\(relativePath))",
-            from: from,
-            to: to
+        insertion.editor.insertMarkdown(
+            markdown,
+            from: insertion.from,
+            to: insertion.to
         ) { [weak self] inserted in
             guard inserted else {
-                try? FileManager.default.removeItem(at: imageURL)
+                if isNew { try? FileManager.default.removeItem(at: imageURL) }
                 self?.presentImageError(
                     NSError(domain: "MarkdownPreview.ImagePaste",
                             code: 4,
-                            userInfo: [NSLocalizedDescriptionKey: NSLocalizedString(
-                                "The pasted image could not be inserted into the document.",
-                                comment: "Image paste insertion error"
-                            )])
+                            userInfo: [NSLocalizedDescriptionKey: insertion.insertionError])
                 )
                 return
             }
@@ -82,21 +165,14 @@ extension DocumentWindowController {
         }
     }
 
-    private func presentImagePermissionPanel(_ data: Data,
-                                             markdownURL: URL,
-                                             editor: EditorViewController,
-                                             from: Int,
-                                             to: Int) {
-        let parentDirectory = markdownURL.deletingLastPathComponent().standardizedFileURL
+    private func presentImagePermissionPanel(_ insertion: ImageInsertion) {
+        let parentDirectory = insertion.markdownURL.deletingLastPathComponent().standardizedFileURL
         let panel = NSOpenPanel()
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
         panel.directoryURL = parentDirectory
-        panel.message = NSLocalizedString(
-            "Choose the folder containing this Markdown file to save the pasted image.",
-            comment: "Image paste permission message"
-        )
+        panel.message = insertion.permissionMessage
         panel.beginSheetModal(for: documentWindow) { [weak self] response in
             guard let self, response == .OK, let chosen = panel.url else { return }
             guard chosen.standardizedFileURL == parentDirectory else {
@@ -111,11 +187,7 @@ extension DocumentWindowController {
                 return
             }
             do {
-                try self.insertPastedImage(data,
-                                           forMarkdownFile: markdownURL,
-                                           editor: editor,
-                                           from: from,
-                                           to: to)
+                try self.performInsertion(insertion)
             } catch {
                 self.presentImageError(error)
             }

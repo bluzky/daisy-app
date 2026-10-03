@@ -29,14 +29,14 @@
 "Command line tools" = "命令行工具";
 "Install…" = "安装…";
 "Adds mdp, md-preview, and markdown-preview to your PATH. Run it again after updating the app to refresh the commands." = "将 mdp、md-preview 和 markdown-preview 添加到 PATH。更新 App 后请再次运行，以刷新这些命令。";
-"Markdown Preview" = "Markdown Preview";
+"Daisy" = "Daisy";
 "Version %@ (%@)" = "版本 %@（%@）";
 "Check for Updates" = "检查更新";
 "Automatically check for updates" = "自动检查更新";
 "Automatically download updates" = "自动下载更新";
 "Last checked" = "上次检查";
 "Never" = "从未";
-"Downloaded updates install the next time you quit Markdown Preview." = "已下载的更新将在下次退出 Markdown Preview 时安装。";
+"Downloaded updates install the next time you quit Daisy." = "已下载的更新将在下次退出 Daisy 时安装。";
 "Colors" = "颜色";
 "Window background" = "窗口背景";
 "Editor background" = "编辑器背景";
@@ -59,9 +59,9 @@
 "Restores the default Normal theme." = "恢复默认的“标准”主题。";
 "Current theme: %@" = "当前主题：%@";
 "Send anonymous crash reports" = "发送匿名崩溃报告";
-"Crash reports contain diagnostic details such as stack traces and OS and app versions. They may include technical file paths; Markdown Preview does not deliberately attach document contents or personal information." = "崩溃报告包含堆栈跟踪、系统版本和 App 版本等诊断信息，可能包含技术文件路径；Markdown Preview 不会主动附加文稿内容或个人信息。";
+"Crash reports contain diagnostic details such as stack traces and OS and app versions. They may include technical file paths; Daisy does not deliberately attach document contents or personal information." = "崩溃报告包含堆栈跟踪、系统版本和 App 版本等诊断信息，可能包含技术文件路径；Daisy 不会主动附加文稿内容或个人信息。";
 "Share anonymous usage analytics" = "共享匿名使用情况分析";
-"When enabled, Markdown Preview sends at most one event per day when the app becomes active, linked to a random installation identifier. It also sends the app version, macOS major version, processor architecture, and locale country or region. This is used only to count daily and monthly active installations and understand basic platform compatibility. It does not send document contents, file names or paths, actions, screens, precise location, personal information, or advertising identifiers." = "启用后，Markdown Preview 在 App 进入活跃状态时每天最多发送一个事件，并关联一个随机安装标识符。该事件还会发送 App 版本、macOS 主版本、处理器架构以及区域设置中的国家或地区。此信息仅用于统计每日和每月活跃安装数并了解基本平台兼容性，不会发送文稿内容、文件名或路径、操作、界面、精确位置、个人信息或广告标识符。";
+"When enabled, Daisy sends at most one event per day when the app becomes active, linked to a random installation identifier. It also sends the app version, macOS major version, processor architecture, and locale country or region. This is used only to count daily and monthly active installations and understand basic platform compatibility. It does not send document contents, file names or paths, actions, screens, precise location, personal information, or advertising identifiers." = "启用后，Daisy 在 App 进入活跃状态时每天最多发送一个事件，并关联一个随机安装标识符。该事件还会发送 App 版本、macOS 主版本、处理器架构以及区域设置中的国家或地区。此信息仅用于统计每日和每月活跃安装数并了解基本平台兼容性，不会发送文稿内容、文件名或路径、操作、界面、精确位置、个人信息或广告标识符。";
 
 /* View menu */
 "Appearance" = "外观";
@@ -137,7 +137,7 @@
 "Inspector" = "检查器";
 "Get Info" = "显示简介";
 "Always on Top" = "始终置顶";
-"Keep Markdown Preview windows in front of other apps" = "让 Markdown Preview 窗口始终显示在其他 App 前面";
+"Keep Daisy windows in front of other apps" = "让 Daisy 窗口始终显示在其他 App 前面";
 "Show the inspector" = "显示检查器";
 "Share" = "共享";
 "Share document" = "共享文稿";
@@ -218,12 +218,17 @@
 "Reload from Disk" = "从磁盘重新载入";
 "Unable to verify the document on disk" = "无法验证磁盘上的文稿";
 "%@ Cancel keeps your changes unsaved." = "%@选择“取消”会保留您的未存储更改。";
-"Markdown Preview needs your permission to save this file." = "Markdown Preview 需要您的权限才能存储此文件。";
+"Daisy needs your permission to save this file." = "Daisy 需要您的权限才能存储此文件。";
 "The clipboard does not contain an image." = "剪贴板中不包含图像。";
 "The pasted image could not be placed next to the Markdown file." = "无法将粘贴的图像放置在 Markdown 文件旁。";
 "Choose the folder containing this Markdown file to save the pasted image." = "请选择包含此 Markdown 文件的文件夹，以存储粘贴的图像。";
 "Choose the folder containing this Markdown file." = "请选择包含此 Markdown 文件的文件夹。";
 "Rename Image" = "重命名图像";
+"The image could not be placed next to the Markdown file." = "无法将图片放到 Markdown 文件旁边。";
+"The image could not be inserted into the document." = "无法将图片插入文稿。";
+"Choose the folder containing this Markdown file to save the image." = "请选择包含此 Markdown 文件的文件夹，以保存图片。";
+"Choose an image to insert." = "选择要插入的图片。";
+"Image" = "图片";
 "Choose a new name for this image." = "为此图像输入新名称。";
 "Rename" = "重命名";
 
@@ -277,13 +282,13 @@
 
 /* URL scheme errors */
 "Cannot open link" = "无法打开链接";
-"“%@” is not a link Markdown Preview understands. Use md-preview://file/ followed by the absolute path of the file, for example md-preview://file/Users/me/notes/README.md." = "Markdown Preview 无法识别链接“%@”。请使用 md-preview://file/ 加文件的绝对路径，例如 md-preview://file/Users/me/notes/README.md。";
+"“%@” is not a link Daisy understands. Use md-preview://file/ followed by the absolute path of the file, for example md-preview://file/Users/me/notes/README.md." = "Daisy 无法识别链接“%@”。请使用 md-preview://file/ 加文件的绝对路径，例如 md-preview://file/Users/me/notes/README.md。";
 
 /* CLI installer errors */
 "Terminal automation failed: %@" = "终端自动化失败：%@";
 "Terminal automation failed." = "终端自动化失败。";
 "Failed to write CLI installer script: %@" = "无法写入 CLI 安装脚本：%@";
-"The bundled Markdown Preview CLI could not be found." = "找不到随附的 Markdown Preview CLI。";
+"The bundled Daisy CLI could not be found." = "找不到随附的 Daisy CLI。";
 
 /* Settings — Reading */
 "Reading" = "阅读";
@@ -296,7 +301,7 @@
 
 /* Settings — Windows */
 "Windows" = "窗口";
-"Keeps every Markdown Preview window in front of other apps, including windows you open later. A window in full screen is left alone until it comes back out." = "让所有 Markdown Preview 窗口始终显示在其他 App 前面，包括之后打开的窗口。窗口进入全屏时不会置顶，退出全屏后会恢复。";
+"Keeps every Daisy window in front of other apps, including windows you open later. A window in full screen is left alone until it comes back out." = "让所有 Daisy 窗口始终显示在其他 App 前面，包括之后打开的窗口。窗口进入全屏时不会置顶，退出全屏后会恢复。";
 "Open documents in tabs" = "以标签页打开文稿";
 "A file opened from Finder joins the front window as a tab instead of getting one of its own — Open in New Window still opens a window." = "从“访达”打开的文件会作为标签页加入最前面的窗口，而不是各自新建一个窗口——“在新窗口中打开”仍会打开新窗口。";
 
@@ -312,8 +317,8 @@
 "Search for a file by name" = "按名称搜索文件";
 
 /* What's New */
-"What’s New in Markdown Preview" = "Markdown Preview 的新功能";
-"What’s New in Markdown Preview %@" = "Markdown Preview %@ 的新功能";
+"What’s New in Daisy" = "Daisy 的新功能";
+"What’s New in Daisy %@" = "Daisy %@ 的新功能";
 "Release Notes" = "发布说明";
 "Continue" = "继续";
 "Find any document fast" = "快速查找任意文稿";
@@ -341,7 +346,7 @@
 /* App language */
 "Language" = "语言";
 "System Default" = "跟随系统";
-"Quit and reopen Markdown Preview to apply language changes. This setting only affects the app, not Quick Look previews." = "退出并重新打开 Markdown Preview 以应用语言更改。此设置仅影响应用，不影响快速查看预览。";
+"Quit and reopen Daisy to apply language changes. This setting only affects the app, not Quick Look previews." = "退出并重新打开 Daisy 以应用语言更改。此设置仅影响应用，不影响快速查看预览。";
 
 /* Settings organization */
 "Saving" = "保存";
@@ -378,4 +383,16 @@
 "Mermaid" = "Mermaid";
 "Colorful headings" = "彩色标题";
 "Collapsible headings" = "可折叠标题";
+"Slash commands" = "斜杠命令";
+"Editor" = "编辑器";
+"Lists" = "列表";
+"Blocks" = "块";
+"Divider" = "分隔线";
+"Code Block" = "代码块";
+"Math Block" = "数学公式块";
+"Note" = "注意";
+"Tip" = "提示";
+"Important" = "重要";
+"Warning" = "警告";
+"Caution" = "小心";
 "Toggle \"%@\" section" = "切换“%@”章节";

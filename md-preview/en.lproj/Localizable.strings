@@ -29,14 +29,14 @@
 "Command line tools" = "Command line tools";
 "Install…" = "Install…";
 "Adds mdp, md-preview, and markdown-preview to your PATH. Run it again after updating the app to refresh the commands." = "Adds mdp, md-preview, and markdown-preview to your PATH. Run it again after updating the app to refresh the commands.";
-"Markdown Preview" = "Markdown Preview";
+"Daisy" = "Daisy";
 "Version %@ (%@)" = "Version %@ (%@)";
 "Check for Updates" = "Check for Updates";
 "Automatically check for updates" = "Automatically check for updates";
 "Automatically download updates" = "Automatically download updates";
 "Last checked" = "Last checked";
 "Never" = "Never";
-"Downloaded updates install the next time you quit Markdown Preview." = "Downloaded updates install the next time you quit Markdown Preview.";
+"Downloaded updates install the next time you quit Daisy." = "Downloaded updates install the next time you quit Daisy.";
 "Colors" = "Colors";
 "Window background" = "Window background";
 "Editor background" = "Editor background";
@@ -59,9 +59,9 @@
 "Restores the default Normal theme." = "Restores the default Normal theme.";
 "Current theme: %@" = "Current theme: %@";
 "Send anonymous crash reports" = "Send anonymous crash reports";
-"Crash reports contain diagnostic details such as stack traces and OS and app versions. They may include technical file paths; Markdown Preview does not deliberately attach document contents or personal information." = "Crash reports contain diagnostic details such as stack traces and OS and app versions. They may include technical file paths; Markdown Preview does not deliberately attach document contents or personal information.";
+"Crash reports contain diagnostic details such as stack traces and OS and app versions. They may include technical file paths; Daisy does not deliberately attach document contents or personal information." = "Crash reports contain diagnostic details such as stack traces and OS and app versions. They may include technical file paths; Daisy does not deliberately attach document contents or personal information.";
 "Share anonymous usage analytics" = "Share anonymous usage analytics";
-"When enabled, Markdown Preview sends at most one event per day when the app becomes active, linked to a random installation identifier. It also sends the app version, macOS major version, processor architecture, and locale country or region. This is used only to count daily and monthly active installations and understand basic platform compatibility. It does not send document contents, file names or paths, actions, screens, precise location, personal information, or advertising identifiers." = "When enabled, Markdown Preview sends at most one event per day when the app becomes active, linked to a random installation identifier. It also sends the app version, macOS major version, processor architecture, and locale country or region. This is used only to count daily and monthly active installations and understand basic platform compatibility. It does not send document contents, file names or paths, actions, screens, precise location, personal information, or advertising identifiers.";
+"When enabled, Daisy sends at most one event per day when the app becomes active, linked to a random installation identifier. It also sends the app version, macOS major version, processor architecture, and locale country or region. This is used only to count daily and monthly active installations and understand basic platform compatibility. It does not send document contents, file names or paths, actions, screens, precise location, personal information, or advertising identifiers." = "When enabled, Daisy sends at most one event per day when the app becomes active, linked to a random installation identifier. It also sends the app version, macOS major version, processor architecture, and locale country or region. This is used only to count daily and monthly active installations and understand basic platform compatibility. It does not send document contents, file names or paths, actions, screens, precise location, personal information, or advertising identifiers.";
 
 /* View menu */
 "Appearance" = "Appearance";
@@ -137,7 +137,7 @@
 "Inspector" = "Inspector";
 "Get Info" = "Get Info";
 "Always on Top" = "Always on Top";
-"Keep Markdown Preview windows in front of other apps" = "Keep Markdown Preview windows in front of other apps";
+"Keep Daisy windows in front of other apps" = "Keep Daisy windows in front of other apps";
 "Show the inspector" = "Show the inspector";
 "Share" = "Share";
 "Share document" = "Share document";
@@ -218,12 +218,17 @@
 "Reload from Disk" = "Reload from Disk";
 "Unable to verify the document on disk" = "Unable to verify the document on disk";
 "%@ Cancel keeps your changes unsaved." = "%@ Cancel keeps your changes unsaved.";
-"Markdown Preview needs your permission to save this file." = "Markdown Preview needs your permission to save this file.";
+"Daisy needs your permission to save this file." = "Daisy needs your permission to save this file.";
 "The clipboard does not contain an image." = "The clipboard does not contain an image.";
 "The pasted image could not be placed next to the Markdown file." = "The pasted image could not be placed next to the Markdown file.";
 "Choose the folder containing this Markdown file to save the pasted image." = "Choose the folder containing this Markdown file to save the pasted image.";
 "Choose the folder containing this Markdown file." = "Choose the folder containing this Markdown file.";
 "Rename Image" = "Rename Image";
+"The image could not be placed next to the Markdown file." = "The image could not be placed next to the Markdown file.";
+"The image could not be inserted into the document." = "The image could not be inserted into the document.";
+"Choose the folder containing this Markdown file to save the image." = "Choose the folder containing this Markdown file to save the image.";
+"Choose an image to insert." = "Choose an image to insert.";
+"Image" = "Image";
 "Choose a new name for this image." = "Choose a new name for this image.";
 "Rename" = "Rename";
 
@@ -277,13 +282,13 @@
 
 /* URL scheme errors */
 "Cannot open link" = "Cannot open link";
-"“%@” is not a link Markdown Preview understands. Use md-preview://file/ followed by the absolute path of the file, for example md-preview://file/Users/me/notes/README.md." = "“%@” is not a link Markdown Preview understands. Use md-preview://file/ followed by the absolute path of the file, for example md-preview://file/Users/me/notes/README.md.";
+"“%@” is not a link Daisy understands. Use md-preview://file/ followed by the absolute path of the file, for example md-preview://file/Users/me/notes/README.md." = "“%@” is not a link Daisy understands. Use md-preview://file/ followed by the absolute path of the file, for example md-preview://file/Users/me/notes/README.md.";
 
 /* CLI installer errors */
 "Terminal automation failed: %@" = "Terminal automation failed: %@";
 "Terminal automation failed." = "Terminal automation failed.";
 "Failed to write CLI installer script: %@" = "Failed to write CLI installer script: %@";
-"The bundled Markdown Preview CLI could not be found." = "The bundled Markdown Preview CLI could not be found.";
+"The bundled Daisy CLI could not be found." = "The bundled Daisy CLI could not be found.";
 
 /* Settings — Reading */
 "Reading" = "Reading";
@@ -296,7 +301,7 @@
 
 /* Settings — Windows */
 "Windows" = "Windows";
-"Keeps every Markdown Preview window in front of other apps, including windows you open later. A window in full screen is left alone until it comes back out." = "Keeps every Markdown Preview window in front of other apps, including windows you open later. A window in full screen is left alone until it comes back out.";
+"Keeps every Daisy window in front of other apps, including windows you open later. A window in full screen is left alone until it comes back out." = "Keeps every Daisy window in front of other apps, including windows you open later. A window in full screen is left alone until it comes back out.";
 "Open documents in tabs" = "Open documents in tabs";
 "A file opened from Finder joins the front window as a tab instead of getting one of its own — Open in New Window still opens a window." = "A file opened from Finder joins the front window as a tab instead of getting one of its own — Open in New Window still opens a window.";
 
@@ -312,8 +317,8 @@
 "Search for a file by name" = "Search for a file by name";
 
 /* What's New */
-"What’s New in Markdown Preview" = "What’s New in Markdown Preview";
-"What’s New in Markdown Preview %@" = "What’s New in Markdown Preview %@";
+"What’s New in Daisy" = "What’s New in Daisy";
+"What’s New in Daisy %@" = "What’s New in Daisy %@";
 "Release Notes" = "Release Notes";
 "Continue" = "Continue";
 "Find any document fast" = "Find any document fast";
@@ -341,7 +346,7 @@
 /* App language */
 "Language" = "Language";
 "System Default" = "System Default";
-"Quit and reopen Markdown Preview to apply language changes. This setting only affects the app, not Quick Look previews." = "Quit and reopen Markdown Preview to apply language changes. This setting only affects the app, not Quick Look previews.";
+"Quit and reopen Daisy to apply language changes. This setting only affects the app, not Quick Look previews." = "Quit and reopen Daisy to apply language changes. This setting only affects the app, not Quick Look previews.";
 
 /* Settings organization */
 "Saving" = "Saving";
@@ -378,4 +383,16 @@
 "Mermaid" = "Mermaid";
 "Colorful headings" = "Colorful headings";
 "Collapsible headings" = "Collapsible headings";
+"Slash commands" = "Slash commands";
+"Editor" = "Editor";
+"Lists" = "Lists";
+"Blocks" = "Blocks";
+"Divider" = "Divider";
+"Code Block" = "Code Block";
+"Math Block" = "Math Block";
+"Note" = "Note";
+"Tip" = "Tip";
+"Important" = "Important";
+"Warning" = "Warning";
+"Caution" = "Caution";
 "Toggle \"%@\" section" = "Toggle \"%@\" section";

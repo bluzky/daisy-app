@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Roll back a Markdown Preview release.
+# Roll back a Daisy release.
 #
 # Default action: unpublish the release on Amore (reversible) and delete the
 # matching GitHub release + tag. Use --delete to permanently remove from Amore.

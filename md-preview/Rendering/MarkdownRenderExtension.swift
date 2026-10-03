@@ -101,6 +101,9 @@ nonisolated protocol MarkdownRenderExtension: Sendable {
   /// extensions return nil. The user toggle, order and descriptor are shared,
   /// so a both-sided extension switches on and off as one unit.
   var editor: (any EditorCapability)? { get }
+  /// False for an extension that only changes the editor. Such an extension
+  /// still conforms to this protocol; it returns false from `isActive`.
+  var affectsPreview: Bool { get }
 }
 
 /// Declares that an extension also contributes to the CodeMirror editor. The
@@ -111,15 +114,20 @@ nonisolated protocol EditorCapability: Sendable {
   /// Static CSS for the editor page. It is emitted whether or not the module
   /// is enabled, so scope every rule to a class the module adds.
   var css: String { get }
+  /// Strings handed to the module at creation, typically localized labels.
+  /// Keep them plain `String` pairs so they serialize to the editor page.
+  var options: [String: String] { get }
 }
 
 nonisolated struct EditorModule: EditorCapability {
   let moduleID: String
   var css: String = ""
+  var options: [String: String] = [:]
 }
 
 nonisolated extension MarkdownRenderExtension {
   var editor: (any EditorCapability)? { nil }
+  var affectsPreview: Bool { true }
 
   func transform(_ context: MarkdownHTML.RenderContext) -> String {
     context.html
@@ -185,7 +193,8 @@ nonisolated extension MarkdownHTML {
     KaTeXExtension(),
     MermaidExtension(),
     ColorfulHeadersExtension(),
-    CollapsibleHeadersExtension()
+    CollapsibleHeadersExtension(),
+    SlashCommandsExtension()
   ])
 
   static func renderExtensionTitle(for id: String) -> String {
@@ -241,6 +250,18 @@ nonisolated extension MarkdownHTML {
     return state
   }
 
+  /// Module options keyed by module id, for modules that have any.
+  static func editorExtensionOptions(
+    extensions: [any MarkdownRenderExtension] = renderExtensions
+  ) -> [String: [String: String]] {
+    var options: [String: [String: String]] = [:]
+    for ext in extensions {
+      guard let editor = ext.editor, !editor.options.isEmpty else { continue }
+      options[editor.moduleID] = editor.options
+    }
+    return options
+  }
+
   /// Concatenated CSS of every editor-capable extension, for the editor page.
   static func editorExtensionCSS(
     extensions: [any MarkdownRenderExtension] = renderExtensions
@@ -270,4 +291,121 @@ nonisolated extension MarkdownHTML {
       context.html.contains("markdown-alert")
     }
   }
+
+  /// Editor-only: typing `/` on an empty line opens a block menu. The commands
+  /// live in the editor bundle; this declares the toggle, the menu styling and
+  /// the localized labels. It never touches rendered output.
+  struct SlashCommandsExtension: MarkdownRenderExtension {
+    let id = "slash-commands"
+    let descriptor = RenderExtensionDescriptor(
+      titleKey: "Slash commands",
+      descriptionKey: nil,
+      defaultEnabled: true,
+      userToggleable: true
+    )
+    let order = 300
+    let affectsPreview = false
+    let editor: (any EditorCapability)? = EditorModule(
+      moduleID: "slash-commands",
+      css: MarkdownHTML.slashCommandsEditorStylesheet,
+      options: MarkdownHTML.slashCommandLabels()
+    )
+
+    func isActive(in _: RenderContext) -> Bool { false }
+  }
+
+  /// Command ids match `SLASH_COMMANDS` in the editor bundle. A missing label
+  /// falls back to the bundle's English one.
+  static func slashCommandLabels() -> [String: String] {
+    let commands: [(id: String, key: String)] = [
+      ("h1", "Heading 1"), ("h2", "Heading 2"), ("h3", "Heading 3"),
+      ("quote", "Block Quote"), ("divider", "Divider"),
+      ("bullet", "Bulleted List"), ("ordered", "Numbered List"), ("task", "Checklist"),
+      ("code", "Code Block"), ("table", "Table"), ("image", "Image"), ("mermaid", "Mermaid diagram"),
+      ("math", "Math Block"), ("note", "Note"), ("tip", "Tip"),
+      ("important", "Important"), ("warning", "Warning"), ("caution", "Caution")
+    ]
+    let groups: [(id: String, key: String)] = [
+      ("text", "Text"), ("lists", "Lists"), ("blocks", "Blocks")
+    ]
+    var labels: [String: String] = [:]
+    for command in commands {
+      labels["cmd.\(command.id)"] = NSLocalizedString(command.key, comment: "Slash command")
+    }
+    for group in groups {
+      labels["group.\(group.id)"] = NSLocalizedString(group.key, comment: "Slash command group")
+    }
+    return labels
+  }
+
+  /// The menu is attached to <body>, outside `#editor`, so it is styled with
+  /// the page's own color variables and follows light and dark appearance.
+  static let slashCommandsEditorStylesheet = """
+    .cm-md-slash-menu {
+      position: fixed;
+      z-index: 1000;
+      box-sizing: border-box;
+      width: 280px;
+      max-height: 340px;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      padding: 8px;
+      background: color-mix(in srgb, Canvas 86%, transparent);
+      -webkit-backdrop-filter: blur(28px) saturate(1.7);
+      backdrop-filter: blur(28px) saturate(1.7);
+      color: var(--text);
+      border: 0.5px solid color-mix(in srgb, var(--text) 14%, transparent);
+      border-radius: 16px;
+      box-shadow:
+        0 14px 44px rgba(0, 0, 0, 0.18),
+        0 2px 8px rgba(0, 0, 0, 0.08);
+      font: 14px/1.25 -apple-system, system-ui, sans-serif;
+      letter-spacing: normal;
+      word-spacing: normal;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    .cm-md-slash-menu[hidden] { display: none; }
+    .cm-md-slash-menu::-webkit-scrollbar { width: 10px; }
+    .cm-md-slash-menu::-webkit-scrollbar-track { background: transparent; }
+    .cm-md-slash-menu::-webkit-scrollbar-thumb {
+      background: color-mix(in srgb, var(--text) 24%, transparent);
+      border: 3px solid transparent;
+      border-radius: 6px;
+      background-clip: content-box;
+    }
+    .cm-md-slash-group {
+      padding: 8px 10px 4px;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--secondary);
+    }
+    .cm-md-slash-group:first-child { padding-top: 2px; }
+    .cm-md-slash-item {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      height: 34px;
+      padding: 0 10px;
+      border-radius: 10px;
+      cursor: default;
+    }
+    .cm-md-slash-item.cm-md-slash-selected {
+      background: color-mix(in srgb, var(--text) 9%, transparent);
+    }
+    .cm-md-slash-icon {
+      flex: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      color: var(--text);
+    }
+    .cm-md-slash-label {
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    """
 }

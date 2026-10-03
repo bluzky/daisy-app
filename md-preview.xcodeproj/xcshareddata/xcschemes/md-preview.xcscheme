@@ -16,7 +16,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "9A0207C02FA0ED7C00092060"
-               BuildableName = "Markdown Preview.app"
+               BuildableName = "Daisy.app"
                BlueprintName = "md-preview"
                ReferencedContainer = "container:md-preview.xcodeproj">
             </BuildableReference>
@@ -46,7 +46,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "9A0207C02FA0ED7C00092060"
-            BuildableName = "Markdown Preview.app"
+            BuildableName = "Daisy.app"
             BlueprintName = "md-preview"
             ReferencedContainer = "container:md-preview.xcodeproj">
          </BuildableReference>
@@ -69,7 +69,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "9A0207C02FA0ED7C00092060"
-            BuildableName = "Markdown Preview.app"
+            BuildableName = "Daisy.app"
             BlueprintName = "md-preview"
             ReferencedContainer = "container:md-preview.xcodeproj">
          </BuildableReference>

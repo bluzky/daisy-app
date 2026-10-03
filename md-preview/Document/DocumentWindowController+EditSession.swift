@@ -38,6 +38,9 @@ extension DocumentWindowController {
         editor.pasteImageRequested = { [weak self] from, to in
             self?.pasteImage(at: from, replacing: to)
         }
+        editor.pickImageRequested = { [weak self] from, to in
+            self?.pickImage(at: from, replacing: to)
+        }
         editor.imageClicked = { [weak self] url in
             self?.renameImage(at: url)
         }
@@ -441,6 +444,7 @@ extension DocumentWindowController {
         split.editorViewController?.formattingDidChange = nil
         split.editorViewController?.cancelRequested = nil
         split.editorViewController?.pasteImageRequested = nil
+        split.editorViewController?.pickImageRequested = nil
         split.editorViewController?.imageClicked = nil
         documentWindow.makeFirstResponder(nil)
         let overlayHidden: @MainActor () -> Void = { [weak self] in
@@ -672,7 +676,7 @@ extension DocumentWindowController {
         panel.directoryURL = url.deletingLastPathComponent()
         panel.nameFieldStringValue = url.lastPathComponent
         panel.message = NSLocalizedString(
-            "Markdown Preview needs your permission to save this file.",
+            "Daisy needs your permission to save this file.",
             comment: "Save panel permission message"
         )
         panel.beginSheetModal(for: documentWindow) { [weak self] response in

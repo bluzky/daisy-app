@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# bench-app.sh — CPU/memory/first-paint benchmark for the Markdown Preview app.
+# bench-app.sh — CPU/memory/first-paint benchmark for the Daisy app.
 #
 # For each sample file it launches the built app cold, captures the debug
 # perf log lines from the app's exact bundle-id subsystem, samples RSS/CPU
@@ -8,7 +8,7 @@
 # writes one CSV of metrics per run.
 #
 # Usage:
-#   scripts/bench/bench-app.sh [--app <path/to/Markdown Preview.app>]
+#   scripts/bench/bench-app.sh [--app <path/to/Daisy.app>]
 #                              [--duration <sec>] [--out <dir>] [--label <name>]
 #                              [sample.md ...]
 #
@@ -78,7 +78,7 @@ fi
 echo "==> App: $APP_PATH"
 echo "==> Output: $OUT_DIR"
 
-APP_PROC_NAME="Markdown Preview"
+APP_PROC_NAME="Daisy"
 BUNDLE_ID="$(defaults read "$APP_PATH/Contents/Info" CFBundleIdentifier 2>/dev/null || true)"
 [[ -n "$BUNDLE_ID" ]] || { echo "bundle id not found in app: $APP_PATH" >&2; exit 1; }
 [[ "$BUNDLE_ID" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*$ ]] \

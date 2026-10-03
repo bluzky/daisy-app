@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Release Markdown Preview via Amore + create a GitHub release.
+# Release Daisy via Amore + create a GitHub release.
 #
 # Usage:
 #   scripts/release.sh                    Use version + build from Version.xcconfig
@@ -198,7 +198,7 @@ if gh release view "$TAG" >/dev/null 2>&1; then
 else
     echo "▸ Creating GitHub release $TAG"
     gh release create "$TAG" \
-        --title "Markdown Preview $VERSION" \
+        --title "Daisy $VERSION" \
         --notes "$NOTES" \
         $PRERELEASE_FLAG \
         "$DMG_PATH"

@@ -92,6 +92,55 @@ nonisolated enum MarkdownAssetResolution {
         return imageURL
     }
 
+    /// True when the image sits in the Markdown file's folder or below it, so
+    /// a relative link to it never has to climb out of the document's folder.
+    static func isInsideFolder(_ imageURL: URL, ofMarkdownFile fileURL: URL) -> Bool {
+        guard let path = relativePath(from: fileURL, to: imageURL), !path.isEmpty else {
+            return false
+        }
+        return path.split(separator: "/").first != ".."
+    }
+
+    /// A URL for `fileName` in `directory` that does not overwrite anything:
+    /// `photo.png`, then `photo 2.png`, `photo 3.png`, and so on.
+    static func uniqueFileURL(for fileName: String, in directory: URL) -> URL {
+        let name = fileName as NSString
+        let stem = name.deletingPathExtension
+        let fileExtension = name.pathExtension
+        var candidate = directory.appendingPathComponent(fileName)
+        var number = 2
+        while FileManager.default.fileExists(atPath: candidate.path) {
+            let numbered = fileExtension.isEmpty ? "\(stem) \(number)" : "\(stem) \(number).\(fileExtension)"
+            candidate = directory.appendingPathComponent(numbered)
+            number += 1
+        }
+        return candidate
+    }
+
+    /// Copies a chosen image into the pictures directory, keeping its name.
+    static func importImage(from source: URL, forMarkdownFile fileURL: URL) throws -> URL {
+        let directory = picturesDirectory(forMarkdownFile: fileURL)
+        try FileManager.default.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true,
+            attributes: nil
+        )
+        let destination = uniqueFileURL(for: source.lastPathComponent, in: directory)
+        try FileManager.default.copyItem(at: source, to: destination)
+        return destination
+    }
+
+    /// Markdown for an image: the file name without extension is the alt text,
+    /// with brackets escaped so it cannot end the label early.
+    static func imageMarkdown(for imageURL: URL, from markdownFile: URL) -> String? {
+        guard let path = markdownPath(for: imageURL, from: markdownFile) else { return nil }
+        let label = imageURL.deletingPathExtension().lastPathComponent
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "[", with: "\\[")
+            .replacingOccurrences(of: "]", with: "\\]")
+        return "![\(label)](\(path))"
+    }
+
     /// Returns a URL-safe relative Markdown destination.
     static func markdownPath(for imageURL: URL, from markdownFile: URL) -> String? {
         guard let path = relativePath(from: markdownFile, to: imageURL), !path.isEmpty else {

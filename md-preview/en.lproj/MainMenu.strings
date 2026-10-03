@@ -5,7 +5,7 @@
 	<key>1UK-8n-QPP.title</key>
 	<string>Customize Toolbar…</string>
 	<key>1Xt-HY-uBw.title</key>
-	<string>Markdown Preview</string>
+	<string>Daisy</string>
 	<key>1b7-l0-nxx.title</key>
 	<string>Find</string>
 	<key>2oI-Rn-ZJC.title</key>
@@ -19,11 +19,11 @@
 	<key>4J7-dP-txa.title</key>
 	<string>Enter Full Screen</string>
 	<key>4sb-4s-VLi.title</key>
-	<string>Quit Markdown Preview</string>
+	<string>Quit Daisy</string>
 	<key>5QF-Oa-p0T.title</key>
 	<string>Edit</string>
 	<key>5kV-Vb-QxS.title</key>
-	<string>About Markdown Preview</string>
+	<string>About Daisy</string>
 	<key>6dh-zS-Vam.title</key>
 	<string>Redo</string>
 	<key>78Y-hA-62v.title</key>
@@ -47,7 +47,7 @@
 	<key>F2S-fz-NVQ.title</key>
 	<string>Help</string>
 	<key>FKE-Sm-Kum.title</key>
-	<string>Markdown Preview Help</string>
+	<string>Daisy Help</string>
 	<key>FeM-D8-WVr.title</key>
 	<string>Substitutions</string>
 	<key>H8h-7b-M4v.title</key>
@@ -71,7 +71,7 @@
 	<key>OY7-WF-poV.title</key>
 	<string>Minimize</string>
 	<key>Olw-nP-bQN.title</key>
-	<string>Hide Markdown Preview</string>
+	<string>Hide Daisy</string>
 	<key>OwM-mh-QMV.title</key>
 	<string>Find Previous</string>
 	<key>Oyz-dy-DGm.title</key>
@@ -159,7 +159,7 @@
 	<key>tXI-mr-wws.title</key>
 	<string>Open Recent</string>
 	<key>uQy-DD-JDr.title</key>
-	<string>Markdown Preview</string>
+	<string>Daisy</string>
 	<key>uRl-iY-unG.title</key>
 	<string>Cut</string>
 	<key>vNY-rz-j42.title</key>

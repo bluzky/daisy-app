@@ -22,13 +22,13 @@ struct GeneralSettingsView: View {
             } header: {
                 Text(L("Language"))
             } footer: {
-                Text(L("Quit and reopen Markdown Preview to apply language changes. This setting only affects the app, not Quick Look previews."))
+                Text(L("Quit and reopen Daisy to apply language changes. This setting only affects the app, not Quick Look previews."))
             }
 
             Section {
                 Toggle(isOn: $model.isAlwaysOnTop) {
                     Text(L("Always on Top"))
-                    Text(L("Keeps every Markdown Preview window in front of other apps, including windows you open later. A window in full screen is left alone until it comes back out."))
+                    Text(L("Keeps every Daisy window in front of other apps, including windows you open later. A window in full screen is left alone until it comes back out."))
                 }
 
                 Toggle(isOn: $model.opensMarkdownLinksInNewWindows) {

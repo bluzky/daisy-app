@@ -106,6 +106,242 @@ check("re-enabling colorful-headings restores the editor class",
 check("toggling colorful-headings leaves the document untouched",
   headingsEditor.getMarkdown() === "# Title\n\n## Sub")
 
+// --- Slash commands --------------------------------------------------------
+// Menus live on <body>; the newest one belongs to the editor just created.
+const slashMenu = () => Array.from(dom.window.document.querySelectorAll(".cm-md-slash-menu")).at(-1)
+const slashVisible = () => slashMenu() != null && !slashMenu().hidden
+const slashLabels = () => Array.from(slashMenu().querySelectorAll(".cm-md-slash-label")).map((el) => el.textContent)
+const slashKey = (host, key) => host.querySelector(".cm-content").dispatchEvent(
+  new dom.window.KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }))
+const slashEditor = (source, extra = {}) => {
+  const host = dom.window.document.createElement("div")
+  dom.window.document.body.appendChild(host)
+  const editor = dom.window.MDEditor.create(host, source, { extensionState: { "slash-commands": true }, ...extra })
+  return { host, editor }
+}
+
+{
+  const { host, editor } = slashEditor("")
+  check("slash menu stays closed for a loaded document", !slashVisible())
+  editor.insertTextAt("/", 0, 0)
+  check("typing / on an empty line opens the menu", slashVisible())
+  check("menu lists grouped commands", slashLabels().includes("Heading 1") && slashLabels().includes("Table"))
+  check("every menu row has a line icon",
+    Array.from(slashMenu().querySelectorAll(".cm-md-slash-item"))
+      .every((row) => row.querySelector(".cm-md-slash-icon svg path, .cm-md-slash-icon svg text") != null))
+  editor.insertTextAt("h2", 1, 1)
+  check("typing filters the menu", slashLabels()[0] === "Heading 2")
+  slashKey(host, "Enter")
+  check("Enter converts the line to the chosen block", editor.getMarkdown() === "## ")
+  check("menu closes after applying", !slashVisible())
+  editor.exec("h0")
+}
+
+{
+  const { host, editor } = slashEditor("")
+  editor.insertTextAt("/", 0, 0)
+  slashKey(host, "ArrowDown")
+  slashKey(host, "Enter")
+  check("ArrowDown moves the selection before Enter", editor.getMarkdown() === "## ")
+}
+
+{
+  const { host, editor } = slashEditor("")
+  editor.insertTextAt("/", 0, 0)
+  slashKey(host, "Escape")
+  check("Escape dismisses the menu without touching the text",
+    !slashVisible() && editor.getMarkdown() === "/")
+  editor.insertTextAt("t", 1, 1)
+  check("a dismissed menu stays closed while the same line is edited", !slashVisible())
+}
+
+{
+  const { editor } = slashEditor("see ")
+  editor.insertTextAt("/", 4, 4)
+  check("a slash after a space at the end of text opens the menu", slashVisible())
+}
+
+{
+  const { editor } = slashEditor("see")
+  editor.insertTextAt("/", 3, 3)
+  check("a slash glued to a word does not open the menu", !slashVisible())
+}
+
+{
+  const { editor } = slashEditor("1")
+  editor.insertTextAt("/", 1, 1)
+  check("a slash inside a fraction or path does not open the menu", !slashVisible())
+}
+
+{
+  const { host, editor } = slashEditor("Buy milk ")
+  editor.insertTextAt("/task", 9, 9)
+  slashKey(host, "Enter")
+  check("a command typed after text converts the whole line", editor.getMarkdown() === "- [ ] Buy milk")
+}
+
+{
+  const { host, editor } = slashEditor("Buy milk later")
+  editor.insertTextAt("/h2", 9, 9)
+  slashKey(host, "Enter")
+  check("text on both sides of the slash joins into the block",
+    editor.getMarkdown() === "## Buy milk later")
+}
+
+{
+  const { host, editor } = slashEditor("- item ")
+  editor.insertTextAt("/h1", 7, 7)
+  slashKey(host, "Enter")
+  check("an existing marker is replaced when converting from line end", editor.getMarkdown() === "# item")
+}
+
+{
+  const { editor } = slashEditor("`code  here`")
+  editor.insertTextAt("/", 6, 6)
+  check("a slash inside inline code stays literal", !slashVisible())
+}
+
+{
+  const { editor } = slashEditor("  ")
+  editor.insertTextAt("/", 2, 2)
+  check("a slash after whitespace opens the menu", slashVisible())
+}
+
+{
+  // Four spaces make an indented code block, where `/` is literal.
+  const { editor } = slashEditor("    ")
+  editor.insertTextAt("/", 4, 4)
+  check("a slash in an indented code block stays literal", !slashVisible())
+}
+
+{
+  const { editor } = slashEditor("```\n\n```")
+  editor.insertTextAt("/", 4, 4)
+  check("a slash inside a code fence stays literal", !slashVisible())
+}
+
+{
+  const { editor } = slashEditor("---\ntitle: x\n---\n\n")
+  editor.insertTextAt("/", 6, 6)
+  check("a slash inside frontmatter stays literal", !slashVisible())
+}
+
+{
+  const { editor } = slashEditor("")
+  editor.insertTextAt("/zzzz", 0, 0)
+  check("a query with no match closes the menu and keeps the text",
+    !slashVisible() && editor.getMarkdown() === "/zzzz")
+}
+
+{
+  const { host, editor } = slashEditor("")
+  editor.insertTextAt("/table", 0, 0)
+  slashKey(host, "Enter")
+  check("table command inserts a table skeleton",
+    editor.getMarkdown() === "| Column 1 | Column 2 |\n| --- | --- |\n|  |  |")
+}
+
+{
+  const { host, editor } = slashEditor("")
+  editor.insertTextAt("/mermaid", 0, 0)
+  slashKey(host, "Enter")
+  check("mermaid command inserts a fenced diagram",
+    editor.getMarkdown() === "```mermaid\ngraph TD\n    A --> B\n```")
+}
+
+{
+  const { host, editor } = slashEditor("")
+  editor.insertTextAt("/warning", 0, 0)
+  slashKey(host, "Enter")
+  check("callout command inserts an alert blockquote",
+    editor.getMarkdown() === "> [!WARNING]\n> ")
+}
+
+{
+  const { host, editor } = slashEditor("")
+  editor.insertTextAt("/code", 0, 0)
+  slashKey(host, "Enter")
+  check("code command inserts an empty fence", editor.getMarkdown() === "```\n\n```")
+}
+
+{
+  // Conversion: text already on the line moves into the new block.
+  const { host, editor } = slashEditor("Buy milk")
+  editor.insertTextAt("/task", 0, 0)
+  editor.select(5)
+  slashKey(host, "Enter")
+  check("conversion keeps the rest of the line as content", editor.getMarkdown() === "- [ ] Buy milk")
+}
+
+{
+  const { host, editor } = slashEditor("## Old title")
+  editor.insertTextAt("/h1", 0, 0)
+  editor.select(3)
+  slashKey(host, "Enter")
+  check("conversion replaces an existing block marker", editor.getMarkdown() === "# Old title")
+}
+
+{
+  const { host, editor } = slashEditor("  ")
+  editor.insertTextAt("/quote", 2, 2)
+  slashKey(host, "Enter")
+  check("indentation is preserved when converting", editor.getMarkdown() === "  > ")
+}
+
+{
+  const { host, editor } = slashEditor("")
+  editor.insertTextAt("/", 0, 0)
+  slashMenu().querySelector("[data-slash-index='1']").dispatchEvent(
+    new dom.window.MouseEvent("mousedown", { bubbles: true, cancelable: true }))
+  check("clicking a row applies that command", editor.getMarkdown() === "## ")
+}
+
+{
+  const { editor } = slashEditor("", { extensionOptions: { "slash-commands": { "cmd.h1": "标题 1", "group.text": "文本" } } })
+  editor.insertTextAt("/", 0, 0)
+  check("host labels replace the English ones", slashLabels().includes("标题 1"))
+  editor.insertTextAt("heading", 1, 1)
+  check("English names stay searchable under host labels", slashLabels().includes("标题 1"))
+}
+
+{
+  const { editor } = slashEditor("")
+  editor.insertTextAt("/", 0, 0)
+  check("image command is hidden when the page cannot pick files", !slashLabels().includes("Image"))
+}
+
+{
+  const picks = []
+  const { host, editor } = slashEditor("Photo ", { onPickImage: (from, to) => picks.push([from, to]) })
+  editor.insertTextAt("/image", 6, 6)
+  check("image command is offered when the page can pick files", slashLabels()[0] === "Image")
+  slashKey(host, "Enter")
+  check("image command removes the typed query and keeps the line", editor.getMarkdown() === "Photo ")
+  check("image command asks the host to pick at the query position",
+    picks.length === 1 && picks[0][0] === 6 && picks[0][1] === 6)
+  check("image command closes the menu", !slashVisible())
+}
+
+{
+  const { editor } = slashEditor("")
+  editor.setExtensionState({ "slash-commands": false })
+  editor.insertTextAt("/", 0, 0)
+  check("disabling the module stops the menu", !slashVisible())
+  editor.setExtensionState({ "slash-commands": true })
+  editor.insertTextAt("h", 1, 1)
+  check("re-enabling the module restores the menu", slashVisible())
+}
+
+{
+  const before = dom.window.document.querySelectorAll(".cm-md-slash-menu").length
+  const { editor } = slashEditor("")
+  check("each editor owns one menu element",
+    dom.window.document.querySelectorAll(".cm-md-slash-menu").length === before + 1)
+  editor.destroy()
+  check("destroying the editor removes its menu",
+    dom.window.document.querySelectorAll(".cm-md-slash-menu").length === before)
+}
+
 const highlightHost = dom.window.document.createElement("div")
 dom.window.document.body.appendChild(highlightHost)
 const highlightSource = "before ==Highlighted text== after"

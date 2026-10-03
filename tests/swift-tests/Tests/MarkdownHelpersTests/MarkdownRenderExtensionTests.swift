@@ -8,7 +8,10 @@ final class MarkdownRenderExtensionTests: XCTestCase {
   func testRegistryContainsBuiltInRenderExtensionsInPipelineOrder() {
     XCTAssertEqual(
       MarkdownHTML.renderExtensions.map(\.id),
-      ["highlight", "callout", "katex", "mermaid", "colorful-headings", "collapsible-headings"]
+      [
+        "highlight", "callout", "katex", "mermaid", "colorful-headings",
+        "collapsible-headings", "slash-commands"
+      ]
     )
     let orders = MarkdownHTML.renderExtensions.map(\.order)
     XCTAssertEqual(orders, orders.sorted())
@@ -51,6 +54,12 @@ final class MarkdownRenderExtensionTests: XCTestCase {
         ),
         .init(
           titleKey: "Collapsible headings",
+          descriptionKey: nil,
+          defaultEnabled: true,
+          userToggleable: true
+        ),
+        .init(
+          titleKey: "Slash commands",
           descriptionKey: nil,
           defaultEnabled: true,
           userToggleable: true
@@ -354,7 +363,10 @@ final class MarkdownRenderExtensionTests: XCTestCase {
 
   func testEditorExtensionStateCoversOnlyEditorCapableExtensions() {
     let state = MarkdownHTML.editorExtensionState(configuration: .allEnabled)
-    XCTAssertEqual(state, ["mermaid": true, "colorful-headings": true])
+    XCTAssertEqual(
+      state,
+      ["mermaid": true, "colorful-headings": true, "slash-commands": true]
+    )
   }
 
   func testEditorExtensionStateFollowsUserToggle() {
@@ -363,7 +375,7 @@ final class MarkdownRenderExtensionTests: XCTestCase {
     )
     XCTAssertEqual(
       MarkdownHTML.editorExtensionState(configuration: configuration),
-      ["mermaid": false, "colorful-headings": true]
+      ["mermaid": false, "colorful-headings": true, "slash-commands": true]
     )
   }
 
@@ -373,6 +385,54 @@ final class MarkdownRenderExtensionTests: XCTestCase {
       renderOnly,
       ["highlight", "callout", "katex", "collapsible-headings"]
     )
+  }
+
+  func testSlashCommandsIsEditorOnly() throws {
+    let slash = try XCTUnwrap(MarkdownHTML.renderExtensions.first { $0.id == "slash-commands" })
+    XCTAssertFalse(slash.affectsPreview)
+    XCTAssertNotNil(slash.editor)
+    let rendered = MarkdownHTML.render(
+      markdown: "# Heading\n\n/table",
+      vendorLoading: .lazy,
+      renderExtensionConfiguration: .allEnabled
+    )
+    XCTAssertFalse(rendered.html.contains("cm-md-slash"))
+    XCTAssertFalse(slash.isActive(in: .init(html: "<p>x</p>", markdown: "/")))
+  }
+
+  func testOnlySlashCommandsSkipThePreview() {
+    XCTAssertEqual(
+      MarkdownHTML.renderExtensions.filter { !$0.affectsPreview }.map(\.id),
+      ["slash-commands"]
+    )
+  }
+
+  func testSlashCommandOptionsCarryEveryLabelKey() throws {
+    let options = try XCTUnwrap(MarkdownHTML.editorExtensionOptions()["slash-commands"])
+    let ids = [
+      "h1", "h2", "h3", "quote", "divider", "bullet", "ordered", "task", "code",
+      "table", "image", "mermaid", "math", "note", "tip", "important", "warning", "caution"
+    ]
+    for id in ids {
+      XCTAssertNotNil(options["cmd.\(id)"], id)
+    }
+    for group in ["text", "lists", "blocks"] {
+      XCTAssertNotNil(options["group.\(group)"], group)
+    }
+    XCTAssertNil(MarkdownHTML.editorExtensionOptions()["mermaid"])
+  }
+
+  func testEditorPageEmbedsExtensionOptionsAndMenuCSS() {
+    let html = EditorHTML.render(
+      markdown: "x",
+      editorJavaScript: "",
+      configuration: .init(
+        extensionCSS: MarkdownHTML.editorExtensionCSS(),
+        extensionOptions: ["slash-commands": ["cmd.h1": "标题 1</script>"]]
+      )
+    )
+    XCTAssertTrue(html.contains(".cm-md-slash-menu"))
+    XCTAssertTrue(html.contains(#"extensionOptions: {"slash-commands":{"cmd.h1":"标题 1\u003c\/script>"}}"#))
   }
 
   func testColorfulHeadingsEditorCSSIsScopedToTheModuleClass() {

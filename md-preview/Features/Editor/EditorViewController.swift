@@ -26,6 +26,7 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
     var cancelRequested: (() -> Void)?
     /// A native image was pasted at the editor selection.
     var pasteImageRequested: ((Int, Int) -> Void)?
+    var pickImageRequested: ((Int, Int) -> Void)?
     /// A rendered local image was clicked in the live editor preview.
     var imageClicked: ((URL) -> Void)?
 
@@ -480,6 +481,10 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
             guard let from = payload["from"] as? NSNumber,
                   let to = payload["to"] as? NSNumber else { return }
             pasteImageRequested?(from.intValue, to.intValue)
+        case "pickImage":
+            guard let from = payload["from"] as? NSNumber,
+                  let to = payload["to"] as? NSNumber else { return }
+            pickImageRequested?(from.intValue, to.intValue)
         case "imageClick":
             guard let source = payload["src"] as? String,
                   let url = URL(string: source),
@@ -573,7 +578,8 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
                 extensionState: MarkdownHTML.editorExtensionState(
                     configuration: RenderExtensionPreferences.currentConfiguration
                 ),
-                extensionCSS: MarkdownHTML.editorExtensionCSS()
+                extensionCSS: MarkdownHTML.editorExtensionCSS(),
+                extensionOptions: MarkdownHTML.editorExtensionOptions()
             )
         )
     }

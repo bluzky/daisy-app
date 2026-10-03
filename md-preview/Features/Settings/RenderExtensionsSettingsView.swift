@@ -25,6 +25,15 @@ extension SettingsPaneIcon {
 struct RenderExtensionsSettingsView: View {
     @Bindable private var model = SettingsModel.shared
 
+    /// Which surfaces an extension changes, derived from its capabilities.
+    private static func surfaceCaption(for renderExtension: any MarkdownRenderExtension) -> String {
+        switch (renderExtension.affectsPreview, renderExtension.editor != nil) {
+        case (true, true): "Preview & Editor"
+        case (true, false): "Preview"
+        default: "Editor"
+        }
+    }
+
     var body: some View {
         Form {
             Section {
@@ -40,7 +49,7 @@ struct RenderExtensionsSettingsView: View {
                     ) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(MarkdownHTML.renderExtensionTitle(for: renderExtension.id))
-                            Text(L(renderExtension.editor == nil ? "Preview" : "Preview & Editor"))
+                            Text(L(Self.surfaceCaption(for: renderExtension)))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }

@@ -1,6 +1,6 @@
 # Benchmark harness
 
-Pragmatic CPU/memory/first-paint benchmarking for the Markdown Preview app
+Pragmatic CPU/memory/first-paint benchmarking for the Daisy app
 and its Quick Look extension. The app/Quick Look scripts below are manual
 profiling tools. Automated Release comparisons and failure thresholds run in
 GitHub Actions; see [the performance check](../../tests/performance/README.md).
@@ -32,7 +32,7 @@ scripts/bench/report.py --baseline /tmp/bench/baseline --candidate /tmp/bench/ca
 ```
 
 `bench-app.sh` builds Debug via xcodebuild by default; pass
-`--app <path/to/Markdown Preview.app>` to reuse an existing build. Default
+`--app <path/to/Daisy.app>` to reuse an existing build. Default
 samples are `samples/navigation.md` (small/plain), `samples/full.md`
 (math + code), and `samples/mermaid-heavy.md`; pass sample paths as
 positional args to override. `--duration` (default 20 s) controls the
@@ -53,7 +53,7 @@ The just-built app must be registered with LaunchServices so its appex
 serves `.md` previews. Open the built app once, or:
 
 ```bash
-/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f <path/to/Markdown Preview.app>
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f <path/to/Daisy.app>
 pluginkit -m -p com.apple.quicklook.preview | grep md-preview   # verify
 ```
 

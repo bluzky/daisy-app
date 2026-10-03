@@ -1,6 +1,6 @@
 ---
 name: release-process
-description: Prepare complete release PRs, publish, tag, and roll back Markdown Preview releases — branch/PR naming, exactly what scripts/release.sh and scripts/rollback-release.sh do (including that release.sh publishes live), and the already-wired Amore distribution config (codesign identity, notary profile, EdDSA key). Use when the user asks to create a release PR, release, ship, cut a version, bump the version, tag a release, roll back or unpublish a release, or asks about this project's Amore-specific config (codesign identity, notary keychain profile, EdDSA key, custom domain).
+description: Prepare complete release PRs, publish, tag, and roll back Daisy releases — branch/PR naming, exactly what scripts/release.sh and scripts/rollback-release.sh do (including that release.sh publishes live), and the already-wired Amore distribution config (codesign identity, notary profile, EdDSA key). Use when the user asks to create a release PR, release, ship, cut a version, bump the version, tag a release, roll back or unpublish a release, or asks about this project's Amore-specific config (codesign identity, notary keychain profile, EdDSA key, custom domain).
 ---
 
 ## Release pipeline
@@ -27,9 +27,9 @@ Do not run `scripts/release.sh`, including `--draft`, just to prepare the PR. Bu
 
 ### What's New window
 
-Updated readers see a What's New window once, over their first document window after the update (Help › What's New in Markdown Preview reopens it). It lives in `md-preview/Features/WhatsNew/`:
+Updated readers see a What's New window once, over their first document window after the update (Help › What's New in Daisy reopens it). It lives in `md-preview/Features/WhatsNew/`:
 
-- `WhatsNewPolicy.swift` — `featuresVersion` and `featuresBuild` name the release that introduced the listed features. A reader whose last recorded build is older than `featuresBuild` sees the window; fresh installs never do. The window title (`What's New in Markdown Preview <featuresVersion>`) and the Release Notes button (`https://github.com/pluk-inc/markdown-preview/releases/tag/v<featuresVersion>`) both follow `featuresVersion`.
+- `WhatsNewPolicy.swift` — `featuresVersion` and `featuresBuild` name the release that introduced the listed features. A reader whose last recorded build is older than `featuresBuild` sees the window; fresh installs never do. The window title (`What's New in Daisy <featuresVersion>`) and the Release Notes button (`https://github.com/pluk-inc/markdown-preview/releases/tag/v<featuresVersion>`) both follow `featuresVersion`.
 - `WhatsNewWindow.swift` — `WhatsNewFeature.current` is the list of features shown.
 
 **Always ask before announcing.** While preparing a release PR, read the new `CHANGELOG.md` entry and pick the user-visible features worth announcing. Present them to the user as a proposal — title, description, SF Symbol, and any macOS version limit for each — and **wait for explicit confirmation** of which ones to use and their wording. Never add, drop, or reword an announcement without that confirmation. If the user picks none, leave `WhatsNewPolicy.swift` and `WhatsNewWindow.swift` untouched: the window then does not appear for this release, and readers who already saw the current announcement are not shown it again.

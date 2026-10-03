@@ -22,7 +22,7 @@ struct AboutSettingsView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(L("Markdown Preview"))
+                        Text(L("Daisy"))
                             .font(.title)
                             .fontWeight(.medium)
 
@@ -55,7 +55,7 @@ struct AboutSettingsView: View {
                     Text(lastCheckedSummary).foregroundStyle(.secondary)
                 }
             } footer: {
-                Text(L("Downloaded updates install the next time you quit Markdown Preview."))
+                Text(L("Downloaded updates install the next time you quit Daisy."))
             }
         }
         .formStyle(.grouped)

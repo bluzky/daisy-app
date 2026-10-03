@@ -22,7 +22,7 @@ enum TabOpeningPolicy {
     ///   - isExplicitTabRequest: The open came from "Open in New Tab", ⌘T, or
     ///     the tab bar's "+", which asks for a tab whatever anything else says.
     ///   - opensDocumentsInTabs: This app's own preference — the reader wants
-    ///     one Markdown Preview window with the documents inside it.
+    ///     one Daisy window with the documents inside it.
     ///   - systemPreference: macOS's "Prefer tabs when opening documents".
     ///   - hostIsFullScreen: Whether the window that would host the tab is in
     ///     full screen, which is the only thing `inFullScreen` turns on.

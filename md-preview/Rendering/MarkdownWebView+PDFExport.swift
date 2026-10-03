@@ -266,7 +266,7 @@ private final class PrintSizeRowView: NSView {
     }
 }
 
-/// Adds a "Markdown Preview" pane to the system print panel holding the font
+/// Adds a "Daisy" pane to the system print panel holding the font
 /// size control, so the panel's own page thumbnails act as the preview.
 private final class PrintSizeAccessoryController: NSViewController, NSPrintPanelAccessorizing {
     /// Applies a size to the document, calling back once the page has actually
@@ -287,7 +287,7 @@ private final class PrintSizeAccessoryController: NSViewController, NSPrintPanel
         self.exportFormat = exportFormat
         showsPrintSize = exportFormat == nil
         super.init(nibName: nil, bundle: nil)
-        title = NSLocalizedString("Markdown Preview",
+        title = NSLocalizedString("Daisy",
                                   comment: "Print panel accessory pane title")
     }
 
@@ -958,7 +958,7 @@ extension MarkdownWebView {
     }
 
     /// File ▸ Export… — the same native preview used by PDF export, with a
-    /// format selector in the Markdown Preview accessory pane.
+    /// format selector in the Daisy accessory pane.
     func exportDocument(
         markdown: String,
         sourceURL: URL?,
@@ -1105,7 +1105,7 @@ extension MarkdownWebView {
     }
 
     /// File ▸ Print… — the system print panel, with the font size in a
-    /// "Markdown Preview" accessory pane so the panel's own live page
+    /// "Daisy" accessory pane so the panel's own live page
     /// thumbnails preview the choice.
     func printDocument(from window: NSWindow) {
         let operation = configuredPrintOperation(from: window)

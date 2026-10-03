@@ -155,7 +155,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
             backing: .buffered,
             defer: false
         )
-        window.title = "Markdown Preview"
+        window.title = "Daisy"
         window.animationBehavior = .default
         window.allowsToolTipsWhenApplicationIsInactive = false
         super.init(window: window)

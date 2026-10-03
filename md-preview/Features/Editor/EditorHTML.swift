@@ -19,6 +19,8 @@ nonisolated enum EditorHTML {
         var extensionState: [String: Bool] = [:]
         /// Static CSS from editor-capable extensions; see `MarkdownHTML.editorExtensionCSS`.
         var extensionCSS = ""
+        /// Per-module option strings, keyed by module id (localized labels).
+        var extensionOptions: [String: [String: String]] = [:]
     }
 
     /// The reader settings the preview bakes into its page, as one stylesheet
@@ -752,6 +754,7 @@ nonisolated enum EditorHTML {
                     {
                         pageScrolling: \(usesPageScrolling),
                         extensionState: \(extensionStateLiteral(configuration.extensionState)),
+                        extensionOptions: \(jsonObjectLiteral(configuration.extensionOptions)),
                         onDirty: function () { post("dirty"); },
                         onCopyCode: function (text) { post({ kind: "copyCode", value: text }); },
                         onFormattingChange: function (state) {
@@ -762,6 +765,9 @@ nonisolated enum EditorHTML {
                         },
                         onPasteImage: function (from, to) {
                             post({ kind: "pasteImage", from: from, to: to });
+                        },
+                        onPickImage: function (from, to) {
+                            post({ kind: "pickImage", from: from, to: to });
                         },
                         // Preview block margins (MarkdownHTML design tokens):
                         // the bundle sizes blank-separator lines from these.
@@ -823,7 +829,11 @@ nonisolated enum EditorHTML {
     /// JSON object literal for the editor module state, escaped like
     /// `jsStringLiteral` so it is safe inside an inline <script>.
     static func extensionStateLiteral(_ state: [String: Bool]) -> String {
-        let data = (try? JSONSerialization.data(withJSONObject: state, options: [.sortedKeys]))
+        jsonObjectLiteral(state)
+    }
+
+    static func jsonObjectLiteral(_ object: [String: Any]) -> String {
+        let data = (try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]))
             ?? Data("{}".utf8)
         return String(decoding: data, as: UTF8.self)
             .replacingOccurrences(of: "<", with: "\\u003c")

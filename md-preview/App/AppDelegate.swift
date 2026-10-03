@@ -34,7 +34,7 @@ private enum CommandLineToolInstallError: LocalizedError {
             )
         case .bundledToolMissing:
             return NSLocalizedString(
-                "The bundled Markdown Preview CLI could not be found.",
+                "The bundled Daisy CLI could not be found.",
                 comment: "CLI installer error"
             )
         }
@@ -233,7 +233,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                                               comment: "URL scheme error")
         alert.informativeText = String(
             format: NSLocalizedString(
-                "“%@” is not a link Markdown Preview understands. Use md-preview://file/ followed by the absolute path of the file, for example md-preview://file/Users/me/notes/README.md.",
+                "“%@” is not a link Daisy understands. Use md-preview://file/ followed by the absolute path of the file, for example md-preview://file/Users/me/notes/README.md.",
                 comment: "URL scheme error"
             ),
             urls.map(\.absoluteString).joined(separator: "\n")
@@ -459,7 +459,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let installCommand = makeCommandLineToolInstallCommand(scriptURL: installerScriptURL)
             try runInstallCommandInTerminal(installCommand)
         } catch {
-            NSLog("Failed to run Markdown Preview CLI installer in Terminal: \(error.localizedDescription)")
+            NSLog("Failed to run Daisy CLI installer in Terminal: \(error.localizedDescription)")
         }
     }
 
@@ -701,7 +701,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         choice=$(choose_install_dir) || {
-          echo "Could not find a usable PATH directory for Markdown Preview command line tools." >&2
+          echo "Could not find a usable PATH directory for Daisy command line tools." >&2
           exit 1
         }
 
@@ -739,7 +739,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         refuse_existing_command() {
-          echo "Refusing to replace existing command that was not installed by Markdown Preview: $1" >&2
+          echo "Refusing to replace existing command that was not installed by Daisy: $1" >&2
           exit 1
         }
 
@@ -749,7 +749,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         done
 
         if [ "$needs_sudo" = "true" ]; then
-          echo "Installing Markdown Preview command line tools to $install_dir requires your password."
+          echo "Installing Daisy command line tools to $install_dir requires your password."
           sudo mkdir -p "$install_dir"
           sudo install -m 755 "$bundled_cli" "$primary"
         else
@@ -767,7 +767,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         done
 
         echo
-        echo "Markdown Preview CLI is ready."
+        echo "Daisy CLI is ready."
         echo
         echo "Use any of these commands:"
         echo "  mdp"
@@ -777,7 +777,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         echo "Examples:"
         echo "  mdp README.md        Open a Markdown file"
         echo "  mdp .                Open the current folder"
-        echo "  mdp docs             Browse a folder in Markdown Preview"
+        echo "  mdp docs             Browse a folder in Daisy"
         echo
         echo "Tips:"
         echo "  Use mdp for the shortest command."
@@ -1177,7 +1177,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
               helpMenu.items.first(where: { $0.action == #selector(showWhatsNew(_:)) }) == nil
         else { return }
 
-        let item = NSMenuItem(title: L("What’s New in Markdown Preview"),
+        let item = NSMenuItem(title: L("What’s New in Daisy"),
                               action: #selector(showWhatsNew(_:)),
                               keyEquivalent: "")
         item.target = self

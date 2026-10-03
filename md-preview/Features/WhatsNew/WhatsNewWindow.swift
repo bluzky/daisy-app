@@ -4,7 +4,7 @@
 //
 //  The What's New window: shown once over the first document window after
 //  an update (see `WhatsNewPolicy`), and on request from
-//  Help › What's New in Markdown Preview.
+//  Help › What's New in Daisy.
 //
 
 import SwiftUI
@@ -63,7 +63,7 @@ struct WhatsNewView: View {
     /// Names the release that introduced the features, not the running
     /// build: a later update shows the same announcement.
     private var title: String {
-        String(format: L("What’s New in Markdown Preview %@"), WhatsNewPolicy.featuresVersion)
+        String(format: L("What’s New in Daisy %@"), WhatsNewPolicy.featuresVersion)
     }
 
     var body: some View {
@@ -253,7 +253,7 @@ enum WhatsNewWindow {
         window.styleMask = [.titled, .closable, .fullSizeContentView]
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
-        window.title = L("What’s New in Markdown Preview")
+        window.title = L("What’s New in Daisy")
         // An empty toolbar gives the window the larger toolbar-window corner
         // radius and window-button inset.
         window.toolbar = NSToolbar()

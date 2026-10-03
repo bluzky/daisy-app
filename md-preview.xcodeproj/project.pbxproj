@@ -63,7 +63,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		9A0207C12FA0ED7C00092060 /* Markdown Preview.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Markdown Preview.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		9A0207C12FA0ED7C00092060 /* Daisy.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Daisy.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		9A02092D2FA10D4C00092060 /* quick-look.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "quick-look.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
 		9A02092F2FA10D4C00092060 /* Quartz.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Quartz.framework; path = System/Library/Frameworks/Quartz.framework; sourceTree = SDKROOT; };
 		9A0209A02FA1100100092060 /* Version.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Version.xcconfig; sourceTree = "<group>"; };
@@ -198,7 +198,7 @@
 		9A0207C22FA0ED7C00092060 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				9A0207C12FA0ED7C00092060 /* Markdown Preview.app */,
+				9A0207C12FA0ED7C00092060 /* Daisy.app */,
 				9A02092D2FA10D4C00092060 /* quick-look.appex */,
 			);
 			name = Products;
@@ -249,7 +249,7 @@
 				9A3394092FA5AF500015D9A4 /* Markdown */,
 			);
 			productName = "md-preview";
-			productReference = 9A0207C12FA0ED7C00092060 /* Markdown Preview.app */;
+			productReference = 9A0207C12FA0ED7C00092060 /* Daisy.app */;
 			productType = "com.apple.product-type.application";
 		};
 		9A02092C2FA10D4C00092060 /* quick-look */ = {
@@ -551,7 +551,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
-				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Markdown Preview uses Terminal to install the optional command line tools.";
+				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Daisy uses Terminal to install the optional command line tools.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSMainNibFile = MainMenu;
 				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
@@ -561,7 +561,7 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "doc.md-preview.dev";
-				PRODUCT_NAME = "Markdown Preview";
+				PRODUCT_NAME = "Daisy";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -590,7 +590,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
-				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Markdown Preview uses Terminal to install the optional command line tools.";
+				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Daisy uses Terminal to install the optional command line tools.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSMainNibFile = MainMenu;
 				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
@@ -600,7 +600,7 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "doc.md-preview";
-				PRODUCT_NAME = "Markdown Preview";
+				PRODUCT_NAME = "Daisy";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
