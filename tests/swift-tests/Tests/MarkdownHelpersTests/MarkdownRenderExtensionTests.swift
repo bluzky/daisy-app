@@ -10,6 +10,29 @@ final class MarkdownRenderExtensionTests: XCTestCase {
       MarkdownHTML.renderExtensions.map(\.id),
       ["colorful-headings", "collapsible-headings"]
     )
+    let orders = MarkdownHTML.renderExtensions.map(\.order)
+    XCTAssertEqual(orders, orders.sorted())
+    XCTAssertEqual(Set(orders).count, orders.count)
+  }
+
+  func testRegistryDescriptorsDescribeToggleableDefaultExtensions() {
+    XCTAssertEqual(
+      MarkdownHTML.renderExtensions.map(\.descriptor),
+      [
+        .init(
+          titleKey: "Colorful headings",
+          descriptionKey: nil,
+          defaultEnabled: true,
+          userToggleable: true
+        ),
+        .init(
+          titleKey: "Collapsible headings",
+          descriptionKey: nil,
+          defaultEnabled: true,
+          userToggleable: true
+        )
+      ]
+    )
   }
 
   func testDisabledExtensionsEmitNeitherTransformsNorAssets() {
@@ -72,10 +95,28 @@ final class MarkdownRenderExtensionTests: XCTestCase {
     XCTAssertTrue(headings.html.contains("--mdp-heading-h1: #d14f6a"))
     XCTAssertTrue(headings.html.contains("id: 'collapsible-headings'"))
     XCTAssertTrue(headings.html.contains("mdp-collapsed-section"))
+    XCTAssertEqual(
+      headings.scriptAssetIDs,
+      Set(["colorful-headings", "collapsible-headings"])
+    )
 
     let plain = MarkdownHTML.render(markdown: "Plain text.", vendorLoading: .lazy)
     XCTAssertFalse(plain.html.contains("--mdp-heading-h1: #d14f6a"))
     XCTAssertFalse(plain.html.contains("id: 'collapsible-headings'"))
+    XCTAssertTrue(plain.scriptAssetIDs.isEmpty)
+  }
+
+  func testWarmupEmitsEnabledExtensionCSSWithoutDocumentScripts() {
+    let warmup = MarkdownHTML.render(
+      markdown: "Plain text.",
+      vendorLoading: .lazy,
+      warmup: true
+    )
+
+    XCTAssertTrue(warmup.html.contains("--mdp-heading-h1: #d14f6a"))
+    XCTAssertTrue(warmup.html.contains("mdp-collapsed-section"))
+    XCTAssertFalse(warmup.html.contains("id: 'collapsible-headings'"))
+    XCTAssertTrue(warmup.scriptAssetIDs.isEmpty)
   }
 
   func testHeadingExtensionsActivateForHeadingsOnlyInFootnoteDefinitions() {
@@ -86,6 +127,34 @@ final class MarkdownRenderExtensionTests: XCTestCase {
     XCTAssertTrue(rendered.html.contains("<h2"))
     XCTAssertTrue(rendered.html.contains("--mdp-heading-h1: #d14f6a"))
     XCTAssertTrue(rendered.html.contains("id: 'collapsible-headings'"))
+  }
+
+  func testActivationRunsOnceInExplicitOrderAgainstEarlierTransforms() {
+    let firstCounter = ExtensionInvocationCounter()
+    let secondCounter = ExtensionInvocationCounter()
+    let first = TestExtension(
+      id: "first",
+      order: 10,
+      counter: firstCounter,
+      suffix: "<first/>"
+    )
+    let second = TestExtension(
+      id: "second",
+      order: 20,
+      counter: secondCounter,
+      suffix: "<second/>"
+    )
+
+    let run = MarkdownHTML.applyRenderExtensions(
+      to: "<p>Body</p>",
+      markdown: "Body",
+      configuration: .init(enabledIDs: ["first", "second"]),
+      extensions: [second, first]
+    )
+
+    XCTAssertEqual(run.html, "<p>Body</p><first/><second/>")
+    XCTAssertEqual(firstCounter.inputs, ["<p>Body</p>"])
+    XCTAssertEqual(secondCounter.inputs, ["<p>Body</p><first/>"])
   }
 
   @MainActor
@@ -188,5 +257,31 @@ final class MarkdownRenderExtensionTests: XCTestCase {
     XCTAssertTrue(bridge.contains("window.MdPreview.registerRenderer"))
     XCTAssertTrue(bridge.contains("window.MdPreview.renderAll"))
     XCTAssertTrue(bridge.contains("window.MdPreview.registerReapplier"))
+  }
+
+  private final class ExtensionInvocationCounter: @unchecked Sendable {
+    var inputs: [String] = []
+  }
+
+  private struct TestExtension: MarkdownRenderExtension {
+    let id: String
+    let order: Int
+    let counter: ExtensionInvocationCounter
+    let suffix: String
+    let descriptor = MarkdownHTML.RenderExtensionDescriptor(
+      titleKey: "Test extension",
+      descriptionKey: nil,
+      defaultEnabled: true,
+      userToggleable: true
+    )
+
+    func isActive(in context: MarkdownHTML.RenderContext) -> Bool {
+      counter.inputs.append(context.html)
+      return true
+    }
+
+    func transform(_ context: MarkdownHTML.RenderContext) -> String {
+      context.html + suffix
+    }
   }
 }

@@ -45,13 +45,19 @@ nonisolated extension MarkdownHTML {
 
   struct ColorfulHeadersExtension: MarkdownRenderExtension {
     let id = "colorful-headings"
+    let descriptor = RenderExtensionDescriptor(
+      titleKey: "Colorful headings",
+      descriptionKey: nil,
+      defaultEnabled: true,
+      userToggleable: true
+    )
+    let order = 100
 
-    func transform(_ context: RenderContext) -> RenderResult {
-      let hasHeading = context.html.range(
+    func isActive(in context: RenderContext) -> Bool {
+      context.html.range(
         of: #"<h[1-6]\b"#,
         options: .regularExpression
       ) != nil
-      return RenderResult(html: context.html, active: hasHeading)
     }
 
     func assets(mode _: VendorLoading) -> RenderAssets {
