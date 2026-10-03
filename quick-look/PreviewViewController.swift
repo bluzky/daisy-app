@@ -424,6 +424,8 @@ private final class QuickLookWebView: WKWebView {
 }
 
 final class PreviewViewController: NSViewController, QLPreviewingController, WKNavigationDelegate {
+
+    private let documentID = UUID().uuidString
     /// Injectable dispatch keeps navigation tests from launching external apps.
     var openExternalLink: @MainActor (URL, NSWindow?) -> Void = ExternalLinkOpener.open
 
@@ -626,6 +628,7 @@ final class PreviewViewController: NSViewController, QLPreviewingController, WKN
             from: text,
             allowsScroll: true,
             colorScheme: colorScheme,
+            documentID: documentID,
             renderExtensionConfiguration: RenderExtensionPreferences.currentConfiguration
         ))
         let baseDirectory = url.deletingLastPathComponent()

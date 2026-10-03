@@ -8,6 +8,10 @@ import Synchronization
 
 final class MarkdownDocument: NSDocument {
 
+    /// Lifetime identity for unsaved documents. File-backed previews use
+    /// their standardized URL instead, so extension state resets on a file
+    /// switch but survives successive edits to this untitled document.
+    let untitledDocumentID = UUID().uuidString
     private nonisolated let markdownStorage = Mutex("")
     private nonisolated let folderStorage = Mutex<URL?>(nil)
 

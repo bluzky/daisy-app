@@ -213,7 +213,8 @@ final class ContentViewController: NSViewController {
     func display(
         markdown: String,
         sourceURL: URL?,
-        assetBaseURL: URL? = nil
+        assetBaseURL: URL? = nil,
+        documentID: String
     ) {
         if !webView.hasRequestedDocument, let sourceURL {
             snapshotSource = (sourceURL, DocumentSnapshotCache.hash(markdown))
@@ -233,7 +234,9 @@ final class ContentViewController: NSViewController {
             scheduleNavigationTargetAttempt()
         }
         resetScrollspy()
-        webView.display(markdown: markdown, assetBaseURL: assetBaseURL)
+        webView.display(markdown: markdown,
+                        assetBaseURL: assetBaseURL,
+                        documentID: documentID)
         scheduleHeadingOffsetsRefresh()
     }
 

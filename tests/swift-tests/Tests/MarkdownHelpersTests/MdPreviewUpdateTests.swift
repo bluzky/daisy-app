@@ -209,9 +209,8 @@ final class MdPreviewUpdateTests: XCTestCase {
         XCTAssertEqual(result, ["fresh": false, "alpha": false, "beta": false, "gamma": true])
     }
 
-    /// Collapsed sections are display:none, so navigation to a heading inside
-    /// one would measure a zero-size box. `reveal` must expand the
-    /// collapsed ancestors (and the owning section for plain content).
+    /// Collapsed sections are display:none, so find's selected `<mark>` would
+    /// measure as zero-size. `reveal` must expand its collapsed ancestors.
     @MainActor
     func testRevealExpandsCollapsedAncestors() async throws {
         let webView = try await loadHarness(
@@ -231,9 +230,12 @@ final class MdPreviewUpdateTests: XCTestCase {
                 document.querySelector('h1').querySelector('.mdp-collapse-toggle').click();
                 const h2 = document.querySelector('h2');
                 const p = document.querySelector('p');
+                const match = document.createElement('mark');
+                match.textContent = 'inner';
+                p.appendChild(match);
                 const hiddenBefore = h2.classList.contains('mdp-collapsed-section')
                     && p.classList.contains('mdp-collapsed-section');
-                window.MdPreview.reveal(h2);
+                window.MdPreview.reveal(match);
                 return {
                     hiddenBefore,
                     visibleAfter: !h2.classList.contains('mdp-collapsed-section'),
