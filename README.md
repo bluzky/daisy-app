@@ -1,26 +1,16 @@
 <h1 align="center">Daisy</h1>
 
 <p align="center">
-  <img src="docs/markdown-logo.svg" width="128" alt="Daisy logo" />
+  <img src="docs/daisy-logo.png" width="128" alt="Daisy logo" />
 </p>
 
 <p align="center">
-  A fast, native macOS app for reading Markdown files.
+  A fast, native macOS app for reading & editing Markdown files.
 </p>
 
-<p align="center"><img alt="Platform" src="https://img.shields.io/badge/platform-macOS%2015%2B-blue" />&nbsp;<img alt="Swift" src="https://img.shields.io/badge/swift-6.0-orange" />&nbsp;<img alt="License" src="https://img.shields.io/badge/license-MIT-green" />&nbsp;<img alt="Latest release" src="https://img.shields.io/github/v/release/pluk-inc/markdown-preview" />&nbsp;<img alt="Homebrew cask" src="https://img.shields.io/homebrew/cask/v/markdown-preview" /></p>
+> **Note:** Daisy is an opinionated build of [Markdown Preview](https://github.com/pluk-inc/markdown-preview) by pluk-inc. It follows its own direction and has more features in some areas and fewer in others, so it is not a drop-in replacement. For the original app, use the [upstream repository](https://github.com/pluk-inc/markdown-preview).
 
-<p align="center">
-  <a href="https://discord.com/invite/NUtNMK7re2">
-    <img src="https://img.shields.io/badge/Join%20our%20Discord-5865F2?logo=discord&amp;logoColor=white" alt="Join our Discord community" />
-  </a>
-</p>
-
-<p align="center">
-  <a href="https://buymeacoffee.com/pluk">
-    <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" height="42" alt="Buy Me a Coffee" />
-  </a>
-</p>
+<p align="center"><img alt="Platform" src="https://img.shields.io/badge/platform-macOS%2015%2B-blue" />&nbsp;<img alt="Swift" src="https://img.shields.io/badge/swift-6.0-orange" />&nbsp;<img alt="License" src="https://img.shields.io/badge/license-MIT-green" />&nbsp;<img alt="Latest release" src="https://img.shields.io/github/v/release/bluzky/daisy-app" />&nbsp;<img alt="Homebrew cask" src="https://img.shields.io/homebrew/cask/v/markdown-preview" /></p>
 
 ---
 
@@ -28,13 +18,13 @@
 
 ## Installation
 
-Daisy is available in the official [Homebrew cask repository](https://formulae.brew.sh/cask/markdown-preview):
+Daisy is available through the [Homebrew cask repository](https://formulae.brew.sh/cask/markdown-preview) (the cask is still published as `markdown-preview` while it is renamed):
 
 ```sh
 brew install --cask markdown-preview
 ```
 
-Or grab the latest signed and notarized DMG from the [Releases](https://github.com/pluk-inc/markdown-preview/releases) page.
+Or grab the latest signed and notarized DMG from the [Releases](https://github.com/bluzky/daisy-app/releases) page.
 
 ## Screenshots
 
@@ -78,7 +68,7 @@ Single source newlines remain visible by default. Enable **Settings → Reading 
 
 - **Native rendering** — `WKWebView` pipeline backed by [swift-markdown](https://github.com/swiftlang/swift-markdown), with heading anchors and link handling. Bare `http://` and `https://` URLs are clickable in the app and Quick Look previews.
 - **Read Mode** — select and copy text, follow links, and browse tables. Click task checkboxes to save each change directly to the file. Tables and Quick Look previews remain read-only.
-- **App links** — Read Mode and Quick Look support custom URL schemes. Before opening an unapproved custom link with a registered app, a compact dialog names the app and offers Cancel, Allow, and Always Allow, with Cancel as the default. For an unapproved custom link with no registered app, an alert reports that no application can open the link. Use Copy Link in the context menu to inspect the destination. “Always Allow” saves approval for that URL scheme across documents, app restarts, and Quick Look. Reset approvals in Settings → General → App links. HTTP, HTTPS, mailto, and the app’s own `md-preview:` links open without this prompt, even after resetting approvals. Executable URLs and literal `file://` links remain blocked; embedded resources cannot launch custom app links.
+- **App links** — Read Mode and Quick Look support custom URL schemes. Before opening an unapproved custom link with a registered app, a compact dialog names the app and offers Cancel, Allow, and Always Allow, with Cancel as the default. For an unapproved custom link with no registered app, an alert reports that no application can open the link. Use Copy Link in the context menu to inspect the destination. “Always Allow” saves approval for that URL scheme across documents, app restarts, and Quick Look. Reset approvals in Settings → General → App links. HTTP, HTTPS, mailto, and the app’s own `daisy:` links open without this prompt, even after resetting approvals. Executable URLs and literal `file://` links remain blocked; embedded resources cannot launch custom app links.
 - **Edit Mode** — edit Markdown in place with a formatting toolbar for headings, emphasis, lists, quotes, code, and links. Table cells show inline formatting until focused, then reveal their Markdown syntax for editing. Task markers become checkboxes once you finish typing the closing bracket; Enter continues a task list, and Enter on an empty task exits it. Type `/` at the start of a line or after a space for a menu of blocks (headings, lists, code, tables, images, Mermaid diagrams, callouts); picking one converts the line, and `/image` opens a file picker and copies the chosen image next to the document like a paste. Toggle it from the toolbar or with <kbd>⌘E</kbd>, then save with <kbd>⌘S</kbd>.
 - **Code highlighting** — fenced code and Obsidian-style `==highlight==` markers render with bundled highlighting. Disable it in **Settings → Extensions** to keep code plain and markers literal.
 - **Callouts** — GitHub-style blockquote alerts such as `> [!NOTE]` render as callouts. Disable them in **Settings → Extensions** to retain ordinary blockquotes and markers.
@@ -96,8 +86,8 @@ Single source newlines remain visible by default. Enable **Settings → Reading 
 - **Customizable toolbar** — drag in the items you actually use (Print, Copy, Zoom, Sidebar, Open With, Inspector, Share, Search, Search for Document) via *View → Customize Toolbar…* Standard AppKit affordance, your layout sticks across launches.
 - **Share = copy the source** — the share toolbar feeds the picker the Markdown text itself, so **Copy** writes the raw source to the clipboard (great for pasting into ChatGPT / Claude), and Mail, Messages, and Notes get the content in the body instead of a file URL.
 - **Quick Look extension** — system-wide `.md` previews from Finder spacebar, Spotlight, and Mail attachments without launching the app.
-- **Command line tools** — install `mdp`, `md-preview`, and `markdown-preview` from the app menu, then open files or folders from any shell with commands like `mdp README.md` or `mdp .`.
-- **URL scheme** — open a file or folder from a browser link or another app with `md-preview://file/<absolute path>` (e.g. `md-preview://file/Users/me/project/README.md`), the same shape as `cursor://file/…`. Percent-encode special characters in the path (a space becomes `%20`).
+- **Command line tools** — install `mdp`, `daisy`, and `markdown-preview` from the app menu, then open files or folders from any shell with commands like `mdp README.md` or `mdp .`.
+- **URL scheme** — open a file or folder from a browser link or another app with `daisy://file/<absolute path>` (e.g. `daisy://file/Users/me/project/README.md`), the same shape as `cursor://file/…`. Percent-encode special characters in the path (a space becomes `%20`). Links that use the earlier `md-preview://` scheme keep working.
 - **Default handler** — offers to register itself as the default `.md` opener on first launch.
 - **Fast opening** — a document you open again shows its first screen at once from a saved image while the page loads (documents that look final on first paint, so not ones with images, math, Mermaid diagrams, or code highlighted after load); the app keeps the images for the 40 most recent documents in its own cache, and they never leave your Mac.
 
@@ -114,12 +104,12 @@ UTI: `net.daringfireball.markdown`
 ## Building from source
 
 ```sh
-git clone git@github.com:pluk-inc/markdown-preview.git
-cd markdown-preview
-open markdown-preview.xcodeproj
+git clone git@github.com:bluzky/daisy-app.git
+cd daisy-app
+open daisy.xcodeproj
 ```
 
-Build and run the `markdown-preview` scheme. Swift Package Manager will resolve [Sparkle](https://github.com/sparkle-project/Sparkle), [Sentry](https://github.com/getsentry/sentry-cocoa), and [swift-markdown](https://github.com/swiftlang/swift-markdown) on first build.
+Build and run the `daisy` scheme. Swift Package Manager will resolve [Sparkle](https://github.com/sparkle-project/Sparkle), [Sentry](https://github.com/getsentry/sentry-cocoa), and [swift-markdown](https://github.com/swiftlang/swift-markdown) on first build.
 
 ### Crash reporting
 
@@ -136,7 +126,7 @@ The PostHog project token is injected from the gitignored `Secrets.xcconfig`. Co
 ## Project layout
 
 ```
-md-preview/         Main app target (AppKit, WKWebView)
+daisy/         Main app target (AppKit, WKWebView)
 quick-look/         Quick Look extension (.appex)
 scripts/            Release & rollback automation
 Version.xcconfig    Marketing & build version (single source of truth)
@@ -169,24 +159,6 @@ Pull requests are welcome. For larger changes, please open an issue first to dis
 3. Keep PRs focused; one logical change per PR.
 4. Match the existing Swift style (no formatter is enforced; mirror nearby code).
 
-<h2 align="center" style="color: #8a8a8a;">Special Sponsor</h2>
-
-<br />
-
-<p align="center">
-  <a href="https://pluk.sh">
-    <img src="docs/sponsors/pluk-logo.png" height="54" alt="Pluk" />
-  </a>
-  &nbsp;&nbsp;&nbsp;&nbsp;
-  <a href="https://amore.computer">
-    <img src="docs/sponsors/amore-logo.png" height="54" alt="Amore" />
-  </a>
-</p>
-
-## Support
-
-Daisy is free and MIT-licensed. If it saved you a browser tab, you can [buy us a coffee](https://buymeacoffee.com/pluk).
-
 ## Acknowledgments
 - [Amore](http://amore.computer/) — MacOS release automation (signing, notarization, DMG, hosting, appcast)
 - [swift-markdown](https://github.com/swiftlang/swift-markdown) — Markdown parser (Apple, cmark-gfm-backed)
@@ -194,7 +166,6 @@ Daisy is free and MIT-licensed. If it saved you a browser tab, you can [buy us a
 - [KaTeX](https://katex.org/) — Bundled math typesetter for inline `$…$`, display `$$…$$`, and ` ```math ` blocks
 - [Sparkle](https://sparkle-project.org) — Auto-update framework
 - [Sentry](https://sentry.io) — Privacy-filtered native crash reporting
-- [LottieFiles](https://lottiefiles.com/) — Animated README logo
 
 ## License
 
