@@ -1,6 +1,6 @@
 {
   "fill" : {
-    "automatic-gradient" : "extended-gray:1.00000,1.00000"
+    "solid" : "srgb:0.25098,0.58039,0.99608,1.00000"
   },
   "groups" : [
     {
@@ -8,10 +8,10 @@
         {
           "fill" : "none",
           "hidden" : false,
-          "image-name" : "ChatGPT Image Apr 30, 2026, 06_55_12 PM.png",
-          "name" : "ChatGPT Image Apr 30, 2026, 06_55_12 PM",
+          "image-name" : "Daisy Bloom Blue App Icon.png",
+          "name" : "Daisy Bloom Blue App Icon",
           "position" : {
-            "scale" : 0.82,
+            "scale" : 1.0,
             "translation-in-points" : [
               0,
               0
