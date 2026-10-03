@@ -252,11 +252,12 @@ final class MarkdownRenderExtensionTests: XCTestCase {
     ) != nil)
   }
 
-  func testHostBridgeProvidesRendererAndReapplierLifecycle() {
+  func testHostBridgeProvidesExtensionAndReapplierLifecycle() {
     let bridge = MarkdownHTML.hostBridgeScript
-    XCTAssertTrue(bridge.contains("window.MdPreview.registerRenderer"))
-    XCTAssertTrue(bridge.contains("window.MdPreview.renderAll"))
+    XCTAssertTrue(bridge.contains("window.MdPreview.registerExtension"))
+    XCTAssertTrue(bridge.contains("window.MdPreview.reveal"))
     XCTAssertTrue(bridge.contains("window.MdPreview.registerReapplier"))
+    XCTAssertFalse(bridge.contains("window.MdPreview.registerRenderer"))
   }
 
   private final class ExtensionInvocationCounter: @unchecked Sendable {

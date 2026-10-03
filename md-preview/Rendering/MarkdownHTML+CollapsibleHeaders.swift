@@ -97,7 +97,7 @@ nonisolated extension MarkdownHTML {
       // stack of currently-collapsed ancestors reconciles both in one pass,
       // instead of the previous per-toggle sibling walk that let expanding a
       // parent blow away a nested heading's own collapsed state.
-      function reconcileVisibility(root) {
+      function reconcileVisibility(root, host) {
         const stack = [];
         for (const heading of root.querySelectorAll(headingSelector)) {
           const level = headingLevel(heading);
@@ -112,21 +112,21 @@ nonisolated extension MarkdownHTML {
           }
           if (collapsedHere) stack.push(level);
         }
-        window.MdPreviewHost?.pushHeight?.();
+        host?.pushHeight?.();
       }
 
       // Collapsed sections are display:none, so an element inside one has no
       // layout box to scroll to. Expand whatever hides `el` — its own section
       // when it is content, and every collapsed ancestor heading — so
       // navigation (outline clicks, fragment links) can measure and reach it.
-      function revealElement(el) {
+      function reveal(el, host) {
         const article = el && el.closest('.markdown-body');
-        if (!article) return;
+        if (!article) return false;
         let top = el;
         while (top.parentElement && top.parentElement !== article) top = top.parentElement;
         let owner = top;
         while (owner && !/^H[1-6]$/.test(owner.tagName)) owner = owner.previousElementSibling;
-        if (!owner) return;
+        if (!owner) return false;
         let changed = false;
         function expand(heading) {
           if (heading.dataset.mdpCollapsed !== 'true') return;
@@ -141,13 +141,13 @@ nonisolated extension MarkdownHTML {
             minLevel = headingLevel(node);
           }
         }
-        if (changed) reconcileVisibility(document);
+        if (changed) reconcileVisibility(article, host);
+        return changed;
       }
-      if (window.MdPreview) window.MdPreview.revealElement = revealElement;
 
-      function toggle(heading) {
+      function toggle(heading, host) {
         heading.dataset.mdpCollapsed = heading.dataset.mdpCollapsed === 'true' ? 'false' : 'true';
-        reconcileVisibility(document);
+        reconcileVisibility(heading.closest('.markdown-body'), host);
       }
 
       // MdPreview.update morphs or replaces the article without knowing
@@ -160,10 +160,8 @@ nonisolated extension MarkdownHTML {
       // that pair it is), not by their positional `md-heading-N` id: an edit
       // that inserts, deletes, or reorders an earlier heading shifts every
       // later id, which would move the collapse to the wrong section. The
-      // snapshot is consumed by the next setup() only, so it never carries
-      // over to later renders.
-      let collapsedHeadingKeys = new Set();
-
+      // core delivers this snapshot to this extension's next render() only,
+      // so it never carries over to a later update or another extension.
       function headingKeys(root) {
         const seen = new Map();
         const keys = new Map();
@@ -179,38 +177,55 @@ nonisolated extension MarkdownHTML {
 
       function captureCollapsedState(root) {
         const keys = headingKeys(root);
-        collapsedHeadingKeys = new Set(
+        return Array.from(
           Array.from(keys.keys())
             .filter((heading) => heading.dataset.mdpCollapsed === 'true')
             .map((heading) => keys.get(heading))
         );
       }
 
-      function setup(root) {
+      function setup(host) {
+        document.addEventListener('click', (event) => {
+          const button = event.target.closest('.mdp-collapse-toggle[data-mdp-ext="collapsible-headings"]');
+          if (!button) return;
+          const heading = button.parentElement;
+          if (!heading || !/^H[1-6]$/.test(heading.tagName)) return;
+          event.preventDefault();
+          toggle(heading, host);
+        });
+      }
+
+      function render(root, { host, snapshot }) {
+        const collapsedHeadingKeys = new Set(Array.isArray(snapshot) ? snapshot : []);
         const keys = headingKeys(root);
         for (const heading of keys.keys()) {
-          if (heading.dataset.mdpCollapseReady === 'true') continue;
-          heading.dataset.mdpCollapseReady = 'true';
-          heading.dataset.mdpCollapsed = collapsedHeadingKeys.has(keys.get(heading)) ? 'true' : 'false';
+          const existingToggle = heading.querySelector(
+            ':scope > .mdp-collapse-toggle[data-mdp-ext="collapsible-headings"]'
+          );
+          const ready = !!existingToggle;
+          if (!ready || Array.isArray(snapshot)) {
+            heading.dataset.mdpCollapsed = collapsedHeadingKeys.has(keys.get(heading)) ? 'true' : 'false';
+          }
           heading.classList.add('mdp-collapsible-heading');
+          if (ready) continue;
 
           const toggleButton = document.createElement('button');
           toggleButton.type = 'button';
           toggleButton.className = 'mdp-collapse-toggle';
+          toggleButton.dataset.mdpExt = 'collapsible-headings';
           toggleButton.setAttribute('aria-label', toggleLabelTemplate.replace('%@', () => heading.textContent.trim()));
-          toggleButton.addEventListener('click', () => toggle(heading));
           heading.prepend(toggleButton);
         }
-        collapsedHeadingKeys = new Set();
-        reconcileVisibility(root);
+        reconcileVisibility(root, host);
       }
 
-      window.MdPreview?.registerRenderer({
+      window.MdPreview?.registerExtension({
         id: 'collapsible-headings',
         beforeUpdate: captureCollapsedState,
-        render: setup
+        setup,
+        render,
+        reveal
       });
-      setup(document);
     })();
     </script>
     """
