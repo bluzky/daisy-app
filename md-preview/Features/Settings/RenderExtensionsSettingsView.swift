@@ -43,7 +43,7 @@ struct RenderExtensionsSettingsView: View {
             } header: {
                 Text(L("Markdown rendering"))
             } footer: {
-                Text(L("These settings apply to document windows and Quick Look previews."))
+                Text(L("These settings apply to document windows and Quick Look previews. They do not affect editor mode."))
             }
         }
         .formStyle(.grouped)

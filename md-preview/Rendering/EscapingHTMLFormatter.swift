@@ -981,9 +981,12 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
     let options: HTMLFormatterOptions
     let sourceLineOffset: Int
     /// Pre-render fenced code with `CodeHighlighter` so the page paints its
-    /// syntax colors on the first frame. Off, the deferred in-page pass
-    /// highlights after load.
+    /// syntax colors on the first frame.
     let highlightsCode: Bool
+    /// Interpret Obsidian-style `==highlight==` markers.
+    let rendersHighlights: Bool
+    /// Upgrade GitHub-style alert blockquotes.
+    let rendersCallouts: Bool
     private let sourceLines: [String]
     private let parsedSourceLines: [String]
 
@@ -1015,11 +1018,15 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
          sourceMarkdown: String = "",
          parsedMarkdown: String = "",
          highlightsCode: Bool = true,
+         rendersHighlights: Bool = true,
+         rendersCallouts: Bool = true,
          strictLineBreaks: Bool = false) {
         self.strictLineBreaks = strictLineBreaks
         self.options = options
         self.sourceLineOffset = sourceLineOffset
         self.highlightsCode = highlightsCode
+        self.rendersHighlights = rendersHighlights
+        self.rendersCallouts = rendersCallouts
         // Escapes/entities can decode into a URL even without a literal scheme.
         self.detectsBareURLs = Self.mayContainHTTP(parsedMarkdown, includesMarkdownEscapes: true)
         self.sourceLines = sourceMarkdown.components(separatedBy: "\n")
@@ -1031,8 +1038,12 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
                        sourceLineOffset: Int = 0,
                        sourceMarkdown: String? = nil,
                        highlightsCode: Bool = true,
+                       rendersHighlights: Bool = true,
+                       rendersCallouts: Bool = true,
                        strictLineBreaks: Bool = false) -> String {
-        let preparedMarkdown = MarkdownHighlightSource.preparing(markdown)
+        let preparedMarkdown = rendersHighlights
+            ? MarkdownHighlightSource.preparing(markdown)
+            : markdown
         let document = Document(parsing: preparedMarkdown)
         var walker = EscapingHTMLFormatter(
             options: options,
@@ -1040,6 +1051,8 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
             sourceMarkdown: sourceMarkdown ?? markdown,
             parsedMarkdown: preparedMarkdown,
             highlightsCode: highlightsCode,
+            rendersHighlights: rendersHighlights,
+            rendersCallouts: rendersCallouts,
             strictLineBreaks: strictLineBreaks
         )
         walker.visit(document)
@@ -1114,7 +1127,7 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
     }
 
     mutating func visitBlockQuote(_ blockQuote: BlockQuote) {
-        if renderAlertIfPresent(blockQuote) {
+        if rendersCallouts, renderAlertIfPresent(blockQuote) {
             return
         }
         if options.contains(.parseAsides),

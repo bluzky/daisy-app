@@ -140,6 +140,23 @@ final class MarkdownHTMLRenderTests: XCTestCase {
         XCTAssertTrue(rendered.html.contains("mark.md-highlight"))
     }
 
+    func testDisabledKaTeXPreservesBodyAndFootnoteMathSource() {
+        var enabledIDs = Set(MarkdownHTML.renderExtensions.map(\.id))
+        enabledIDs.remove("katex")
+        let rendered = MarkdownHTML.render(
+            markdown: "Body $x^2$.[^1]\n\n[^1]: Footnote $y^2$.",
+            vendorLoading: .lazy,
+            renderExtensionConfiguration: .init(enabledIDs: enabledIDs)
+        )
+
+        XCTAssertTrue(rendered.articleHTML.contains("Body $x^2$."), rendered.articleHTML)
+        XCTAssertTrue(rendered.articleHTML.contains("Footnote $y^2$."), rendered.articleHTML)
+        XCTAssertFalse(rendered.articleHTML.contains("class=\"math "), rendered.articleHTML)
+        XCTAssertFalse(rendered.html.contains("katex.min.js"), rendered.html)
+        XCTAssertFalse(rendered.scriptAssetIDs.contains("katex"))
+        XCTAssertFalse(rendered.scriptAssetIDs.contains("math"))
+    }
+
     @MainActor
     func testScrollableLongTableKeepsWebKitViewportAndScrollsDocument() async throws {
         let rows = (1...750).map { "| \($0) | Function \($0) | 100.00% |" }

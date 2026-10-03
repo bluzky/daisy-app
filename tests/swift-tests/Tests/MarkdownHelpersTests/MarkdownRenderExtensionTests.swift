@@ -23,25 +23,25 @@ final class MarkdownRenderExtensionTests: XCTestCase {
           titleKey: "Code highlighting",
           descriptionKey: nil,
           defaultEnabled: true,
-          userToggleable: false
+          userToggleable: true
         ),
         .init(
           titleKey: "Callouts",
           descriptionKey: nil,
           defaultEnabled: true,
-          userToggleable: false
+          userToggleable: true
         ),
         .init(
           titleKey: "Math",
           descriptionKey: nil,
           defaultEnabled: true,
-          userToggleable: false
+          userToggleable: true
         ),
         .init(
           titleKey: "Mermaid",
           descriptionKey: nil,
           defaultEnabled: true,
-          userToggleable: false
+          userToggleable: true
         ),
         .init(
           titleKey: "Colorful headings",
@@ -68,6 +68,44 @@ final class MarkdownRenderExtensionTests: XCTestCase {
 
     XCTAssertFalse(rendered.html.contains("--mdp-heading-h1"))
     XCTAssertFalse(rendered.html.contains("id: 'collapsible-headings'"))
+  }
+
+  func testDisabledCoreExtensionsPreserveSourceAndEmitNoAssets() {
+    let rendered = MarkdownHTML.render(
+      markdown: """
+      ==Marked==
+
+      > [!NOTE] Keep marker
+
+      Inline $x^2$.
+
+      ```swift
+      let answer = 42
+      ```
+
+      ```mermaid
+      graph TD; A-->B;
+      ```
+      """,
+      vendorLoading: .lazy,
+      renderExtensionConfiguration: .init(enabledIDs: [])
+    )
+
+    XCTAssertTrue(rendered.articleHTML.contains("==Marked=="))
+    XCTAssertFalse(rendered.articleHTML.contains("md-highlight"))
+    XCTAssertTrue(rendered.articleHTML.contains("<blockquote"))
+    XCTAssertTrue(rendered.articleHTML.contains("[!NOTE] Keep marker"))
+    XCTAssertFalse(rendered.articleHTML.contains("markdown-alert"))
+    XCTAssertTrue(rendered.articleHTML.contains("$x^2$"))
+    XCTAssertFalse(rendered.articleHTML.contains("class=\"math "))
+    XCTAssertTrue(rendered.articleHTML.contains("<pre"))
+    XCTAssertFalse(rendered.articleHTML.contains("data-hljs-done"))
+    XCTAssertTrue(rendered.articleHTML.contains("language-mermaid"))
+    XCTAssertFalse(rendered.articleHTML.contains("mermaid-figure"))
+    XCTAssertFalse(rendered.html.contains("highlight.min.js"))
+    XCTAssertFalse(rendered.html.contains("katex.min.js"))
+    XCTAssertFalse(rendered.html.contains("mermaid.min.js"))
+    XCTAssertTrue(rendered.scriptAssetIDs.isEmpty)
   }
 
   func testRenderExtensionPreferencesDefaultEveryRegistryIDToEnabled() throws {

@@ -155,8 +155,9 @@ nonisolated extension MarkdownHTML {
     }
   }
 
-  /// Compiled-in extensions. Heading extensions are user-toggleable; core
-  /// Markdown features participate in same ordered lifecycle without UI.
+  /// Compiled-in extensions share one ordered lifecycle and user preference
+  /// registry. Features that begin before extension transforms receive the
+  /// same configuration from `render()`.
   static let renderExtensions: [any MarkdownRenderExtension] = validatedAndOrdered([
     HighlightExtension(),
     CalloutExtension(),
@@ -219,7 +220,7 @@ nonisolated extension MarkdownHTML {
       titleKey: "Callouts",
       descriptionKey: nil,
       defaultEnabled: true,
-      userToggleable: false
+      userToggleable: true
     )
     let order = 20
 

@@ -369,7 +369,11 @@
 "Alignment applies to prose in reading view and Quick Look. Automatic follows the document. Code, tables and explicit HTML alignment are preserved." = "Alignment applies to prose in reading view and Quick Look. Automatic follows the document. Code, tables and explicit HTML alignment are preserved.";
 "Extensions" = "Extensions";
 "Markdown rendering" = "Markdown rendering";
-"These settings apply to document windows and Quick Look previews." = "These settings apply to document windows and Quick Look previews.";
+"These settings apply to document windows and Quick Look previews. They do not affect editor mode." = "These settings apply to document windows and Quick Look previews. They do not affect editor mode.";
+"Code highlighting" = "Code highlighting";
+"Callouts" = "Callouts";
+"Math" = "Math";
+"Mermaid" = "Mermaid";
 "Colorful headings" = "Colorful headings";
 "Collapsible headings" = "Collapsible headings";
 "Toggle \"%@\" section" = "Toggle \"%@\" section";

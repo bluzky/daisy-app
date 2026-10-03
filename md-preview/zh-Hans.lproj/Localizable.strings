@@ -367,3 +367,13 @@
 "Right" = "右对齐";
 "Justified" = "两端对齐";
 "Alignment applies to prose in reading view and Quick Look. Automatic follows the document. Code, tables and explicit HTML alignment are preserved." = "对齐方式适用于阅读视图和快速查看中的正文。“自动”遵循文稿的对齐方式。代码、表格和 HTML 中明确指定的对齐方式保持不变。";
+"Extensions" = "扩展";
+"Markdown rendering" = "Markdown 渲染";
+"These settings apply to document windows and Quick Look previews. They do not affect editor mode." = "这些设置适用于文稿窗口和快速查看预览，不影响编辑模式。";
+"Code highlighting" = "代码高亮";
+"Callouts" = "提示块";
+"Math" = "数学公式";
+"Mermaid" = "Mermaid";
+"Colorful headings" = "彩色标题";
+"Collapsible headings" = "可折叠标题";
+"Toggle \"%@\" section" = "切换“%@”章节";
