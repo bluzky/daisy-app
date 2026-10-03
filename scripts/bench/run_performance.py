@@ -29,8 +29,8 @@ def revision(value: str) -> str:
 
 def legacy_editor(snapshot: Path) -> str:
     """Adapt the pre-extraction page for this PR's first baseline, preserving its HTML/CSS/JS."""
-    old = (snapshot / "md-preview/Features/Editor/EditorViewController.swift").read_text()
-    template = (ROOT / "md-preview/Features/Editor/EditorHTML.swift").read_text()
+    old = (snapshot / "daisy/Features/Editor/EditorViewController.swift").read_text()
+    template = (ROOT / "daisy/Features/Editor/EditorHTML.swift").read_text()
     start = '        return """\n        <!DOCTYPE html>'
     end = '\n        """\n    }'
     old_start = old.index(start, old.index("private static func editorHTML("))
@@ -96,7 +96,7 @@ def prepare(label: str, commit: str, out: Path) -> tuple[Path, Path]:
     archive.unlink()
     sources = package / "Sources"
     prepare_sources(snapshot, sources)
-    (sources / "Vendor").symlink_to(snapshot / "md-preview/Vendor", target_is_directory=True)
+    (sources / "Vendor").symlink_to(snapshot / "daisy/Vendor", target_is_directory=True)
     shutil.copy2(ROOT / "tests/performance/Benchmark.swift", sources / "Benchmark.swift")
     # The app currently ignores Package.resolved. Keep explicit parser pins in
     # this suite; use each revision's pins once the gate exists on both sides.

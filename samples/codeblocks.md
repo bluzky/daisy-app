@@ -30,7 +30,7 @@ for (const button of buttons) {
 
 ```json
 {
-  "bundleId": "doc.md-preview",
+  "bundleId": "doc.daisy",
   "productName": "Markdown Preview",
   "features": ["math", "mermaid", "shiki"]
 }

@@ -1,6 +1,130 @@
 # Changelog
 
-## [Unreleased]
+## [0.0.64] – 2026-09-30
+
+This release adds recent files to document search, restores task checkbox toggles in Read Mode, and reduces idle memory usage.
+
+### Added
+
+- **Reopen recent documents from Search for Document.** Press ⇧⌘O to see up to 10 recently opened files, even without a document or project open. Typing shows matching recents above project results without duplicates; history persists across launches and follows *File → Open Recent → Clear Menu* ([#469](https://github.com/pluk-inc/markdown-preview/pull/469)).
+
+### Changed
+
+- **Lower idle memory usage.** The app no longer keeps a spare reader ready in the background. Later documents create their reader when opened, trading the previous reuse speedup for lower memory use; saved previews for eligible reopened documents remain available ([#471](https://github.com/pluk-inc/markdown-preview/pull/471)).
+- **Tighter task checkbox spacing.** Checkboxes sit closer to their text in both Read and Edit modes ([#470](https://github.com/pluk-inc/markdown-preview/pull/470)).
+
+### Fixed
+
+- **Task checkboxes work again in Read Mode.** Clicking a checkbox saves its change directly to the file, with conflict handling for edits made elsewhere. Tables and Quick Look previews remain read-only ([#470](https://github.com/pluk-inc/markdown-preview/pull/470)).
+- **Document search stays on the correct display.** The search palette remembers its position relative to the document window and stays within that window's current screen when moving between displays ([#463](https://github.com/pluk-inc/markdown-preview/pull/463)).
+
+### Contributors
+
+- [@gglanzani](https://github.com/gglanzani) — requested easier access to recently opened files ([#428](https://github.com/pluk-inc/markdown-preview/issues/428)).
+- [@lelanddutcher](https://github.com/lelanddutcher) — reported the Read Mode task checkbox regression ([#461](https://github.com/pluk-inc/markdown-preview/issues/461)).
+
+## [0.0.63] – 2026-09-28
+
+This release opens documents faster, adds task checkboxes in Edit Mode and optional paragraph wrapping, and improves editing and navigation.
+
+### Added
+
+- **Task checkboxes work in Edit Mode.** Task markers become clickable checkboxes while typing, with muted strikethrough for completed tasks. Enter continues with an unchecked task; Enter on an empty task exits the list and preserves the blank separator ([#457](https://github.com/pluk-inc/markdown-preview/pull/457)).
+- **Choose how source line breaks appear in reading previews.** Enable *Settings → General → Reading → Strict line breaks* to flow ordinary source newlines into paragraphs in the app and Quick Look. The option defaults off; explicit hard breaks, paragraph boundaries, and code blocks keep their meaning ([#459](https://github.com/pluk-inc/markdown-preview/pull/459)).
+- **A What's New window introduces features after an update.** Reopen it from *Help → What's New in Markdown Preview* to revisit the highlights and release notes ([#453](https://github.com/pluk-inc/markdown-preview/pull/453)).
+
+### Changed
+
+- **Documents open faster.** Later document windows reuse a prepared reader, startup avoids unnecessary font loading, and eligible reopened documents show a saved preview while their content loads ([#450](https://github.com/pluk-inc/markdown-preview/pull/450)).
+- **Read Mode keeps tables and task checkboxes read-only.** Switch to Edit Mode to change them. Table cells in Edit Mode show inline formatting until focused, with improved text selection and formatting controls ([#456](https://github.com/pluk-inc/markdown-preview/pull/456)).
+
+### Fixed
+
+- **CJK input keeps heading markers stable.** Markdown heading syntax no longer flickers during input-method composition, including Japanese live conversion ([#444](https://github.com/pluk-inc/markdown-preview/pull/444)).
+- **Text size changes apply immediately in Edit Mode.** Toolbar controls, keyboard shortcuts, reset, and Settings update the editor without reopening it ([#454](https://github.com/pluk-inc/markdown-preview/pull/454)).
+- **Navigation arrows stay visible and document search aligns correctly.** Back and Forward no longer collapse into a dropdown when toolbar space is constrained, and the search field stays vertically centered ([#452](https://github.com/pluk-inc/markdown-preview/pull/452)).
+- **Long search-result paths fit on one line.** Paths truncate in the middle instead of wrapping and clipping; full paths remain available in tooltips ([#455](https://github.com/pluk-inc/markdown-preview/pull/455)).
+
+### Contributors
+
+- [@kota113](https://github.com/kota113) — fixed heading-marker flicker during CJK input ([#444](https://github.com/pluk-inc/markdown-preview/pull/444)).
+- [@Azhrei](https://github.com/Azhrei) — reported source line-break behavior ([#446](https://github.com/pluk-inc/markdown-preview/issues/446)).
+- [@cybito](https://github.com/cybito) — reported unintended table editing in Read Mode ([#451](https://github.com/pluk-inc/markdown-preview/issues/451)).
+- [@pankajpopli](https://github.com/pankajpopli) — reported text-size controls not updating Edit Mode ([#448](https://github.com/pluk-inc/markdown-preview/issues/448)).
+
+## [0.0.62] – 2026-09-25
+
+This release adds project document search, makes navigation controls more compact, and fixes read-mode scrolling and Mermaid block-diagram arrows.
+
+### Added
+
+- **Search for Document finds a file by part of its name.** <kbd>⇧⌘O</kbd> opens a search palette over the current project: type any part of a file name and the list narrows to the closest matches, ranked so whole-word and start-of-name hits come first, with the matched letters shown in bold. <kbd>↑</kbd> and <kbd>↓</kbd> move through the results without leaving the field. <kbd>↩</kbd> opens the result in the current tab, <kbd>⌘↩</kbd> in a new tab, and <kbd>⌥↩</kbd> in a new window. A toolbar button is available from *View → Customize Toolbar…* for anyone who would rather not use the shortcut ([#408](https://github.com/pluk-inc/markdown-preview/pull/408)).
+
+### Changed
+
+- **Back and Forward controls use a compact native appearance.** Navigation arrows take up less toolbar space while retaining their tooltips and independent enabled states ([#418](https://github.com/pluk-inc/markdown-preview/pull/418)).
+
+### Fixed
+
+- **Read mode reliably responds to scroll gestures.** Documents no longer intermittently swallow scrolling, including after switching from edit mode, while wide content and nested code blocks and tables remain horizontally scrollable ([#442](https://github.com/pluk-inc/markdown-preview/pull/442)).
+- **Mermaid block diagrams retain dotted lines and arrowheads.** The updated Mermaid 11.15.0 renderer fixes dotted connections in the app and Quick Look ([#441](https://github.com/pluk-inc/markdown-preview/pull/441)).
+
+### Contributors
+
+- [@toluwajosh](https://github.com/toluwajosh) — added project document search ([#408](https://github.com/pluk-inc/markdown-preview/pull/408)).
+- [@manemajef](https://github.com/manemajef) — improved Back and Forward toolbar appearance ([#418](https://github.com/pluk-inc/markdown-preview/pull/418)).
+- [@alchezar](https://github.com/alchezar) — reported dotted-arrow rendering in Mermaid block diagrams ([#427](https://github.com/pluk-inc/markdown-preview/issues/427)).
+
+## [0.0.61] – 2026-09-24
+
+This release adds floating formatting controls and code-block actions, improves reading and editing consistency, and fixes theme, saving, and toolbar behavior across macOS versions.
+
+### Added
+
+- **Floating formatting controls on macOS 26 and later.** Compact Liquid Glass groups provide heading, link, list, styling, and searchable code-language popovers ([#424](https://github.com/pluk-inc/markdown-preview/pull/424)).
+- **Code blocks gain copy and wrap controls.** Rounded code cards show the language alongside controls that stay visible while scrolling, in both read and edit modes ([#425](https://github.com/pluk-inc/markdown-preview/pull/425), [#431](https://github.com/pluk-inc/markdown-preview/pull/431)).
+
+### Changed
+
+- **Themes remember their own appearance and reading settings.** Fixed-color themes keep their intended light or dark appearance, while Original retains its Automatic, Light, or Dark choice. Switching themes restores saved colors, font, and layout ([#420](https://github.com/pluk-inc/markdown-preview/pull/420), [#421](https://github.com/pluk-inc/markdown-preview/pull/421)).
+- **More consistent reading and editing.** Scroll positions, top spacing, syntax colors, inline-code wrapping, and table cells align more closely between modes. Editor code blocks scroll as a single region with fixed controls and rounded corners ([#423](https://github.com/pluk-inc/markdown-preview/pull/423), [#431](https://github.com/pluk-inc/markdown-preview/pull/431)).
+
+### Fixed
+
+- **Text selection stays stable when Markdown syntax appears.** Clicking and dragging in the editor no longer shifts the selection as formatting markers are revealed ([#422](https://github.com/pluk-inc/markdown-preview/pull/422)).
+- **Switching modes no longer overlaps reader and editor text.** Switching files in the sidebar also preserves the current reading or editing mode with the correct formatting toolbar ([#432](https://github.com/pluk-inc/markdown-preview/pull/432), [#434](https://github.com/pluk-inc/markdown-preview/pull/434)).
+- **Save works after returning to read mode.** File > Save and ⌘S remain available when unsaved editor changes are pending ([#436](https://github.com/pluk-inc/markdown-preview/pull/436)).
+- **Markdown markers and lists use the correct colors.** Brackets and formatting markers no longer inherit embedded-code syntax colors, and list bullets and numbers follow the selected theme accent ([#435](https://github.com/pluk-inc/markdown-preview/pull/435)).
+- **Sidebar controls and editor backgrounds are corrected on macOS 15.** Sidebar buttons stay above the sidebar, and entering edit mode in light appearance retains a white document background ([#438](https://github.com/pluk-inc/markdown-preview/pull/438)).
+- **Formatting controls align correctly on macOS 27.** The text-style arrow is centered with its label, and duplicate header dividers are removed ([#437](https://github.com/pluk-inc/markdown-preview/pull/437)).
+
+## [0.0.60] – 2026-09-22
+
+This release fixes keyboard focus when entering edit mode and keeps toolbar and tab colors in sync with automatic appearance changes.
+
+### Fixed
+
+- **Entering edit mode puts keyboard focus in the editor.** The first switch to editing no longer sends focus to the toolbar search field ([#415](https://github.com/pluk-inc/markdown-preview/pull/415)).
+- **Toolbar and tab colors follow automatic light and dark appearance changes on macOS 26 and later.** Preview and editor backgrounds refresh when the window appearance changes, preventing mismatched light or dark strips without requiring a resize or theme selection ([#416](https://github.com/pluk-inc/markdown-preview/pull/416)).
+
+### Contributors
+
+- [@hhh2210](https://github.com/hhh2210) — fixed toolbar and tab colors after automatic appearance changes ([#416](https://github.com/pluk-inc/markdown-preview/pull/416)).
+- [@alchezar](https://github.com/alchezar) — reported mismatched toolbar and tab backgrounds ([#360](https://github.com/pluk-inc/markdown-preview/issues/360)).
+
+## [0.0.59] – 2026-09-21
+
+This release fixes search in edit mode and improves how Markdown layout carries between reading and editing.
+
+### Fixed
+
+- **Search highlights and navigates matches in edit mode.** Matches include unsaved edits and text outside the visible area. Previous and next navigation wrap correctly, counts update while editing, and search refreshes when switching modes. Matches in tables and Mermaid blocks reveal their source ([#404](https://github.com/pluk-inc/markdown-preview/pull/404)).
+- **More consistent layout between reading and editing.** Corrected wrapping around trailing spaces, nested quote and loose-list spacing, code-block borders, horizontal rules, narrow table columns, Mermaid sizing, and escaped punctuation in live preview ([#406](https://github.com/pluk-inc/markdown-preview/pull/406)).
+- **Images appear when background parsing finishes.** Live preview now refreshes after parsing, so images no longer remain as Markdown source until the next interaction ([#406](https://github.com/pluk-inc/markdown-preview/pull/406)).
+
+### Contributors
+
+- [@MelvinSDRS](https://github.com/MelvinSDRS) — reported and fixed search highlighting and navigation in edit mode ([#403](https://github.com/pluk-inc/markdown-preview/issues/403), [#404](https://github.com/pluk-inc/markdown-preview/pull/404)).
 
 ## [0.0.58] – 2026-09-15
 

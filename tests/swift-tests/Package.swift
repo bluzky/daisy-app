@@ -2,7 +2,7 @@
 //
 // Test scaffold for rendering, WebKit layout, and helpers from the app and the
 // Quick Look extension. The Xcode project is the source of truth — source
-// files live under `quick-look/` and `md-preview/` and are symlinked into
+// files live under `quick-look/` and `daisy/` and are symlinked into
 // `Sources/<Target>/` so SPM can compile them without duplication.
 //
 // Run: `swift test --package-path tests/swift-tests`

@@ -7,7 +7,7 @@ contributors can reproduce the QL test described in the PR.
 ## How to use
 
 ```bash
-xcodebuild -project md-preview.xcodeproj -scheme md-preview \
+xcodebuild -project daisy.xcodeproj -scheme daisy \
     -configuration Debug build
 qlmanage -r && qlmanage -r cache
 open -R tests/fixtures/relative-assets/post.md   # reveal in Finder

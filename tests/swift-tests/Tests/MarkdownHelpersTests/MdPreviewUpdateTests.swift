@@ -120,6 +120,191 @@ final class MdPreviewUpdateTests: XCTestCase {
         XCTAssertFalse(state.detailsOpen, json)
     }
 
+    /// The incoming HTML for an update never carries the collapse toggle
+    /// button or `data-mdp-collapsed` (client JS adds those), so morphing or
+    /// swapping the article would otherwise silently re-expand every
+    /// heading. The collapsible-headings extension's `beforeUpdate` hook
+    /// must snapshot collapsed state off the live tree and `setup()` must
+    /// restore it, rather than defaulting every re-processed heading to
+    /// expanded.
+    @MainActor
+    func testMorphdomUpdatePreservesCollapsedHeadingState() async throws {
+        let webView = try await loadHarness(
+            articleAttributes: "",
+            extraHeadScripts: MarkdownHTML.collapsibleHeadersScript
+        )
+
+        func articleHTML(paragraph: String) -> String {
+            MarkdownHTML.render(
+                markdown: "# Heading\n\n\(paragraph)",
+                vendorLoading: .lazy
+            ).articleHTML
+        }
+        let docV1 = MarkdownHTML.javaScriptStringLiteral(articleHTML(paragraph: "First draft."))
+        let docV2 = MarkdownHTML.javaScriptStringLiteral(articleHTML(paragraph: "Edited draft."))
+
+        _ = try await webView.evaluateJavaScript("window.MdPreview.update(\(docV1)); true")
+        _ = try await webView.evaluateJavaScript("""
+            document.querySelector('h1').querySelector('.mdp-collapse-toggle').click(); true
+            """)
+        let collapsedBeforeUpdate = try await webView.evaluateJavaScript(
+            "document.querySelector('p').classList.contains('mdp-collapsed-section')"
+        ) as? Bool
+        XCTAssertEqual(collapsedBeforeUpdate, true)
+
+        _ = try await webView.evaluateJavaScript("window.MdPreview.update(\(docV2)); true")
+
+        let result = try await webView.evaluateJavaScript("""
+            (() => {
+                const heading = document.querySelector('h1');
+                return {
+                    paragraphText: document.querySelector('p').textContent,
+                    stillCollapsed: document.querySelector('p').classList.contains('mdp-collapsed-section'),
+                    ariaExpanded: heading.querySelector('.mdp-collapse-toggle').getAttribute('aria-expanded'),
+                    toggleCount: heading.querySelectorAll('.mdp-collapse-toggle').length,
+                    toggleOwned: heading.querySelector('.mdp-collapse-toggle')?.dataset.mdpExt
+                };
+            })()
+            """) as? [String: Any]
+        XCTAssertEqual(result?["paragraphText"] as? String, "Edited draft.")
+        XCTAssertEqual(result?["stillCollapsed"] as? Bool, true)
+        XCTAssertEqual(result?["ariaExpanded"] as? String, "false")
+        XCTAssertEqual(result?["toggleCount"] as? Int, 1)
+        XCTAssertEqual(result?["toggleOwned"] as? String, "collapsible-headings")
+    }
+
+    /// Heading ids are positional (`md-heading-N`), so inserting a heading
+    /// above a collapsed one shifts every later id. Collapse state must follow
+    /// the heading's content, not its index.
+    @MainActor
+    func testCollapsedHeadingStateSurvivesEarlierHeadingInsertion() async throws {
+        let webView = try await loadHarness(
+            articleAttributes: "",
+            extraHeadScripts: MarkdownHTML.collapsibleHeadersScript
+        )
+
+        func articleHTML(_ markdown: String) -> String {
+            MarkdownHTML.javaScriptStringLiteral(
+                MarkdownHTML.render(markdown: markdown, vendorLoading: .lazy).articleHTML
+            )
+        }
+        let before = articleHTML("# A\n\nalpha\n\n# B\n\nbeta\n\n# C\n\ngamma")
+        let after = articleHTML("# New\n\nfresh\n\n# A\n\nalpha\n\n# B\n\nbeta\n\n# C\n\ngamma")
+
+        _ = try await webView.evaluateJavaScript("window.MdPreview.update(\(before)); true")
+        _ = try await webView.evaluateJavaScript("""
+            document.querySelectorAll('h1')[2].querySelector('.mdp-collapse-toggle').click(); true
+            """)
+        _ = try await webView.evaluateJavaScript("window.MdPreview.update(\(after)); true")
+
+        let result = try await webView.evaluateJavaScript("""
+            (() => {
+                const hidden = {};
+                document.querySelectorAll('.markdown-body > p').forEach((p) => {
+                    hidden[p.textContent] = p.classList.contains('mdp-collapsed-section');
+                });
+                return hidden;
+            })()
+            """) as? [String: Bool]
+        XCTAssertEqual(result, ["fresh": false, "alpha": false, "beta": false, "gamma": true])
+    }
+
+    /// Collapsed sections are display:none, so find's selected `<mark>` would
+    /// measure as zero-size. `reveal` must expand its collapsed ancestors.
+    @MainActor
+    func testRevealExpandsCollapsedAncestors() async throws {
+        let webView = try await loadHarness(
+            articleAttributes: "",
+            extraHeadScripts: MarkdownHTML.collapsibleHeadersScript
+        )
+        let doc = MarkdownHTML.javaScriptStringLiteral(
+            MarkdownHTML.render(
+                markdown: "# Top\n\n## Nested\n\ninner text\n\n# Other\n\nouter text",
+                vendorLoading: .lazy
+            ).articleHTML
+        )
+        _ = try await webView.evaluateJavaScript("window.MdPreview.update(\(doc)); true")
+
+        let result = try await webView.evaluateJavaScript("""
+            (() => {
+                document.querySelector('h1').querySelector('.mdp-collapse-toggle').click();
+                const h2 = document.querySelector('h2');
+                const p = document.querySelector('p');
+                const match = document.createElement('mark');
+                match.textContent = 'inner';
+                p.appendChild(match);
+                const hiddenBefore = h2.classList.contains('mdp-collapsed-section')
+                    && p.classList.contains('mdp-collapsed-section');
+                window.MdPreview.reveal(match);
+                return {
+                    hiddenBefore,
+                    visibleAfter: !h2.classList.contains('mdp-collapsed-section'),
+                    contentVisible: !p.classList.contains('mdp-collapsed-section')
+                };
+            })()
+            """) as? [String: Bool]
+        XCTAssertEqual(result, ["hiddenBefore": true, "visibleAfter": true, "contentVisible": true])
+    }
+
+    @MainActor
+    func testExtensionLifecycleIsOrderedIsolatedAndDocumentScoped() async throws {
+        let webView = try await loadHarness(articleAttributes: "")
+        let first = MarkdownHTML.javaScriptStringLiteral("<p>First</p>")
+        let second = MarkdownHTML.javaScriptStringLiteral("<p>Second</p>")
+        let third = MarkdownHTML.javaScriptStringLiteral("<p>Third</p>")
+
+        let result = try await webView.evaluateJavaScript("""
+            (() => {
+                const events = [];
+                window.MdPreview.registerExtension({
+                    id: 'broken',
+                    setup() { throw new Error('setup'); },
+                    beforeUpdate() { throw new Error('beforeUpdate'); },
+                    render() { throw new Error('render'); },
+                    reveal() { throw new Error('reveal'); },
+                    onThemeChange() { throw new Error('theme'); }
+                });
+                window.MdPreview.registerExtension({
+                    id: 'stateful',
+                    setup(host) { events.push('setup:' + host.documentID); },
+                    beforeUpdate(root, host) {
+                        events.push('before:' + host.documentID);
+                        return { token: root.dataset.token || null };
+                    },
+                    render(root, context) {
+                        events.push('render:' + context.reason + ':'
+                            + (context.snapshot?.token || 'none') + ':' + context.host.documentID);
+                    },
+                    reveal(el) { events.push('reveal'); return el.id === 'target'; },
+                    onThemeChange(theme, host) { events.push('theme:' + theme.name + ':' + host.theme.name); }
+                });
+                const duplicate = window.MdPreview.registerExtension({ id: 'stateful' });
+                window.MdPreview.update(\(first), { documentID: 'one' });
+                document.querySelector('.markdown-body').dataset.token = 'keep';
+                window.MdPreview.update(\(second), { documentID: 'one' });
+                document.querySelector('.markdown-body').dataset.token = 'drop';
+                window.MdPreview.update(\(third), { documentID: 'two' });
+                const target = document.createElement('span');
+                target.id = 'target';
+                document.querySelector('.markdown-body').appendChild(target);
+                const revealed = window.MdPreview.reveal(target);
+                window.MdPreview.setTheme({ name: 'dark' });
+                return JSON.stringify({ events, duplicate, revealed });
+            })()
+            """)
+        let json = try XCTUnwrap(result as? String)
+        let state = try JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any]
+        let events = try XCTUnwrap(state?["events"] as? [String])
+
+        XCTAssertFalse(state?["duplicate"] as? Bool ?? true)
+        XCTAssertTrue(state?["revealed"] as? Bool ?? false)
+        XCTAssertEqual(events.first, "setup:page")
+        XCTAssertTrue(events.contains("render:update:keep:one"), json)
+        XCTAssertTrue(events.contains("render:update:none:two"), json)
+        XCTAssertTrue(events.contains("reveal"), json)
+        XCTAssertTrue(events.contains("theme:dark:dark"), json)
+    }
+
     @MainActor
     func testWarmupArticleTakesInnerHTMLReplaceBeforeMorphing() async throws {
         let webView = try await loadHarness(
@@ -258,120 +443,133 @@ final class MdPreviewUpdateTests: XCTestCase {
     }
 
     @MainActor
-    func testTableHeaderPlaceholderAccessibilityUsesDelegatedUpdates() async throws {
-        let webView = try await loadHarness(
-            articleAttributes: "",
-            stubsWebKitMessageHandler: true
-        )
-        let article = MarkdownHTML.render(
-            markdown: """
-            | | Name |
+    func testReaderTablesStayReadOnlyAcrossUpdates() async throws {
+        let webView = try await loadHarness(articleAttributes: "", stubsWebKitMessageHandler: true)
+        let pasteboard = NSPasteboard.general
+        let savedItems = (pasteboard.pasteboardItems ?? []).map { item in
+            let copy = NSPasteboardItem()
+            for type in item.types {
+                if let data = item.data(forType: type) { copy.setData(data, forType: type) }
+            }
+            return copy
+        }
+        var copiedChangeCount: Int?
+        defer {
+            if pasteboard.changeCount == copiedChangeCount {
+                pasteboard.clearContents()
+                pasteboard.writeObjects(savedItems)
+            }
+        }
+        let article = MarkdownHTML.render(markdown: """
+            | Name | Value |
             | --- | --- |
-            | First | Ada |
-            """,
-            vendorLoading: .lazy
-        ).articleHTML
+            | **Ada** | [Link](https://example.com) |
+
+            - [ ] Pending
+            - [x] Done
+            """, vendorLoading: .lazy).articleHTML
         let document = MarkdownHTML.javaScriptStringLiteral(article)
-
-        // Instrument the WebKit APIs that caused the regression. Unlike a
-        // source-string assertion, these counters remain valid if functions
-        // or event-handler registration are reordered.
-        _ = try await webView.evaluateJavaScript("""
-        (() => {
-            window.__tableHeaderInnerTextReads = 0;
-            window.__tableCellInputListenerRegistrations = 0;
-
-            const innerText = Object.getOwnPropertyDescriptor(
-                HTMLElement.prototype,
-                'innerText'
-            );
-            if (!innerText || typeof innerText.get !== 'function') {
-                throw new Error('HTMLElement.innerText getter unavailable');
+        // Cover first population, morphdom, and the innerHTML fallback.
+        for path in ["initial", "morph", "fallback"] {
+            if path == "fallback" {
+                _ = try await webView.evaluateJavaScript("window.morphdom = undefined; true")
             }
-            const patchedInnerText = {
-                configurable: innerText.configurable,
-                enumerable: innerText.enumerable,
-                get() {
-                    if (this.matches?.('th[data-table-column]')) {
-                        window.__tableHeaderInnerTextReads += 1;
-                    }
-                    return innerText.get.call(this);
-                }
-            };
-            if (innerText.set) {
-                patchedInnerText.set = function (value) {
-                    return innerText.set.call(this, value);
-                };
+            _ = try await webView.evaluateJavaScript("window.MdPreview.update(\(document)); true")
+            let result = try await webView.evaluateJavaScript("""
+            (() => {
+                window.__hostMessages = [];
+                const cell = document.querySelector('td');
+                const table = cell.closest('table');
+                const before = table.outerHTML;
+                const height = table.getBoundingClientRect().height;
+                cell.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+                cell.click();
+                cell.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'x' }));
+                const context = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+                cell.dispatchEvent(context);
+                const paste = new Event('paste', { bubbles: true, cancelable: true });
+                cell.dispatchEvent(paste);
+                const range = document.createRange();
+                range.selectNodeContents(cell);
+                const selection = window.getSelection();
+                selection.removeAllRanges();
+                selection.addRange(range);
+                const selectedText = selection.toString();
+                return JSON.stringify({
+                    unchanged: table.outerHTML === before,
+                    stableHeight: table.getBoundingClientRect().height === height,
+                    editable: !!document.querySelector('[contenteditable="plaintext-only"], [contenteditable="true"]'),
+                    editorCount: document.querySelectorAll('.md-table-editor').length,
+                    contextPrevented: context.defaultPrevented,
+                    pastePrevented: paste.defaultPrevented,
+                    selectedText,
+                    link: table.querySelector('a').getAttribute('href'),
+                    mutations: window.__hostMessages.filter(message =>
+                        ['tableEdit', 'tableContextMenu', 'taskCheckbox'].includes(message.kind)).length
+                });
+            })()
+            """)
+            let json = try XCTUnwrap(result as? String)
+            let state = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
+            for key in ["unchanged", "stableHeight"] {
+                XCTAssertEqual(state[key] as? Bool, true, "\(path): \(key): \(json)")
             }
-            Object.defineProperty(HTMLElement.prototype, 'innerText', patchedInnerText);
+            for key in ["editable", "contextPrevented", "pastePrevented"] {
+                XCTAssertEqual(state[key] as? Bool, false, "\(path): \(key): \(json)")
+            }
+            XCTAssertEqual(state["editorCount"] as? Int, 0, json)
+            XCTAssertEqual(state["mutations"] as? Int, 0, json)
+            XCTAssertEqual(state["selectedText"] as? String, "Ada", json)
+            pasteboard.clearContents()
+            copiedChangeCount = pasteboard.changeCount
+            XCTAssertTrue(webView.responds(to: NSSelectorFromString("copy:")))
+            webView.perform(NSSelectorFromString("copy:"), with: nil)
+            // WebKit can change pasteboard ownership before its text arrives.
+            for _ in 0..<100 {
+                if pasteboard.string(forType: .string) != nil { break }
+                try await Task.sleep(for: .milliseconds(10))
+            }
+            copiedChangeCount = pasteboard.changeCount
+            XCTAssertEqual(pasteboard.string(forType: .string), "Ada", "\(path): native clipboard")
+            XCTAssertEqual(state["link"] as? String, "https://example.com", json)
+        }
+    }
 
-            const addEventListener = EventTarget.prototype.addEventListener;
-            EventTarget.prototype.addEventListener = function (type, listener, options) {
-                if (type === 'input' && this instanceof HTMLTableCellElement) {
-                    window.__tableCellInputListenerRegistrations += 1;
+    @MainActor
+    func testReaderTaskCheckboxesRequireHostAcrossUpdates() async throws {
+        for hasBridge in [false, true] {
+            let webView = try await loadHarness(articleAttributes: "", stubsWebKitMessageHandler: hasBridge)
+            let article = MarkdownHTML.javaScriptStringLiteral(MarkdownHTML.render(
+                markdown: "# Tasks\n\n- [ ] Pending\n- [x] Done\n\n| A | B |\n| --- | --- |\n| C | D |",
+                vendorLoading: .lazy
+            ).articleHTML)
+            for path in ["initial", "morph", "fallback"] {
+                if path == "fallback" {
+                    _ = try await webView.evaluateJavaScript("window.morphdom = undefined; true")
                 }
-                return addEventListener.call(this, type, listener, options);
-            };
-            return true;
-        })()
-        """)
-
-        // Exercise both the initial populate and the morph path. Table setup
-        // must stay idempotent and the delegated input handler must keep the
-        // placeholder's accessibility label in sync.
-        _ = try await webView.evaluateJavaScript(
-            "window.MdPreview.update(\(document)); true"
-        )
-        _ = try await webView.evaluateJavaScript(
-            "window.MdPreview.update(\(document)); true"
-        )
-
-        let result = try await webView.evaluateJavaScript("""
-        (() => {
-            const headers = document.querySelectorAll(
-                '.md-table-editor th[data-table-column]'
-            );
-            const empty = headers[0];
-            const named = headers[1];
-            const initialEmptyLabel = empty.getAttribute('aria-label');
-            const initialNamedLabel = named.getAttribute('aria-label');
-
-            empty.textContent = 'Renamed';
-            empty.dispatchEvent(new Event('input', { bubbles: true }));
-            const renamedLabel = empty.getAttribute('aria-label');
-
-            empty.textContent = '';
-            empty.dispatchEvent(new Event('input', { bubbles: true }));
-            const restoredLabel = empty.getAttribute('aria-label');
-
-            return JSON.stringify({
-                editorCount: document.querySelectorAll('.md-table-editor').length,
-                scrollCount: document.querySelectorAll('.md-table-scroll').length,
-                headerCount: headers.length,
-                headerInnerTextReads: window.__tableHeaderInnerTextReads,
-                tableCellInputListenerRegistrations:
-                    window.__tableCellInputListenerRegistrations,
-                placeholder: empty.dataset.placeholder || '',
-                initialEmptyLabel,
-                initialNamedLabel,
-                renamedLabel,
-                restoredLabel,
-            });
-        })()
-        """)
-        let json = try XCTUnwrap(result as? String)
-        let state = try JSONDecoder().decode(TableHeaderPlaceholderState.self, from: Data(json.utf8))
-
-        XCTAssertEqual(state.editorCount, 1, json)
-        XCTAssertEqual(state.scrollCount, 1, json)
-        XCTAssertEqual(state.headerCount, 2, json)
-        XCTAssertEqual(state.headerInnerTextReads, 0, json)
-        XCTAssertEqual(state.tableCellInputListenerRegistrations, 0, json)
-        XCTAssertEqual(state.placeholder, "Column 1", json)
-        XCTAssertEqual(state.initialEmptyLabel, "Column 1", json)
-        XCTAssertNil(state.initialNamedLabel, json)
-        XCTAssertNil(state.renamedLabel, json)
-        XCTAssertEqual(state.restoredLabel, "Column 1", json)
+                _ = try await webView.evaluateJavaScript("MdPreview.update(\(article)); true")
+                let state = try await webView.evaluateJavaScript("""
+                (() => {
+                    window.__hostMessages = [];
+                    const boxes = [...document.querySelectorAll('.task-list-item-checkbox')];
+                    boxes.forEach(box => box.click());
+                    const messages = window.__hostMessages.filter(m => m.kind === 'taskCheckbox');
+                    return {
+                        disabled: boxes.every(box => box.disabled),
+                        checked: boxes.map(box => box.checked),
+                        lines: messages.map(m => m.line),
+                        values: messages.map(m => m.checked),
+                        editableTables: document.querySelectorAll('table [contenteditable="true"], .md-table-editor').length
+                    };
+                })()
+                """) as! [String: Any]
+                XCTAssertEqual(state["disabled"] as? Bool, !hasBridge, path)
+                XCTAssertEqual(state["checked"] as? [Bool], hasBridge ? [true, false] : [false, true], path)
+                XCTAssertEqual(state["lines"] as? [Int], hasBridge ? [3, 4] : [], path)
+                XCTAssertEqual(state["values"] as? [Bool], hasBridge ? [true, false] : [], path)
+                XCTAssertEqual(state["editableTables"] as? Int, 0, path)
+            }
+        }
     }
 
     /// Builds the harness page — bundled DOMPurify + morphdom, the shipped
@@ -382,16 +580,17 @@ final class MdPreviewUpdateTests: XCTestCase {
     @MainActor
     private func loadHarness(
         articleAttributes: String,
-        stubsWebKitMessageHandler: Bool = false
+        stubsWebKitMessageHandler: Bool = false,
+        extraHeadScripts: String = ""
     ) async throws -> WKWebView {
-        let purifyJS = try TestVendor.script("md-preview/Vendor/DOMPurify/purify.min.js")
-        let morphdomJS = try TestVendor.script("md-preview/Vendor/Morphdom/morphdom.min.js")
+        let purifyJS = try TestVendor.script("daisy/Vendor/DOMPurify/purify.min.js")
+        let morphdomJS = try TestVendor.script("daisy/Vendor/Morphdom/morphdom.min.js")
         let webKitMessageHandlerStub = stubsWebKitMessageHandler
             ? """
               <script>
               window.webkit = {
                   messageHandlers: {
-                      mdPreviewHost: { postMessage() {} }
+                      mdPreviewHost: { postMessage(message) { (window.__hostMessages ||= []).push(message); } }
                   }
               };
               </script>
@@ -400,19 +599,23 @@ final class MdPreviewUpdateTests: XCTestCase {
         let fakeRenderers = """
         <script>
         (() => {
-            function renderFake() {
+            function renderMath() {
                 document.querySelectorAll('.math:not([data-math-done="1"])').forEach((el) => {
                     el.__mdSrc = el.textContent;
                     el.dataset.mathDone = '1';
                     el.__renderCount = (el.__renderCount || 0) + 1;
                     el.innerHTML = '<span class="fake-katex">rendered-math</span>';
                 });
+            }
+            function renderMermaid() {
                 document.querySelectorAll('.mermaid-figure .mermaid:not([data-mm-done="1"])').forEach((el) => {
                     el.__mdSrc = el.textContent;
                     el.dataset.mmDone = '1';
                     el.__renderCount = (el.__renderCount || 0) + 1;
                     el.innerHTML = '<svg class="fake-mermaid"></svg>';
                 });
+            }
+            function renderCode() {
                 document.querySelectorAll('pre code[class*="language-"]:not([data-hljs-done="1"])').forEach((el) => {
                     el.__mdSrc = el.textContent;
                     el.dataset.hljsDone = '1';
@@ -420,7 +623,18 @@ final class MdPreviewUpdateTests: XCTestCase {
                     el.innerHTML = '<span class="fake-hljs">highlighted</span>';
                 });
             }
-            window.MdPreview.registerReapplier(renderFake);
+            window.MdPreview.registerExtension({
+                id: 'fake-math', render: renderMath,
+                expensiveBlock: { cls: 'math', kind: 'math', inner: null, done: 'mathDone', attrInner: null }
+            });
+            window.MdPreview.registerExtension({
+                id: 'fake-mermaid', render: renderMermaid,
+                expensiveBlock: { cls: 'mermaid-figure', kind: 'mm', inner: '.mermaid', done: 'mmDone', attrInner: null }
+            });
+            window.MdPreview.registerExtension({
+                id: 'fake-code', render: renderCode,
+                expensiveBlock: { cls: 'md-code-wrap', kind: 'code', inner: 'pre > code', done: 'hljsDone', attrInner: 'pre' }
+            });
         })();
         </script>
         """
@@ -428,11 +642,13 @@ final class MdPreviewUpdateTests: XCTestCase {
         <!DOCTYPE html>
         <html><head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>\(MarkdownHTML.stylesheet)</style>
         <script>\(purifyJS)</script>
         <script>\(morphdomJS)</script>
         \(webKitMessageHandlerStub)
         \(MarkdownHTML.hostBridgeScript)
         \(fakeRenderers)
+        \(extraHeadScripts)
         </head><body>
         <article class="markdown-body"\(articleAttributes)></article>
         </body></html>
@@ -505,17 +721,4 @@ private struct WarmupArticleState: Decodable {
     private enum CodingKeys: String, CodingKey {
         case warmup, opacity, keyedBlocks, paragraphText
     }
-}
-
-private struct TableHeaderPlaceholderState: Decodable {
-    let editorCount: Int
-    let scrollCount: Int
-    let headerCount: Int
-    let headerInnerTextReads: Int
-    let tableCellInputListenerRegistrations: Int
-    let placeholder: String
-    let initialEmptyLabel: String?
-    let initialNamedLabel: String?
-    let renamedLabel: String?
-    let restoredLabel: String?
 }

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Roll back a Markdown Preview release.
+# Roll back a Daisy release.
 #
 # Default action: unpublish the release on Amore (reversible) and delete the
 # matching GitHub release + tag. Use --delete to permanently remove from Amore.
@@ -13,11 +13,11 @@
 #   scripts/rollback-release.sh --latest --yes       Skip confirmation prompt
 #
 # To re-publish after a non-destructive rollback:
-#   amore releases update <version> -b doc.md-preview --published true
+#   amore releases update <version> -b doc.daisy --published true
 
 set -euo pipefail
 
-BUNDLE_ID="doc.md-preview"
+BUNDLE_ID="doc.daisy"
 
 VERSION=""
 USE_LATEST=false

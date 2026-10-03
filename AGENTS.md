@@ -1,4 +1,4 @@
-# Markdown Preview — agent guide
+# Daisy — agent guide
 
 A macOS app for previewing Markdown files. AppKit, sandboxed, ships with a Quick Look extension. Updates via Sparkle, distributed via Amore.
 
@@ -6,9 +6,9 @@ A macOS app for previewing Markdown files. AppKit, sandboxed, ships with a Quick
 
 | Thing             | Value                                                       |
 | ----------------- | ----------------------------------------------------------- |
-| Bundle id         | `doc.md-preview`                                            |
-| Product name      | `Markdown Preview`                                          |
-| Scheme            | `md-preview`                                                |
+| Bundle id         | `doc.daisy`                                            |
+| Product name      | `Daisy`                                          |
+| Scheme            | `daisy`                                                |
 | Quick Look target | `quick-look` (embedded extension)                           |
 | Min macOS         | 15.0                                                        |
 | Sandboxed         | yes — uses Sparkle XPC services for updates                 |
@@ -71,7 +71,7 @@ grep -rn "<the behaviour you changed>" README.md samples/ tests/fixtures/ docs/
   `Info.plist` or the entitlements' `mach-lookup` names without reading that
   skill first — they're paired with private material outside the repo (login
   Keychain / Amore), so an unmatched change breaks Sparkle updates silently.
-- `md-preview.entitlements` / `quick-look.entitlements` — the sandbox
+- `daisy.entitlements` / `quick-look.entitlements` — the sandbox
   `temporary-exception` entries (Sparkle XPC mach-lookup names, the read-only
   filesystem exception) are narrowly scoped, notarization-review-sensitive
   capabilities. Don't broaden or "clean up" them without understanding why
@@ -84,6 +84,12 @@ grep -rn "<the behaviour you changed>" README.md samples/ tests/fixtures/ docs/
 
 ## Releasing
 
+Every release PR must have the `release` GitHub label. Apply it when creating
+the PR (`gh pr create --label release`), or add it to an existing release PR
+with `gh pr edit <PR> --add-label release`. If the label does not exist in the
+repository, create it first. Verify the label is present before handing off
+the release PR.
+
 See the `release-process` skill for branch/PR naming, exactly what `scripts/release.sh` and `scripts/rollback-release.sh` do, and the Amore config already wired for this project.
 
 ## Release references
@@ -93,8 +99,8 @@ See the `release-process` skill for branch/PR naming, exactly what `scripts/rele
 
 ## Common Xcode tasks
 ```bash
-xcodebuild -project md-preview.xcodeproj -scheme md-preview -configuration Debug build
-xcodebuild -resolvePackageDependencies -project md-preview.xcodeproj
+xcodebuild -project daisy.xcodeproj -scheme daisy -configuration Debug build
+xcodebuild -resolvePackageDependencies -project daisy.xcodeproj
 ```
 Sparkle helper tools (sign_update / generate_keys / generate_appcast) live at:
-`~/Library/Developer/Xcode/DerivedData/md-preview-*/SourcePackages/artifacts/sparkle/Sparkle/bin/`
+`~/Library/Developer/Xcode/DerivedData/daisy-*/SourcePackages/artifacts/sparkle/Sparkle/bin/`

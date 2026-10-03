@@ -276,6 +276,70 @@ final class MarkdownAssetResolutionTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: image), Data([0, 1, 2]))
     }
 
+    func testIsInsideFolderAcceptsSiblingsAndDescendantsOnly() {
+        let markdown = URL(fileURLWithPath: "/Users/me/notes/doc.md")
+        XCTAssertTrue(MarkdownAssetResolution.isInsideFolder(
+            URL(fileURLWithPath: "/Users/me/notes/a.png"), ofMarkdownFile: markdown))
+        XCTAssertTrue(MarkdownAssetResolution.isInsideFolder(
+            URL(fileURLWithPath: "/Users/me/notes/img/a.png"), ofMarkdownFile: markdown))
+        XCTAssertFalse(MarkdownAssetResolution.isInsideFolder(
+            URL(fileURLWithPath: "/Users/me/other/a.png"), ofMarkdownFile: markdown))
+        XCTAssertFalse(MarkdownAssetResolution.isInsideFolder(
+            URL(fileURLWithPath: "/Users/me/a.png"), ofMarkdownFile: markdown))
+    }
+
+    func testUniqueFileURLAddsNumericSuffixInsteadOfOverwriting() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        XCTAssertEqual(
+            MarkdownAssetResolution.uniqueFileURL(for: "photo.png", in: directory).lastPathComponent,
+            "photo.png"
+        )
+        try Data().write(to: directory.appendingPathComponent("photo.png"))
+        XCTAssertEqual(
+            MarkdownAssetResolution.uniqueFileURL(for: "photo.png", in: directory).lastPathComponent,
+            "photo 2.png"
+        )
+        try Data().write(to: directory.appendingPathComponent("photo 2.png"))
+        XCTAssertEqual(
+            MarkdownAssetResolution.uniqueFileURL(for: "photo.png", in: directory).lastPathComponent,
+            "photo 3.png"
+        )
+    }
+
+    func testImportImageCopiesIntoPicturesDirectoryKeepingTheName() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let markdown = root.appendingPathComponent("doc.md")
+        let source = root.appendingPathComponent("elsewhere.jpg")
+        try Data([1, 2, 3]).write(to: source)
+
+        let first = try MarkdownAssetResolution.importImage(from: source, forMarkdownFile: markdown)
+        let second = try MarkdownAssetResolution.importImage(from: source, forMarkdownFile: markdown)
+
+        XCTAssertEqual(first.deletingLastPathComponent().lastPathComponent, "doc-pictures")
+        XCTAssertEqual(first.lastPathComponent, "elsewhere.jpg")
+        XCTAssertEqual(second.lastPathComponent, "elsewhere 2.jpg")
+        XCTAssertEqual(try Data(contentsOf: first), Data([1, 2, 3]))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: source.path))
+    }
+
+    func testImageMarkdownUsesFileNameAsEscapedAltText() {
+        let markdown = URL(fileURLWithPath: "/Users/me/notes/doc.md")
+        XCTAssertEqual(
+            MarkdownAssetResolution.imageMarkdown(
+                for: URL(fileURLWithPath: "/Users/me/notes/doc-pictures/My [shot].png"),
+                from: markdown
+            ),
+            "![My \\[shot\\]](doc-pictures/My%20%5Bshot%5D.png)"
+        )
+    }
+
     func testMarkdownPathEncodesUnbalancedParenthesesInFilenames() {
         let markdown = URL(fileURLWithPath: "/Users/me/notes.md")
         let image = URL(fileURLWithPath: "/Users/me/notes)-pictures/1.png")

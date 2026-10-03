@@ -17,13 +17,19 @@ jobs:
 
       - name: Run tests
         env:
-          MDP_LAYOUT_ARTIFACTS: ${{ runner.temp }}/md-preview-layout-failures
+          MDP_LAYOUT_ARTIFACTS: ${{ runner.temp }}/daisy-layout-failures
         run: swift test --package-path tests/swift-tests
+
+      - name: Test editor transition callback ordering
+        run: python3 tests/test-mode-transitions.py
+
+      - name: Test checkbox saves and conflict responses
+        run: python3 tests/test-checkbox-saves.py
 
       - name: Upload WebKit layout diagnostics
         if: failure()
         uses: actions/upload-artifact@v7
         with:
           name: webkit-layout-failures
-          path: ${{ runner.temp }}/md-preview-layout-failures
+          path: ${{ runner.temp }}/daisy-layout-failures
           if-no-files-found: ignore

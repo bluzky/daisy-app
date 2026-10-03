@@ -79,7 +79,7 @@ controlled**: production callbacks and WebKit's actual layout engine still perfo
 the work. This tests settled geometry, not native animation timing or frame rate.
 
 Failures save both pages' original HTML, rendered DOM, geometry JSON, and PNG
-snapshots under `$TMPDIR/md-preview-layout-failures`. Set `MDP_LAYOUT_ARTIFACTS` to
+snapshots under `$TMPDIR/daisy-layout-failures`. Set `MDP_LAYOUT_ARTIFACTS` to
 choose another directory. CI uploads these files when the test job fails. Geometry
 is the pass/fail signal; screenshots help diagnose failures without maintaining
 fragile pixel baselines across macOS font-rendering changes.

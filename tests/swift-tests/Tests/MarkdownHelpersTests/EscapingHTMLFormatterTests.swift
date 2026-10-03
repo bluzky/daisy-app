@@ -115,6 +115,15 @@ final class EscapingHTMLFormatterTests: XCTestCase {
             html.contains(#"<code class="language-javascript" data-md-detected-language="true" data-hljs-done="1">"#),
             "expected detected language marker: \(html)"
         )
+        XCTAssertTrue(html.contains(#"data-code-language="javascript""#))
+    }
+
+    func testCodeLanguageLabelPreservesExplicitAliasAndEscapesHTML() {
+        let shell = EscapingHTMLFormatter.format("```sh\necho hello\n```")
+        XCTAssertTrue(shell.contains(#"data-code-language="sh""#))
+        XCTAssertTrue(shell.contains(#"class="language-bash""#))
+        let escaped = EscapingHTMLFormatter.format("```a\"b\ntext\n```")
+        XCTAssertTrue(escaped.contains(#"data-code-language="a&quot;b""#))
     }
 
     func testFencedCodeWithAmbiguousSourceStaysWithoutLanguageClass() {
@@ -146,6 +155,20 @@ final class EscapingHTMLFormatterTests: XCTestCase {
         XCTAssertTrue(html.contains("Important</p>"), "expected default title text: \(html)")
         XCTAssertTrue(html.contains("<p>Body text.</p>"), "expected body paragraph: \(html)")
         XCTAssertFalse(html.contains("<blockquote"), "alert should replace blockquote: \(html)")
+    }
+
+    func testDisabledHighlightsAndCalloutsPreserveMarkdownSource() {
+        let html = EscapingHTMLFormatter.format(
+            "==Marked==\n\n> [!NOTE] Keep marker",
+            rendersHighlights: false,
+            rendersCallouts: false
+        )
+
+        XCTAssertTrue(html.contains("==Marked=="), html)
+        XCTAssertFalse(html.contains("md-highlight"), html)
+        XCTAssertTrue(html.contains("<blockquote"), html)
+        XCTAssertTrue(html.contains("[!NOTE] Keep marker"), html)
+        XCTAssertFalse(html.contains("markdown-alert"), html)
     }
 
     func testGitHubAlertWithCustomTitle() {
@@ -201,6 +224,15 @@ final class EscapingHTMLFormatterTests: XCTestCase {
 
         XCTAssertTrue(html.contains("~visible~"), html)
         XCTAssertFalse(html.contains("<del>visible</del>"), html)
+    }
+
+    func testFenceLanguageLabelUsesParsedMarkdown() {
+        for fence in ["```", "~~~"] {
+            let html = EscapingHTMLFormatter.format(
+                "\(fence)swift\nlet value = 1\n\(fence)",
+                sourceMarkdown: "Different source mapping\nlet value = 1\nend")
+            XCTAssertTrue(html.contains("data-code-language=\"swift\""), html)
+        }
     }
 
     func testEveryPrecedingBlankSourceLineIsRecorded() {

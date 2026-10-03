@@ -22,7 +22,7 @@ final class MarkdownHTMLVendorPlacementTests: XCTestCase {
     }
 
     private let sample = """
-    # Title
+    Title
 
     Inline math $x^2$ and a paragraph.
 
@@ -68,6 +68,15 @@ final class MarkdownHTMLVendorPlacementTests: XCTestCase {
         XCTAssertFalse(rendered.html.contains(earlyPopulateCall))
     }
 
+    func testKaTeXTagsHiddenMathMLAsSearchExcluded() {
+        let rendered = MarkdownHTML.render(
+            markdown: "Inline math $x^2$.",
+            vendorLoading: .lazy
+        )
+
+        XCTAssertTrue(rendered.html.contains("data-mdp-search-exclude"))
+    }
+
     @MainActor
     func testInlineDocumentPopulatesArticleBeforeDOMContentLoaded() async throws {
         let metrics = try await loadInlineDocument(warmup: false)
@@ -86,21 +95,34 @@ final class MarkdownHTMLVendorPlacementTests: XCTestCase {
         XCTAssertEqual(metrics.opacity, "0", "warmup keepHidden must survive the early populate")
     }
 
+    @MainActor
+    func testInitialArticleUpdateUsesSuppliedDocumentID() async throws {
+        let metrics = try await loadInlineDocument(
+            warmup: false,
+            documentID: "file:///tmp/Markdown%20Preview.md"
+        )
+
+        XCTAssertEqual(metrics.documentID, "file:///tmp/Markdown%20Preview.md")
+    }
+
     private struct PopulateMetrics: Decodable {
         let templateGone: Bool
         let articleChildren: Int
         let childrenAtDCL: Int
         let opacity: String
+        let documentID: String
     }
 
     /// Loads the real `.inline` page with a probe that snapshots the article
     /// state at DOMContentLoaded.
     @MainActor
-    private func loadInlineDocument(warmup: Bool) async throws -> PopulateMetrics {
+    private func loadInlineDocument(warmup: Bool,
+                                    documentID: String = "page") async throws -> PopulateMetrics {
         let rendered = MarkdownHTML.render(
             markdown: sample,
             vendorLoading: .inline,
-            warmup: warmup
+            warmup: warmup,
+            documentID: documentID
         )
         let probe = """
         <script>
@@ -126,11 +148,16 @@ final class MarkdownHTMLVendorPlacementTests: XCTestCase {
         let result = try await webView.evaluateJavaScript("""
         (() => {
             const article = document.querySelector('.markdown-body');
+            window.MdPreview.registerExtension({
+                id: 'document-id-probe',
+                setup(host) { window.__documentID = host.documentID; }
+            });
             return JSON.stringify({
                 templateGone: !document.getElementById('md-article-source'),
                 articleChildren: article ? article.children.length : -1,
                 childrenAtDCL: window.__childrenAtDCL ?? -1,
                 opacity: article ? article.style.opacity : 'missing',
+                documentID: window.__documentID || '',
             });
         })()
         """)

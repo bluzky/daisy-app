@@ -11,7 +11,7 @@ class PerformanceSourceTests(unittest.TestCase):
         snapshot = root / name
         helpers = snapshot / 'tests/swift-tests/Sources/MarkdownHelpers'
         helpers.mkdir(parents=True)
-        self.link(snapshot, 'EditorHTML.swift', 'md-preview/EditorHTML.swift', 'editor')
+        self.link(snapshot, 'EditorHTML.swift', 'daisy/EditorHTML.swift', 'editor')
         (helpers / 'Stub.swift').write_text(name)
         return snapshot
 
@@ -27,10 +27,10 @@ class PerformanceSourceTests(unittest.TestCase):
             root = Path(directory)
             base = self.snapshot(root, 'base')
             head = self.snapshot(root, 'head')
-            self.link(base, 'Removed.swift', 'md-preview/Removed.swift', 'removed')
-            self.link(base, 'Moved.swift', 'md-preview/Old.swift', 'old')
-            self.link(head, 'Moved.swift', 'md-preview/New.swift', 'new')
-            self.link(head, 'Added.swift', 'md-preview/Added.swift', 'added')
+            self.link(base, 'Removed.swift', 'daisy/Removed.swift', 'removed')
+            self.link(base, 'Moved.swift', 'daisy/Old.swift', 'old')
+            self.link(head, 'Moved.swift', 'daisy/New.swift', 'new')
+            self.link(head, 'Added.swift', 'daisy/Added.swift', 'added')
             # The checkout running the benchmark can have a different source set.
             with patch('run_performance.ROOT', head):
                 prepare_sources(base, root / 'base-sources')
@@ -47,7 +47,7 @@ class PerformanceSourceTests(unittest.TestCase):
             root = Path(directory)
             snapshot = self.snapshot(root, 'base')
             helpers = snapshot / 'tests/swift-tests/Sources/MarkdownHelpers'
-            (helpers / 'Missing.swift').symlink_to('../../../../md-preview/Missing.swift')
+            (helpers / 'Missing.swift').symlink_to('../../../../daisy/Missing.swift')
             with self.assertRaisesRegex(ValueError, 'Production source missing'):
                 prepare_sources(snapshot, root / 'sources')
 

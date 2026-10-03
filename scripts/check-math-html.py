@@ -3,7 +3,7 @@
 from pathlib import Path
 import sys
 
-source = Path("md-preview/MarkdownHTML.swift").read_text()
+source = Path("daisy/MarkdownHTML.swift").read_text()
 checks = {
     "extracts inline $...$ math": "inlineMathRegex" in source,
     "extracts block $$...$$ math": "blockMathRegex" in source,

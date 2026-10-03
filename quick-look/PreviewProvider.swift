@@ -12,11 +12,13 @@ import UniformTypeIdentifiers
 
 class PreviewProvider: QLPreviewProvider, QLPreviewingController {
 
+    private let documentID = UUID().uuidString
+
     func providePreview(for request: QLFilePreviewRequest) async throws -> QLPreviewReply {
         #if DEBUG
         // Debug-only perf instrumentation on the shared `Logger.perf` (its
         // subsystem is the appex bundle id, so the bench scripts' `subsystem
-        // BEGINSWITH "doc.md-preview"` predicate picks it up alongside the
+        // BEGINSWITH "doc.daisy"` predicate picks it up alongside the
         // app's `[mdp-perf]` entries). Default log level (not .debug): Quick
         // Look appex processes are short-lived, and their debug-level
         // messages don't reliably reach a running `log stream` —
@@ -44,7 +46,9 @@ class PreviewProvider: QLPreviewProvider, QLPreviewingController {
         let renderedHTML = MarkdownHTML.makeHTML(
             from: text,
             allowsScroll: true,
-            colorScheme: colorScheme
+            colorScheme: colorScheme,
+            documentID: documentID,
+            renderExtensionConfiguration: RenderExtensionPreferences.currentConfiguration
         )
         let baseDirectory = request.fileURL.deletingLastPathComponent()
         let rewrite = InlineLocalAssets.rewriteRelativeImages(

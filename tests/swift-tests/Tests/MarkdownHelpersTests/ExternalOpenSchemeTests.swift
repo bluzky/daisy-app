@@ -19,17 +19,28 @@ final class ExternalOpenSchemeTests: XCTestCase {
         XCTAssertEqual(ExternalOpenScheme.resolvedURL(opening: cursor), cursor)
     }
 
+    // MARK: - Legacy scheme
+
+    func testStillResolvesTheSchemeUsedBeforeTheRename() {
+        let url = URL(string: "md-preview://file/Users/me/project/README.md")!
+        XCTAssertEqual(
+            ExternalOpenScheme.resolvedURL(opening: url)?.path,
+            "/Users/me/project/README.md"
+        )
+        XCTAssertNil(ExternalOpenScheme.resolvedURL(opening: URL(string: "md-preview://other/Users/me/a.md")!))
+    }
+
     // MARK: - Accepted forms
 
     func testResolvesFileHostForm() {
-        let url = URL(string: "md-preview://file/Users/me/project/README.md")!
+        let url = URL(string: "daisy://file/Users/me/project/README.md")!
         let resolved = ExternalOpenScheme.resolvedURL(opening: url)
         XCTAssertEqual(resolved?.path, "/Users/me/project/README.md")
         XCTAssertEqual(resolved?.isFileURL, true)
     }
 
     func testResolvesEmptyHostForm() {
-        let url = URL(string: "md-preview:///Users/me/project/README.md")!
+        let url = URL(string: "daisy:///Users/me/project/README.md")!
         XCTAssertEqual(ExternalOpenScheme.resolvedURL(opening: url)?.path,
                        "/Users/me/project/README.md")
     }
@@ -41,19 +52,19 @@ final class ExternalOpenSchemeTests: XCTestCase {
     }
 
     func testDecodesPercentEncodedPath() {
-        let url = URL(string: "md-preview://file/Users/me/My%20Notes/%E8%AF%B4%E6%98%8E.md")!
+        let url = URL(string: "daisy://file/Users/me/My%20Notes/%E8%AF%B4%E6%98%8E.md")!
         XCTAssertEqual(ExternalOpenScheme.resolvedURL(opening: url)?.path,
                        "/Users/me/My Notes/说明.md")
     }
 
     func testStandardizesDotSegments() {
-        let url = URL(string: "md-preview://file/Users/me/docs/../README.md")!
+        let url = URL(string: "daisy://file/Users/me/docs/../README.md")!
         XCTAssertEqual(ExternalOpenScheme.resolvedURL(opening: url)?.path,
                        "/Users/me/README.md")
     }
 
     func testAcceptsFolderPathWithTrailingSlash() {
-        let url = URL(string: "md-preview://file/Users/me/docs/")!
+        let url = URL(string: "daisy://file/Users/me/docs/")!
         XCTAssertEqual(ExternalOpenScheme.resolvedURL(opening: url)?.path,
                        "/Users/me/docs")
     }
@@ -61,13 +72,13 @@ final class ExternalOpenSchemeTests: XCTestCase {
     // MARK: - Malformed links
 
     func testRejectsUnknownHost() {
-        let url = URL(string: "md-preview://open/Users/me/a.md")!
+        let url = URL(string: "daisy://open/Users/me/a.md")!
         XCTAssertNil(ExternalOpenScheme.resolvedURL(opening: url))
     }
 
     func testRejectsEmptyPath() {
-        XCTAssertNil(ExternalOpenScheme.resolvedURL(opening: URL(string: "md-preview://file")!))
-        XCTAssertNil(ExternalOpenScheme.resolvedURL(opening: URL(string: "md-preview://file/")!))
-        XCTAssertNil(ExternalOpenScheme.resolvedURL(opening: URL(string: "md-preview://")!))
+        XCTAssertNil(ExternalOpenScheme.resolvedURL(opening: URL(string: "daisy://file")!))
+        XCTAssertNil(ExternalOpenScheme.resolvedURL(opening: URL(string: "daisy://file/")!))
+        XCTAssertNil(ExternalOpenScheme.resolvedURL(opening: URL(string: "daisy://")!))
     }
 }

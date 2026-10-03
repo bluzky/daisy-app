@@ -51,7 +51,7 @@ final class ReaderLayoutSettingTests: XCTestCase {
     }
 
     func testValuesRoundTripAndDefaultsClearTheirKeys() throws {
-        let suiteName = "doc.md-preview.tests.\(UUID().uuidString)"
+        let suiteName = "doc.daisy.tests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defaults.removePersistentDomain(forName: suiteName)
         defer { defaults.removePersistentDomain(forName: suiteName) }
@@ -77,7 +77,7 @@ final class ReaderLayoutSettingTests: XCTestCase {
     // Stored values are clamped on read: a hand-edited plist cannot push the
     // page to an unreadable line height or a zero-width column.
     func testStoredValuesAreClampedOnRead() throws {
-        let suiteName = "doc.md-preview.tests.\(UUID().uuidString)"
+        let suiteName = "doc.daisy.tests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defaults.removePersistentDomain(forName: suiteName)
         defer { defaults.removePersistentDomain(forName: suiteName) }

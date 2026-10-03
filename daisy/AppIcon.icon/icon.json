@@ -1,0 +1,38 @@
+{
+  "fill" : {
+    "solid" : "srgb:0.25098,0.58039,0.99608,1.00000"
+  },
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "fill" : "none",
+          "hidden" : false,
+          "image-name" : "Daisy Bloom Blue App Icon.png",
+          "name" : "Daisy Bloom Blue App Icon",
+          "position" : {
+            "scale" : 1.0,
+            "translation-in-points" : [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : "shared"
+  }
+}

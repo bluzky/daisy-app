@@ -39,7 +39,6 @@ final class MarkdownHTMLRenderTests: XCTestCase {
         XCTAssertTrue(rendered.articleHTML.contains("<img src=\"notes-pictures/1.png\""))
         XCTAssertTrue(rendered.html.contains("<base href=\"md-asset:///Users/me/notes/\">"))
         XCTAssertFalse(rendered.html.contains("kind: 'imageClick'"))
-        XCTAssertTrue(rendered.html.contains("a, button, input, img"))
     }
 
     func testYamlFrontmatterRendersAsTableBeforeDocumentBody() {
@@ -141,6 +140,23 @@ final class MarkdownHTMLRenderTests: XCTestCase {
         XCTAssertTrue(rendered.html.contains("mark.md-highlight"))
     }
 
+    func testDisabledKaTeXPreservesBodyAndFootnoteMathSource() {
+        var enabledIDs = Set(MarkdownHTML.renderExtensions.map(\.id))
+        enabledIDs.remove("katex")
+        let rendered = MarkdownHTML.render(
+            markdown: "Body $x^2$.[^1]\n\n[^1]: Footnote $y^2$.",
+            vendorLoading: .lazy,
+            renderExtensionConfiguration: .init(enabledIDs: enabledIDs)
+        )
+
+        XCTAssertTrue(rendered.articleHTML.contains("Body $x^2$."), rendered.articleHTML)
+        XCTAssertTrue(rendered.articleHTML.contains("Footnote $y^2$."), rendered.articleHTML)
+        XCTAssertFalse(rendered.articleHTML.contains("class=\"math "), rendered.articleHTML)
+        XCTAssertFalse(rendered.html.contains("katex.min.js"), rendered.html)
+        XCTAssertFalse(rendered.scriptAssetIDs.contains("katex"))
+        XCTAssertFalse(rendered.scriptAssetIDs.contains("math"))
+    }
+
     @MainActor
     func testScrollableLongTableKeepsWebKitViewportAndScrollsDocument() async throws {
         let rows = (1...750).map { "| \($0) | Function \($0) | 100.00% |" }
@@ -158,7 +174,7 @@ final class MarkdownHTMLRenderTests: XCTestCase {
         // ::-webkit-scrollbar style on the root replaces the native macOS
         // overlay scrollbar with WebKit's legacy one.
         XCTAssertFalse(rendered.html.contains("\n    ::-webkit-scrollbar {"))
-        XCTAssertTrue(rendered.html.contains(":where(:not(html):not(body))::-webkit-scrollbar"))
+        XCTAssertTrue(rendered.html.contains(":where(:not(html):not(body):not(pre))::-webkit-scrollbar"))
         let styleBlocks = rendered.html
             .components(separatedBy: "<style>")
             .dropFirst()
@@ -420,8 +436,13 @@ final class MarkdownHTMLRenderTests: XCTestCase {
         XCTAssertFalse(stylesheet.contains("::selection"))
         XCTAssertFalse(stylesheet.contains("::-webkit-selection"))
         XCTAssertFalse(stylesheet.contains("::-moz-selection"))
-        XCTAssertEqual(nonSelectableRules.count, 1)
-        XCTAssertTrue(nonSelectableRules[0].contains(".md-code-copy"))
+        // Code UI is not document text. The generated language label and
+        // card header may opt out, but the Markdown content must not.
+        let allowedSelectors = ["pre[data-code-language]::before", ".md-code-header"]
+        XCTAssertEqual(nonSelectableRules.count, allowedSelectors.count)
+        for selector in allowedSelectors {
+            XCTAssertTrue(nonSelectableRules.contains { $0.contains(selector) }, selector)
+        }
     }
 
     @MainActor
@@ -483,7 +504,7 @@ final class MarkdownHTMLRenderTests: XCTestCase {
         XCTAssertTrue(css.contains("--text: -apple-system-label;"))
         XCTAssertTrue(css.contains("--secondary: -apple-system-secondary-label;"))
         XCTAssertTrue(css.contains("--grid: -apple-system-separator;"))
-        XCTAssertTrue(css.contains("--accent: -apple-system-control-accent;"))
+        XCTAssertTrue(css.contains("--accent: var(--link);"))
         XCTAssertTrue(css.contains("h1 { font-size: 2em; }"))
         XCTAssertTrue(css.contains("h6 { font-size: 0.846em; }"))
         // The highlighting palette is declared once and consumed by class rules.
@@ -681,7 +702,7 @@ final class MarkdownHTMLRenderTests: XCTestCase {
 
         XCTAssertTrue(rendered.html.contains("li:first-child { margin-top: 0; }"))
         XCTAssertTrue(rendered.html.contains("ul { list-style: none; }"))
-        XCTAssertTrue(rendered.html.contains(".md-code-wrap > pre { margin: 0; }"))
+        XCTAssertTrue(rendered.html.contains(".md-code-wrap > pre { margin: 0;"))
         XCTAssertTrue(rendered.html.contains(".md-code-wrap {"))
         XCTAssertTrue(rendered.html.contains("margin: \(MarkdownHTML.paragraphSpacing)px 0 0;"))
     }
@@ -920,7 +941,7 @@ final class MarkdownHTMLRenderTests: XCTestCase {
             repository.deleteLastPathComponent()
         }
         let bundleURL = repository
-            .appendingPathComponent("md-preview/Vendor/CodeMirror/mdedit.min.js")
+            .appendingPathComponent("daisy/Vendor/CodeMirror/mdedit.min.js")
         let bundle = try String(contentsOf: bundleURL, encoding: .utf8)
             .replacingOccurrences(of: "</script>", with: "<\\/script>")
         let source = """
@@ -1856,7 +1877,7 @@ final class MarkdownHTMLRenderTests: XCTestCase {
             vendorLoading: .lazy
         )
         let highlightJS = try TestVendor.script(
-            "md-preview/Vendor/Highlight/highlight.min.js"
+            "daisy/Vendor/Highlight/highlight.min.js"
         )
         let html = """
         <!DOCTYPE html>
@@ -1921,7 +1942,7 @@ final class MarkdownHTMLRenderTests: XCTestCase {
             .joined(separator: "\n\n")
         let rendered = MarkdownHTML.render(markdown: markdown, vendorLoading: .lazy)
         let highlightJS = try TestVendor.script(
-            "md-preview/Vendor/Highlight/highlight.min.js"
+            "daisy/Vendor/Highlight/highlight.min.js"
         )
         let html = """
         <!DOCTYPE html>
@@ -1986,7 +2007,7 @@ final class MarkdownHTMLRenderTests: XCTestCase {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
         let highlightURL = repositoryRoot
-            .appendingPathComponent("md-preview/Vendor/Highlight/highlight.min.js")
+            .appendingPathComponent("daisy/Vendor/Highlight/highlight.min.js")
         let highlightJS = try String(contentsOf: highlightURL, encoding: .utf8)
             .replacingOccurrences(of: "</script", with: "<\\/script")
         let html = """
@@ -2248,7 +2269,7 @@ final class MarkdownHTMLRenderTests: XCTestCase {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
         let katexURL = repositoryRoot
-            .appendingPathComponent("md-preview/Vendor/KaTeX/katex.min.js")
+            .appendingPathComponent("daisy/Vendor/KaTeX/katex.min.js")
         let katexJS = try String(contentsOf: katexURL, encoding: .utf8)
             .replacingOccurrences(of: "</script", with: "<\\/script")
         let html = """
@@ -2375,17 +2396,8 @@ final class MarkdownHTMLRenderTests: XCTestCase {
         XCTAssertTrue(rendered.articleHTML.contains(
             "<td data-table-row=\"1\" data-table-column=\"1\" data-table-markdown=\"10\" align=\"right\">10</td>"
         ), rendered.articleHTML)
-        XCTAssertTrue(rendered.html.contains("function enableTableEditing(root = document)"))
-        XCTAssertFalse(rendered.html.contains("md-table-edge-action"))
-        XCTAssertTrue(rendered.html.contains("kind: 'tableContextMenu'"))
-        XCTAssertTrue(rendered.html.contains("cell.dataset.placeholder = placeholder"))
-        XCTAssertTrue(rendered.html.contains("function selectTablePart(cell, operation)"))
-        XCTAssertTrue(rendered.html.contains("event.key === 'Backspace' || event.key === 'Delete'"))
-        XCTAssertTrue(rendered.html.contains("selectTableRange(tableCellDrag.cell, cell)"))
-        XCTAssertTrue(rendered.html.contains("window.getSelection()?.removeAllRanges()"))
-        XCTAssertTrue(rendered.html.contains(".md-table-editor .is-table-selection-left"))
-        XCTAssertTrue(rendered.html.contains("cell.hasAttribute('data-table-markdown')"))
-        XCTAssertTrue(rendered.html.contains("cell.dataset.tableOriginal = cell.dataset.tableMarkdown || ''"))
+        XCTAssertFalse(rendered.html.contains("kind: 'tableEdit'"))
+        XCTAssertFalse(rendered.html.contains("kind: 'tableContextMenu'"))
     }
 
     func testRenderedTableCellsRetainOriginalMarkdownForSourceAwareEditing() throws {

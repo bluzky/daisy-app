@@ -2,7 +2,7 @@ import { build } from "esbuild"
 import { writeFile } from "node:fs/promises"
 import { fileURLToPath } from "node:url"
 
-const outputURL = new URL("../../md-preview/Vendor/CodeMirror/mdedit.min.js", import.meta.url)
+const outputURL = new URL("../../daisy/Vendor/CodeMirror/mdedit.min.js", import.meta.url)
 const result = await build({
   entryPoints: [fileURLToPath(new URL("entry-cm.js", import.meta.url))],
   bundle: true,

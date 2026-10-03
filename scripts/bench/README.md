@@ -1,6 +1,6 @@
 # Benchmark harness
 
-Pragmatic CPU/memory/first-paint benchmarking for the Markdown Preview app
+Pragmatic CPU/memory/first-paint benchmarking for the Daisy app
 and its Quick Look extension. The app/Quick Look scripts below are manual
 profiling tools. Automated Release comparisons and failure thresholds run in
 GitHub Actions; see [the performance check](../../tests/performance/README.md).
@@ -32,7 +32,7 @@ scripts/bench/report.py --baseline /tmp/bench/baseline --candidate /tmp/bench/ca
 ```
 
 `bench-app.sh` builds Debug via xcodebuild by default; pass
-`--app <path/to/Markdown Preview.app>` to reuse an existing build. Default
+`--app <path/to/Daisy.app>` to reuse an existing build. Default
 samples are `samples/navigation.md` (small/plain), `samples/full.md`
 (math + code), and `samples/mermaid-heavy.md`; pass sample paths as
 positional args to override. `--duration` (default 20 s) controls the
@@ -53,25 +53,25 @@ The just-built app must be registered with LaunchServices so its appex
 serves `.md` previews. Open the built app once, or:
 
 ```bash
-/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f <path/to/Markdown Preview.app>
-pluginkit -m -p com.apple.quicklook.preview | grep md-preview   # verify
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f <path/to/Daisy.app>
+pluginkit -m -p com.apple.quicklook.preview | grep daisy   # verify
 ```
 
 (`qlmanage -m plugins` only lists legacy generators — appex-based extensions
 show up in `pluginkit`.) A `+` marks the elected extension. If an installed
 Release copy is elected instead of the Debug build (bundle id
-`doc.md-preview.dev.quick-look`), elect the Debug appex for the run:
+`doc.daisy.dev.quick-look`), elect the Debug appex for the run:
 
 ```bash
-pluginkit -e use -i doc.md-preview.dev.quick-look
+pluginkit -e use -i doc.daisy.dev.quick-look
 # …and restore afterwards:
-pluginkit -e default -i doc.md-preview.dev.quick-look
+pluginkit -e default -i doc.daisy.dev.quick-look
 ```
 
 If no `[mdp-perf-ql]` lines are captured, the elected appex is either a
 Release build (instrumentation compiled out) or a different copy than the
 one you just built. Beware: every Debug build of this project registers an
-appex with the same bundle id (`doc.md-preview.dev.quick-look`), so multiple
+appex with the same bundle id (`doc.daisy.dev.quick-look`), so multiple
 worktrees/DerivedData folders compete and LaunchServices picks one
 arbitrarily. Verify which binary actually served the preview with
 `ps -axo pid,comm | grep quick-look.appex` while the panel is open, and
@@ -106,7 +106,7 @@ Measures the innerHTML-swap (or morphdom) update path under repeated edits:
   state (in its sandbox container) before each run so macOS window restoration
   doesn't reopen previous samples and pollute RSS/CPU and update timings.
 - App log capture matches the built app's exact bundle id. Prefix matching
-  (`subsystem BEGINSWITH "doc.md-preview"`) can accidentally ingest Quick
+  (`subsystem BEGINSWITH "doc.daisy"`) can accidentally ingest Quick
   Actions or extensions and assign their timings to the document under test.
 - `footprint` snapshots usually need sudo; the script degrades to ps-only
   RSS when unavailable.

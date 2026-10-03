@@ -7,7 +7,7 @@
 	<key>PostHogProjectToken</key>
 	<string>$(POSTHOG_PROJECT_TOKEN)</string>
 	<key>MarkdownPreviewAppGroupIdentifier</key>
-	<string>$(DEVELOPMENT_TEAM).doc.md-preview</string>
+	<string>$(DEVELOPMENT_TEAM).doc.daisy</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -17,6 +17,7 @@
 			<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
+				<string>daisy</string>
 				<string>md-preview</string>
 			</array>
 		</dict>
@@ -36,13 +37,13 @@
 				<string>public.markdown</string>
 				<string>net.ia.markdown</string>
 				<string>com.unknown.md</string>
-				<string>doc.md-preview.mdown</string>
-				<string>doc.md-preview.mkd</string>
-				<string>doc.md-preview.mkdn</string>
-				<string>doc.md-preview.mdwn</string>
-				<string>doc.md-preview.mdtxt</string>
-				<string>doc.md-preview.mdtext</string>
-				<string>doc.md-preview.mdx</string>
+				<string>doc.daisy.mdown</string>
+				<string>doc.daisy.mkd</string>
+				<string>doc.daisy.mkdn</string>
+				<string>doc.daisy.mdwn</string>
+				<string>doc.daisy.mdtxt</string>
+				<string>doc.daisy.mdtext</string>
+				<string>doc.daisy.mdx</string>
 			</array>
 			<key>NSDocumentClass</key>
 			<string>$(PRODUCT_MODULE_NAME).MarkdownDocument</string>
@@ -66,7 +67,7 @@
 			<key>UTTypeDescription</key>
 			<string>Markdown Document (mdown)</string>
 			<key>UTTypeIdentifier</key>
-			<string>doc.md-preview.mdown</string>
+			<string>doc.daisy.mdown</string>
 			<key>UTTypeTagSpecification</key>
 			<dict>
 				<key>public.filename-extension</key>
@@ -83,7 +84,7 @@
 			<key>UTTypeDescription</key>
 			<string>Markdown Document (mkd)</string>
 			<key>UTTypeIdentifier</key>
-			<string>doc.md-preview.mkd</string>
+			<string>doc.daisy.mkd</string>
 			<key>UTTypeTagSpecification</key>
 			<dict>
 				<key>public.filename-extension</key>
@@ -100,7 +101,7 @@
 			<key>UTTypeDescription</key>
 			<string>Markdown Document (mkdn)</string>
 			<key>UTTypeIdentifier</key>
-			<string>doc.md-preview.mkdn</string>
+			<string>doc.daisy.mkdn</string>
 			<key>UTTypeTagSpecification</key>
 			<dict>
 				<key>public.filename-extension</key>
@@ -117,7 +118,7 @@
 			<key>UTTypeDescription</key>
 			<string>Markdown Document (mdwn)</string>
 			<key>UTTypeIdentifier</key>
-			<string>doc.md-preview.mdwn</string>
+			<string>doc.daisy.mdwn</string>
 			<key>UTTypeTagSpecification</key>
 			<dict>
 				<key>public.filename-extension</key>
@@ -134,7 +135,7 @@
 			<key>UTTypeDescription</key>
 			<string>Markdown Document (mdtxt)</string>
 			<key>UTTypeIdentifier</key>
-			<string>doc.md-preview.mdtxt</string>
+			<string>doc.daisy.mdtxt</string>
 			<key>UTTypeTagSpecification</key>
 			<dict>
 				<key>public.filename-extension</key>
@@ -151,7 +152,7 @@
 			<key>UTTypeDescription</key>
 			<string>Markdown Document (mdtext)</string>
 			<key>UTTypeIdentifier</key>
-			<string>doc.md-preview.mdtext</string>
+			<string>doc.daisy.mdtext</string>
 			<key>UTTypeTagSpecification</key>
 			<dict>
 				<key>public.filename-extension</key>
@@ -168,7 +169,7 @@
 			<key>UTTypeDescription</key>
 			<string>Markdown Document (mdx)</string>
 			<key>UTTypeIdentifier</key>
-			<string>doc.md-preview.mdx</string>
+			<string>doc.daisy.mdx</string>
 			<key>UTTypeTagSpecification</key>
 			<dict>
 				<key>public.filename-extension</key>

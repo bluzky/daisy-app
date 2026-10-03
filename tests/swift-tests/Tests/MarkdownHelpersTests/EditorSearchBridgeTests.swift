@@ -18,7 +18,7 @@ final class EditorSearchBridgeTests: XCTestCase {
     }
 
     func testProductionPageExposesSearchAndReportsEditedMatchCounts() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         let html = EditorHTML.render(markdown: "needle first\n\nneedle second", editorJavaScript: script)
         let editor = WebViewLayoutHarness(html: html, width: 900, isEditor: true)
         let messages = Messages()

@@ -33,7 +33,7 @@ if (!dom.window.Range.prototype.getBoundingClientRect) {
   })
 }
 
-const bundle = readFileSync(new URL("../../md-preview/Vendor/CodeMirror/mdedit.min.js", import.meta.url), "utf8")
+const bundle = readFileSync(new URL("../../daisy/Vendor/CodeMirror/mdedit.min.js", import.meta.url), "utf8")
 dom.window.eval(bundle)
 
 const doc = readFileSync(new URL("../../samples/full.md", import.meta.url), "utf8")
@@ -63,6 +63,283 @@ if (editor) {
       && dom.window.document.querySelector(".cm-cursorLayer") == null)
   editor.exec("bold")
   check("exec('bold') inserts markers", editor.getMarkdown().startsWith("****"))
+}
+
+const moduleMermaidSource = "```mermaid\ngraph TD; A-->B\n```\n\nafter"
+const moduleMermaidHost = dom.window.document.createElement("div")
+dom.window.document.body.appendChild(moduleMermaidHost)
+dom.window.mermaid = { render: () => new Promise(() => {}) }
+const moduleMermaidEditor = dom.window.MDEditor.create(moduleMermaidHost, moduleMermaidSource, { extensionState: { mermaid: true } })
+moduleMermaidEditor.focus()
+moduleMermaidEditor.select(moduleMermaidSource.length)
+check("mermaid module renders a preview when enabled",
+  moduleMermaidHost.querySelector(".cm-md-mermaid-preview") != null)
+moduleMermaidEditor.select(moduleMermaidSource.length - 2)
+moduleMermaidEditor.setExtensionState({ mermaid: false })
+check("disabling the mermaid module removes the preview",
+  moduleMermaidHost.querySelector(".cm-md-mermaid-preview") == null)
+check("disabling a module leaves the document untouched",
+  moduleMermaidEditor.getMarkdown() === moduleMermaidSource)
+moduleMermaidEditor.setExtensionState({ mermaid: true })
+check("re-enabling the mermaid module restores the preview",
+  moduleMermaidHost.querySelector(".cm-md-mermaid-preview") != null)
+const moduleDisabledMermaidHost = dom.window.document.createElement("div")
+dom.window.document.body.appendChild(moduleDisabledMermaidHost)
+dom.window.MDEditor.create(moduleDisabledMermaidHost, moduleMermaidSource, { extensionState: { mermaid: false } })
+check("a module disabled at creation never mounts",
+  moduleDisabledMermaidHost.querySelector(".cm-md-mermaid-preview") == null)
+
+const headingsHost = dom.window.document.createElement("div")
+dom.window.document.body.appendChild(headingsHost)
+const headingsEditor = dom.window.MDEditor.create(headingsHost, "# Title\n\n## Sub", { extensionState: { "colorful-headings": true } })
+const headingsRoot = () => headingsHost.querySelector(".cm-editor")
+check("colorful-headings module marks the editor when enabled",
+  headingsRoot().classList.contains("cm-colorful-headings"))
+check("heading lines keep their level classes",
+  headingsHost.querySelector(".cm-md-h1") != null && headingsHost.querySelector(".cm-md-h2") != null)
+headingsEditor.setExtensionState({ "colorful-headings": false })
+check("disabling colorful-headings removes the editor class",
+  !headingsRoot().classList.contains("cm-colorful-headings"))
+headingsEditor.setExtensionState({ "colorful-headings": true })
+check("re-enabling colorful-headings restores the editor class",
+  headingsRoot().classList.contains("cm-colorful-headings"))
+check("toggling colorful-headings leaves the document untouched",
+  headingsEditor.getMarkdown() === "# Title\n\n## Sub")
+
+// --- Slash commands --------------------------------------------------------
+// Menus live on <body>; the newest one belongs to the editor just created.
+const slashMenu = () => Array.from(dom.window.document.querySelectorAll(".cm-md-slash-menu")).at(-1)
+const slashVisible = () => slashMenu() != null && !slashMenu().hidden
+const slashLabels = () => Array.from(slashMenu().querySelectorAll(".cm-md-slash-label")).map((el) => el.textContent)
+const slashKey = (host, key) => host.querySelector(".cm-content").dispatchEvent(
+  new dom.window.KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }))
+const slashEditor = (source, extra = {}) => {
+  const host = dom.window.document.createElement("div")
+  dom.window.document.body.appendChild(host)
+  const editor = dom.window.MDEditor.create(host, source, { extensionState: { "slash-commands": true }, ...extra })
+  return { host, editor }
+}
+
+{
+  const { host, editor } = slashEditor("")
+  check("slash menu stays closed for a loaded document", !slashVisible())
+  editor.insertTextAt("/", 0, 0)
+  check("typing / on an empty line opens the menu", slashVisible())
+  check("menu lists grouped commands", slashLabels().includes("Heading 1") && slashLabels().includes("Table"))
+  check("every menu row has a line icon",
+    Array.from(slashMenu().querySelectorAll(".cm-md-slash-item"))
+      .every((row) => row.querySelector(".cm-md-slash-icon svg path, .cm-md-slash-icon svg text") != null))
+  editor.insertTextAt("h2", 1, 1)
+  check("typing filters the menu", slashLabels()[0] === "Heading 2")
+  slashKey(host, "Enter")
+  check("Enter converts the line to the chosen block", editor.getMarkdown() === "## ")
+  check("menu closes after applying", !slashVisible())
+  editor.exec("h0")
+}
+
+{
+  const { host, editor } = slashEditor("")
+  editor.insertTextAt("/", 0, 0)
+  slashKey(host, "ArrowDown")
+  slashKey(host, "Enter")
+  check("ArrowDown moves the selection before Enter", editor.getMarkdown() === "## ")
+}
+
+{
+  const { host, editor } = slashEditor("")
+  editor.insertTextAt("/", 0, 0)
+  slashKey(host, "Escape")
+  check("Escape dismisses the menu without touching the text",
+    !slashVisible() && editor.getMarkdown() === "/")
+  editor.insertTextAt("t", 1, 1)
+  check("a dismissed menu stays closed while the same line is edited", !slashVisible())
+}
+
+{
+  const { editor } = slashEditor("see ")
+  editor.insertTextAt("/", 4, 4)
+  check("a slash after a space at the end of text opens the menu", slashVisible())
+}
+
+{
+  const { editor } = slashEditor("see")
+  editor.insertTextAt("/", 3, 3)
+  check("a slash glued to a word does not open the menu", !slashVisible())
+}
+
+{
+  const { editor } = slashEditor("1")
+  editor.insertTextAt("/", 1, 1)
+  check("a slash inside a fraction or path does not open the menu", !slashVisible())
+}
+
+{
+  const { host, editor } = slashEditor("Buy milk ")
+  editor.insertTextAt("/task", 9, 9)
+  slashKey(host, "Enter")
+  check("a command typed after text converts the whole line", editor.getMarkdown() === "- [ ] Buy milk")
+}
+
+{
+  const { host, editor } = slashEditor("Buy milk later")
+  editor.insertTextAt("/h2", 9, 9)
+  slashKey(host, "Enter")
+  check("text on both sides of the slash joins into the block",
+    editor.getMarkdown() === "## Buy milk later")
+}
+
+{
+  const { host, editor } = slashEditor("- item ")
+  editor.insertTextAt("/h1", 7, 7)
+  slashKey(host, "Enter")
+  check("an existing marker is replaced when converting from line end", editor.getMarkdown() === "# item")
+}
+
+{
+  const { editor } = slashEditor("`code  here`")
+  editor.insertTextAt("/", 6, 6)
+  check("a slash inside inline code stays literal", !slashVisible())
+}
+
+{
+  const { editor } = slashEditor("  ")
+  editor.insertTextAt("/", 2, 2)
+  check("a slash after whitespace opens the menu", slashVisible())
+}
+
+{
+  // Four spaces make an indented code block, where `/` is literal.
+  const { editor } = slashEditor("    ")
+  editor.insertTextAt("/", 4, 4)
+  check("a slash in an indented code block stays literal", !slashVisible())
+}
+
+{
+  const { editor } = slashEditor("```\n\n```")
+  editor.insertTextAt("/", 4, 4)
+  check("a slash inside a code fence stays literal", !slashVisible())
+}
+
+{
+  const { editor } = slashEditor("---\ntitle: x\n---\n\n")
+  editor.insertTextAt("/", 6, 6)
+  check("a slash inside frontmatter stays literal", !slashVisible())
+}
+
+{
+  const { editor } = slashEditor("")
+  editor.insertTextAt("/zzzz", 0, 0)
+  check("a query with no match closes the menu and keeps the text",
+    !slashVisible() && editor.getMarkdown() === "/zzzz")
+}
+
+{
+  const { host, editor } = slashEditor("")
+  editor.insertTextAt("/table", 0, 0)
+  slashKey(host, "Enter")
+  check("table command inserts a table skeleton",
+    editor.getMarkdown() === "| Column 1 | Column 2 |\n| --- | --- |\n|  |  |")
+}
+
+{
+  const { host, editor } = slashEditor("")
+  editor.insertTextAt("/mermaid", 0, 0)
+  slashKey(host, "Enter")
+  check("mermaid command inserts a fenced diagram",
+    editor.getMarkdown() === "```mermaid\ngraph TD\n    A --> B\n```")
+}
+
+{
+  const { host, editor } = slashEditor("")
+  editor.insertTextAt("/warning", 0, 0)
+  slashKey(host, "Enter")
+  check("callout command inserts an alert blockquote",
+    editor.getMarkdown() === "> [!WARNING]\n> ")
+}
+
+{
+  const { host, editor } = slashEditor("")
+  editor.insertTextAt("/code", 0, 0)
+  slashKey(host, "Enter")
+  check("code command inserts an empty fence", editor.getMarkdown() === "```\n\n```")
+}
+
+{
+  // Conversion: text already on the line moves into the new block.
+  const { host, editor } = slashEditor("Buy milk")
+  editor.insertTextAt("/task", 0, 0)
+  editor.select(5)
+  slashKey(host, "Enter")
+  check("conversion keeps the rest of the line as content", editor.getMarkdown() === "- [ ] Buy milk")
+}
+
+{
+  const { host, editor } = slashEditor("## Old title")
+  editor.insertTextAt("/h1", 0, 0)
+  editor.select(3)
+  slashKey(host, "Enter")
+  check("conversion replaces an existing block marker", editor.getMarkdown() === "# Old title")
+}
+
+{
+  const { host, editor } = slashEditor("  ")
+  editor.insertTextAt("/quote", 2, 2)
+  slashKey(host, "Enter")
+  check("indentation is preserved when converting", editor.getMarkdown() === "  > ")
+}
+
+{
+  const { host, editor } = slashEditor("")
+  editor.insertTextAt("/", 0, 0)
+  slashMenu().querySelector("[data-slash-index='1']").dispatchEvent(
+    new dom.window.MouseEvent("mousedown", { bubbles: true, cancelable: true }))
+  check("clicking a row applies that command", editor.getMarkdown() === "## ")
+}
+
+{
+  const { editor } = slashEditor("", { extensionOptions: { "slash-commands": { "cmd.h1": "标题 1", "group.text": "文本" } } })
+  editor.insertTextAt("/", 0, 0)
+  check("host labels replace the English ones", slashLabels().includes("标题 1"))
+  editor.insertTextAt("heading", 1, 1)
+  check("English names stay searchable under host labels", slashLabels().includes("标题 1"))
+}
+
+{
+  const { editor } = slashEditor("")
+  editor.insertTextAt("/", 0, 0)
+  check("image command is hidden when the page cannot pick files", !slashLabels().includes("Image"))
+}
+
+{
+  const picks = []
+  const { host, editor } = slashEditor("Photo ", { onPickImage: (from, to) => picks.push([from, to]) })
+  editor.insertTextAt("/image", 6, 6)
+  check("image command is offered when the page can pick files", slashLabels()[0] === "Image")
+  slashKey(host, "Enter")
+  check("image command removes the typed query and keeps the line", editor.getMarkdown() === "Photo ")
+  check("image command asks the host to pick at the query position",
+    picks.length === 1 && picks[0][0] === 6 && picks[0][1] === 6)
+  check("image command closes the menu", !slashVisible())
+}
+
+{
+  const { editor } = slashEditor("")
+  editor.setExtensionState({ "slash-commands": false })
+  editor.insertTextAt("/", 0, 0)
+  check("disabling the module stops the menu", !slashVisible())
+  editor.setExtensionState({ "slash-commands": true })
+  editor.insertTextAt("h", 1, 1)
+  check("re-enabling the module restores the menu", slashVisible())
+}
+
+{
+  const before = dom.window.document.querySelectorAll(".cm-md-slash-menu").length
+  const { editor } = slashEditor("")
+  check("each editor owns one menu element",
+    dom.window.document.querySelectorAll(".cm-md-slash-menu").length === before + 1)
+  editor.destroy()
+  check("destroying the editor removes its menu",
+    dom.window.document.querySelectorAll(".cm-md-slash-menu").length === before)
 }
 
 const highlightHost = dom.window.document.createElement("div")
@@ -426,6 +703,16 @@ dom.window.document.body.appendChild(headingHost)
 const headingEditor = dom.window.MDEditor.create(headingHost, "### Stable heading", {})
 check("unfocused leading heading source stays hidden",
   headingHost.querySelector(".cm-md-heading-source-hidden")?.textContent === "### ")
+headingEditor.focus()
+headingEditor.select(4, 10)
+check("ordinary heading range selection keeps source hidden",
+  headingHost.querySelector(".cm-md-heading-source-hidden")?.textContent === "### ")
+const headingContent = headingHost.querySelector(".cm-content")
+headingContent.dispatchEvent(new dom.window.CompositionEvent("compositionstart", { bubbles: true }))
+headingEditor.select(4, 9)
+check("IME composition range reveals heading source",
+  headingHost.querySelector(".cm-md-heading-source-hidden") == null)
+headingContent.dispatchEvent(new dom.window.CompositionEvent("compositionend", { bubbles: true }))
 headingEditor.exec("h0")
 check("Normal Text removes the heading marker",
   headingEditor.getMarkdown() === "Stable heading")
@@ -606,6 +893,26 @@ check("inactive indented code hides source indentation",
     && indentedCodeLines.at(-1)?.textContent === "</script>")
 indentedCodeEditor.destroy()
 
+const nativeCodeHost = document.createElement('div')
+document.body.appendChild(nativeCodeHost)
+const nativeCodeSource = 'Before\n\n```text\nfirst\nsecond\n```\n\nBetween\n\n```\nthird\n```\n\nAfter'
+const nativeCodeEditor = dom.window.MDEditor.create(nativeCodeHost, nativeCodeSource, {})
+const nativeCards = [...nativeCodeHost.querySelectorAll('.cm-md-code-card')]
+check('each editable code block has one native scroll wrapper',
+  nativeCards.length === 2 && nativeCards[0].querySelectorAll('.cm-md-codeblock').length === 2)
+check('native code wrappers exclude surrounding paragraphs and separators',
+  nativeCards.every(card => !/Before|Between|After/.test(card.textContent)
+    && card.querySelector('.cm-md-block-separator') == null))
+nativeCodeEditor.select(nativeCodeSource.indexOf('second') + 3)
+nativeCodeEditor.insert('X')
+check('editing inside a native code wrapper preserves source positions',
+  nativeCodeEditor.getMarkdown() === nativeCodeSource.replace('second', 'secXond'))
+nativeCodeHost.querySelector('.cm-content').dispatchEvent(new dom.window.KeyboardEvent('keydown', {
+  key: 'z', code: 'KeyZ', ctrlKey: true, bubbles: true, cancelable: true,
+}))
+check('native code wrapper editing supports undo', nativeCodeEditor.getMarkdown() === nativeCodeSource)
+nativeCodeEditor.destroy()
+
 const listLikeCodeHost = dom.window.document.createElement("div")
 dom.window.document.body.appendChild(listLikeCodeHost)
 const listLikeCodeEditor = dom.window.MDEditor.create(
@@ -640,6 +947,30 @@ check("Setext source line uses collapsed overlay styling",
   setextHost.querySelector(".cm-md-setext-marker-line") != null
   && setextHost.querySelector(".cm-md-setext-source")?.textContent === "=====")
 setextEditor.destroy()
+
+const markerHost = dom.window.document.createElement("div")
+dom.window.document.body.appendChild(markerHost)
+const markerSource = "## [Unreleased]\n\n- **Bold** and *italic*\n\n[Real link](https://example.com)"
+const markerEditor = dom.window.MDEditor.create(markerHost, markerSource, {})
+for (const position of [0, markerSource.indexOf("Bold"), markerSource.indexOf("Real link")]) {
+  markerEditor.select(position)
+  check(`Markdown markers do not inherit code metadata colors at ${position}`,
+    markerHost.querySelector(".hl-meta") == null)
+}
+check("actual Markdown links retain link styling", markerHost.querySelector(".cm-md-link") != null)
+check("marker styling preserves Markdown source", markerEditor.getMarkdown() === markerSource)
+markerEditor.destroy()
+
+const preprocessorHost = dom.window.document.createElement("div")
+dom.window.document.body.appendChild(preprocessorHost)
+const preprocessorSource = "```c\n#include <stdio.h>\nint answer = 42;\n```"
+const preprocessorEditor = dom.window.MDEditor.create(preprocessorHost, preprocessorSource, {})
+for (const position of [0, preprocessorSource.indexOf("include")]) {
+  preprocessorEditor.select(position)
+  check(`code preprocessors keep metadata highlighting at ${position}`,
+    preprocessorHost.querySelector(".hl-meta")?.textContent.includes("#include"))
+}
+preprocessorEditor.destroy()
 
 const leadingCodeHost = dom.window.document.createElement("div")
 dom.window.document.body.appendChild(leadingCodeHost)
@@ -763,6 +1094,8 @@ check("typing an opening fence inserts its own closing fence",
 const emptyCodeLine = autoFenceHost.querySelector(".cm-md-codeblock-first")
 check("auto-closed empty code line keeps its caret buffer after the language widget",
   emptyCodeLine?.querySelector(".cm-md-code-language + .cm-widgetBuffer") != null)
+check('empty code block keeps its editable line in a native scroll wrapper',
+  emptyCodeLine?.closest('.cm-md-code-card') != null)
 autoFenceEditor.insert("body")
 check("auto-closed fence leaves the cursor in its content",
   autoFenceEditor.getMarkdown() === "intro\n```\nbody\n```")
@@ -1049,10 +1382,8 @@ const selectedBottomRight = dragTableHost.querySelector(
 )
 check("dragging across rows and columns selects the anchor-to-head rectangle",
   dragSelectedWidget?.querySelectorAll(".is-table-part-selected").length === 4
-    && selectedTopLeft?.classList.contains("is-table-selection-top")
-    && selectedTopLeft?.classList.contains("is-table-selection-left")
-    && selectedBottomRight?.classList.contains("is-table-selection-bottom")
-    && selectedBottomRight?.classList.contains("is-table-selection-right"))
+    && selectedTopLeft?.classList.contains("is-table-part-selected")
+    && selectedBottomRight?.classList.contains("is-table-part-selected"))
 check("cell-range selection persists after pointer release without native text selection",
   dragSelectedWidget?.classList.contains("is-table-range-selected")
     && dom.window.getSelection()?.rangeCount === 0)
@@ -1063,7 +1394,7 @@ dragSelectedWidget?.dispatchEvent(new dom.window.KeyboardEvent("keydown", {
 }))
 check("Escape clears a dragged cell range",
   dragSelectedWidget?.querySelectorAll(".is-table-part-selected").length === 0)
-dragStartCell?.dispatchEvent(new dom.window.MouseEvent("mousedown", {
+const nativeCellClickAllowed = dragStartCell?.dispatchEvent(new dom.window.MouseEvent("mousedown", {
   button: 0,
   buttons: 1,
   clientX: 100,
@@ -1083,9 +1414,8 @@ dragStartCell?.dispatchEvent(new dom.window.MouseEvent("click", {
   bubbles: true,
   cancelable: true,
 }))
-check("an ordinary cell click still restores the editing caret",
-  dom.window.getSelection()?.rangeCount === 1
-    && dragStartCell?.contains(dom.window.getSelection()?.anchorNode))
+check("an ordinary cell click allows native caret placement and selection",
+  nativeCellClickAllowed === true)
 const dragHeaderCell = dragTableHost.querySelector(
   '[data-table-row="0"][data-table-column="1"]'
 )

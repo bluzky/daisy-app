@@ -1,22 +1,22 @@
-// Typora-style live-preview markdown editor for Markdown Preview.app.
+// Typora-style live-preview markdown editor for Daisy.app.
 // Bundled with esbuild into a single self-contained IIFE exposing
 // window.MDEditor. The document buffer IS the markdown source — saving
 // is byte-faithful. Formatting syntax is styled live and marks hide
 // themselves unless the cursor is inside the construct.
 
 import {
-  EditorView, keymap, ViewPlugin, Decoration, WidgetType, dropCursor,
+  EditorView, keymap, ViewPlugin, Decoration, BlockWrapper, WidgetType, dropCursor,
 } from "@codemirror/view"
-import { Annotation, EditorState, EditorSelection, StateEffect, StateField, Transaction } from "@codemirror/state"
+import { Annotation, Compartment, EditorState, EditorSelection, MapMode, Prec, StateEffect, StateField, Transaction } from "@codemirror/state"
 import {
   defaultKeymap, history, historyKeymap, indentLess, insertTab,
 } from "@codemirror/commands"
 import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete"
-import { markdown, markdownLanguage, markdownKeymap } from "@codemirror/lang-markdown"
+import { markdown, markdownLanguage, markdownKeymap, insertNewlineContinueMarkupCommand } from "@codemirror/lang-markdown"
 import { yamlFrontmatter } from "@codemirror/lang-yaml"
 import {
   syntaxTree, syntaxTreeAvailable, ensureSyntaxTree, syntaxHighlighting, HighlightStyle,
-  indentUnit, LanguageDescription, LanguageSupport, StreamLanguage,
+  indentUnit, languageDataProp, LanguageDescription, LanguageSupport, StreamLanguage,
 } from "@codemirror/language"
 import { highlightTree, tags as t } from "@lezer/highlight"
 import { javascript } from "@codemirror/lang-javascript"
@@ -319,6 +319,27 @@ class MermaidWidget extends WidgetType {
 // Language input widget for every fenced block, including blocks without an
 // info string. The source range is rebuilt after each commit, so the widget
 // remains anchored while its input edits the opening line.
+const codeCopyHandlers = new WeakMap()
+const toggleCodeWrap = StateEffect.define({ map: (pos, changes) => changes.mapPos(pos, 1, MapMode.TrackAfter) ?? undefined })
+const wrappedCodeBlocks = StateField.define({
+  create: () => new Set(),
+  update(value, tr) {
+    if (!tr.docChanged && !tr.effects.some(e => e.is(toggleCodeWrap))) return value
+    const next = new Set([...value].map(pos => tr.changes.mapPos(pos, 1, MapMode.TrackAfter)).filter(pos => pos != null))
+    for (const effect of tr.effects) if (effect.is(toggleCodeWrap)) {
+      if (next.has(effect.value)) next.delete(effect.value)
+      else next.add(effect.value)
+    }
+    return next
+  },
+})
+const codeActionIcon = (kind) => '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ({
+  copy: '<rect x="4" y="8" width="12" height="13" rx="3"/><path d="M8 8V6a3 3 0 0 1 3-3h6a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3h-1"/>',
+  check: '<path d="m5 12 4 4L19 6"/>',
+  wrap: '<path d="M4 6h16M4 11h12a4 4 0 0 1 0 8h-5m3-3-3 3 3 3M4 16h3"/>',
+  unwrap: '<path d="M4 6h16M4 12h16m-4-4 4 4-4 4M4 18h7"/>'
+})[kind] + '</svg>'
+
 class CodeLanguageWidget extends WidgetType {
   constructor(details) {
     super()
@@ -331,6 +352,8 @@ class CodeLanguageWidget extends WidgetType {
       && other.infoTo === this.infoTo
       && other.rawInfo === this.rawInfo
       && other.detectedLanguage === this.detectedLanguage
+      && other.wrapped === this.wrapped
+      && other.plain === this.plain
   }
 
   toDOM(view) {
@@ -344,6 +367,7 @@ class CodeLanguageWidget extends WidgetType {
     input.autocomplete = "off"
     input.spellcheck = false
     input.value = this.language
+    input.readOnly = !!this.plain
     input.placeholder = "language"
     input.setAttribute("aria-label", "Code block language")
     input.dataset.fenceFrom = String(this.fenceFrom)
@@ -353,6 +377,7 @@ class CodeLanguageWidget extends WidgetType {
     let commitOnBlur = true
     let dispatchingCommit = false
     const commit = () => {
+      if (this.plain) return
       const language = input.value.trim().split(/\s+/, 1)[0].toLowerCase()
       const nextInfo = language
         ? language + metadata
@@ -391,6 +416,46 @@ class CodeLanguageWidget extends WidgetType {
     })
 
     container.appendChild(input)
+    const action = (label, icon, className, run) => {
+      const button = document.createElement('button')
+      button.type = 'button'
+      button.className = `cm-md-code-action ${className}`
+      button.title = label
+      button.setAttribute('aria-label', label)
+      button.innerHTML = codeActionIcon(icon)
+      button.addEventListener('mousedown', event => { event.preventDefault(); event.stopPropagation() })
+      button.addEventListener('click', event => { event.preventDefault(); event.stopPropagation(); run(button) })
+      container.appendChild(button)
+      return button
+    }
+    const toggle = action(this.wrapped ? 'Unwrap code' : 'Wrap code', this.wrapped ? 'unwrap' : 'wrap',
+      'cm-md-code-toggle-wrap', () => view.dispatch({
+        effects: toggleCodeWrap.of(view.state.doc.lineAt(this.fenceFrom).from),
+      }))
+    toggle.setAttribute('aria-pressed', String(this.wrapped))
+    action('Copy code', 'copy', 'cm-md-code-copy', async button => {
+      const line = view.state.doc.lineAt(this.fenceFrom)
+      let node = syntaxTree(view.state).resolve(this.plain ? line.to : this.fenceFrom + 1, -1)
+      while (node && node.name !== (this.plain ? 'CodeBlock' : 'FencedCode')) node = node.parent
+      if (!node) return
+      const source = this.plain
+        ? node.getChildren('CodeText').map(text => view.state.sliceDoc(text.from, text.to)).join('')
+        : fencedCodeDetails(view.state, node).source
+      try {
+        const handler = codeCopyHandlers.get(view)
+        if (handler) handler(source)
+        else await navigator.clipboard.writeText(source)
+        button.innerHTML = codeActionIcon('check')
+        button.title = 'Code copied'
+        button.setAttribute('aria-label', button.title)
+        clearTimeout(button.copyTimer)
+        button.copyTimer = setTimeout(() => {
+          button.innerHTML = codeActionIcon('copy')
+          button.title = 'Copy code'
+          button.setAttribute('aria-label', button.title)
+        }, 1100)
+      } catch (_) { /* Leave the copy action available when the clipboard is unavailable. */ }
+    })
     return container
   }
 
@@ -401,9 +466,15 @@ class CodeLanguageWidget extends WidgetType {
 // Visual table editor
 // ---------------------------------------------------------------------------
 
-function splitTableRow(source) {
+function splitTableRow(source, includeRanges = false) {
   const cells = []
   let cell = ""
+  let cellFrom = 0
+  const appendCell = () => cells.push({
+    text: cell.trim(),
+    from: cellFrom + cell.length - cell.trimStart().length,
+    to: cellFrom + cell.trimEnd().length,
+  })
   let backslashes = 0
   let codeFenceLength = 0
   for (let index = 0; index < source.length;) {
@@ -420,19 +491,20 @@ function splitTableRow(source) {
       continue
     }
     if (character === "|" && backslashes % 2 === 0 && codeFenceLength === 0) {
-      cells.push(cell.trim())
+      appendCell()
       cell = ""
+      cellFrom = index + 1
     } else {
       cell += character
     }
     backslashes = character === "\\" ? backslashes + 1 : 0
     index++
   }
-  cells.push(cell.trim())
+  appendCell()
   const trimmed = source.trim()
-  if (trimmed.startsWith("|") && cells[0] === "") cells.shift()
-  if (trimmed.endsWith("|") && cells[cells.length - 1] === "") cells.pop()
-  return cells
+  if (trimmed.startsWith("|") && cells[0].text === "") cells.shift()
+  if (trimmed.endsWith("|") && cells[cells.length - 1].text === "") cells.pop()
+  return includeRanges ? cells : cells.map(cell => cell.text)
 }
 
 function parseTableAlignment(cell) {
@@ -454,7 +526,7 @@ function parseTableSource(source) {
   const header = splitTableRow(lines[0])
   const alignments = splitTableRow(lines[1]).map(parseTableAlignment)
   if (!header.length || !alignments.length || alignments.some((item) => item == null)) return null
-  const rows = [header, ...lines.slice(2).map(splitTableRow)]
+  const rows = [header, ...lines.slice(2).map(line => splitTableRow(line))]
   const columnCount = Math.max(alignments.length, ...rows.map((row) => row.length))
   while (alignments.length < columnCount) alignments.push("none")
   alignments.length = columnCount
@@ -465,12 +537,15 @@ function parseTableSource(source) {
   return { rows, alignments, trailingNewline }
 }
 
-function escapedTableCell(source) {
-  const flattened = source.replace(/\n+/g, " ").trim()
+function escapedTableCell(source, positions = null) {
+  const normalized = source.replace(/\n+/g, " ")
+  const flattened = normalized.trim()
+  const positionMap = positions ? [] : null
   let result = ""
   let backslashes = 0
   let codeFenceLength = 0
   for (let index = 0; index < flattened.length;) {
+    if (positionMap) positionMap[index] = result.length
     const character = flattened[index]
     if (character === "`" && backslashes % 2 === 0) {
       let end = index + 1
@@ -478,6 +553,9 @@ function escapedTableCell(source) {
       const runLength = end - index
       if (codeFenceLength === 0) codeFenceLength = runLength
       else if (codeFenceLength === runLength) codeFenceLength = 0
+      if (positionMap) {
+        for (let offset = index; offset < end; offset++) positionMap[offset] = result.length + offset - index
+      }
       result += flattened.slice(index, end)
       index = end
       backslashes = 0
@@ -487,6 +565,14 @@ function escapedTableCell(source) {
     result += character
     backslashes = character === "\\" ? backslashes + 1 : 0
     index++
+  }
+  if (positionMap) {
+    positionMap[flattened.length] = result.length
+    const leading = normalized.length - normalized.trimStart().length
+    positions.forEach((position, index) => {
+      const normalizedOffset = source.slice(0, position).replace(/\n+/g, " ").length - leading
+      positions[index] = positionMap[Math.max(0, Math.min(normalizedOffset, flattened.length))]
+    })
   }
   return result
 }
@@ -513,6 +599,170 @@ function serializeTable(model) {
 
 let nextTableContextToken = 1
 let pendingTableContextAction = null
+
+// Inactive cells render inline formatting; focused cells expose their exact
+// Markdown. Build DOM nodes so authored HTML stays text and links stay editable.
+const tableInlineParser = markdownLanguage.parser.configure(obsidianHighlight)
+const tableRenderedTextOffsets = new WeakMap()
+
+function renderTableCell(element, source) {
+  const classes = {
+    StrongEmphasis: 'cm-md-strong',
+    Emphasis: 'cm-md-emphasis',
+    Strikethrough: 'cm-md-strikethrough',
+    Highlight: 'cm-md-highlight',
+  }
+  const appendText = (parent, text, from) => {
+    if (!text) return
+    const node = document.createTextNode(text)
+    tableRenderedTextOffsets.set(node, from)
+    parent.append(node)
+  }
+  const appendRange = (parent, node, from, to) => {
+    let offset = from
+    for (let child = node.firstChild; child; child = child.nextSibling) {
+      if (child.from < from || child.to > to) continue
+      appendText(parent, source.slice(offset, child.from), offset)
+      appendNode(parent, child)
+      offset = child.to
+    }
+    appendText(parent, source.slice(offset, to), offset)
+  }
+  const appendNode = (parent, node) => {
+    if (node.name === 'InlineCode') {
+      const code = document.createElement('code')
+      code.className = 'cm-md-inline-code'
+      let text = source.slice(node.firstChild.to, node.lastChild.from).replace(/\n/g, ' ')
+      const padded = text.startsWith(' ') && text.endsWith(' ') && /[^ ]/.test(text)
+      if (padded) text = text.slice(1, -1)
+      appendText(code, text, node.firstChild.to + (padded ? 1 : 0))
+      parent.append(code)
+    } else if (classes[node.name]) {
+      const span = document.createElement('span')
+      span.className = classes[node.name]
+      appendRange(span, node, node.firstChild.to, node.lastChild.from)
+      parent.append(span)
+    } else if (node.name === 'Link' && node.getChild('URL')) {
+      const marks = node.getChildren('LinkMark')
+      const label = document.createElement('span')
+      label.className = 'cm-md-link'
+      appendRange(label, node, marks[0].to, marks[1].from)
+      parent.append(label)
+    } else if (node.name === 'Escape') {
+      appendText(parent, source.slice(node.from + 1, node.to), node.from + 1)
+    } else if (node.name === 'Image') {
+      appendText(parent, source.slice(node.from, node.to), node.from)
+    } else {
+      appendRange(parent, node, node.from, node.to)
+    }
+  }
+  element.replaceChildren()
+  appendNode(element, tableInlineParser.parse(source).topNode)
+}
+
+// A table cell owns a native DOM selection, separate from CodeMirror's.
+// Remember it when the native formatting toolbar or link popover takes focus.
+const tableFormattingTargets = new WeakMap()
+const tableCellCommit = Annotation.define()
+const tableFormattingCallbacks = new WeakMap()
+const tableInlineCommands = new Set(['bold', 'italic', 'strikethrough', 'highlight', 'code', 'link'])
+
+function tableCellSourceRange(view, target) {
+  if (target.invalid || target.tableFrom < 0 || target.tableFrom >= view.state.doc.length) return null
+  const first = view.state.doc.lineAt(target.tableFrom)
+  const lineNumber = first.number + (target.row === 0 ? 0 : target.row + 1)
+  if (lineNumber > view.state.doc.lines) return null
+  const line = view.state.doc.line(lineNumber)
+  const range = splitTableRow(line.text, true)[target.column]
+  if (!range) return null
+  return { from: line.from + range.from, to: line.from + Math.max(range.from, range.to) }
+}
+
+function captureTableSelection(view) {
+  const target = tableFormattingTargets.get(view)
+  if (!target || target.invalid || target.element.dataset.tableEditing !== 'true') return
+  const selection = window.getSelection()
+  if (!selection?.anchorNode || !selection.focusNode
+      || !target.element.contains(selection.anchorNode) || !target.element.contains(selection.focusNode)) return
+  const offset = (node, position) => {
+    const range = document.createRange()
+    range.selectNodeContents(target.element)
+    range.setEnd(node, position)
+    return range.toString().length
+  }
+  target.anchor = offset(selection.anchorNode, selection.anchorOffset)
+  target.head = offset(selection.focusNode, selection.focusOffset)
+  const text = target.element.innerText || ''
+  const positions = [target.anchor, target.head]
+  escapedTableCell(text, positions)
+  target.sourceAnchor = positions[0]
+  target.sourceHead = positions[1]
+  const state = EditorState.create({
+    doc: text,
+    selection: EditorSelection.single(target.anchor, target.head),
+    extensions: [markdown({ extensions: obsidianHighlight })],
+  })
+  tableFormattingCallbacks.get(view)?.(formattingState(state))
+}
+
+function prepareTableFormatting(view) {
+  const target = tableFormattingTargets.get(view)
+  if (!target || target.invalid) return null
+  captureTableSelection(view)
+  // Blur commits any pending typing through the table's existing save path.
+  if (target.element.dataset.tableEditing === 'true') target.element.blur()
+  const range = tableCellSourceRange(view, target)
+  if (!range) return null
+  const length = range.to - range.from
+  view.dispatch({ selection: EditorSelection.single(
+    range.from + Math.max(0, Math.min(target.sourceAnchor ?? target.anchor, length)),
+    range.from + Math.max(0, Math.min(target.sourceHead ?? target.head, length)),
+  ) })
+  return target
+}
+
+function restoreTableFormatting(view, target) {
+  const range = tableCellSourceRange(view, target)
+  if (!range) return
+  const selection = view.state.selection.main
+  const anchor = Math.max(0, Math.min(selection.anchor - range.from, range.to - range.from))
+  const head = Math.max(0, Math.min(selection.head - range.from, range.to - range.from))
+  const cell = view.dom.querySelector(
+    `.cm-md-table-widget[data-table-from="${target.tableFrom}"] [data-table-row="${target.row}"][data-table-column="${target.column}"]`
+  )
+  if (!cell) return
+  cell.focus({ preventScroll: true })
+  const text = cell.firstChild || cell.appendChild(document.createTextNode(''))
+  window.getSelection()?.setBaseAndExtent(text, anchor, text, head)
+  captureTableSelection(view)
+}
+
+const tableFormattingSelection = ViewPlugin.fromClass(class {
+  constructor(view) {
+    this.view = view
+    this.capture = () => captureTableSelection(view)
+    this.clear = event => {
+      if (!event.target.closest?.('.cm-md-table-cell')) tableFormattingTargets.delete(view)
+    }
+    document.addEventListener('selectionchange', this.capture)
+    view.dom.addEventListener('mousedown', this.clear, true)
+  }
+  update(update) {
+    const target = tableFormattingTargets.get(this.view)
+    if (target && update.docChanged
+        && update.transactions.some(transaction => transaction.docChanged && !transaction.annotation(tableCellCommit))) {
+      // Keep a blocked target until the user explicitly selects a live cell or
+      // body position, rather than formatting CodeMirror's previous selection.
+      tableFormattingTargets.set(this.view, { ...target, invalid: true })
+    }
+  }
+  destroy() {
+    document.removeEventListener('selectionchange', this.capture)
+    this.view.dom.removeEventListener('mousedown', this.clear, true)
+    tableFormattingTargets.delete(this.view)
+    tableFormattingCallbacks.delete(this.view)
+  }
+})
 
 class TableEditorWidget extends WidgetType {
   constructor(source, from) {
@@ -556,7 +806,7 @@ class TableEditorWidget extends WidgetType {
       }))
     }
 
-    const applyModel = (focusTarget = null) => {
+    const applyModel = (focusTarget = null, commitsCell = false) => {
       const source = serializeTable(model)
       if (source === this.source) {
         if (focusTarget) {
@@ -569,25 +819,20 @@ class TableEditorWidget extends WidgetType {
       active = null
       view.dispatch({
         changes: { from: this.from, to: this.from + this.source.length, insert: source },
+        annotations: commitsCell ? tableCellCommit.of(true) : [],
         userEvent: "input",
       })
       if (focusTarget) focusCellAfterUpdate(focusTarget.row, focusTarget.column)
     }
 
     const captureActiveValue = () => {
-      if (!active) return
+      if (!active || active.element.dataset.tableEditing !== 'true') return
       model.rows[active.row][active.column] = active.element.innerText || ""
     }
 
     const clearPartSelection = () => {
       root.querySelectorAll(".is-table-part-selected").forEach((cell) => {
-        cell.classList.remove(
-          "is-table-part-selected",
-          "is-table-selection-top",
-          "is-table-selection-right",
-          "is-table-selection-bottom",
-          "is-table-selection-left",
-        )
+        cell.classList.remove("is-table-part-selected")
       })
       root.classList.remove(
         "is-table-row-selected",
@@ -609,12 +854,6 @@ class TableEditorWidget extends WidgetType {
       })
       cells.forEach((cell) => {
         cell.classList.add("is-table-part-selected")
-        const row = Number(cell.dataset.tableRow)
-        const column = Number(cell.dataset.tableColumn)
-        if (row === bounds.top) cell.classList.add("is-table-selection-top")
-        if (column === bounds.right) cell.classList.add("is-table-selection-right")
-        if (row === bounds.bottom) cell.classList.add("is-table-selection-bottom")
-        if (column === bounds.left) cell.classList.add("is-table-selection-left")
       })
       root.classList.add(
         kind === "row"
@@ -625,6 +864,7 @@ class TableEditorWidget extends WidgetType {
       )
       window.getSelection()?.removeAllRanges()
       selectedPart = { kind, row: anchor.row, column: anchor.column, bounds }
+      tableFormattingTargets.delete(view)
       root.tabIndex = 0
       if (kind === "range") {
         const rowCount = bounds.bottom - bounds.top + 1
@@ -698,7 +938,7 @@ class TableEditorWidget extends WidgetType {
         editor.className = "cm-md-table-cell"
         editor.contentEditable = "plaintext-only"
         editor.spellcheck = true
-        editor.textContent = value
+        renderTableCell(editor, value)
         editor.dataset.tableRow = String(row)
         editor.dataset.tableColumn = String(column)
         if (row === 0) {
@@ -714,10 +954,16 @@ class TableEditorWidget extends WidgetType {
         if (model.alignments[column] !== "none") editor.style.textAlign = model.alignments[column]
         editor.addEventListener("focus", () => {
           clearPartSelection()
+          if (editor.textContent !== model.rows[row][column] || editor.childElementCount) {
+            editor.textContent = model.rows[row][column]
+          }
+          editor.dataset.tableEditing = 'true'
+          tableFormattingTargets.set(view, { tableFrom: this.from, row, column, element: editor, anchor: 0, head: 0 })
           active = { row, column, element: editor }
         })
         editor.addEventListener("contextmenu", (event) => {
           event.preventDefault()
+          editor.focus()
           active = { row, column, element: editor }
           const token = String(nextTableContextToken++)
           pendingTableContextAction = {
@@ -734,17 +980,33 @@ class TableEditorWidget extends WidgetType {
           })
         })
         editor.addEventListener("blur", () => {
+          captureTableSelection(view)
           if (!active || active.element !== editor) return
-          model.rows[row][column] = editor.innerText || ""
+          const value = editor.innerText || ""
+          const changed = value !== model.rows[row][column]
+            || !tableCellSourceRange(view, { tableFrom: this.from, row, column })
+          model.rows[row][column] = value
           active = null
-          applyModel()
+          delete editor.dataset.tableEditing
+          renderTableCell(editor, model.rows[row][column])
+          if (changed) applyModel(null, true)
         })
         editor.addEventListener("keydown", (event) => {
+          if ((event.metaKey || event.ctrlKey) && ['b', 'i'].includes(event.key.toLowerCase())) {
+            event.preventDefault()
+            const target = prepareTableFormatting(view)
+            if (!target) return
+            toggleInlineMark(event.key.toLowerCase() === 'b' ? '**' : '*')(view)
+            if (target) restoreTableFormatting(view, target)
+            return
+          }
           if (event.key === "Escape") {
             event.preventDefault()
-            editor.textContent = model.rows[row][column]
             active = null
             editor.blur()
+            delete editor.dataset.tableEditing
+            renderTableCell(editor, model.rows[row][column])
+            tableFormattingTargets.delete(view)
             view.focus()
             return
           }
@@ -780,13 +1042,28 @@ class TableEditorWidget extends WidgetType {
       const row = Number(cell.dataset.tableRow)
       const column = Number(cell.dataset.tableColumn)
       if (!Number.isInteger(row) || row < 0 || !Number.isInteger(column)) return
-      // Keep CodeMirror from replacing the widget while WebKit is tracking the
-      // contenteditable gesture. WebKit's native selection begins on mouse
-      // down and can't be reliably cancelled after the pointer crosses into a
-      // second cell, so ordinary clicks restore their caret on mouse up.
-      event.preventDefault()
+      // Anchor a plain click in rendered text before revealing its Markdown,
+      // just like anchoredPointerSelection does for ordinary editor text.
       event.stopPropagation()
-      cellDrag = { cell, row, column, head: cell, active: false }
+      let sourceAnchor = null
+      if (cell.dataset.tableEditing !== 'true' && event.detail === 1
+          && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey
+          && cell.textContent !== model.rows[row][column]) {
+        const hit = document.caretRangeFromPoint?.(event.clientX, event.clientY)
+        const from = hit && tableRenderedTextOffsets.get(hit.startContainer)
+        if (from != null && cell.contains(hit.startContainer)) {
+          sourceAnchor = from + hit.startOffset
+          event.preventDefault()
+        }
+      }
+      cell.focus({ preventScroll: true })
+      const selectSource = (head) => {
+        const text = cell.firstChild
+        if (!text) return
+        window.getSelection()?.setBaseAndExtent(text, sourceAnchor, text, head)
+      }
+      if (sourceAnchor != null) selectSource(sourceAnchor)
+      cellDrag = { cell, row, column, head: cell, active: false, dragged: false }
 
       const finishCellDrag = (finishEvent) => {
         document.removeEventListener("mousemove", moveCellDrag, true)
@@ -796,22 +1073,8 @@ class TableEditorWidget extends WidgetType {
           finishEvent.preventDefault()
           window.getSelection()?.removeAllRanges()
           suppressNextTableClick = true
-        } else if (finishedDrag) {
-          finishEvent.preventDefault()
-          finishedDrag.cell.focus({ preventScroll: true })
-          const selection = window.getSelection()
-          let range = document.caretRangeFromPoint?.(
-            finishEvent.clientX,
-            finishEvent.clientY,
-          )
-          if (!range || !finishedDrag.cell.contains(range.startContainer)) {
-            range = document.createRange()
-            range.selectNodeContents(finishedDrag.cell)
-            range.collapse(false)
-          }
-          selection?.removeAllRanges()
-          selection?.addRange(range)
-          suppressNextTableClick = true
+        } else {
+          captureTableSelection(view)
         }
         cellDrag = null
       }
@@ -824,7 +1087,18 @@ class TableEditorWidget extends WidgetType {
         const head = hitTarget?.closest?.(".cm-md-table-cell")
           || moveEvent.target.closest?.(".cm-md-table-cell")
         if (!head || !root.contains(head)) return
-        if (head === cellDrag.cell && !cellDrag.active) return
+        if (head === cellDrag.cell && !cellDrag.active) {
+          if (sourceAnchor != null) {
+            moveEvent.preventDefault()
+            cellDrag.dragged ||= Math.hypot(moveEvent.clientX - event.clientX,
+              moveEvent.clientY - event.clientY) > 3
+            if (cellDrag.dragged) {
+              const hit = document.caretRangeFromPoint?.(moveEvent.clientX, moveEvent.clientY)
+              if (hit?.startContainer === cell.firstChild) selectSource(hit.startOffset)
+            }
+          }
+          return
+        }
         if (head === cellDrag.head) return
         moveEvent.preventDefault()
         cellDrag.active = true
@@ -946,6 +1220,69 @@ const tableEditors = StateField.define({
   provide: (field) => EditorView.decorations.from(field),
 })
 
+// Completed task markers stay rendered while typing the label, including an empty item.
+class TaskCheckboxWidget extends WidgetType {
+  constructor(from, checked) { super(); this.from = from; this.checked = checked }
+  eq(other) { return this.from === other.from && this.checked === other.checked }
+  toDOM(view) {
+    const wrapper = document.createElement('span')
+    wrapper.className = 'cm-md-task-marker'
+    wrapper.dataset.sourceFrom = String(this.from)
+    const checkbox = document.createElement('input')
+    checkbox.type = 'checkbox'
+    checkbox.checked = this.checked
+    checkbox.setAttribute('aria-label', this.checked ? 'Mark task incomplete' : 'Mark task complete')
+    checkbox.addEventListener('mousedown', event => {
+      event.preventDefault()
+      event.stopPropagation()
+    })
+    checkbox.addEventListener('change', () => {
+      const keyboardFocused = document.activeElement === checkbox
+      view.dispatch({ changes: { from: this.from, to: this.from + 1,
+        insert: checkbox.checked ? 'x' : ' ' }, userEvent: 'input' })
+      if (!keyboardFocused) view.focus()
+    })
+    wrapper.append(checkbox, document.createTextNode(" "))
+    return wrapper
+  }
+  updateDOM(wrapper) {
+    // Reuse the focused input when toggling; replacing it also loses Tab order.
+    if (Number(wrapper.dataset.sourceFrom) !== this.from) return false
+    const checkbox = wrapper.querySelector('input')
+    checkbox.checked = this.checked
+    checkbox.setAttribute('aria-label', this.checked ? 'Mark task incomplete' : 'Mark task complete')
+    return true
+  }
+  ignoreEvent() { return true }
+}
+
+// CodeMirror's default second-item behavior creates a loose list. An empty
+// task should instead leave the list on the second Enter, like other editors.
+const continueTightTaskList = insertNewlineContinueMarkupCommand({ nonTightLists: false })
+function continueTaskList(view) {
+  if (!view.state.selection.ranges.every(range => range.empty
+      && /^[ \t]*(?:>[ \t]*)*[-+*][ \t]+\[[ xX]\](?:[ \t]|$)/.test(
+        view.state.doc.lineAt(range.head).text))) return false
+  return continueTightTaskList({
+    state: view.state,
+    dispatch: transaction => {
+      // A blank separator prevents the next paragraph from becoming a lazy
+      // continuation of the task above it in Markdown.
+      const state = transaction.state
+      const changes = state.changeByRange(range => {
+        const line = state.doc.lineAt(range.head)
+        if (range.empty && line.text === '' && line.number > 1
+            && state.doc.line(line.number - 1).text.trim() !== '') {
+          return { changes: { from: range.head, insert: state.lineBreak },
+            range: EditorSelection.cursor(range.head + state.lineBreak.length) }
+        }
+        return { range }
+      })
+      view.dispatch([transaction, state.update(changes, { userEvent: 'input', scrollIntoView: true })])
+    },
+  })
+}
+
 const hide = Decoration.replace({})
 const bulletDeco = Decoration.replace({ widget: new TextWidget("•", "cm-md-bullet") })
 const activeBulletDeco = Decoration.mark({ class: "cm-md-bullet-source" })
@@ -1062,9 +1399,33 @@ const quoteLine = (depth, starts, ends, gap) => {
 // hanging indent, and the source indentation is hidden like a nested
 // marker's.
 const listContinuationLine = Decoration.line({ class: "cm-md-list-continuation" })
+const taskLine = Decoration.line({ class: "cm-md-task-line" })
+const completedTaskLine = Decoration.line({ class: "cm-md-task-completed" })
 const codeLine = Decoration.line({ class: "cm-md-codeblock" })
 const codeLineFirst = Decoration.line({ class: "cm-md-codeblock cm-md-codeblock-first" })
 const codeLineLast = Decoration.line({ class: "cm-md-codeblock cm-md-codeblock-last" })
+const codeScrollText = Decoration.mark({ class: "cm-md-code-scroll-text" })
+
+// One native scrollport per code block keeps momentum, text, and selection
+// together without mirroring horizontal offsets between editable lines.
+function codeBlockWrappers(decorations, state) {
+  const groups = new Map()
+  for (let cursor = decorations.iter(); cursor.value; cursor.next()) {
+    const attrs = cursor.value.spec.attributes
+    const group = attrs?.['data-code-scroll-group']
+    if (group == null) continue
+    const line = state.doc.lineAt(cursor.from)
+    const end = Math.min(state.doc.length, Math.max(line.to, line.from + 1))
+    const existing = groups.get(group)
+    if (existing) existing.to = end
+    else groups.set(group, { from: cursor.from, to: end,
+      wrapped: attrs.class === 'cm-md-code-wrapped' })
+  }
+  return BlockWrapper.set([...groups.values()].map(({ from, to, wrapped }) =>
+    BlockWrapper.create({ tagName: 'div', attributes: {
+      class: `cm-md-code-card${wrapped ? ' cm-md-code-card-wrapped' : ''}`,
+    } }).range(from, to)), true)
+}
 const tableLine = Decoration.line({ class: "cm-md-table" })
 // Preview gives every list item after the first a 0.4em margin-top (and a
 // nested list the same via li > ul). Mirror it on the item's first line.
@@ -1089,6 +1450,8 @@ const listDepthLine = (depth) => {
 const fenceMark = Decoration.mark({ class: "cm-md-fence-info" })
 const hiddenCodeFenceSource = Decoration.mark({ class: "cm-md-code-fence-source-hidden" })
 const hiddenHeadingSource = Decoration.mark({ class: "cm-md-heading-source-hidden" })
+const headingPrefix = Decoration.mark({ class: "cm-md-heading-prefix" })
+const headingMarker = Decoration.mark({ class: "cm-md-heading-marker" })
 const setextMarkerLine = Decoration.line({ class: "cm-md-setext-marker-line" })
 const setextSource = Decoration.mark({ class: "cm-md-setext-source" })
 const linkMark = Decoration.mark({ class: "cm-md-link" })
@@ -1138,7 +1501,13 @@ function fencedCodeDetails(state, node) {
   const sourceFrom = openingLine.to < state.doc.length ? openingLine.to + 1 : openingLine.to
   let sourceTo = node.to
   if (codeMarks.length > 1) sourceTo = state.doc.lineAt(codeMarks[codeMarks.length - 1].from).from
-  const source = state.doc.sliceString(sourceFrom, sourceTo).replace(/\n$/, "")
+  const prefix = state.sliceDoc(openingLine.from, node.from)
+  const indentation = /^ {0,3}$/.test(prefix) ? prefix.length : 0
+  const textNodes = node.node.getChildren('CodeText')
+  const source = textNodes.map((text, index) => {
+    const gap = index ? state.doc.lineAt(text.from).number - state.doc.lineAt(textNodes[index - 1].to).number : 0
+    return '\n'.repeat(gap) + state.sliceDoc(text.from, text.to)
+  }).join('').replace(new RegExp('^ {0,' + indentation + '}', 'gm'), '')
   const detectedLanguage = explicitLanguage ? "" : detectLanguage(source)
   const infoFrom = infoNode?.from ?? openingMark?.to ?? openingLine.to
   const infoTo = infoNode?.to ?? infoFrom
@@ -1172,6 +1541,92 @@ function fencedCodeAt(state, pos) {
   }
   return null
 }
+
+// Snapshot only the state that controls source visibility during a gesture.
+const setPointerPreview = StateEffect.define()
+const pointerPreview = StateField.define({
+  create: () => null,
+  update(value, tr) {
+    // Typing, paste, or an external document update ends the visual snapshot.
+    if (tr.docChanged) return null
+    for (const effect of tr.effects) {
+      if (effect.is(setPointerPreview)) return effect.value
+    }
+    if (value?.activateOnSelection && tr.isUserEvent('select.pointer')) {
+      return { selection: tr.state.selection.main, focused: true,
+        fence: tr.state.field(activeCodeBlock), activateOnSelection: false }
+    }
+    return value
+  },
+})
+
+// Capture before CodeMirror focuses the editor or changes its selection.
+// Keep source-reveal decisions stable, not the entire decoration set: viewport
+// changes during auto-scroll must still render newly visible content.
+const stablePointerPreview = ViewPlugin.fromClass(class {
+  constructor(view) {
+    this.view = view
+    this.releaseTimer = null
+    this.down = (event) => {
+      if (event.button !== 0 || event.target.closest('input, textarea, button, select, .cm-md-table-cell')) return
+      clearTimeout(this.releaseTimer)
+      if (view.state.field(pointerPreview)) return
+      view.dispatch({ effects: setPointerPreview.of({
+        selection: view.state.selection.main,
+        focused: view.hasFocus,
+        fence: view.state.field(activeCodeBlock),
+        activateOnSelection: event.detail === 1 && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey,
+      }) })
+    }
+    this.finish = () => {
+      if (!view.state.field(pointerPreview)) return
+      clearTimeout(this.releaseTimer)
+      // CodeMirror's document mouseup listener must finish selecting first.
+      this.releaseTimer = setTimeout(() => this.release(), 0)
+    }
+    this.release = () => {
+      clearTimeout(this.releaseTimer)
+      if (view.state.field(pointerPreview)) {
+        view.dispatch({ effects: setPointerPreview.of(null) })
+      }
+    }
+    this.move = (event) => { if (event.buttons === 0) this.finish() }
+    view.contentDOM.addEventListener('mousedown', this.down, true)
+    view.contentDOM.addEventListener('keydown', this.release, true)
+    view.dom.ownerDocument.addEventListener('mouseup', this.finish)
+    view.dom.ownerDocument.addEventListener('mousemove', this.move)
+    view.dom.ownerDocument.addEventListener('dragend', this.finish)
+    view.win.addEventListener('blur', this.finish)
+  }
+  destroy() {
+    clearTimeout(this.releaseTimer)
+    const view = this.view
+    view.contentDOM.removeEventListener('mousedown', this.down, true)
+    view.contentDOM.removeEventListener('keydown', this.release, true)
+    view.dom.ownerDocument.removeEventListener('mouseup', this.finish)
+    view.dom.ownerDocument.removeEventListener('mousemove', this.move)
+    view.dom.ownerDocument.removeEventListener('dragend', this.finish)
+    view.win.removeEventListener('blur', this.finish)
+  }
+})
+
+// Capture the source position before the first selection reveals syntax.
+// Reusing the same screen coordinates after that reveal would hit a different
+// character. Only real dragging should start hit-testing the new layout.
+const anchoredPointerSelection = EditorView.mouseSelectionStyle.of((view, event) => {
+  if (event.button !== 0 || event.detail !== 1 || event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) return null
+  let anchor = view.posAtCoords({ x: event.clientX, y: event.clientY })
+  if (anchor == null) return null
+  let dragged = false
+  return {
+    update(update) { anchor = update.changes.mapPos(anchor) },
+    get(current) {
+      dragged ||= Math.hypot(current.clientX - event.clientX, current.clientY - event.clientY) > 3
+      const head = dragged ? view.posAtCoords({ x: current.clientX, y: current.clientY }, false) ?? anchor : anchor
+      return EditorSelection.single(anchor, head)
+    },
+  }
+})
 
 // A cursor exists at offset zero as soon as CodeMirror is created. Do not let
 // that implicit cursor put a leading code block into source mode. A fenced
@@ -1232,6 +1687,12 @@ function buildMermaidPreviews(state) {
 const mermaidPreviews = StateField.define({
   create: (state) => buildMermaidPreviews(state),
   update: (value, tr) => {
+    if (tr.state.field(pointerPreview)) {
+      if (tr.startState.field(pointerPreview)?.activateOnSelection
+          && !tr.state.field(pointerPreview).activateOnSelection) return buildMermaidPreviews(tr.state)
+      return value
+    }
+    if (tr.startState.field(pointerPreview)) return buildMermaidPreviews(tr.state)
     const previousActive = tr.startState.field(activeCodeBlock)
     const nextActive = tr.state.field(activeCodeBlock)
     const activeChanged = previousActive?.from !== nextActive?.from
@@ -1254,6 +1715,415 @@ const mermaidPreviews = StateField.define({
   },
   provide: (field) => EditorView.decorations.from(field),
 })
+
+// ---------------------------------------------------------------------------
+// Editor extensions
+//
+// Optional editor behaviour that pairs with a render extension of the same id
+// (see MarkdownRenderExtension.editor on the Swift side). Each module lives in
+// its own compartment so the host can switch it on and off in one transaction
+// without recreating the editor, losing the selection or clearing undo history.
+// Core editing (history, keymaps, live preview) is deliberately not a module.
+// ---------------------------------------------------------------------------
+
+const editorModules = new Map()
+
+// `precedence` wraps the module's extensions so behaviour never depends on
+// registration order: "lowest" | "default" | "highest".
+function registerEditorExtension({ id, extensions, precedence = "default" }) {
+  if (editorModules.has(id)) throw new Error(`Editor extension "${id}" registered twice`)
+  editorModules.set(id, { id, extensions, precedence })
+}
+
+function editorModuleExtensions(module, options, host) {
+  const extensions = module.extensions(options || {}, host || {})
+  switch (module.precedence) {
+    case "lowest": return Prec.lowest(extensions)
+    case "highest": return Prec.highest(extensions)
+    default: return extensions
+  }
+}
+
+// A module the host says nothing about stays on, so headless hosts that pass
+// no state keep the full editor.
+const editorModuleEnabled = (state, id) => !state || state[id] !== false
+
+registerEditorExtension({ id: "mermaid", extensions: () => [mermaidPreviews] })
+
+// Heading lines already carry cm-md-h1..h6; the host stylesheet colors them
+// only under this class, so toggling the module is a single attribute change.
+registerEditorExtension({
+  id: "colorful-headings",
+  extensions: () => [EditorView.editorAttributes.of({ class: "cm-colorful-headings" })],
+})
+
+// Slash commands: typing `/` at the start of a line or after a space opens a
+// menu of blocks; picking one converts that line. Labels come from the host
+// (`options["cmd.<id>"]`, `options["group.<id>"]`) so they follow the app
+// language, with English as the fallback.
+const SLASH_GROUPS = [
+  { id: "text", label: "Text" },
+  { id: "lists", label: "Lists" },
+  { id: "blocks", label: "Blocks" },
+]
+
+// An existing block marker on the converted line is replaced, not stacked.
+const SLASH_BLOCK_PREFIX = /^(?:#{1,6}[ \t]+|>[ \t]?(?:\[![A-Za-z]+\][ \t]*)?|[-*+][ \t]+(?:\[[ xX]\][ \t]+)?|\d{1,9}[.)][ \t]+)/
+
+function slashLine(prefix, raw) {
+  const text = prefix + raw.replace(SLASH_BLOCK_PREFIX, "")
+  return { lines: [text], caret: { line: 0, ch: text.length } }
+}
+
+function slashFence(open, close, raw, fallback) {
+  const body = raw ? [raw] : fallback
+  return { lines: [open, ...body, close], caret: { line: body.length, ch: body[body.length - 1].length } }
+}
+
+function slashCallout(kind, raw) {
+  const text = "> " + raw.replace(SLASH_BLOCK_PREFIX, "")
+  return { lines: [`> [!${kind}]`, text], caret: { line: 1, ch: text.length } }
+}
+
+// Line icons for the menu rows, drawn on a 20x20 grid in the text color.
+const SLASH_ICON_TEXT = (value) =>
+  `<text x="10" y="14.2" text-anchor="middle" font-size="11.5" font-weight="700" fill="currentColor" stroke="none" font-family="-apple-system, system-ui, sans-serif">${value}</text>`
+const SLASH_ICONS = {
+  h1: SLASH_ICON_TEXT("H1"),
+  h2: SLASH_ICON_TEXT("H2"),
+  h3: SLASH_ICON_TEXT("H3"),
+  quote: '<path d="M5 4.5v11M9 6.5h6.5M9 10h6.5M9 13.5h4"/>',
+  divider: '<path d="M3.5 10h13"/>',
+  bullet: '<path d="M8.5 6h8M8.5 10h8M8.5 14h8"/><circle cx="4.7" cy="6" r=".9" fill="currentColor" stroke="none"/><circle cx="4.7" cy="10" r=".9" fill="currentColor" stroke="none"/><circle cx="4.7" cy="14" r=".9" fill="currentColor" stroke="none"/>',
+  ordered: '<path d="M9 6h7.5M9 10h7.5M9 14h7.5"/><text x="3" y="7.6" font-size="5.6" font-weight="700" fill="currentColor" stroke="none" font-family="-apple-system, system-ui, sans-serif">1</text><text x="3" y="11.6" font-size="5.6" font-weight="700" fill="currentColor" stroke="none" font-family="-apple-system, system-ui, sans-serif">2</text><text x="3" y="15.6" font-size="5.6" font-weight="700" fill="currentColor" stroke="none" font-family="-apple-system, system-ui, sans-serif">3</text>',
+  task: '<rect x="3.5" y="4" width="5" height="5" rx="1.2"/><path d="M4.8 6.6l1.1 1.1 1.8-2.1M11.5 6.5h5M11.5 14h5"/><rect x="3.5" y="11" width="5" height="5" rx="1.2"/>',
+  code: '<path d="M7.5 6.5L4 10l3.5 3.5M12.5 6.5L16 10l-3.5 3.5"/>',
+  table: '<rect x="3.5" y="4.5" width="13" height="11" rx="2"/><path d="M3.5 9h13M9 9v6.5"/>',
+  image: '<rect x="3.5" y="4.5" width="13" height="11" rx="2"/><circle cx="7.6" cy="8.6" r="1.3"/><path d="M4 14.2l4-3.4 3 2.4 2.2-2 3.3 3"/>',
+  mermaid: '<rect x="3" y="3.5" width="6" height="4" rx="1"/><rect x="11" y="12.5" width="6" height="4" rx="1"/><path d="M6 7.5v3a2 2 0 002 2h3"/>',
+  math: '<path d="M14.5 5h-9l4 5-4 5h9"/>',
+  note: '<circle cx="10" cy="10" r="6.5"/><path d="M10 9.3v4M10 6.8v.1"/>',
+  tip: '<path d="M7.8 13.6h4.4M8.3 16h3.4M10 3.5a4.5 4.5 0 00-2.5 8.2v1.9h5v-1.9A4.5 4.5 0 0010 3.5z"/>',
+  important: '<circle cx="10" cy="10" r="6.5"/><path d="M10 6.6v4.2M10 13.2v.1"/>',
+  warning: '<path d="M10 3.8L17 16H3z"/><path d="M10 8.6v3.2M10 13.8v.1"/>',
+  caution: '<path d="M7 3.5h6l3.5 3.5v6L13 16.5H7L3.5 13V7z"/><path d="M10 7v3.5M10 12.8v.1"/>',
+}
+
+// A command with `host` has no template: it asks the host to do something the
+// page cannot (here, open a file picker) and the host inserts the result at
+// the position the `/query` was removed from. It is hidden when the page has
+// no matching callback.
+const SLASH_HOST_ACTIONS = {
+  pickImage: {
+    available: (callbacks) => typeof callbacks.onPickImage === "function",
+    run: (callbacks, position) => callbacks.onPickImage(position, position),
+  },
+}
+
+// `convert(raw)` receives the rest of the line and returns the replacement
+// lines plus where the caret goes (`select` extends it over that many chars).
+const SLASH_COMMANDS = [
+  { id: "h1", group: "text", label: "Heading 1", aliases: ["h1", "heading", "title"],
+    convert: (raw) => slashLine("# ", raw) },
+  { id: "h2", group: "text", label: "Heading 2", aliases: ["h2", "heading", "subtitle"],
+    convert: (raw) => slashLine("## ", raw) },
+  { id: "h3", group: "text", label: "Heading 3", aliases: ["h3", "heading"],
+    convert: (raw) => slashLine("### ", raw) },
+  { id: "quote", group: "text", label: "Block Quote", aliases: ["quote", "blockquote"],
+    convert: (raw) => slashLine("> ", raw) },
+  { id: "divider", group: "text", label: "Divider", aliases: ["divider", "hr", "rule", "line", "separator"],
+    // A blank line keeps `text\n---` from becoming a setext heading.
+    convert: (raw) => raw
+      ? { lines: [raw, "", "---", ""], caret: { line: 3, ch: 0 } }
+      : { lines: ["---", ""], caret: { line: 1, ch: 0 } } },
+  { id: "bullet", group: "lists", label: "Bulleted List", aliases: ["bullet", "list", "ul", "unordered"],
+    convert: (raw) => slashLine("- ", raw) },
+  { id: "ordered", group: "lists", label: "Numbered List", aliases: ["number", "ordered", "list", "ol"],
+    convert: (raw) => slashLine("1. ", raw) },
+  { id: "task", group: "lists", label: "Checklist", aliases: ["task", "todo", "checkbox", "check", "list"],
+    convert: (raw) => slashLine("- [ ] ", raw) },
+  { id: "code", group: "blocks", label: "Code Block", aliases: ["code", "fence", "snippet"],
+    convert: (raw) => slashFence("```", "```", raw, [""]) },
+  { id: "table", group: "blocks", label: "Table", aliases: ["table", "grid"],
+    convert: (raw) => {
+      const lead = raw ? [raw, ""] : []
+      return {
+        lines: [...lead, "| Column 1 | Column 2 |", "| --- | --- |", "|  |  |"],
+        caret: { line: lead.length, ch: 2, select: 8 },
+      }
+    } },
+  { id: "image", group: "blocks", label: "Image", aliases: ["image", "picture", "photo", "img"],
+    host: "pickImage" },
+  { id: "mermaid", group: "blocks", label: "Mermaid diagram", aliases: ["mermaid", "diagram", "chart", "flowchart"],
+    convert: (raw) => slashFence("```mermaid", "```", raw, ["graph TD", "    A --> B"]) },
+  { id: "math", group: "blocks", label: "Math Block", aliases: ["math", "equation", "latex", "katex"],
+    convert: (raw) => slashFence("$$", "$$", raw, [""]) },
+  { id: "note", group: "blocks", label: "Note", aliases: ["note", "callout", "alert", "admonition"],
+    convert: (raw) => slashCallout("NOTE", raw) },
+  { id: "tip", group: "blocks", label: "Tip", aliases: ["tip", "callout", "alert", "admonition"],
+    convert: (raw) => slashCallout("TIP", raw) },
+  { id: "important", group: "blocks", label: "Important", aliases: ["important", "callout", "alert", "admonition"],
+    convert: (raw) => slashCallout("IMPORTANT", raw) },
+  { id: "warning", group: "blocks", label: "Warning", aliases: ["warning", "callout", "alert", "admonition"],
+    convert: (raw) => slashCallout("WARNING", raw) },
+  { id: "caution", group: "blocks", label: "Caution", aliases: ["caution", "danger", "callout", "alert", "admonition"],
+    convert: (raw) => slashCallout("CAUTION", raw) },
+]
+
+// `/` opens the menu at the start of a line or after a space or tab, so it
+// also works at the end of a line of text. A `/` glued to a word (`and/or`,
+// `1/2`, a path) never does, nor does one inside code, frontmatter, HTML,
+// tables, links or URLs, where it is literal text.
+const SLASH_TRIGGER = /(^|[ \t])\/([\w-]*)$/
+const SLASH_BLOCKED = /^(?:Frontmatter|FencedCode|CodeBlock|HTMLBlock|CommentBlock|Table|InlineCode|URL|Autolink|Link|Image)/
+
+function slashTrigger(state) {
+  const selection = state.selection.main
+  if (!selection.empty) return null
+  const line = state.doc.lineAt(selection.head)
+  const match = SLASH_TRIGGER.exec(state.doc.sliceString(line.from, selection.head))
+  if (!match) return null
+  for (let node = syntaxTree(state).resolveInner(selection.head, -1); node; node = node.parent) {
+    if (SLASH_BLOCKED.test(node.name)) return null
+  }
+  return {
+    from: selection.head - match[2].length - 1,
+    to: selection.head,
+    indent: /^[ \t]*/.exec(line.text)[0],
+    query: match[2],
+    lineFrom: line.from,
+  }
+}
+
+function slashMatches(commands, query) {
+  if (!query) return commands
+  const needle = query.toLowerCase()
+  const scored = []
+  commands.forEach((command, order) => {
+    let score = 0
+    for (const name of command.names) {
+      if (name === needle) score = Math.max(score, 3)
+      else if (name.startsWith(needle)) score = Math.max(score, 2)
+      else if (name.split(/[\s-]+/).some((word) => word.startsWith(needle))) score = Math.max(score, 1)
+    }
+    if (score) scored.push({ command, score, order })
+  })
+  return scored.sort((a, b) => b.score - a.score || a.order - b.order).map((entry) => entry.command)
+}
+
+function applySlashCommand(view, trigger, command, host) {
+  if (command.host) {
+    // Drop the typed `/query`, keep the rest of the line, then hand over.
+    view.dispatch({
+      changes: { from: trigger.from, to: trigger.to, insert: "" },
+      selection: EditorSelection.cursor(trigger.from),
+      userEvent: "slash.apply",
+    })
+    SLASH_HOST_ACTIONS[command.host].run(host.callbacks, trigger.from)
+    return
+  }
+  const line = view.state.doc.lineAt(trigger.from)
+  // Text on both sides of the typed `/query` becomes the block's content.
+  const before = view.state.doc.sliceString(line.from, trigger.from).trim()
+  const after = view.state.doc.sliceString(trigger.to, line.to).trim()
+  const raw = [before, after].filter(Boolean).join(" ")
+  const { lines, caret } = command.convert(raw)
+  const indented = lines.map((text) => trigger.indent + text)
+  let position = line.from
+  for (let i = 0; i < caret.line; i++) position += indented[i].length + 1
+  position += trigger.indent.length + caret.ch
+  view.dispatch({
+    changes: { from: line.from, to: line.to, insert: indented.join("\n") },
+    selection: caret.select
+      ? EditorSelection.range(position, position + caret.select)
+      : EditorSelection.cursor(position),
+    userEvent: "slash.apply",
+    scrollIntoView: true,
+  })
+}
+
+function slashExtensions(options, host) {
+  const commands = SLASH_COMMANDS.filter(
+    (command) => !command.host || SLASH_HOST_ACTIONS[command.host].available(host.callbacks)
+  ).map((command) => {
+    const label = options[`cmd.${command.id}`] || command.label
+    return {
+      ...command,
+      label,
+      // The English name and aliases stay searchable in any language.
+      names: [label.toLowerCase(), command.label.toLowerCase(), ...command.aliases],
+    }
+  })
+  const groupLabel = (id) => options[`group.${id}`] || SLASH_GROUPS.find((group) => group.id === id).label
+
+  const move = StateEffect.define()
+  const pick = StateEffect.define()
+  const dismiss = StateEffect.define()
+
+  const field = StateField.define({
+    create: () => null,
+    update(value, tr) {
+      const trigger = slashTrigger(tr.state)
+      if (!trigger) return null
+      // Open only from typing or deleting; a loaded document never pops it up.
+      if (!value && !(tr.docChanged && (tr.isUserEvent("input") || tr.isUserEvent("delete")))) return null
+      const items = slashMatches(commands, trigger.query)
+      if (!items.length) return null
+      const sameLine = value && tr.changes.mapPos(value.lineFrom, -1) === trigger.lineFrom
+      let index = sameLine && value.query === trigger.query ? Math.min(value.index, items.length - 1) : 0
+      let dismissed = !!(sameLine && value.dismissed)
+      for (const effect of tr.effects) {
+        if (effect.is(move)) index = (index + effect.value + items.length) % items.length
+        else if (effect.is(pick)) index = Math.max(0, Math.min(effect.value, items.length - 1))
+        else if (effect.is(dismiss)) dismissed = true
+      }
+      return { ...trigger, items, index, dismissed }
+    },
+  })
+
+  const active = (view) => {
+    if (view.composing) return null
+    const state = view.state.field(field, false)
+    return state && !state.dismissed ? state : null
+  }
+  const accept = (view) => {
+    const state = active(view)
+    if (!state) return false
+    applySlashCommand(view, state, state.items[state.index], host)
+    return true
+  }
+  const step = (delta) => (view) => {
+    if (!active(view)) return false
+    view.dispatch({ effects: move.of(delta) })
+    return true
+  }
+
+  const menu = ViewPlugin.fromClass(class {
+    constructor(view) {
+      this.view = view
+      this.query = null
+      const doc = view.dom.ownerDocument
+      this.dom = doc.createElement("div")
+      this.dom.className = "cm-md-slash-menu"
+      this.dom.setAttribute("role", "listbox")
+      this.dom.hidden = true
+      // Keep focus in the editor: a click must never blur it.
+      this.dom.addEventListener("mousedown", (event) => {
+        event.preventDefault()
+        const row = event.target.closest && event.target.closest("[data-slash-index]")
+        const state = active(this.view)
+        if (row && state) applySlashCommand(this.view, state, state.items[Number(row.dataset.slashIndex)], host)
+      })
+      this.dom.addEventListener("mousemove", (event) => {
+        const row = event.target.closest && event.target.closest("[data-slash-index]")
+        const state = active(this.view)
+        const index = row ? Number(row.dataset.slashIndex) : -1
+        if (state && index >= 0 && index !== state.index) this.view.dispatch({ effects: pick.of(index) })
+      })
+      doc.body.appendChild(this.dom)
+      this.sync()
+    }
+
+    update() { this.sync() }
+
+    sync() {
+      const state = active(this.view)
+      if (!state) {
+        this.dom.hidden = true
+        this.query = null
+        return
+      }
+      if (this.query !== state.query || this.dom.hidden) this.rebuild(state)
+      this.query = state.query
+      let selected = null
+      for (const row of this.dom.querySelectorAll("[data-slash-index]")) {
+        const isSelected = Number(row.dataset.slashIndex) === state.index
+        row.classList.toggle("cm-md-slash-selected", isSelected)
+        row.setAttribute("aria-selected", String(isSelected))
+        if (isSelected) selected = row
+      }
+      this.dom.hidden = false
+      if (selected) {
+        if (selected.offsetTop < this.dom.scrollTop) this.dom.scrollTop = selected.offsetTop
+        else if (selected.offsetTop + selected.offsetHeight > this.dom.scrollTop + this.dom.clientHeight) {
+          this.dom.scrollTop = selected.offsetTop + selected.offsetHeight - this.dom.clientHeight
+        }
+      }
+      this.view.requestMeasure({
+        key: this,
+        read: (view) => {
+          try { return view.coordsAtPos(state.to) } catch (_) { return null }
+        },
+        write: (coords) => this.place(coords),
+      })
+    }
+
+    rebuild(state) {
+      const doc = this.dom.ownerDocument
+      const make = (tag, className, text) => {
+        const element = doc.createElement(tag)
+        element.className = className
+        if (text !== undefined) element.textContent = text
+        return element
+      }
+      this.dom.textContent = ""
+      let group = null
+      state.items.forEach((command, index) => {
+        if (!state.query && command.group !== group) {
+          group = command.group
+          this.dom.appendChild(make("div", "cm-md-slash-group", groupLabel(group)))
+        }
+        const row = make("div", "cm-md-slash-item")
+        row.setAttribute("role", "option")
+        row.dataset.slashIndex = String(index)
+        const icon = make("span", "cm-md-slash-icon")
+        icon.innerHTML = `<svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SLASH_ICONS[command.id] || ""}</svg>`
+        row.appendChild(icon)
+        row.appendChild(make("span", "cm-md-slash-label", command.label))
+        this.dom.appendChild(row)
+      })
+      this.dom.scrollTop = 0
+    }
+
+    place(coords) {
+      if (!coords || this.dom.hidden) return
+      const win = this.dom.ownerDocument.defaultView
+      const width = this.dom.offsetWidth
+      const height = this.dom.offsetHeight
+      const below = win.innerHeight - coords.bottom
+      const flip = height > below - 8 && coords.top > below
+      const top = flip ? Math.max(8, coords.top - height - 4) : coords.bottom + 4
+      const left = Math.max(8, Math.min(coords.left, win.innerWidth - width - 8))
+      this.dom.style.top = `${top}px`
+      this.dom.style.left = `${left}px`
+    }
+
+    destroy() { this.dom.remove() }
+  })
+
+  return [
+    field,
+    menu,
+    keymap.of([
+      { key: "ArrowDown", run: step(1) },
+      { key: "ArrowUp", run: step(-1) },
+      { key: "Enter", run: accept },
+      { key: "Tab", run: accept },
+      { key: "Escape", run: (view) => {
+        if (!active(view)) return false
+        view.dispatch({ effects: dismiss.of(null) })
+        return true
+      } },
+    ]),
+    EditorView.domEventHandlers({
+      blur(_event, view) {
+        if (active(view)) view.dispatch({ effects: dismiss.of(null) })
+      },
+    }),
+  ]
+}
+
+registerEditorExtension({ id: "slash-commands", precedence: "highest", extensions: slashExtensions })
 
 function detectedCodeHighlights(details, cache) {
   const cached = cache.get(details.sourceFrom)
@@ -1283,23 +2153,33 @@ function detectedCodeHighlights(details, cache) {
 function buildDecorations(view, detectedCodeCache) {
   const ranges = []
   const { state } = view
-  const sel = state.selection.main
-  const activeFence = state.field(activeCodeBlock)
+  const pointer = state.field(pointerPreview)
+  const sel = pointer?.selection ?? state.selection.main
+  const activeFence = pointer ? pointer.fence : state.field(activeCodeBlock)
+  const focused = pointer ? pointer.focused : view.hasFocus
 
   // CodeMirror always owns a selection at offset zero, even before the user
   // clicks the editor. Only reveal source syntax when the editor truly has
   // keyboard focus; otherwise the first block looks spuriously active.
-  // A range selection is an operation on rendered content, not a request to
-  // reveal every Markdown marker it spans. Only a caret activates source
-  // syntax; this keeps Cmd-A and long drag selections in live-preview form.
+  // Keep source syntax visible for an insertion caret and while an IME
+  // composition owns a non-empty selection. Ordinary range selections stay
+  // in live-preview form, so Cmd-A and drag selections do not reveal every
+  // Markdown marker they span.
+  const sourceCaret = focused && (sel.empty || view.compositionStarted)
+    ? sel.head
+    : null
   const touches = (from, to) => currentFindTouches(state, from, to)
-    || (view.hasFocus && sel.empty && sel.head >= from && sel.head <= to)
+    || (sourceCaret != null && sourceCaret >= from && sourceCaret <= to)
   const touchesLineOf = (pos) => {
     const line = state.doc.lineAt(pos)
     return touches(line.from, line.to)
   }
   const isActiveFence = (node) => currentFindTouches(state, node.from, node.to)
     || (activeFence != null && node.from <= activeFence.from && node.to >= activeFence.to)
+  // Auto-closing brackets can form a valid task before the user types `]`.
+  // Keep its source editable until the caret has left the brackets.
+  const editingTaskMarker = (bracket) => sourceCaret != null
+    && sourceCaret > bracket && sourceCaret < bracket + 3
   const decoratedLines = new Set()
   const listDepthPositions = new Set()
   const lineOnce = (pos, deco) => {
@@ -1352,7 +2232,15 @@ function buildDecorations(view, detectedCodeCache) {
 
     const isTask = /^[-+*]$/.test(marker)
       && /^\s*\[[ xX]\](\s|$)/.test(line.text.slice(markerTo - line.from))
-    if (/^[-+*]$/.test(marker) && !isTask) {
+    if (isTask) {
+      const task = line.text.slice(markerTo - line.from).match(/^[ \t]*\[([ xX])\][ \t]?/)
+      const bracket = markerTo + task[0].indexOf('[')
+      if (editingTaskMarker(bracket)) return
+      lineOnce(line.from, taskLine)
+      if (task[1] !== ' ') lineOnce(line.from, completedTaskLine)
+      ranges.push(Decoration.replace({ widget: new TaskCheckboxWidget(bracket + 1, task[1] !== ' ') })
+        .range(markerFrom, markerTo + task[0].length))
+    } else if (/^[-+*]$/.test(marker)) {
       if (touchesLineOf(markerFrom)) {
         ranges.push(activeBulletDeco.range(markerFrom, markerTo))
         if (separator.length > 0) {
@@ -1491,13 +2379,21 @@ function buildDecorations(view, detectedCodeCache) {
         if (name === "HeaderMark") {
           const parent = node.node.parent
           if (parent && /^ATXHeading/.test(parent.name)) {
+            ranges.push(headingMarker.range(node.from, node.to))
             const after = state.doc.sliceString(node.to, node.to + 1)
             const markTo = node.to + (after === " " ? 1 : 0)
+            const opening = node.from === parent.from
+            const line = state.doc.lineAt(node.from)
+            // ATX nodes start at '#', excluding up to three valid leading
+            // spaces. Include that indentation in the measured prefix, but
+            // never consume a surrounding list or blockquote marker.
+            const prefixFrom = opening && /^ {0,3}$/.test(state.doc.sliceString(line.from, node.from))
+              ? line.from : node.from
+            if (opening) ranges.push(headingPrefix.range(prefixFrom, markTo))
             if (!touchesLineOf(node.from)) {
-              // Keep the source prefix in layout while hiding it. Its exact
-              // width is therefore already reserved before the line becomes
-              // active, so revealing it cannot alter wrapping or height.
-              ranges.push(hiddenHeadingSource.range(node.from, markTo))
+              // Keep the hidden source prefix measurable for alignment.
+              // Pointer selection keeps its source anchor across activation.
+              ranges.push(hiddenHeadingSource.range(prefixFrom, markTo))
             }
           } else if (parent && /^SetextHeading/.test(parent.name)) {
             lineOnce(node.from, setextMarkerLine)
@@ -1713,15 +2609,32 @@ function buildDecorations(view, detectedCodeCache) {
           // list starts at its first item, so "first" is a position check.
           const isFirstItem = node.from === listStack[listStack.length - 1]
           const isNested = listStack.length > 1
-          if (!isFirstItem) {
-            let number = state.doc.lineAt(node.from).number - 1
+          // Keep the separator while editing any line of an item so moving
+          // to a continuation cannot pull the caret upward. Inactive loose lists use
+          // the same compact item spacing as Read Mode.
+          const itemLine = state.doc.lineAt(node.from)
+          const preserveBlankBefore = touches(itemLine.from, node.to) && itemLine.number > 1
+            && state.doc.line(itemLine.number - 1).text.trim() === ""
+          if (!isFirstItem && !preserveBlankBefore) {
+            let number = itemLine.number - 1
             while (number > 0 && state.doc.line(number).text.trim() === "") {
               lineOnce(state.doc.line(number).from, blockSeparatorLine(0))
               number--
             }
           }
-          if (!isFirstItem || isNested) lineOnce(node.from, listItemGapLine)
+          if ((!isFirstItem || isNested) && !preserveBlankBefore) lineOnce(node.from, listItemGapLine)
           eachLine(node.from, node.to, listItemLine)
+          if (/^[ \t]*[-+*][ \t]+\[[xX]\](?:[ \t]|$)/.test(state.doc.sliceString(node.from, itemLine.to))) {
+            // Nested lists own their completion state. Keep the parent's
+            // continuation paragraphs styled, including those after a sublist.
+            let from = node.from
+            for (let child = node.node.firstChild; child; child = child.nextSibling) {
+              if (child.name !== "BulletList" && child.name !== "OrderedList") continue
+              eachLine(from, state.doc.lineAt(child.from).from - 1, completedTaskLine)
+              from = state.doc.lineAt(child.to).to + 1
+            }
+            eachLine(from, node.to, completedTaskLine)
+          }
           lineOnce(node.from, listDepthLine(listStack.length))
           listDepthPositions.add(state.doc.lineAt(node.from).from)
           // Continuation lines of this item (not nested markers, not blank)
@@ -1756,10 +2669,15 @@ function buildDecorations(view, detectedCodeCache) {
         if (name === "ListMark") {
           const mark = state.doc.sliceString(node.from, node.to)
           const line = state.doc.lineAt(node.from)
-          // Task items (`- [ ]`) keep their literal marker; turning the dash
-          // into a bullet dot leaves a confusing "• [ ]" hybrid.
           const isTask = /^\s*\[[ xX]\](\s|$)/.test(line.text.slice(node.to - line.from))
-          if ((mark === "-" || mark === "*" || mark === "+") && !isTask) {
+          if (isTask && /^[-+*]$/.test(mark)) {
+            const task = line.text.slice(node.to - line.from).match(/^[ \t]*\[([ xX])\][ \t]?/)
+            const bracket = node.to + task[0].indexOf('[')
+            if (editingTaskMarker(bracket)) return
+            lineOnce(line.from, taskLine)
+            ranges.push(Decoration.replace({ widget: new TaskCheckboxWidget(bracket + 1, task[1] !== ' ') })
+              .range(node.from, node.to + task[0].length))
+          } else if ((mark === "-" || mark === "*" || mark === "+") && !isTask) {
             // Both forms occupy the same fixed-width hanging box. Keep the
             // active dash editable, but hide its source separator so the dash
             // can sit at the rendered bullet position without moving text.
@@ -1816,6 +2734,7 @@ function buildDecorations(view, detectedCodeCache) {
             }
             ranges.push(Decoration.widget({
               widget: new CodeLanguageWidget({
+                wrapped: state.field(wrappedCodeBlocks).has(first.from),
                 fenceFrom: node.from,
                 language: details.language,
                 detectedLanguage: details.detectedLanguage,
@@ -1823,6 +2742,12 @@ function buildDecorations(view, detectedCodeCache) {
                 infoFrom: details.infoFrom,
                 infoTo: details.infoTo,
               }),
+              side: -1,
+            }).range(widgetLine.from))
+          } else {
+            ranges.push(Decoration.widget({
+              widget: new CodeLanguageWidget({ fenceFrom: first.from, language: 'text',
+                rawInfo: '', plain: true, wrapped: state.field(wrappedCodeBlocks).has(first.from) }),
               side: -1,
             }).range(widgetLine.from))
           }
@@ -1854,6 +2779,11 @@ function buildDecorations(view, detectedCodeCache) {
               if (isFirst) lineOnce(line.from, codeLineFirst)
               if (isLast) lineOnce(line.from, codeLineLast)
               if (!isFirst && !isLast) lineOnce(line.from, codeLine)
+              ranges.push(Decoration.line({ attributes: {
+                'data-code-scroll-group': String(first.from),
+                class: state.field(wrappedCodeBlocks).has(first.from) ? 'cm-md-code-wrapped' : '',
+              } }).range(line.from))
+              if (line.length) ranges.push(codeScrollText.range(line.from, line.to))
             }
             if (name === "CodeBlock" && !touchesLineOf(line.from)) {
               const indent = line.text.match(/^(?: {4}|\t)/)?.[0]
@@ -1920,27 +2850,49 @@ function buildDecorations(view, detectedCodeCache) {
   return Decoration.set(ranges, true)
 }
 
+function formattingState(state) {
+  const selection = state.selection.main
+  const commands = new Set()
+  let heading = 0
+  for (let node = syntaxTree(state).resolveInner(selection.from, 1); node; node = node.parent) {
+    if (node.to < selection.to) continue
+    const match = /^(?:ATX|Setext)Heading([1-6])$/.exec(node.name)
+    if (match) heading = Number(match[1])
+    const command = { StrongEmphasis: 'bold', Emphasis: 'italic',
+      Strikethrough: 'strikethrough', Highlight: 'highlight', Link: 'link', InlineCode: 'code',
+      BulletList: 'list', OrderedList: 'list', Blockquote: 'quote',
+      FencedCode: 'fenced', CodeBlock: 'plain', Table: 'table' }[node.name]
+    if (command) commands.add(command)
+  }
+  return { heading, commands: [...commands].sort() }
+}
+
 const livePreview = ViewPlugin.fromClass(class {
   constructor(view) {
     this.detectedCodeCache = new Map()
     this.decorations = buildDecorations(view, this.detectedCodeCache)
+    this.codeWrappers = codeBlockWrappers(this.decorations, view.state)
   }
   update(update) {
     if (update.docChanged) this.detectedCodeCache.clear()
     // Background parsing can finish without a document, selection, or viewport
     // change. Refresh widgets then too, or images can stay as source until input.
     if (update.docChanged || update.selectionSet || update.viewportChanged || update.focusChanged
+        || update.startState.field(pointerPreview) !== update.state.field(pointerPreview)
+        || update.startState.field(wrappedCodeBlocks) !== update.state.field(wrappedCodeBlocks)
         || syntaxTree(update.startState) !== syntaxTree(update.state)
         || update.startState.field(documentFind) !== update.state.field(documentFind)) {
       this.decorations = buildDecorations(update.view, this.detectedCodeCache)
+      this.codeWrappers = codeBlockWrappers(this.decorations, update.state)
     }
   }
-}, { decorations: (v) => v.decorations })
+}, {
+  decorations: (v) => v.decorations,
+  provide: plugin => EditorView.blockWrappers.of(view => view.plugin(plugin)?.codeWrappers ?? BlockWrapper.set([])),
+})
 
-// Inactive ATX markers keep their width in layout so line wrapping remains
-// stable. Measure that reserved width and translate the whole inactive line
-// left by the same amount. Activating the line removes only the transform,
-// producing the intended horizontal source reveal without changing height.
+// Align inactive headings with the document column. Active headings show
+// their source prefix inline, with pointer selection anchored in source space.
 const alignInactiveHeadings = ViewPlugin.fromClass(class {
   constructor(view) { this.schedule(view) }
 
@@ -1957,7 +2909,7 @@ const alignInactiveHeadings = ViewPlugin.fromClass(class {
     view.requestMeasure({
       key: this,
       read(view) {
-        return Array.from(view.dom.querySelectorAll(".cm-md-heading-source-hidden"))
+        return Array.from(view.dom.querySelectorAll(".cm-md-heading-prefix"))
           .map((marker) => {
             const line = marker.closest(".cm-line")
             return line ? { line, width: marker.getBoundingClientRect().width } : null
@@ -2033,13 +2985,18 @@ const paragraphReflow = StateField.define({
 
 const codeHighlight = HighlightStyle.define([
   { tag: [t.keyword, t.modifier, t.operatorKeyword, t.controlKeyword, t.definitionKeyword, t.moduleKeyword], class: "hl-keyword" },
-  { tag: [t.string, t.special(t.string), t.character], class: "hl-string" },
+  { tag: [t.string, t.special(t.string), t.regexp], class: "hl-string" },
   { tag: [t.comment, t.blockComment, t.lineComment], class: "hl-comment" },
-  { tag: [t.number, t.integer, t.float, t.bool, t.atom, t.null], class: "hl-number" },
-  { tag: [t.typeName, t.className, t.namespace], class: "hl-type" },
+  { tag: [t.number, t.integer, t.float, t.character], class: "hl-number" },
+  { tag: [t.bool, t.atom, t.null], class: "hl-keyword" },
+  { tag: [t.typeName, t.namespace], class: "hl-type" },
+  { tag: [t.className, t.definition(t.typeName)], class: "hl-declaration" },
   { tag: [t.function(t.variableName), t.function(t.propertyName), t.macroName], class: "hl-function" },
-  { tag: [t.propertyName, t.attributeName, t.labelName], class: "hl-property" },
-  { tag: [t.meta, t.processingInstruction, t.punctuation], class: "hl-meta" },
+  { tag: [t.propertyName, t.labelName], class: "hl-property" },
+  { tag: t.attributeName, class: "hl-attribute" },
+  { tag: [t.standard(t.variableName), t.standard(t.typeName)], class: "hl-builtin" },
+  { tag: [t.meta, t.processingInstruction], class: "hl-meta" },
+  { tag: [t.punctuation, t.operator], class: "hl-plain" },
 ])
 
 // ---------------------------------------------------------------------------
@@ -2147,6 +3104,47 @@ function orderedList(view) {
   return true
 }
 
+function selectedListLines(state) {
+  const selection = state.selection.main
+  const start = state.doc.lineAt(selection.from).number
+  const end = state.doc.lineAt(selection.empty ? selection.to : selection.to - 1).number
+  return Array.from({ length: end - start + 1 }, (_, index) => state.doc.line(start + index))
+}
+
+function listPrefix(text) {
+  const match = /^([ \t]*(?:>[ \t]*)*)(?:([-+*]|\d+[.)])([ \t]+)(\[[ xX]\][ \t]+)?)?/.exec(text)
+  return {
+    prefix: match[0], indent: match[1],
+    style: !match[2] ? 'none' : match[4] ? 'task' : /^\d/.test(match[2]) ? 'ordered' : 'bullet',
+  }
+}
+
+function enclosingNode(state, position, names) {
+  for (let node = syntaxTree(state).resolve(position, 1); node; node = node.parent) {
+    if (names.includes(node.name)) return node
+  }
+  return null
+}
+
+function editableListLines(state) {
+  return selectedListLines(state).filter(line =>
+    !/^[ \t>]*$/.test(line.text)
+    && !enclosingNode(state, line.from + line.text.search(/\S/), ['FencedCode', 'CodeBlock']))
+}
+
+function applyListStyle(view, style) {
+  if (!['none', 'bullet', 'ordered', 'task'].includes(style)) return false
+  const changes = editableListLines(view.state).map((line, index) => {
+    const current = listPrefix(line.text)
+    if (current.style === style) return null
+    const marker = style === 'none' ? '' : style === 'bullet' ? '- ' : style === 'task' ? '- [ ] ' : `${index + 1}. `
+    return { from: line.from, to: line.from + current.prefix.length, insert: current.indent + marker }
+  }).filter(Boolean)
+  if (changes.length) dispatchBlockChanges(view, changes)
+  view.focus()
+  return true
+}
+
 function setHeading(level) {
   return (view) => {
     const changes = eachSelectedLine(view.state, (lines) => lines.map((line) => {
@@ -2158,6 +3156,92 @@ function setHeading(level) {
     view.dispatch({ changes, userEvent: "input" })
     return true
   }
+}
+
+function stylingContext(state) {
+  const styles = { InlineCode: 'code', FencedCode: 'fenced', CodeBlock: 'plain', Blockquote: 'quote', Table: 'table' }
+  for (let node = syntaxTree(state).resolve(state.selection.main.head, state.selection.main.empty ? 1 : -1); node; node = node.parent) {
+    if (styles[node.name]) return { style: styles[node.name], node }
+  }
+  return { style: 'none', node: null }
+}
+
+function applyBlockStyle(view, style, language = '') {
+  if (!['none', 'quote', 'code', 'plain', 'fenced', 'table'].includes(style)) return false
+  const state = view.state, selection = state.selection.main
+  const context = stylingContext(state)
+  const containsSelection = context.node && selection.from >= context.node.from && selection.to <= context.node.to
+  if (style === 'code' && (!containsSelection || context.style === 'code')) {
+    if (context.style !== 'code') toggleInlineMark('`')(view)
+    view.focus()
+    return true
+  }
+  if (style === 'table') {
+    const fence = enclosingNode(state, selection.to, ['FencedCode'])
+    const end = fence ? fence.to : state.doc.lineAt(selection.to).to
+    const close = fence && fence.lastChild?.name !== 'CodeMark'
+      ? '\n' + state.sliceDoc(fence.firstChild.from, fence.firstChild.to) : ''
+    const insert = close + '\n\n| Column 1 | Column 2 |\n| --- | --- |\n|  |  |\n'
+    view.dispatch({ changes: { from: end, insert }, selection: { anchor: end + insert.length }, userEvent: 'input' })
+    view.focus()
+    return true
+  }
+  if (style === context.style && containsSelection && style !== 'fenced') return true
+  if (style === 'quote' && !containsSelection) {
+    const changes = selectedListLines(state).filter(line =>
+      !enclosingNode(state, line.from + Math.max(0, line.text.search(/\S/)), ['Blockquote']))
+      .map(line => ({ from: line.from, insert: '> ' }))
+    if (changes.length) dispatchBlockChanges(view, changes)
+    view.focus()
+    return true
+  }
+  const lines = selectedListLines(state)
+  let from = lines[0].from, to = lines[lines.length - 1].to
+  let source = state.sliceDoc(from, to)
+  const node = context.node
+  if (node && selection.from >= node.from && selection.to <= node.to
+      && (context.style !== 'code' || style === 'none')) {
+    from = context.style === 'code' ? node.from : state.doc.lineAt(node.from).from
+    to = node.to
+    source = state.sliceDoc(from, to)
+    if (context.style === 'fenced') {
+      const opening = state.doc.lineAt(node.from)
+      const last = state.doc.lineAt(node.to)
+      const closed = node.lastChild?.name === 'CodeMark'
+      source = state.sliceDoc(Math.min(opening.to + 1, node.to), closed ? last.from : node.to).replace(/\n$/, '')
+    } else if (context.style === 'plain') source = source.replace(/^(?: {4}|\t)/gm, '')
+    else if (context.style === 'quote') source = source.replace(/^ {0,3}> ?/gm, '')
+    else if (context.style === 'code') source = state.sliceDoc(node.firstChild.to, node.lastChild.from)
+    else if (context.style === 'table') {
+      const model = parseTableSource(source)
+      if (model) source = model.rows.map(row => row.join('\t')).join('\n')
+    }
+  }
+  let insert = source, caretOffset = 0
+  if (style === 'code') {
+    source = source.replace(/\n/g, ' ')
+    const fence = '`'.repeat(Math.max(1, ...(source.match(/`+/g) || []).map(run => run.length + 1)))
+    const pad = /^`|`$/.test(source) || (/^ .* $/.test(source) && /\S/.test(source)) ? ' ' : ''
+    insert = fence + pad + source + pad + fence
+    caretOffset = fence.length + pad.length
+  }
+  if (style === 'quote') { insert = source.split('\n').map(line => '> ' + line).join('\n'); caretOffset = 2 }
+  if (style === 'plain') { insert = source.split('\n').map(line => '    ' + line).join('\n'); caretOffset = 4 }
+  if (style === 'fenced') {
+    const runs = source.match(/`+/g) || []
+    const fence = '`'.repeat(Math.max(3, ...runs.map(run => run.length + 1)))
+    const info = String(language).replace(/[^\w+-]/g, '')
+    const opening = fence + info + '\n'
+    insert = opening + source + '\n' + fence
+    caretOffset = opening.length
+  }
+  if (style === 'plain' && from > 0 && state.doc.lineAt(from - 1).text.trim()) {
+    insert = '\n' + insert
+    caretOffset++
+  }
+  view.dispatch({ changes: { from, to, insert }, selection: { anchor: from + caretOffset }, userEvent: 'input' })
+  view.focus()
+  return true
 }
 
 function insertLink(view) {
@@ -2292,6 +3376,18 @@ window.MDEditor = {
     // Live preview spacing tokens from the host stylesheet (MarkdownHTML
     // constants) — see METRICS for the headless defaults.
     Object.assign(METRICS, (callbacks && callbacks.spacing) || {})
+    const moduleCompartments = new Map()
+    const moduleEnabled = new Map()
+    // Handed to every module: the callbacks the page gave this editor.
+    const moduleHost = { callbacks: callbacks || {} }
+    const moduleOptions = (id) => (callbacks && callbacks.extensionOptions && callbacks.extensionOptions[id]) || {}
+    for (const module of editorModules.values()) {
+      const enabled = editorModuleEnabled(callbacks && callbacks.extensionState, module.id)
+      moduleCompartments.set(module.id, new Compartment())
+      moduleEnabled.set(module.id, enabled)
+    }
+    const moduleExtensions = [...editorModules.values()].map((module) =>
+      moduleCompartments.get(module.id).of(moduleEnabled.get(module.id) ? editorModuleExtensions(module, moduleOptions(module.id), moduleHost) : []))
     const view = new EditorView({
       parent,
       state: EditorState.create({
@@ -2320,16 +3416,27 @@ window.MDEditor = {
             }),
           }),
           activeCodeBlock,
-          mermaidPreviews,
+          wrappedCodeBlocks,
+          pointerPreview,
+          stablePointerPreview,
+          anchoredPointerSelection,
+          ...moduleExtensions,
           tableEditors,
-          syntaxHighlighting(codeHighlight),
-          livePreview,
+          tableFormattingSelection,
+          // Markdown punctuation also carries processingInstruction tags.
+          // Keep code colors inside embedded languages, not Markdown markers.
+          syntaxHighlighting({
+            style: codeHighlight.style,
+            scope: (type) => type.prop(languageDataProp) !== markdownLanguage.data,
+          }),
+          Prec.lowest(livePreview),
           alignInactiveHeadings,
           autoCloseFence,
           closeBrackets(),
           // paragraphReflow deliberately omitted: the preview renders
           // single newlines as hard breaks, so the
           // editor keeps them visible instead of joining lines.
+          Prec.highest(keymap.of([{ key: "Enter", run: continueTaskList }])),
           keymap.of([
             { key: "Mod-b", run: toggleInlineMark("**") },
             { key: "Mod-i", run: toggleInlineMark("*") },
@@ -2341,6 +3448,11 @@ window.MDEditor = {
           ]),
           // Fires on every change; the host debounces for autosave.
           EditorView.updateListener.of((update) => {
+            if (callbacks?.onFormattingChange && (update.selectionSet || update.docChanged
+                || update.focusChanged || syntaxTree(update.startState) !== syntaxTree(update.state))) {
+              if (tableFormattingTargets.has(view)) captureTableSelection(view)
+              else callbacks.onFormattingChange(formattingState(update.state))
+            }
             if (update.docChanged && callbacks?.onSearchChange) {
               const search = update.state.field(documentFind)
               callbacks.onSearchChange({ index: search.index + 1, total: search.matches.length })
@@ -2373,26 +3485,12 @@ window.MDEditor = {
     const scrollEvents = pageScrolling ? window : scroller
     let preservedSourcePosition = null
     let preservedSourceGap = 0
-    let didUserScroll = false
-    let userScrollIntent = false
-    let lastScrollTop = scroller.scrollTop
-    const markScrollIntent = () => { userScrollIntent = true }
-    const markKeyboardScrollIntent = (event) => {
-      if (["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "].includes(event.key)) {
-        userScrollIntent = true
-      }
-    }
-    const observeScroll = () => {
-      const scrollTop = scroller.scrollTop
-      if (userScrollIntent && Math.abs(scrollTop - lastScrollTop) > 0.5) {
-        didUserScroll = true
-      }
-      lastScrollTop = scrollTop
-    }
-    scrollEvents.addEventListener("wheel", markScrollIntent, { passive: true })
-    scrollEvents.addEventListener("pointerdown", markScrollIntent, { passive: true })
-    scrollEvents.addEventListener("keydown", markKeyboardScrollIntent)
-    scrollEvents.addEventListener("scroll", observeScroll, { passive: true })
+    let preservedScrollTop = null
+    // CodeMirror block heights start at the first line, after content padding.
+    // Scroll offsets start at the scroll container's origin instead. Convert
+    // both ways so page padding is preserved during read/edit hand-offs.
+    const documentScrollOrigin = () => view.documentTop + scroller.scrollTop
+      - (pageScrolling ? 0 : scroller.getBoundingClientRect().top)
     const lineContentBlock = (position) => {
       const block = view.lineBlockAt(position)
       let paddingTop = 0
@@ -2413,6 +3511,8 @@ window.MDEditor = {
       return {
         top: block.top + paddingTop,
         height: Math.max(block.height - paddingTop - paddingBottom, 1),
+        sourceStart: view.state.doc.lineAt(block.from).number,
+        sourceEnd: view.state.doc.lineAt(block.to).number + 1,
       }
     }
     const commands = {
@@ -2425,14 +3525,83 @@ window.MDEditor = {
       h1: setHeading(1),
       h2: setHeading(2),
       h3: setHeading(3),
+      h4: setHeading(4),
+      h5: setHeading(5),
+      h6: setHeading(6),
       quote: toggleBlockPrefix("> ", /^>\s?/),
       bulletList: toggleBlockPrefix("- ", /^\s*[-*+]\s/),
       orderedList,
       taskList: toggleBlockPrefix("- [ ] ", /^\s*[-*+]\s+\[[ xX]\]\s/),
       link: insertLink,
     }
+    if (callbacks?.onCopyCode) codeCopyHandlers.set(view, callbacks.onCopyCode)
+    if (callbacks?.onFormattingChange) tableFormattingCallbacks.set(view, callbacks.onFormattingChange)
+    callbacks?.onFormattingChange?.(formattingState(view.state))
     return {
       getMarkdown: () => view.state.doc.toString(),
+      getBlockStyle: () => tableFormattingTargets.has(view) ? 'table' : stylingContext(view.state).style,
+      setBlockStyle: (style, language) => {
+        if (tableFormattingTargets.has(view)) {
+          if (style !== 'code') return false
+          const target = prepareTableFormatting(view)
+          if (!target) return false
+          toggleInlineMark('`')(view)
+          restoreTableFormatting(view, target)
+          return true
+        }
+        return applyBlockStyle(view, style, language)
+      },
+      getListStyle: () => {
+        if (tableFormattingTargets.has(view)) return 'none'
+        const styles = editableListLines(view.state).map(line => listPrefix(line.text).style)
+        if (!styles.length) return 'none'
+        return styles.every(style => style === styles[0]) ? styles[0] : 'mixed'
+      },
+      setListStyle: style => !tableFormattingTargets.has(view) && applyListStyle(view, style),
+      getLinkSelection: (expandLink = false) => {
+        if (tableFormattingTargets.has(view) && !prepareTableFormatting(view)) {
+          return null
+        }
+        const { from, to } = view.state.selection.main
+        const link = enclosingNode(view.state, from, ['Link'])
+        if (expandLink && link && to <= link.to) {
+          const marks = link.getChildren('LinkMark')
+          return { from: link.from, to: link.to,
+            text: view.state.sliceDoc(marks[0].to, marks[1].from) }
+        }
+        return { from, to, text: view.state.sliceDoc(from, to) }
+      },
+      insertLinkFromPopover: (text, url, from, to) => {
+        const destination = String(url).trim()
+        if (!destination || /[\r\n]/.test(destination)
+            || from < 0 || to < from || to > view.state.doc.length) return false
+        const link = enclosingNode(view.state, from, ['Link'])
+        if (link && (from > link.from || to < link.to)) return false
+        const endLink = to > from ? enclosingNode(view.state, to - 1, ['Link']) : null
+        if (endLink && (from > endLink.from || to < endLink.to)) return false
+        const label = (String(text) || destination).replace(/\\/g, '\\\\').replace(/([\[\]])/g, '\\$1').replace(/[\r\n]+/g, ' ')
+        const target = destination.replace(/[\s<>\\()]/g, character =>
+          /[()]/.test(character) ? '%' + character.charCodeAt(0).toString(16).toUpperCase() : encodeURIComponent(character))
+        const tableTarget = tableFormattingTargets.get(view)
+        if (tableTarget) {
+          const range = tableCellSourceRange(view, tableTarget)
+          if (!range || from < range.from || to > range.to) return false
+        }
+        const linkMarkdown = `[${label}](${target})`
+        const insert = tableTarget ? escapedTableCell(linkMarkdown) : linkMarkdown
+        view.dispatch({ changes: { from, to, insert }, selection: { anchor: from + insert.length }, userEvent: 'input' })
+        if (tableTarget) restoreTableFormatting(view, tableTarget)
+        else view.focus()
+        return true
+      },
+      getHeadingLevel: () => {
+        if (tableFormattingTargets.has(view)) return 0
+        for (let node = syntaxTree(view.state).resolveInner(view.state.selection.main.head, 1); node; node = node.parent) {
+          const heading = /^(?:ATX|Setext)Heading([1-6])$/.exec(node.name)
+          if (heading) return Number(heading[1])
+        }
+        return 0
+      },
       find: (query, backwards = false, beginsWith = false) => {
         const previous = view.state.field(documentFind)
         const same = previous.query === query && previous.beginsWith === beginsWith
@@ -2485,10 +3654,13 @@ window.MDEditor = {
       },
       focus: () => view.focus(),
       getScrollAnchor: () => {
-        if (!didUserScroll && Number.isFinite(preservedSourcePosition)) {
+        // Native WebKit/scrollbar scrolling need not deliver a DOM wheel or
+        // pointer event. Reuse the incoming anchor only at its actual offset.
+        if (Number.isFinite(preservedSourcePosition)
+            && Math.abs(scroller.scrollTop - preservedScrollTop) <= 0.5) {
           return { position: preservedSourcePosition, gap: preservedSourceGap || 0 }
         }
-        const viewportY = scroller.scrollTop
+        const viewportY = scroller.scrollTop - documentScrollOrigin()
         const visibleLine = view.lineBlockAtHeight(viewportY)
         const line = view.state.doc.lineAt(visibleLine.from)
         const sourceLineBlock = lineContentBlock(line.from)
@@ -2500,22 +3672,25 @@ window.MDEditor = {
         // express. Carry that remaining pixel gap so the other surface can
         // reproduce the exact viewport, not just the line.
         const gap = Math.max(sourceLineBlock.top - viewportY, 0)
-        return { position: line.number + progress, gap }
+        return {
+          position: sourceLineBlock.sourceStart
+            + progress * (sourceLineBlock.sourceEnd - sourceLineBlock.sourceStart),
+          gap,
+        }
       },
       setScrollPosition: (progress, sourcePosition, sourceGap) => new Promise((resolve) => {
         const maximum = Math.max(scroller.scrollHeight - scroller.clientHeight, 0)
         let target = maximum * Math.min(Math.max(Number(progress) || 0, 0), 1)
         let linePosition = null
-        let lineProgress = 0
         const gap = Number.isFinite(sourceGap) ? Math.max(sourceGap, 0) : 0
 
         if (Number.isFinite(sourcePosition) && sourcePosition >= 1) {
           const sourceLine = Math.min(Math.floor(sourcePosition), view.state.doc.lines)
-          lineProgress = Math.min(Math.max(sourcePosition - sourceLine, 0), 1)
           linePosition = view.state.doc.line(sourceLine).from
           if (linePosition != null) {
             const block = lineContentBlock(linePosition)
-            target = block.top + block.height * lineProgress - gap
+            const fraction = (sourcePosition - block.sourceStart) / (block.sourceEnd - block.sourceStart)
+            target = documentScrollOrigin() + block.top + block.height * fraction - gap
             // Let CodeMirror create the viewport around the target before
             // applying the precise within-block offset. Directly assigning a
             // distant scrollTop can briefly leave its virtualized DOM empty.
@@ -2529,7 +3704,8 @@ window.MDEditor = {
           const measuredMaximum = Math.max(scroller.scrollHeight - scroller.clientHeight, 0)
           if (linePosition != null) {
             const block = lineContentBlock(linePosition)
-            target = block.top + block.height * lineProgress - gap
+            const fraction = (sourcePosition - block.sourceStart) / (block.sourceEnd - block.sourceStart)
+            target = documentScrollOrigin() + block.top + block.height * fraction - gap
           } else {
             target = measuredMaximum * Math.min(Math.max(Number(progress) || 0, 0), 1)
           }
@@ -2539,19 +3715,17 @@ window.MDEditor = {
           requestAnimationFrame(() => {
             preservedSourcePosition = Number.isFinite(sourcePosition) ? sourcePosition : null
             preservedSourceGap = Number.isFinite(sourcePosition) ? gap : 0
-            didUserScroll = false
-            userScrollIntent = false
-            lastScrollTop = scroller.scrollTop
+            preservedScrollTop = scroller.scrollTop
             resolve(true)
           })
         })
       }),
       // Used by hosts that map an external pointer target into the source.
       // Mark it as a pointer selection so fenced blocks enter source mode.
-      select: (anchor, head = anchor) => view.dispatch({
-        selection: { anchor, head },
-        userEvent: "select.pointer",
-      }),
+      select: (anchor, head = anchor) => {
+        tableFormattingTargets.delete(view)
+        view.dispatch({ selection: { anchor, head }, userEvent: "select.pointer" })
+      },
       insert: (text) => {
         const range = view.state.selection.main
         const handled = view.state.facet(EditorView.inputHandler)
@@ -2565,7 +3739,18 @@ window.MDEditor = {
       },
       exec: (name) => {
         const command = commands[name]
-        if (command) { command(view); view.focus() }
+        if (!command) return false
+        if (tableFormattingTargets.has(view)) {
+          if (!tableInlineCommands.has(name)) return false
+          const target = prepareTableFormatting(view)
+          if (!target) return false
+          command(view)
+          restoreTableFormatting(view, target)
+          return true
+        }
+        command(view)
+        view.focus()
+        return true
       },
       performTableContextAction: (token, action) => {
         if (!pendingTableContextAction || pendingTableContextAction.token !== token) return false
@@ -2574,11 +3759,18 @@ window.MDEditor = {
         pending.perform(action)
         return true
       },
+      setExtensionState: (state) => {
+        const effects = []
+        for (const module of editorModules.values()) {
+          const enabled = editorModuleEnabled(state, module.id)
+          if (enabled === moduleEnabled.get(module.id)) continue
+          moduleEnabled.set(module.id, enabled)
+          effects.push(moduleCompartments.get(module.id).reconfigure(
+            enabled ? editorModuleExtensions(module, moduleOptions(module.id), moduleHost) : []))
+        }
+        if (effects.length) view.dispatch({ effects })
+      },
       destroy: () => {
-        scrollEvents.removeEventListener("wheel", markScrollIntent)
-        scrollEvents.removeEventListener("pointerdown", markScrollIntent)
-        scrollEvents.removeEventListener("keydown", markKeyboardScrollIntent)
-        scrollEvents.removeEventListener("scroll", observeScroll)
         view.destroy()
       },
     }

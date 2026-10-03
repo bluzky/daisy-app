@@ -82,6 +82,14 @@ final class EditorPreviewLayoutTests: XCTestCase {
                                texts: [paragraph, "Following paragraph."]))
     }
 
+    func testWrappedInlineCodeKeepsPaddingOnEveryLine() async throws {
+        let code = String(repeating: "asdadd-asd-", count: 24)
+        try await check(Fixture(
+            name: "wrapped-inline-code-padding",
+            markdown: "Before code.\n\n`\(code)`\n\nAfter code.",
+            texts: ["Before code.", code, "After code."]))
+    }
+
     func testQuotePaddingAcrossWrappedAndHardBreakLines() async throws {
         try await check(Fixture(name: "quote-edges", markdown: """
             Before quotation.
@@ -140,10 +148,10 @@ final class EditorPreviewLayoutTests: XCTestCase {
 
     func check(_ fixture: Fixture, updatingFrom initial: Fixture? = nil,
                        file: StaticString = #filePath, line: UInt = #line) async throws {
-        let editorScript = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let editorScript = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         TestVendor.installHighlighterGrammar()
         let mermaid = fixture.markdown.contains("```mermaid")
-            ? try TestVendor.script("md-preview/Vendor/Mermaid/mermaid.min.js") : nil
+            ? try TestVendor.script("daisy/Vendor/Mermaid/mermaid.min.js") : nil
         let zoom = try XCTUnwrap(Double(ProcessInfo.processInfo.environment["MDP_LAYOUT_ZOOM"] ?? "1"))
         guard zoom > 0 else { throw WebViewLayoutHarness.Failure("Page zoom must be positive") }
         for (width, fullWidth, pageScrolling) in [
@@ -154,7 +162,8 @@ final class EditorPreviewLayoutTests: XCTestCase {
             let readerHTML = MarkdownHTML.render(
                 markdown: fixture.markdown, allowsScroll: true,
                 contentWidth: fullWidth ? .full : .centered,
-                documentFont: .system, readerLayout: ReaderLayoutSetting()
+                documentFont: .system, readerLayout: ReaderLayoutSetting(),
+                pageTopClearance: pageScrolling ? MarkdownHTML.appPageTopClearance : 0
             ).html
             let editorHTML = EditorHTML.render(
                 markdown: (initial ?? fixture).markdown, editorJavaScript: editorScript,
@@ -195,9 +204,8 @@ final class EditorPreviewLayoutTests: XCTestCase {
                 func compareRect(_ label: String, _ lhs: WebViewLayoutHarness.Rect, _ rhs: WebViewLayoutHarness.Rect,
                                  editorHeaders: Int = 0) {
                     compare("\(label).x", lhs.x, rhs.x)
-                    // The language-editing row is editor-only UI. Account for
-                    // exactly its fixed height, never an observed block delta.
-                    compare("\(label).y", lhs.y, rhs.y - Double(editorHeaders) * EditorHTML.codeLanguageHeaderHeight)
+                    // Both modes reserve the same language-header height.
+                    compare("\(label).y", lhs.y, rhs.y)
                     compare("\(label).width", lhs.width, rhs.width)
                     compare("\(label).height", lhs.height, rhs.height)
                 }
