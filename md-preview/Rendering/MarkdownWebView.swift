@@ -212,7 +212,7 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
             other.scriptAssetIDs.isSubset(of: scriptAssetIDs)
         }
     }
-    private static let lateRenderingAssetIDs: Set<String> = ["math", "mermaid", "code"]
+
     private var loadedFingerprint: RendererFingerprint?
     private var isPageReady = false
     // Bumped on every display() call so a slower render finishing after a
@@ -488,8 +488,7 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         let fingerprint = RendererFingerprint(
             scriptAssetIDs: rendered.scriptAssetIDs
         )
-        lastDisplayMayChangeAfterFirstPaint = !fingerprint.scriptAssetIDs
-            .isDisjoint(with: Self.lateRenderingAssetIDs)
+        lastDisplayMayChangeAfterFirstPaint = !fingerprint.scriptAssetIDs.isEmpty
             || rendered.articleHTML.range(of: "<img", options: .caseInsensitive) != nil
 
         // Fast path: the loaded page already has every renderer the new doc

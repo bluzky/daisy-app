@@ -243,22 +243,18 @@ nonisolated extension MarkdownHTML {
     }
     """
 
-    static func highlightHead(mode: VendorLoading) -> VendorEmission {
+    static func highlightAssets(mode: VendorLoading) -> RenderAssets {
         guard bundledVendorURL("highlight.min", ext: "js", subdir: "Vendor/Highlight") != nil else {
-            return VendorEmission()
+            return RenderAssets(css: highlightThemeCSS)
         }
-        let initScript = """
+        let registration = """
         <script>
         (function() {
             \(highlightAllBody)
-            if (window.MdPreview && window.MdPreview.registerReapplier) {
-                window.MdPreview.registerReapplier(highlightAll);
-            }
-            if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', highlightAll, { once: true });
-            } else {
-                highlightAll();
-            }
+            window.MdPreview?.registerExtension({
+                id: 'highlight',
+                render() { highlightAll(); }
+            });
         })();
         </script>
         """
@@ -267,24 +263,53 @@ nonisolated extension MarkdownHTML {
         case .inline:
             let js = bundledVendorResource("highlight.min", ext: "js", subdir: "Vendor/Highlight") ?? ""
             let safeJS = js.replacingOccurrences(of: "</script", with: "<\\/script")
-            return VendorEmission(
-                body: """
+            return RenderAssets(
+                css: highlightThemeCSS,
+                bodyJS: """
                 <script>\(safeJS)</script>
-                \(initScript)
+                \(registration)
                 """
             )
         case .lazy:
-            return VendorEmission(head: """
+            return RenderAssets(
+                css: highlightThemeCSS,
+                headJS: """
             <script>
             (function() {
                 \(highlightAllBody)
-                window.MdPreviewLazy.lazyRenderer({
+                window.MdPreviewLazy.lazyExtension({
+                    id: 'highlight',
                     src: '\(MarkdownAssetScheme.vendorURL("highlight.min.js"))',
-                    run: highlightAll,
+                    render() { highlightAll(); }
                 });
             })();
             </script>
-            """)
+            """,
+                scriptAssetIDs: ["highlight", "code"]
+            )
+        }
+    }
+
+    struct HighlightExtension: MarkdownRenderExtension {
+        let id = "highlight"
+        let descriptor = RenderExtensionDescriptor(
+            titleKey: "Code highlighting",
+            descriptionKey: nil,
+            defaultEnabled: true,
+            userToggleable: false
+        )
+        let order = 10
+
+        func isActive(in context: RenderContext) -> Bool {
+            detectHighlightableCode(in: context.html)
+        }
+
+        func assets(mode: VendorLoading) -> RenderAssets {
+            var assets = highlightAssets(mode: mode)
+            if !assets.bodyJS.isEmpty {
+                assets.scriptAssetIDs = [id, "code"]
+            }
+            return assets
         }
     }
 }

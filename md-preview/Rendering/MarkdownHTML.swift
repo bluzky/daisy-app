@@ -11,11 +11,11 @@ import Markdown
 // the main actor. This lets MarkdownWebView.display dispatch the render
 // to a concurrent task instead of stalling the main thread on large docs.
 nonisolated enum MarkdownHTML {
-    /// How the heavy KaTeX/Mermaid bundles are delivered.
+    /// How heavy Highlight, KaTeX, and Mermaid bundles are delivered.
     /// - inline: bundles are embedded as `<script>…</script>` blocks in the
     ///   HTML. Self-contained, used by Quick Look (which delivers HTML as a
-    ///   single QLPreviewReply payload). The heavy scripts sit at body-end
-    ///   behind an early populate call (see `VendorEmission`) so document
+    ///   single QLPreviewReply payload). Active heavy scripts sit at body-end
+    ///   behind an early populate call so document
     ///   text paints before the bundles parse.
     /// - lazy: only small init stubs are inline; the heavy vendor JS is
     ///   fetched via `md-asset:///__vendor/<file>` after first paint, so the
@@ -25,18 +25,6 @@ nonisolated enum MarkdownHTML {
         case lazy
     }
 
-    /// A vendor renderer's contribution to the document, split by insertion
-    /// point. In `.inline` mode only the CSS stays in `head` (so layout is
-    /// stable from the first paint — no FOUC when the renderer decorates the
-    /// article later) while the multi-megabyte `<script>` bundles move to
-    /// `body`, after the article and an early populate call. That lets the
-    /// parser paint the document text before it grinds through the vendor
-    /// JS — `.inline`'s answer to `.lazy`'s deferred fetch. `.lazy` emissions
-    /// keep everything in `head`, byte-identical to the pre-split output.
-    struct VendorEmission {
-        var head: String = ""
-        var body: String = ""
-    }
 
     /// Layout of the rendered article column.
     /// - centered: capped at `contentColumnWidth` and centered by CSS auto
@@ -333,9 +321,8 @@ nonisolated enum MarkdownHTML {
             highlightsCode: highlightsCode,
             strictLineBreaks: strictLineBreaks
         )
-        let mermaidResult = renderMermaidBlocks(in: formatted)
-        let mathResult = renderMathBlocks(in: mermaidResult.html, with: math)
-        let footnoteReferenceHTML = renderFootnoteReferences(in: mathResult.html, with: footnotes)
+        let mathHTML = renderMathBlocks(in: formatted, with: math)
+        let footnoteReferenceHTML = renderFootnoteReferences(in: mathHTML, with: footnotes)
         let footnoteDefinitions = renderFootnoteDefinitions(
             footnotes,
             sourceLineOffset: sourceLineOffset,
@@ -368,9 +355,6 @@ nonisolated enum MarkdownHTML {
             configuration: renderExtensionConfiguration
         )
         let bodyHTML = extensionRun.html
-        let containsMath = mathResult.containsMath || footnoteDefinitions.containsMath
-        let containsMermaid = mermaidResult.containsMermaid || footnoteDefinitions.containsMermaid
-        let containsCode = detectHighlightableCode(in: bodyHTML)
         let activeExtensions = extensionRun.active
         let extensionAssets = activeExtensions.map { $0.assets(mode: vendorLoading) }
         // Every page shell carries enabled extension CSS. A later fast-path
@@ -382,9 +366,7 @@ nonisolated enum MarkdownHTML {
         let extensionCSS = extensionCSSAssets.map(\.css)
             .filter { !$0.isEmpty }
             .joined(separator: "\n")
-    let scrollOverride =
-      allowsScroll
-      ? """
+        let scrollOverride = allowsScroll ? """
         <style>
         html { overflow-x: hidden !important; overflow-y: auto !important; overscroll-behavior-x: none; }
         body { overflow: visible !important; }
@@ -439,34 +421,26 @@ nonisolated enum MarkdownHTML {
         } ?? ""
         let sanitizerBlock = dompurifyBlock
         let morphBlock = morphdomBlock
-        let mathBlock = containsMath ? katexHead(mode: vendorLoading) : VendorEmission()
-        let mermaidBlock = containsMermaid ? mermaidScript(mode: vendorLoading) : VendorEmission()
-    let extensionHeadScripts = extensionAssets.map(\.headJS)
-      .filter { !$0.isEmpty }
-      .joined(separator: "\n")
-    let extensionBodyScripts = extensionAssets.map(\.bodyJS)
-      .filter { !$0.isEmpty }
-        let highlightBlock = containsCode ? highlightHead(mode: vendorLoading) : VendorEmission()
+        let extensionHeadScripts = extensionAssets.map(\.headJS)
+          .filter { !$0.isEmpty }
+          .joined(separator: "\n")
+        let extensionBodyScripts = extensionAssets.map(\.bodyJS)
+          .filter { !$0.isEmpty }
         var scriptAssetIDs: Set<String> = []
-        if containsMath { scriptAssetIDs.insert("math") }
-        if containsMermaid { scriptAssetIDs.insert("mermaid") }
-        if containsCode { scriptAssetIDs.insert("code") }
         for assets in extensionAssets {
             scriptAssetIDs.formUnion(assets.scriptAssetIDs)
         }
         // Inline documents populate the article as soon as its <template> has
         // parsed — before the body-end vendor bundles below it — so the text
         // is paintable while the parser is still working through the JS. The
-        // vendor init IIFEs still see readyState 'loading' at body-end and
-        // keep their DOMContentLoaded wiring; `populateFromTemplate` removes
-        // the template, so the later `start()` populate is a no-op. Under
-        // `.lazy` every emission's body is empty and the populate hook is
-        // skipped, keeping the app-path body unchanged.
-    let earlyPopulate =
-      vendorLoading == .inline
+        // body-end lifecycle registrations catch up against that populated
+        // article. `populateFromTemplate` removes the template, so later
+        // `start()` population is a no-op. Under `.lazy` every extension
+        // emission stays in head and the early-populate hook is skipped.
+        let earlyPopulate = vendorLoading == .inline
             ? "<script>window.MdPreview && MdPreview.populateNow && MdPreview.populateNow();</script>"
             : ""
-    let bodyParts = ([earlyPopulate, mathBlock.body, mermaidBlock.body] + extensionBodyScripts + [highlightBlock.body])
+        let bodyParts = ([earlyPopulate] + extensionBodyScripts)
             .filter { !$0.isEmpty }
         let bodyScripts = bodyParts.isEmpty ? "" : "\n" + bodyParts.joined(separator: "\n")
         // Warmup keeps the article in layout (so Mermaid's IntersectionObserver
@@ -533,10 +507,7 @@ nonisolated enum MarkdownHTML {
         \(hostBridgeScript)
         \(documentIDBlock)
         \(sourceBlock)
-        \(mathBlock.head)
-        \(mermaidBlock.head)
         \(extensionHeadScripts)
-        \(highlightBlock.head)
         </head>
         <body>
         <article class="markdown-body"\(warmupAttr)\(articleStyle)></article>

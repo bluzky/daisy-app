@@ -132,8 +132,8 @@ nonisolated extension MarkdownHTML {
     var css: String = ""
     var headJS: String = ""
     var bodyJS: String = ""
-    /// Additional JavaScript capabilities supplied by these static assets.
-    /// Each active extension's own id is added to render result separately.
+    /// JavaScript capabilities supplied by these static assets. Include the
+    /// extension id when its runtime must already exist for body swaps.
     var scriptAssetIDs: Set<String> = []
   }
 
@@ -155,9 +155,13 @@ nonisolated extension MarkdownHTML {
     }
   }
 
-  /// Compiled-in extensions. Mermaid, Math, and Callout still render outside
-  /// this registry; heading extensions are user-toggleable.
+  /// Compiled-in extensions. Heading extensions are user-toggleable; core
+  /// Markdown features participate in same ordered lifecycle without UI.
   static let renderExtensions: [any MarkdownRenderExtension] = validatedAndOrdered([
+    HighlightExtension(),
+    CalloutExtension(),
+    KaTeXExtension(),
+    MermaidExtension(),
     ColorfulHeadersExtension(),
     CollapsibleHeadersExtension()
   ])
@@ -207,5 +211,20 @@ nonisolated extension MarkdownHTML {
     let orders = extensions.map(\.order)
     precondition(Set(orders).count == orders.count, "Render extension orders must be unique")
     return extensions.sorted { $0.order < $1.order }
+  }
+
+  struct CalloutExtension: MarkdownRenderExtension {
+    let id = "callout"
+    let descriptor = RenderExtensionDescriptor(
+      titleKey: "Callouts",
+      descriptionKey: nil,
+      defaultEnabled: true,
+      userToggleable: false
+    )
+    let order = 20
+
+    func isActive(in context: RenderContext) -> Bool {
+      context.html.contains("markdown-alert")
+    }
   }
 }

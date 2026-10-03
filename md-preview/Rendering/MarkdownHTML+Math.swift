@@ -20,10 +20,6 @@ nonisolated extension MarkdownHTML {
         let inlines: [String]
     }
 
-    struct MathRenderResult {
-        let html: String
-        let containsMath: Bool
-    }
 
     private static let blockMathRegex: NSRegularExpression = {
         // swiftlint:disable:next force_try
@@ -241,10 +237,9 @@ nonisolated extension MarkdownHTML {
         return result
     }
 
-    static func renderMathBlocks(in html: String,
-                                         with math: MathExtraction) -> MathRenderResult {
+    static func renderMathBlocks(in html: String, with math: MathExtraction) -> String {
         guard !math.blocks.isEmpty || !math.inlines.isEmpty else {
-            return MathRenderResult(html: html, containsMath: false)
+            return html
         }
 
         let nsHtml = html as NSString
@@ -282,7 +277,7 @@ nonisolated extension MarkdownHTML {
             cursor = match.range.location + match.range.length
         }
         rebuilt += nsHtml.substring(from: cursor)
-        return MathRenderResult(html: rebuilt, containsMath: true)
+        return rebuilt
     }
 
     private static func expandSourceEnd(in attributes: String, lineCount: Int) -> String {
