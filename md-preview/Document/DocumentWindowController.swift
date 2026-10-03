@@ -57,7 +57,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     var currentFileURL: URL?
     var currentMarkdown: String?
     /// Fallback for controller-driven untitled content outside an NSDocument.
-    private let untitledDocumentID = UUID().uuidString
+    let untitledDocumentID = UUID().uuidString
     var backHistory: [HistoryEntry] = []
     var forwardHistory: [HistoryEntry] = []
     weak var navigationItem: NSToolbarItemGroup?

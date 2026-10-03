@@ -276,8 +276,11 @@ extension DocumentWindowController {
         let glass = FormattingGlassView()
         glass.style = .regular
         glass.cornerRadius = 14
-        if #available(macOS 27.0, *) {
-            glass.effectIsInteractive = true
+        // `effectIsInteractive` only exists in the macOS 27 SDK; set it via KVC
+        // so the target still compiles against older SDKs.
+        if #available(macOS 27.0, *),
+           glass.responds(to: NSSelectorFromString("setEffectIsInteractive:")) {
+            glass.setValue(true, forKey: "effectIsInteractive")
         }
         glass.contentView = stack
         glass.translatesAutoresizingMaskIntoConstraints = false

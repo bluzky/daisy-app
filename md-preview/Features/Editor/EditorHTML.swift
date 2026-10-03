@@ -10,8 +10,38 @@ nonisolated enum EditorHTML {
         var lightPageBackground = "transparent"
         var darkPageBackground = "transparent"
         var themeOverrideCSS = ""
+        /// Document font, reader layout and text alignment, in the one
+        /// element a live settings change rewrites (see `readerStyleCSS`).
+        var readerStyleCSS = ""
         var usesPageScrolling = false
         var bridgeName = "mdEditorHost"
+    }
+
+    /// The reader settings the preview bakes into its page, as one stylesheet
+    /// for the editor: font stack, layout variables and prose alignment.
+    static func readerStyleCSS(documentFont: DocumentFontSetting,
+                               readerLayout: ReaderLayoutSetting,
+                               textAlignment: TextAlignmentSetting) -> String {
+        var css = """
+        :root {
+            --mdp-doc-font: \(documentFont.fontFamily);
+            --mdp-code-font-size: \(documentFont.codeFontSize);
+        }
+        """
+        let layout = readerLayout.pageCSS
+        if !layout.isEmpty { css += "\n" + layout }
+        if textAlignment != .automatic {
+            let alignment = textAlignment == .justified ? "justify" : textAlignment.rawValue
+            // Source lines only; code, tables, rules and images keep their own layout.
+            css += """
+
+            #editor .cm-line:not(.cm-md-codeblock):not(.cm-md-table):not(.cm-md-rule-line):not(.cm-md-image-line) {
+                text-align: \(alignment);
+                text-align-last: auto;
+            }
+            """
+        }
+        return css
     }
 
     static func render(markdown: String,
@@ -68,9 +98,12 @@ nonisolated enum EditorHTML {
             html, body { background: \(darkPageBackground); }
         }
         body {
-            font-family: \(MarkdownHTML.bodyFontFamily);
+            font-family: var(--mdp-doc-font, \(MarkdownHTML.bodyFontFamily));
             font-size: \(MarkdownHTML.bodyFontSize)px;
-            line-height: \(MarkdownHTML.bodyLineHeight);
+            font-weight: var(--mdp-body-weight, 400);
+            line-height: var(--mdp-line-height, \(MarkdownHTML.bodyLineHeight));
+            letter-spacing: var(--mdp-letter-spacing, normal);
+            word-spacing: var(--mdp-word-spacing, normal);
             color: var(--text);
             -webkit-font-smoothing: antialiased;
         }
@@ -88,22 +121,26 @@ nonisolated enum EditorHTML {
             overflow-y: auto;
             overscroll-behavior-x: none;
             /* Keep page gutters outside the editable content column. */
-            padding-inline: \(MarkdownHTML.pagePaddingHorizontal)px;
+            padding-inline: var(--mdp-page-padding, \(MarkdownHTML.pagePaddingHorizontal)px);
             /* Document clearance is outside contenteditable and scrolls
                away naturally; it must not be a fixed interaction shield. */
             padding-top: calc(\(MarkdownHTML.pagePaddingTop + (usesPageScrolling ? MarkdownHTML.appPageTopClearance : 0))px / var(--mdp-chrome-zoom, 1));
             cursor: default;
             box-sizing: border-box;
-            font-family: \(MarkdownHTML.bodyFontFamily) !important;
+            font-family: var(--mdp-doc-font, \(MarkdownHTML.bodyFontFamily)) !important;
             font-size: \(MarkdownHTML.bodyFontSize)px;
-            line-height: \(MarkdownHTML.bodyLineHeight);
+            font-weight: var(--mdp-body-weight, 400);
+            line-height: var(--mdp-line-height, \(MarkdownHTML.bodyLineHeight));
+            letter-spacing: var(--mdp-letter-spacing, normal);
+            word-spacing: var(--mdp-word-spacing, normal);
         }
         #editor .cm-content {
             width: 100%;
             max-width: \(columnMaxWidth);
             min-height: 100%;
             margin: 0 auto;
-            padding: 0 0 \(MarkdownHTML.pagePaddingBottom)px;
+            /* Reader margins: symmetric inset inside the column, as in the preview. */
+            padding: 0 var(--mdp-page-inset, 0) \(MarkdownHTML.pagePaddingBottom)px;
             box-sizing: border-box;
             caret-color: var(--text);
             cursor: text;
@@ -571,9 +608,14 @@ nonisolated enum EditorHTML {
             margin: 0;
             max-width: 100%;
             overflow: visible;
-            font-family: \(MarkdownHTML.bodyFontFamily);
+            /* The widget sits inside .cm-md-table's monospace line, so it
+               restates the document type settings. */
+            font-family: var(--mdp-doc-font, \(MarkdownHTML.bodyFontFamily));
             font-size: \(MarkdownHTML.bodyFontSize)px;
-            line-height: \(MarkdownHTML.bodyLineHeight);
+            font-weight: var(--mdp-body-weight, 400);
+            line-height: var(--mdp-line-height, \(MarkdownHTML.bodyLineHeight));
+            letter-spacing: var(--mdp-letter-spacing, normal);
+            word-spacing: var(--mdp-word-spacing, normal);
         }
         .cm-md-table-widget:focus {
             outline: none;
@@ -604,7 +646,11 @@ nonisolated enum EditorHTML {
             padding: 8px 12px;
             outline: none;
             white-space: pre-wrap;
-            overflow-wrap: anywhere;
+            /* Not anywhere / word-break: break-word (CodeMirror's wrapping
+               base style, inherited) — both let auto table layout shrink
+               short columns to one letter per line. */
+            overflow-wrap: break-word;
+            word-break: normal;
             cursor: text;
         }
         .cm-md-table-grid th .cm-md-table-cell[data-placeholder]:empty::before {
@@ -616,10 +662,13 @@ nonisolated enum EditorHTML {
         }
         /* Match the document's quiet, text-first editing surface. The caret
            identifies the insertion point; a tint marks the active cell. */
-        .cm-md-table-cell:focus {
+        /* Tint the <td>, not the editable box: a short cell's box is only as
+           tall as its text, and growing it to the row makes WebKit paint
+           native selection across the empty space. */
+        .cm-md-table-grid :is(th, td):has(> .cm-md-table-cell:focus) {
             background: color-mix(in srgb, var(--accent) 8%, transparent);
         }
-        .cm-md-table-cell.is-table-part-selected {
+        .cm-md-table-grid :is(th, td):has(> .cm-md-table-cell.is-table-part-selected) {
             background: color-mix(in srgb, var(--accent) 16%, transparent);
         }
         /* Page scrolling lets WebKit own the native toolbar backdrop.
@@ -650,6 +699,7 @@ nonisolated enum EditorHTML {
         .hl-plain { color: var(--hl-plain); }
         </style>
         <style id="\(MarkdownHTML.themeStyleElementID)">\(configuration.themeOverrideCSS)</style>
+        <style id="\(MarkdownHTML.readerLayoutStyleElementID)">\(configuration.readerStyleCSS)</style>
         </head>
         <body>
         <div id="editor"></div>

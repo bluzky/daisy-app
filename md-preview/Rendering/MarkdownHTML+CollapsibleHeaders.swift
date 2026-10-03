@@ -8,13 +8,14 @@ import Foundation
 
 nonisolated extension MarkdownHTML {
   static let collapsibleHeadersStylesheet = """
+    /* The toggle sits in the page margin, not in the heading box, so heading
+       text keeps the same x in Read and Edit mode. */
     .markdown-body > .mdp-collapsible-heading {
       position: relative;
-      padding-inline-start: 26px;
     }
     .markdown-body > .mdp-collapsible-heading > .mdp-collapse-toggle {
       position: absolute;
-      inset-inline-start: 0;
+      inset-inline-start: -26px;
       top: 50%;
       width: 18px;
       height: 18px;

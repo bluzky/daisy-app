@@ -281,10 +281,12 @@ final class MainSplitViewController: NSSplitViewController {
 
     func applyReaderLayout() {
         contentViewController?.applyReaderLayout()
+        cachedEditorViewController?.applyReaderStyle()
     }
 
     func reloadPreviewForSettingChange() {
         contentViewController?.reloadPreviewForSettingChange()
+        cachedEditorViewController?.applyReaderStyle()
     }
 
     /// Pushes a theme color change into the preview and, when one exists,

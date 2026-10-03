@@ -726,6 +726,10 @@ nonisolated extension MarkdownHTML {
         vertical-align: top;
     }
     th { font-weight: 600; }
+    /* The article's overflow-wrap: anywhere would let auto table layout shrink
+       short columns to one letter per line; break-word keeps each column at
+       least as wide as its longest word. */
+    th, td { overflow-wrap: break-word; }
     :is(th, td)[align="center"] { text-align: center; }
     :is(th, td)[align="right"] { text-align: right; }
     :is(th, td)[align="left"] { text-align: left; }
