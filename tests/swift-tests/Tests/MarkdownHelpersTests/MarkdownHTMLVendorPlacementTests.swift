@@ -22,7 +22,7 @@ final class MarkdownHTMLVendorPlacementTests: XCTestCase {
     }
 
     private let sample = """
-    # Title
+    Title
 
     Inline math $x^2$ and a paragraph.
 
