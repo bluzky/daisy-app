@@ -161,7 +161,8 @@ final class MdPreviewUpdateTests: XCTestCase {
                     paragraphText: document.querySelector('p').textContent,
                     stillCollapsed: document.querySelector('p').classList.contains('mdp-collapsed-section'),
                     ariaExpanded: heading.querySelector('.mdp-collapse-toggle').getAttribute('aria-expanded'),
-                    toggleCount: heading.querySelectorAll('.mdp-collapse-toggle').length
+                    toggleCount: heading.querySelectorAll('.mdp-collapse-toggle').length,
+                    toggleOwned: heading.querySelector('.mdp-collapse-toggle')?.dataset.mdpExt
                 };
             })()
             """) as? [String: Any]
@@ -169,6 +170,7 @@ final class MdPreviewUpdateTests: XCTestCase {
         XCTAssertEqual(result?["stillCollapsed"] as? Bool, true)
         XCTAssertEqual(result?["ariaExpanded"] as? String, "false")
         XCTAssertEqual(result?["toggleCount"] as? Int, 1)
+        XCTAssertEqual(result?["toggleOwned"] as? String, "collapsible-headings")
     }
 
     /// Heading ids are positional (`md-heading-N`), so inserting a heading
@@ -208,10 +210,10 @@ final class MdPreviewUpdateTests: XCTestCase {
     }
 
     /// Collapsed sections are display:none, so navigation to a heading inside
-    /// one would measure a zero-size box. `revealElement` must expand the
+    /// one would measure a zero-size box. `reveal` must expand the
     /// collapsed ancestors (and the owning section for plain content).
     @MainActor
-    func testRevealElementExpandsCollapsedAncestors() async throws {
+    func testRevealExpandsCollapsedAncestors() async throws {
         let webView = try await loadHarness(
             articleAttributes: "",
             extraHeadScripts: MarkdownHTML.collapsibleHeadersScript
@@ -231,7 +233,7 @@ final class MdPreviewUpdateTests: XCTestCase {
                 const p = document.querySelector('p');
                 const hiddenBefore = h2.classList.contains('mdp-collapsed-section')
                     && p.classList.contains('mdp-collapsed-section');
-                window.MdPreview.revealElement(h2);
+                window.MdPreview.reveal(h2);
                 return {
                     hiddenBefore,
                     visibleAfter: !h2.classList.contains('mdp-collapsed-section'),
@@ -240,6 +242,65 @@ final class MdPreviewUpdateTests: XCTestCase {
             })()
             """) as? [String: Bool]
         XCTAssertEqual(result, ["hiddenBefore": true, "visibleAfter": true, "contentVisible": true])
+    }
+
+    @MainActor
+    func testExtensionLifecycleIsOrderedIsolatedAndDocumentScoped() async throws {
+        let webView = try await loadHarness(articleAttributes: "")
+        let first = MarkdownHTML.javaScriptStringLiteral("<p>First</p>")
+        let second = MarkdownHTML.javaScriptStringLiteral("<p>Second</p>")
+        let third = MarkdownHTML.javaScriptStringLiteral("<p>Third</p>")
+
+        let result = try await webView.evaluateJavaScript("""
+            (() => {
+                const events = [];
+                window.MdPreview.registerExtension({
+                    id: 'broken',
+                    setup() { throw new Error('setup'); },
+                    beforeUpdate() { throw new Error('beforeUpdate'); },
+                    render() { throw new Error('render'); },
+                    reveal() { throw new Error('reveal'); },
+                    onThemeChange() { throw new Error('theme'); }
+                });
+                window.MdPreview.registerExtension({
+                    id: 'stateful',
+                    setup(host) { events.push('setup:' + host.documentID); },
+                    beforeUpdate(root, host) {
+                        events.push('before:' + host.documentID);
+                        return { token: root.dataset.token || null };
+                    },
+                    render(root, context) {
+                        events.push('render:' + context.reason + ':'
+                            + (context.snapshot?.token || 'none') + ':' + context.host.documentID);
+                    },
+                    reveal(el) { events.push('reveal'); return el.id === 'target'; },
+                    onThemeChange(theme, host) { events.push('theme:' + theme.name + ':' + host.theme.name); }
+                });
+                const duplicate = window.MdPreview.registerExtension({ id: 'stateful' });
+                window.MdPreview.update(\(first), { documentID: 'one' });
+                document.querySelector('.markdown-body').dataset.token = 'keep';
+                window.MdPreview.update(\(second), { documentID: 'one' });
+                document.querySelector('.markdown-body').dataset.token = 'drop';
+                window.MdPreview.update(\(third), { documentID: 'two' });
+                const target = document.createElement('span');
+                target.id = 'target';
+                document.querySelector('.markdown-body').appendChild(target);
+                const revealed = window.MdPreview.reveal(target);
+                window.MdPreview.setTheme({ name: 'dark' });
+                return JSON.stringify({ events, duplicate, revealed });
+            })()
+            """)
+        let json = try XCTUnwrap(result as? String)
+        let state = try JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any]
+        let events = try XCTUnwrap(state?["events"] as? [String])
+
+        XCTAssertFalse(state?["duplicate"] as? Bool ?? true)
+        XCTAssertTrue(state?["revealed"] as? Bool ?? false)
+        XCTAssertEqual(events.first, "setup:page")
+        XCTAssertTrue(events.contains("render:update:keep:one"), json)
+        XCTAssertTrue(events.contains("render:update:none:two"), json)
+        XCTAssertTrue(events.contains("reveal"), json)
+        XCTAssertTrue(events.contains("theme:dark:dark"), json)
     }
 
     @MainActor
@@ -560,15 +621,15 @@ final class MdPreviewUpdateTests: XCTestCase {
                     el.innerHTML = '<span class="fake-hljs">highlighted</span>';
                 });
             }
-            window.MdPreview.registerRenderer({
+            window.MdPreview.registerExtension({
                 id: 'fake-math', render: renderMath,
                 expensiveBlock: { cls: 'math', kind: 'math', inner: null, done: 'mathDone', attrInner: null }
             });
-            window.MdPreview.registerRenderer({
+            window.MdPreview.registerExtension({
                 id: 'fake-mermaid', render: renderMermaid,
                 expensiveBlock: { cls: 'mermaid-figure', kind: 'mm', inner: '.mermaid', done: 'mmDone', attrInner: null }
             });
-            window.MdPreview.registerRenderer({
+            window.MdPreview.registerExtension({
                 id: 'fake-code', render: renderCode,
                 expensiveBlock: { cls: 'md-code-wrap', kind: 'code', inner: 'pre > code', done: 'hljsDone', attrInner: 'pre' }
             });
