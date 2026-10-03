@@ -28,7 +28,10 @@ struct RenderExtensionsSettingsView: View {
     var body: some View {
         Form {
             Section {
-                ForEach(MarkdownHTML.renderExtensions, id: \.id) { renderExtension in
+                ForEach(
+                    MarkdownHTML.renderExtensions.filter(\.descriptor.userToggleable),
+                    id: \.id
+                ) { renderExtension in
                     Toggle(
                         MarkdownHTML.renderExtensionTitle(for: renderExtension.id),
                         isOn: Binding(

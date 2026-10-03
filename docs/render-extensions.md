@@ -1,53 +1,66 @@
 # Render extensions
 
-Render extensions are small, compiled-in, individually toggleable Markdown
-enhancements (currently Colorful headings and Collapsible headings) — not
-installable plugins: app and Quick Look run the same registry, with only
-vendor loading mode differing.
+Render extensions are compiled-in Markdown enhancements. They are trusted app
+code, not installable plugins. App and Quick Look share one registry; vendor
+loading differs by host.
 
-Mermaid, Math, and Callout are separate, unconditional built-ins. They
-predate this registry, render directly from `MarkdownHTML.render(...)`
-(`md-preview/Rendering/MarkdownHTML.swift`), and are not user-toggleable —
-they're not `MarkdownRenderExtension`s and don't appear in Settings →
-Extensions.
+## Registry
 
-## Lifecycle
+`MarkdownHTML.renderExtensions` is an explicitly ordered registry. Every
+extension provides:
 
-`MarkdownHTML` converts Markdown to HTML, then runs `renderExtensions` in order from `md-preview/Rendering/MarkdownRenderExtension.swift`.
+- `id` — stable identifier.
+- `descriptor` — localized title key, optional description key,
+  `defaultEnabled`, and `userToggleable`.
+- `order` — unique ascending pipeline position.
+- `isActive(in:)` — pure, evaluated once against article HTML after footnotes
+  and prior active transforms.
+- `transform(_:)` — optional HTML rewrite; identity by default.
+- `assets(mode:)` — static CSS and JavaScript declaration.
 
-Each `MarkdownRenderExtension` has:
+Colorful and Collapsible headings are user-toggleable. Highlight, Callout,
+KaTeX, and Mermaid participate in the same registry but are always enabled
+and do not appear in Settings.
 
-- `id` — stable renderer name.
-- `transform(_:)` — returns HTML and whether extension became active.
-- `assets(mode:)` — returns CSS and trusted JS only for active documents.
+## Assets and fast path
 
-CSS is emitted in document `<head>`. JavaScript may run in `<head>` or after document body. Dynamic DOM work should register with `window.MdPreview.registerRenderer({ id, render })`; `render` runs after initial render and incremental updates.
+Every page shell emits CSS for every enabled extension. JavaScript emits only
+for active extensions. `RenderedHTML.scriptAssetIDs` records required runtime
+capabilities; a body swap runs only when next set is subset of loaded set.
+
+## Page lifecycle
+
+Page scripts register through `window.MdPreview.registerExtension`:
+
+```js
+MdPreview.registerExtension({
+  id,
+  setup?(host),
+  render(root, { host, reason, snapshot }),
+  beforeUpdate?(root, host),
+  reveal?(element, host),
+  onThemeChange?(theme, host),
+  dispose?(host)
+})
+```
+
+`beforeUpdate` synchronously returns plain state. Core scopes it to extension
+and document ID, consumes it once on next render, and isolates hook failures.
+`reveal` expands hidden content before native navigation or find measures its
+target. Extension-owned injected DOM uses `data-mdp-ext`; hidden renderer
+mirrors excluded from find use `data-mdp-search-exclude`.
 
 ## Add extension
 
-1. Create `md-preview/Rendering/MarkdownHTML+Example.swift`:
+1. Add extension source under `md-preview/Rendering/`.
+2. Add it to registry with unique `id` and `order`.
+3. Add target membership and test-package symlink when needed.
+4. Add locale keys for descriptor title/description.
+5. Test activation, assets, lifecycle behavior, and Quick Look mode.
 
-```swift
-import Foundation
+Run:
 
-nonisolated extension MarkdownHTML {
-  struct ExampleExtension: MarkdownRenderExtension {
-    let id = "example"
-
-    func transform(_ context: RenderContext) -> RenderResult {
-      let active = context.html.contains("example-marker")
-      return RenderResult(html: context.html, active: active)
-    }
-
-    func assets(mode _: VendorLoading) -> RenderAssets {
-      RenderAssets(css: ".example-marker { color: var(--link); }")
-    }
-  }
-}
+```bash
+swift test --package-path tests/swift-tests
+xcodebuild -project md-preview.xcodeproj -scheme md-preview -configuration Debug build
 ```
-
-2. Add it to `renderExtensions` in pipeline order. Earlier transforms feed later ones.
-3. Add file to Quick Look membership exceptions in `md-preview.xcodeproj/project.pbxproj` and create matching `tests/swift-tests/Sources/MarkdownHelpers/` symlink.
-4. Test registry order, inactive documents emit no assets, and extension behavior. Run `swift test --package-path tests/swift-tests` and app build.
-
-Keep extensions deterministic and stateless. Treat Markdown-derived HTML as untrusted; only compiled-in CSS and JavaScript belongs in `RenderAssets`.
