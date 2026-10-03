@@ -371,11 +371,11 @@ nonisolated enum MarkdownHTML {
         let containsCode = detectHighlightableCode(in: bodyHTML)
         let activeExtensions = extensionRun.active
         let extensionAssets = activeExtensions.map { $0.assets(mode: vendorLoading) }
-        // Warmup establishes every enabled extension's CSS before a document
-        // arrives. Active documents still emit only their own CSS and JS.
-        let extensionCSSAssets = (warmup
-            ? enabledRenderExtensions(configuration: renderExtensionConfiguration)
-            : activeExtensions
+        // Every page shell carries enabled extension CSS. A later fast-path
+        // swap can therefore activate a CSS-only extension without reloading.
+        // JavaScript remains limited to active extensions below.
+        let extensionCSSAssets = enabledRenderExtensions(
+            configuration: renderExtensionConfiguration
         ).map { $0.assets(mode: vendorLoading) }
         let extensionCSS = extensionCSSAssets.map(\.css)
             .filter { !$0.isEmpty }
@@ -445,7 +445,7 @@ nonisolated enum MarkdownHTML {
     let extensionBodyScripts = extensionAssets.map(\.bodyJS)
       .filter { !$0.isEmpty }
         let highlightBlock = containsCode ? highlightHead(mode: vendorLoading) : VendorEmission()
-        var scriptAssetIDs = Set(activeExtensions.map(\.id))
+        var scriptAssetIDs: Set<String> = []
         if containsMath { scriptAssetIDs.insert("math") }
         if containsMermaid { scriptAssetIDs.insert("mermaid") }
         if containsCode { scriptAssetIDs.insert("code") }

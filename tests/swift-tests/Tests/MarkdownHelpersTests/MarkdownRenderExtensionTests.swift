@@ -87,7 +87,7 @@ final class MarkdownRenderExtensionTests: XCTestCase {
     return (defaults, suite)
   }
 
-  func testHeadingExtensionsEmitAssetsOnlyWhenDocumentHasHeadings() {
+  func testHeadingExtensionsEmitDocumentScriptsOnlyWhenActive() {
     let headings = MarkdownHTML.render(
       markdown: "# First\n\nIntro\n\n## Nested\n\nDetails\n\n# Second",
       vendorLoading: .lazy
@@ -97,11 +97,11 @@ final class MarkdownRenderExtensionTests: XCTestCase {
     XCTAssertTrue(headings.html.contains("mdp-collapsed-section"))
     XCTAssertEqual(
       headings.scriptAssetIDs,
-      Set(["colorful-headings", "collapsible-headings"])
+      Set(["collapsible-headings"])
     )
 
     let plain = MarkdownHTML.render(markdown: "Plain text.", vendorLoading: .lazy)
-    XCTAssertFalse(plain.html.contains("--mdp-heading-h1: #d14f6a"))
+    XCTAssertTrue(plain.html.contains("--mdp-heading-h1: #d14f6a"))
     XCTAssertFalse(plain.html.contains("id: 'collapsible-headings'"))
     XCTAssertTrue(plain.scriptAssetIDs.isEmpty)
   }

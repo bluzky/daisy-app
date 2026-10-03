@@ -150,8 +150,8 @@ nonisolated extension MarkdownHTML {
       enabledIDs.contains(id)
     }
 
-    func isEnabled(_ extension: any MarkdownRenderExtension) -> Bool {
-      !extension.descriptor.userToggleable || enabledIDs.contains(extension.id)
+    func isEnabled(_ renderExtension: any MarkdownRenderExtension) -> Bool {
+      !renderExtension.descriptor.userToggleable || enabledIDs.contains(renderExtension.id)
     }
   }
 
@@ -163,8 +163,8 @@ nonisolated extension MarkdownHTML {
   ])
 
   static func renderExtensionTitle(for id: String) -> String {
-    guard let extension = renderExtensions.first(where: { $0.id == id }) else { return id }
-    return NSLocalizedString(extension.descriptor.titleKey, comment: "Render extension setting")
+    guard let renderExtension = renderExtensions.first(where: { $0.id == id }) else { return id }
+    return NSLocalizedString(renderExtension.descriptor.titleKey, comment: "Render extension setting")
   }
 
   struct RenderExtensionRun {

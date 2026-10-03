@@ -56,7 +56,7 @@ Two halves, deliberately separate: a **Swift half** that runs at render time and
 | `descriptor` | Static metadata: localized-title key, optional one-line description key, `defaultEnabled`, and `userToggleable`. Replaces the title `switch` and drives the Settings list. `defaultEnabled` applies only to toggleable extensions; non-toggleable built-ins are always enabled. |
 | `isActive(in:)` | Pure predicate over article HTML after footnotes and earlier active transforms. Answers only "does this document need me?". Evaluated once, immediately before this extension's transform. |
 | `transform(_:)` | Optional HTML rewrite. Defaults to identity. No longer returns `active`. |
-| `assets(mode:)` | Static CSS and JS declaration. An active document emits both; the warmup shell emits only its CSS for every enabled extension. |
+| `assets(mode:)` | Static CSS and JS declaration. Every page shell emits CSS from enabled extensions; only an active document emits its JS. |
 | `order` | Explicit ascending pipeline position. Orders must be unique; registry validation rejects duplicates. |
 
 The render result reports a **script asset set**: identifiers of JavaScript capabilities the emitted page can run (`"math"`, `"mermaid"`, `"code"`, plus each active extension id). It replaces the separate Bool flags and `activeExtensionIDs`. CSS availability is tracked separately by the warmup-shell rule in section 6.
@@ -137,7 +137,7 @@ Cross-cutting rules:
 ## 6. Page capabilities and the fast path
 
 - A loaded page records its **script asset set** (section 3.1). A body swap is allowed only if the next document's required script set is a subset of it. This is the current fix, generalised: Bool flags disappear, and a future extension needs no change to `RendererFingerprint`.
-- **Decided:** the warmup shell always emits the **CSS** of every enabled extension, even inactive ones. CSS is selector-scoped, small, and inert without matching markup, so only JS-bearing extensions can force a reload. Cost: a few extra KB of CSS in every page, and the shell is no longer style-neutral. The script asset set alone controls the fast-path rule; CSS is assumed present for enabled extensions, and a settings change still reloads.
+- **Decided:** every page shell, including the warmup shell, emits the **CSS** of every enabled extension, even inactive ones. CSS is selector-scoped, small, and inert without matching markup, so only JS-bearing extensions can force a reload. Cost: a few extra KB of CSS in every page, and the shell is no longer style-neutral. The script asset set alone controls the fast-path rule; CSS is assumed present for enabled extensions, and a settings change still reloads.
 - Settings changes keep using a full reload; live enable/disable via `dispose` is a possible later step, not assumed here.
 
 ## 7. Built-ins (decided: they join the registry)
@@ -170,7 +170,7 @@ Each phase is independently shippable and keeps `docs/render-extensions.md` trut
 
 Decided
 
-1. The warmup shell always includes the CSS of every enabled extension.
+1. Every page shell, including the warmup shell, includes the CSS of every enabled extension.
 2. Untitled documents and Quick Look use a random document id, generated once and stable for the document's lifetime. File-backed documents use the file URL.
 3. Built-ins join the registry, sequenced last.
 
