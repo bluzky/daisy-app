@@ -9,8 +9,8 @@ from pathlib import Path
 import subprocess
 import tempfile
 
-source = (Path(__file__).resolve().parents[1] / 'md-preview/Document/MainSplitViewController.swift').read_text()
-content_source = (Path(__file__).resolve().parents[1] / 'md-preview/Document/ContentViewController.swift').read_text()
+source = (Path(__file__).resolve().parents[1] / 'daisy/Document/MainSplitViewController.swift').read_text()
+content_source = (Path(__file__).resolve().parents[1] / 'daisy/Document/ContentViewController.swift').read_text()
 
 def method(name, source=source):
     start = source.index('    ' + name)

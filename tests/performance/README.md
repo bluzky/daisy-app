@@ -89,7 +89,7 @@ The check reports failures on the PR. Repository branch protection must mark
 From the repository root, with a **new** output directory:
 
 ```sh
-python3 scripts/bench/run_performance.py --base origin/main --candidate HEAD --out /tmp/md-preview-performance
+python3 scripts/bench/run_performance.py --base origin/main --candidate HEAD --out /tmp/daisy-performance
 python3 -m unittest discover -s scripts/bench -p 'test_*.py'
 ```
 

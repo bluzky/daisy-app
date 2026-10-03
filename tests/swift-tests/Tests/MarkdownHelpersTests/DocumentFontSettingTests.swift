@@ -90,7 +90,7 @@ final class DocumentFontSettingTests: XCTestCase {
     }
 
     private func makeDefaults() throws -> (UserDefaults, String) {
-        let suiteName = "doc.md-preview.tests.\(UUID().uuidString)"
+        let suiteName = "doc.daisy.tests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defaults.removePersistentDomain(forName: suiteName)
         return (defaults, suiteName)

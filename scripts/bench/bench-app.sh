@@ -66,10 +66,10 @@ echo "label,sample,metric,value" > "$CSV"
 
 if [[ -z "$APP_PATH" ]]; then
     echo "==> Building Debug (pass --app to skip)…"
-    xcodebuild -project "$REPO_ROOT/md-preview.xcodeproj" -scheme md-preview \
+    xcodebuild -project "$REPO_ROOT/daisy.xcodeproj" -scheme daisy \
         -configuration Debug build -quiet || { echo "build failed" >&2; exit 1; }
-    SETTINGS="$(xcodebuild -project "$REPO_ROOT/md-preview.xcodeproj" \
-        -scheme md-preview -configuration Debug -showBuildSettings 2>/dev/null)"
+    SETTINGS="$(xcodebuild -project "$REPO_ROOT/daisy.xcodeproj" \
+        -scheme daisy -configuration Debug -showBuildSettings 2>/dev/null)"
     PRODUCTS_DIR="$(echo "$SETTINGS" | awk -F' = ' '/ BUILT_PRODUCTS_DIR =/ {print $2; exit}')"
     PRODUCT_NAME="$(echo "$SETTINGS" | awk -F' = ' '/ FULL_PRODUCT_NAME =/ {print $2; exit}')"
     APP_PATH="$PRODUCTS_DIR/$PRODUCT_NAME"

@@ -1,1 +1,1 @@
-../../../../md-preview/Features/FileSearch/ProjectFileIndex.swift
+../../../../daisy/Features/FileSearch/ProjectFileIndex.swift

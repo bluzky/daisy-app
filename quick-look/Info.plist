@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>MarkdownPreviewAppGroupIdentifier</key>
-	<string>$(DEVELOPMENT_TEAM).doc.md-preview</string>
+	<string>$(DEVELOPMENT_TEAM).doc.daisy</string>
 	<key>NSExtension</key>
 	<dict>
 		<key>NSExtensionAttributes</key>
@@ -14,13 +14,13 @@
 				<string>net.daringfireball.markdown</string>
 				<string>net.ia.markdown</string>
 				<string>com.unknown.md</string>
-				<string>doc.md-preview.mdown</string>
-				<string>doc.md-preview.mkd</string>
-				<string>doc.md-preview.mkdn</string>
-				<string>doc.md-preview.mdwn</string>
-				<string>doc.md-preview.mdtxt</string>
-				<string>doc.md-preview.mdtext</string>
-				<string>doc.md-preview.mdx</string>
+				<string>doc.daisy.mdown</string>
+				<string>doc.daisy.mkd</string>
+				<string>doc.daisy.mkdn</string>
+				<string>doc.daisy.mdwn</string>
+				<string>doc.daisy.mdtxt</string>
+				<string>doc.daisy.mdtext</string>
+				<string>doc.daisy.mdx</string>
 			</array>
 			<key>QLSupportsSearchableItems</key>
 			<false/>

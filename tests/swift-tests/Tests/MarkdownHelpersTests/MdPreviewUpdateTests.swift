@@ -583,8 +583,8 @@ final class MdPreviewUpdateTests: XCTestCase {
         stubsWebKitMessageHandler: Bool = false,
         extraHeadScripts: String = ""
     ) async throws -> WKWebView {
-        let purifyJS = try TestVendor.script("md-preview/Vendor/DOMPurify/purify.min.js")
-        let morphdomJS = try TestVendor.script("md-preview/Vendor/Morphdom/morphdom.min.js")
+        let purifyJS = try TestVendor.script("daisy/Vendor/DOMPurify/purify.min.js")
+        let morphdomJS = try TestVendor.script("daisy/Vendor/Morphdom/morphdom.min.js")
         let webKitMessageHandlerStub = stubsWebKitMessageHandler
             ? """
               <script>

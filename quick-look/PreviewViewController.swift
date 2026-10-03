@@ -411,9 +411,9 @@ private final class QuickLookWebView: WKWebView {
         document.addEventListener('error', scheduleLayoutRebuild, true);
         document.addEventListener('toggle', scheduleLayoutRebuild, true);
         for (const eventName of [
-            'md-preview-math-rendered',
-            'md-preview-hljs-rendered',
-            'md-preview-mermaid-rendered'
+            'daisy-math-rendered',
+            'daisy-hljs-rendered',
+            'daisy-mermaid-rendered'
         ]) {
             addEventListener(eventName, scheduleLayoutRebuild);
         }

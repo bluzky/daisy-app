@@ -5,7 +5,7 @@ import XCTest
 @MainActor
 final class EditorScrollAnchorTests: XCTestCase {
     func testTaskCheckboxGeometryMatchesReadMode() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         let source = "Outside the task list\n\n- [x] Independent task\n- [ ] Testing"
         var measurements: [[Double]] = []
         for isEditor in [false, true] {
@@ -42,7 +42,7 @@ final class EditorScrollAnchorTests: XCTestCase {
     }
 
     func testDocumentControlsFollowThemeAccentInReaderAndEditor() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         let source = "Introduction\n\n- Bullet\n\n1. Number\n\n[Link](https://example.com)"
         for isEditor in [false, true] {
             for dark in [false, true] {
@@ -124,7 +124,7 @@ final class EditorScrollAnchorTests: XCTestCase {
     }
 
     func testCodeCardCopyRespectsParsedIndentation() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         for (source, expected) in [("  ```\n  x\n  ```", "x"),
                                    ("        x\n    y", "    x\ny"),
                                    ("```\n\nx\n\n```", "\nx\n")] {
@@ -146,7 +146,7 @@ final class EditorScrollAnchorTests: XCTestCase {
     }
 
     func testCodeWrappingFollowsInsertionAndDoesNotSurviveDeletion() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         for source in ["```text\nlong code\n```", "    long code"] {
             let editor = WebViewLayoutHarness(html: EditorHTML.render(markdown: source, editorJavaScript: script),
                                               width: 650, isEditor: true, height: 400)
@@ -170,7 +170,7 @@ final class EditorScrollAnchorTests: XCTestCase {
     }
 
     func testFloatingToolbarClearanceRemainsConstantAcrossZoom() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         for zoom in [0.5, 1.0, 2.0] {
             for editing in [false, true] {
                 let html = editing
@@ -207,7 +207,7 @@ final class EditorScrollAnchorTests: XCTestCase {
     }
 
     func testOriginalClearsAnOpenEditorsCustomPageBackground() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         let editor = WebViewLayoutHarness(html: EditorHTML.render(
             markdown: "# Original theme", editorJavaScript: script,
             configuration: .init(lightPageBackground: "#abcdef", darkPageBackground: "#123456")),
@@ -224,7 +224,7 @@ final class EditorScrollAnchorTests: XCTestCase {
     }
 
     func testCodeCardWrapControlsPreserveSourceAndHeaderPosition() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         let code = "let message = \"" + String(repeating: "long code text ", count: 30) + "\"\nprint(message)"
         let markdown = "```swift\n" + code + "\n```"
         for isEditor in [false, true] {
@@ -293,7 +293,7 @@ final class EditorScrollAnchorTests: XCTestCase {
     }
 
     func testCodeCardBackgroundStaysInsideScrollport() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         for multiline in [false, true] {
             let code = String(repeating: "long code text ", count: 30)
                 + (multiline ? "\nshort last line" : "")
@@ -344,7 +344,7 @@ final class EditorScrollAnchorTests: XCTestCase {
     }
 
     func testCodeCardScrollingKeepsControlsAndPageFixed() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         for pageScrolling in [false, true] {
             let editor = WebViewLayoutHarness(html: EditorHTML.render(
                 markdown: "```text\n" + String(repeating: "long code ", count: 100) + "\n```",
@@ -382,7 +382,7 @@ final class EditorScrollAnchorTests: XCTestCase {
     }
 
     func testEmptyCodeLinesKeepCaretAndHeaderInsets() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         for body in ["", "first\n\nlast"] {
             let markdown = "```text\n" + body + "\n```"
             let position = body.isEmpty ? 8 : 14
@@ -444,7 +444,7 @@ final class EditorScrollAnchorTests: XCTestCase {
     }
 
     func testLongEditorParagraphRemainsWithinPage() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         for pageScrolling in [false, true] {
             let editor = WebViewLayoutHarness(html: EditorHTML.render(
                 markdown: String(repeating: "longword", count: 120), editorJavaScript: script,
@@ -465,7 +465,7 @@ final class EditorScrollAnchorTests: XCTestCase {
     }
 
     func testCodeScrollPolicyMatchesReadMode() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         let markdown = "```text\n" + String(repeating: "long code ", count: 100) + "\n```"
         var policies: [[String: String]] = []
         for isEditor in [false, true] {
@@ -488,7 +488,7 @@ final class EditorScrollAnchorTests: XCTestCase {
     }
 
     func testEditorSyntaxColorsMatchPreviewTokenClassesInBothPalettes() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         let editor = WebViewLayoutHarness(
             html: EditorHTML.render(markdown: "```javascript\nfunction demo() { return true; }\n```", editorJavaScript: script),
             width: 900, isEditor: true, height: 400)
@@ -525,7 +525,7 @@ final class EditorScrollAnchorTests: XCTestCase {
     }
 
     func testMarkdownMarkersDoNotUseCodePaletteInOriginalDarkAppearance() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         let editor = WebViewLayoutHarness(
             html: EditorHTML.render(markdown: "## [Unreleased]\n\n[Real link](https://example.com)\n\n```c\n#include <stdio.h>\n```",
                                     editorJavaScript: script),
@@ -551,7 +551,7 @@ final class EditorScrollAnchorTests: XCTestCase {
     }
 
     func testLanguageInputTextUsesPreviewHeaderInsets() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         let editor = WebViewLayoutHarness(
             html: EditorHTML.render(markdown: "```swift\nlet value = 1\n```", editorJavaScript: script),
             width: 900, isEditor: true, height: 400)
@@ -582,7 +582,7 @@ final class EditorScrollAnchorTests: XCTestCase {
     }
 
     func testTableInlineCodeRendersAndPreservesMarkdownWhileEditing() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         let markdown = "| Value |\n| --- |\n| `sadf` |\n| `` a`b `` |"
         let editor = WebViewLayoutHarness(
             html: EditorHTML.render(markdown: markdown, editorJavaScript: script),
@@ -607,7 +607,7 @@ final class EditorScrollAnchorTests: XCTestCase {
     }
 
     func testTableInlineFormattingOnlyShowsSourceInFocusedCell() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         let source = "**bold _nested_** and *italic* ~~old~~ ==marked== [**label**](https://example.com) `code`"
         let markdown = "| Value | Other |\n| --- | --- |\n| \(source) | **neighbor** |"
         let editor = WebViewLayoutHarness(
@@ -655,7 +655,7 @@ final class EditorScrollAnchorTests: XCTestCase {
     }
 
     func testTopClearanceIsNonEditingAndScrollsAwayWithDocument() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         let markdown = String(repeating: "Editable text under the floating controls.\n\n", count: 80)
         let editor = WebViewLayoutHarness(
             html: EditorHTML.render(markdown: markdown, editorJavaScript: script,
@@ -683,7 +683,7 @@ final class EditorScrollAnchorTests: XCTestCase {
     }
 
     func testTableAnchorUsesItsWholeSourceRange() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         let markdown = "Before\n\n| Key | Value |\n| --- | --- |\n"
             + (1...10).map { "| Row \($0) | Value |" }.joined(separator: "\n")
             + "\n\n" + String(repeating: "After\n\n", count: 40)
@@ -712,7 +712,7 @@ final class EditorScrollAnchorTests: XCTestCase {
     }
 
     func testLongCodeLinesScrollTogetherWithoutWrappingOrChangingSource() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         let longLine = "echo " + String(repeating: "long_argument_", count: 14)
         let markdown = "Before\n\n```bash\n\(longLine)\necho short\n```\n\nAfter"
         let editor = WebViewLayoutHarness(
@@ -759,7 +759,7 @@ final class EditorScrollAnchorTests: XCTestCase {
     }
 
     func testMainPageOnlyScrollsVerticallyWhileCodeAndTablesScrollHorizontally() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         let columns = Array(repeating: "LongColumnName", count: 12).joined(separator: " | ")
         let divider = Array(repeating: "---", count: 12).joined(separator: " | ")
         let markdown = "```text\n" + String(repeating: "long code ", count: 100)
@@ -801,7 +801,7 @@ final class EditorScrollAnchorTests: XCTestCase {
     }
 
     func testSmallScrollPreservesPagePaddingInBothScrollModes() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         for pageScrolling in [false, true] {
             let markdown = (1...80).map { "Paragraph \($0)." }.joined(separator: "\n\n")
             let html = EditorHTML.render(

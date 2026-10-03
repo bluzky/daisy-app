@@ -22,7 +22,7 @@ TERRAFORM_CDN = (
     "https://cdn.jsdelivr.net/npm/@taga3s/highlightjs-terraform@"
     f"{TERRAFORM_VERSION}"
 )
-DEST = Path("md-preview/Vendor/Highlight")
+DEST = Path("daisy/Vendor/Highlight")
 
 
 def fetch(url: str) -> bytes:
@@ -92,7 +92,7 @@ if (instance) instance.registerLanguage('terraform', hljsDefineTerraform);
     (DEST / "highlight.min.css").write_text(combined, encoding="utf-8")
     (DEST / "Highlight-LICENSE.txt").write_bytes(combined_license)
     # File name distinct so the synced-root-group resource copy doesn't
-    # collide with md-preview/Vendor/KaTeX/VERSION in the bundle output.
+    # collide with daisy/Vendor/KaTeX/VERSION in the bundle output.
     (DEST / "Highlight-VERSION").write_text(VERSION + "\n", encoding="utf-8")
 
     print(f"highlight.js {VERSION} bundled to {DEST}/")

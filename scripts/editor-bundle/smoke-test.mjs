@@ -33,7 +33,7 @@ if (!dom.window.Range.prototype.getBoundingClientRect) {
   })
 }
 
-const bundle = readFileSync(new URL("../../md-preview/Vendor/CodeMirror/mdedit.min.js", import.meta.url), "utf8")
+const bundle = readFileSync(new URL("../../daisy/Vendor/CodeMirror/mdedit.min.js", import.meta.url), "utf8")
 dom.window.eval(bundle)
 
 const doc = readFileSync(new URL("../../samples/full.md", import.meta.url), "utf8")

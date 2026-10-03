@@ -5,7 +5,7 @@ import XCTest
 @MainActor
 final class EditorFormattingTests: XCTestCase {
     func testFormattingMissingTableCellsDoesNotTargetBodySelection() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         for command in ["bold", "keyboard", "link"] {
             let source = "Before\n\n| First | Second |\n| --- | --- |\n| One |"
             let editor = WebViewLayoutHarness(html: EditorHTML.render(markdown: source, editorJavaScript: script),
@@ -39,7 +39,7 @@ final class EditorFormattingTests: XCTestCase {
     }
 
     func testTableFormattingRejectsTargetAfterDocumentReplacement() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         let source = "Before\n\n| Name |\n| --- |\n| Ada |"
         let editor = WebViewLayoutHarness(html: EditorHTML.render(markdown: source, editorJavaScript: script),
                                           width: 650, isEditor: true, height: 400)
@@ -72,7 +72,7 @@ final class EditorFormattingTests: XCTestCase {
     }
 
     func testTableClickAnchorsBeforeRevealingSyntax() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         for cell in ["**target words**", "*target words*", "~~target words~~",
                      "`target words`", "`` target words ``", "==target words==",
                      "[target words](https://example.com)", "**before *target words***"] {
@@ -120,7 +120,7 @@ final class EditorFormattingTests: XCTestCase {
     }
 
     func testTablePointerSelectionKeepsNativeTextRangeAndFormattingTarget() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         let editor = WebViewLayoutHarness(
             html: EditorHTML.render(markdown: "Before\n\n| Name | Status |\n| --- | --- |\n| Ada Lovelace | Ready |", editorJavaScript: script),
             width: 650, isEditor: true, height: 400)
@@ -155,7 +155,7 @@ final class EditorFormattingTests: XCTestCase {
     }
 
     func testFormattingToolbarTargetsTableCellSelectionAfterBlur() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         for (command, marker) in [("bold", "**"), ("italic", "*"), ("strikethrough", "~~"), ("highlight", "=="), ("code", "`")] {
             let markdown = "Unrelated paragraph\n\n| Name | Status |\n| --- | --- |\n| Ada Lovelace | Ready |\n\nAfter table"
             let editor = WebViewLayoutHarness(html: EditorHTML.render(markdown: markdown, editorJavaScript: script),
@@ -190,7 +190,7 @@ final class EditorFormattingTests: XCTestCase {
     }
 
     func testTableLinkPopoverAndKeyboardFormattingPreservePendingTyping() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         let markdown = "Before\n\n| Name |\n| --- |\n| Ada |"
         let editor = WebViewLayoutHarness(html: EditorHTML.render(markdown: markdown, editorJavaScript: script),
                                           width: 650, isEditor: true, height: 400)
@@ -222,7 +222,7 @@ final class EditorFormattingTests: XCTestCase {
     }
 
     func testTableFormattingMapsPendingPipesWhitespaceUnicodeAndEmptyCells() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         for (text, start, end, expected) in [
             ("left | Ada", 7, 10, "left \\| **Ada**"),
             ("  Ada  ", 2, 5, "**Ada**"),
@@ -257,7 +257,7 @@ final class EditorFormattingTests: XCTestCase {
     }
 
     func testTaskSeparatorStaysStableOnContinuationLines() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         let source = "- [ ] First\n\n- [ ] Second\n  continuation\n\n  Later paragraph"
         let editor = WebViewLayoutHarness(html: EditorHTML.render(markdown: source, editorJavaScript: script),
                                           width: 650, isEditor: true, height: 500)
@@ -283,7 +283,7 @@ final class EditorFormattingTests: XCTestCase {
     }
 
     func testNewTaskAfterDoubleEnterKeepsBlankLineAndCaretPosition() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         let editor = WebViewLayoutHarness(html: EditorHTML.render(markdown: "- [ ] First", editorJavaScript: script),
                                           width: 650, isEditor: true, height: 500)
         defer { editor.close() }
@@ -326,7 +326,7 @@ final class EditorFormattingTests: XCTestCase {
     }
 
     func testCheckboxTogglePreservesKeyboardFocus() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         let editor = WebViewLayoutHarness(html: EditorHTML.render(markdown: "- [ ] First\n- [ ] Second", editorJavaScript: script),
                                           width: 650, isEditor: true, height: 400)
         defer { editor.close() }
@@ -351,7 +351,7 @@ final class EditorFormattingTests: XCTestCase {
     }
 
     func testCompletedParentDoesNotStrikeNestedUncheckedItems() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         let source = "- [x] Parent\n  continuation\n    - [ ] Child\n      child continuation\n    - [x] Done child\n        - [ ] Grandchild\n\n  Parent after children\n- [ ] Sibling"
         let editor = WebViewLayoutHarness(html: EditorHTML.render(markdown: source, editorJavaScript: script),
                                           width: 650, isEditor: true, height: 600)
@@ -373,7 +373,7 @@ final class EditorFormattingTests: XCTestCase {
     }
 
     func testCompletedTaskStyleTracksCheckboxToggles() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         let source = "- [x] Done **bold**\n  continuation\n- [ ] Pending"
         let editor = WebViewLayoutHarness(html: EditorHTML.render(markdown: source, editorJavaScript: script),
                                           width: 650, isEditor: true, height: 400)
@@ -399,7 +399,7 @@ final class EditorFormattingTests: XCTestCase {
     }
 
     func testFreshTaskTypingWaitsForCaretToLeaveAutoClosedBracket() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         let html = EditorHTML.render(markdown: "", editorJavaScript: script)
             .replacingOccurrences(of: "editor = window.MDEditor.create(",
                                   with: "editor = window.__typingEditor = window.MDEditor.create(")
@@ -440,7 +440,7 @@ final class EditorFormattingTests: XCTestCase {
     }
 
     func testTypedTaskCheckboxContinuesAndExitsOnEmptyItem() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         let editor = WebViewLayoutHarness(html: EditorHTML.render(markdown: "", editorJavaScript: script),
                                           width: 650, isEditor: true, height: 400)
         defer { editor.close() }
@@ -497,7 +497,7 @@ final class EditorFormattingTests: XCTestCase {
     }
 
     func testTaskEnterPreservesMarkersAndMarkdownContext() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         let examples = [
             ("+ [X] One", "+ [X] One\n+ [ ] ", "+ [X] One\n\n"),
             ("* [ ] One", "* [ ] One\n* [ ] ", "* [ ] One\n\n"),
@@ -543,7 +543,7 @@ final class EditorFormattingTests: XCTestCase {
     }
 
     func testLinkPopoverRejectsPartialOverlapAtEitherSelectionEdge() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         let source = "Before [hello](https://example.com) after"
         let editor = WebViewLayoutHarness(html: EditorHTML.render(markdown: source, editorJavaScript: script),
                                           width: 650, isEditor: true, height: 400)
@@ -568,7 +568,7 @@ final class EditorFormattingTests: XCTestCase {
     }
 
     func testPopoverReviewRegressions() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         let cases: [(String, String, String, String)] = [
             ("```swift\nhello\nworld\n```", "hello", "setBlockStyle('code')", "`hello world`"),
             ("    hello", "hello", "setBlockStyle('code')", "`hello`"),
@@ -595,7 +595,7 @@ final class EditorFormattingTests: XCTestCase {
     }
 
     func testLinkPopoverReplacesExistingLinkAndEncodesUnicodeWhitespace() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         let editor = WebViewLayoutHarness(html: EditorHTML.render(markdown: "[hello](old)", editorJavaScript: script),
                                           width: 650, isEditor: true, height: 400)
         defer { editor.close() }
@@ -610,7 +610,7 @@ final class EditorFormattingTests: XCTestCase {
     }
 
     func testFormattingStateIsPublishedSynchronouslyOnSelectionAndCommands() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         let editor = WebViewLayoutHarness(
             html: EditorHTML.render(markdown: "", editorJavaScript: script),
             width: 600, isEditor: true, height: 400)
@@ -646,7 +646,7 @@ final class EditorFormattingTests: XCTestCase {
     }
 
     func testPointerGestureAnchorsClicksAndRevealsSyntaxImmediately() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         let sources = ["Before **target words** after", "Before *target words* after",
                        "Before ~~target words~~ after", "Before `target words` after",
                        "Before [target words](https://example.com/a/long/path) after",
@@ -733,7 +733,7 @@ final class EditorFormattingTests: XCTestCase {
     }
 
     func testHeadingMarkersRevealInlineAfterActivation() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         for sample in (1...6).flatMap({ level in (0...3).map { (level, $0) } }) {
             let (level, indentation) = sample
             let source = "Paragraph\n\n" + String(repeating: " ", count: indentation) + String(repeating: "#", count: level) + " Heading text that wraps onto another line with more words ###\n\nAfter"
@@ -796,7 +796,7 @@ final class EditorFormattingTests: XCTestCase {
     }
 
     func testStylingPopoverConvertsBlocksWithoutLosingText() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         let editor = WebViewLayoutHarness(
             html: EditorHTML.render(markdown: "Example", editorJavaScript: script),
             width: 900, isEditor: true, height: 400)
@@ -823,7 +823,7 @@ final class EditorFormattingTests: XCTestCase {
     }
 
     func testListPopoverReplacesMarkersAndPreservesIndentation() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         let editor = WebViewLayoutHarness(
             html: EditorHTML.render(markdown: "  - [x] Item", editorJavaScript: script),
             width: 900, isEditor: true, height: 400)
@@ -843,7 +843,7 @@ final class EditorFormattingTests: XCTestCase {
     }
 
     func testLinkPopoverInsertionEscapingAndEmptyURL() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         let editor = WebViewLayoutHarness(
             html: EditorHTML.render(markdown: "Before selected after", editorJavaScript: script),
             width: 900, isEditor: true, height: 400)
@@ -869,7 +869,7 @@ final class EditorFormattingTests: XCTestCase {
     }
 
     func testHeadingPopoverCommandsAndSelectedStyle() async throws {
-        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         let editor = WebViewLayoutHarness(
             html: EditorHTML.render(markdown: "Example", editorJavaScript: script),
             width: 900, isEditor: true, height: 400)

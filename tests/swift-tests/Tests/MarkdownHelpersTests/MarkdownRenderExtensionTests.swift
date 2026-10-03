@@ -152,7 +152,7 @@ final class MarkdownRenderExtensionTests: XCTestCase {
   }
 
   private func makeDefaults() throws -> (UserDefaults, String) {
-    let suite = "doc.md-preview.tests.\(UUID().uuidString)"
+    let suite = "doc.daisy.tests.\(UUID().uuidString)"
     let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
     defaults.removePersistentDomain(forName: suite)
     return (defaults, suite)

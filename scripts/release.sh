@@ -22,7 +22,7 @@ set -euo pipefail
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VERSION_CONFIG="$PROJECT_ROOT/Version.xcconfig"
 CHANGELOG="$PROJECT_ROOT/CHANGELOG.md"
-SCHEME="md-preview"
+SCHEME="daisy"
 
 VERSION_OVERRIDE=""
 BUILD_OVERRIDE=""

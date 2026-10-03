@@ -16,7 +16,7 @@ from pathlib import Path
 VERSION = sys.argv[1] if len(sys.argv) > 1 else "0.16.45"
 CDN = f"https://cdn.jsdelivr.net/npm/katex@{VERSION}/dist"
 LICENSE_URL = f"https://raw.githubusercontent.com/KaTeX/KaTeX/v{VERSION}/LICENSE"
-DEST = Path("md-preview/Vendor/KaTeX")
+DEST = Path("daisy/Vendor/KaTeX")
 
 
 def fetch(url: str) -> bytes:
@@ -62,7 +62,7 @@ def main() -> int:
     (DEST / "copy-tex.min.js").write_bytes(copy_tex)
     (DEST / "katex.min.css").write_text(inlined, encoding="utf-8")
     # File name is intentionally distinct so it does not collide with
-    # md-preview/Vendor/Mermaid/LICENSE in the bundle output directory.
+    # daisy/Vendor/Mermaid/LICENSE in the bundle output directory.
     (DEST / "KaTeX-LICENSE.txt").write_bytes(license_text)
     (DEST / "VERSION").write_text(VERSION + "\n", encoding="utf-8")
 

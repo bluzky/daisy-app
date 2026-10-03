@@ -54,7 +54,7 @@ private struct PerformanceProbe {
         }
         let samples = Int(environment["MDP_BENCH_SAMPLES"] ?? "7") ?? 7
         guard samples >= 3 else { throw BenchmarkError("At least three samples are required") }
-        let vendors = URL(fileURLWithPath: root).appendingPathComponent("md-preview/Vendor")
+        let vendors = URL(fileURLWithPath: root).appendingPathComponent("daisy/Vendor")
         func script(_ path: String) throws -> String {
             try String(contentsOf: vendors.appendingPathComponent(path), encoding: .utf8)
                 .replacingOccurrences(of: "</script", with: "<\\/script")

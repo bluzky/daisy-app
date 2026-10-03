@@ -3,7 +3,7 @@
 from pathlib import Path
 import sys
 
-source = Path("md-preview/MarkdownHTML.swift").read_text()
+source = Path("daisy/MarkdownHTML.swift").read_text()
 checks = {
     "detects mermaid code fences": "language-mermaid" in source and "mermaidRegex" in source,
     "loads bundled Mermaid renderer": "Vendor/Mermaid" in source and "mermaid.min" in source,

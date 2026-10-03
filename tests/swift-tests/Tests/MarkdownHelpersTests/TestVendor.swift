@@ -21,7 +21,7 @@ enum TestVendor {
     /// highlighted or `data-hljs-done` output.
     static func installHighlighterGrammar() {
         guard let source = try? String(
-            contentsOf: repositoryRoot.appendingPathComponent("md-preview/Vendor/Highlight/highlight.min.js"),
+            contentsOf: repositoryRoot.appendingPathComponent("daisy/Vendor/Highlight/highlight.min.js"),
             encoding: .utf8
         ) else { return }
         CodeHighlighter.useGrammar(source: source)

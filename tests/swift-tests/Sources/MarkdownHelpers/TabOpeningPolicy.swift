@@ -1,1 +1,1 @@
-../../../../md-preview/Preferences/TabOpeningPolicy.swift
+../../../../daisy/Preferences/TabOpeningPolicy.swift

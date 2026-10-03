@@ -1,6 +1,6 @@
 // Optimized matcher benchmark, including candidate preparation cost.
 // Run from the repository root:
-// swiftc -O -parse-as-library md-preview/Features/FileSearch/FileSearchMatcher.swift \
+// swiftc -O -parse-as-library daisy/Features/FileSearch/FileSearchMatcher.swift \
 //   scripts/bench/file-search-benchmark.swift -o /tmp/file-search-benchmark
 // /usr/bin/time -l /tmp/file-search-benchmark
 // Pass --unicode to exercise the Unicode fallback with the same file count.

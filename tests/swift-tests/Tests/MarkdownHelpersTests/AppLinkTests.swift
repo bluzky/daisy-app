@@ -9,7 +9,7 @@ final class AppLinkTests: XCTestCase {
             "claude://resume?session=test", "codex://new?prompt=hello",
             "cursor://file/tmp/example.md", "vscode://file/tmp/example.md",
             "obsidian://open?vault=notes", "x-devonthink-item://test",
-            "md-preview://file/tmp/example.md", "OBSIDIAN://open?vault=notes",
+            "daisy://file/tmp/example.md", "OBSIDIAN://open?vault=notes",
             "https://example.com", "mailto:test@example.com", "new-app+v2://test"
         ]
         let markdown = destinations.enumerated().map { "[link\($0)](\($1))" }.joined(separator: "\n\n")
@@ -80,7 +80,7 @@ final class AppLinkTests: XCTestCase {
         XCTAssertEqual(ExternalLinkPolicy.decision(for: URL(string: "different://test")!, defaults: defaults), .confirm)
         ExternalLinkPolicy.reset(defaults: defaults)
         XCTAssertEqual(ExternalLinkPolicy.decision(for: approved, defaults: defaults), .confirm)
-        for value in ["https://example.com", "http://example.com", "mailto:test@example.com", "md-preview://file/tmp/test.md", "MD-PREVIEW://file/tmp/test.md"] {
+        for value in ["https://example.com", "http://example.com", "mailto:test@example.com", "daisy://file/tmp/test.md", "MD-PREVIEW://file/tmp/test.md"] {
             XCTAssertEqual(ExternalLinkPolicy.decision(for: URL(string: value)!, defaults: defaults), .open)
         }
         // Persisted values can never override the unsafe-scheme boundary.

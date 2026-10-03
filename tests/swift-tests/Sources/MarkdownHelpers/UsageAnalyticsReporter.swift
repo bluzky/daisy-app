@@ -1,1 +1,1 @@
-../../../../md-preview/App/UsageAnalyticsReporter.swift
+../../../../daisy/App/UsageAnalyticsReporter.swift

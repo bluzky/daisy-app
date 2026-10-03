@@ -86,7 +86,7 @@ mirrors excluded from find use `data-mdp-search-exclude`.
 
 ## Add extension
 
-1. Add extension source under `md-preview/Rendering/`.
+1. Add extension source under `daisy/Rendering/`.
 2. Add it to registry with unique `id` and `order`.
 3. Add target membership and test-package symlink when needed.
 4. Add locale keys for descriptor title/description.
@@ -100,5 +100,5 @@ Run:
 ```bash
 (cd scripts/editor-bundle && npm run build && node smoke-test.mjs)
 swift test --package-path tests/swift-tests
-xcodebuild -project md-preview.xcodeproj -scheme md-preview -configuration Debug build
+xcodebuild -project daisy.xcodeproj -scheme daisy -configuration Debug build
 ```

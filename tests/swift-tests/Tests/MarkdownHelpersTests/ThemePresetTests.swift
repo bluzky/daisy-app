@@ -23,7 +23,7 @@ final class ThemePresetTests: XCTestCase {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
-        let suite = "doc.md-preview.tests.\(UUID().uuidString)"
+        let suite = "doc.daisy.tests.\(UUID().uuidString)"
         let shared = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { shared.removePersistentDomain(forName: suite) }
         let descriptor = open(directory.appendingPathComponent("lock").path,
@@ -70,7 +70,7 @@ final class ThemePresetTests: XCTestCase {
     }
 
     func testMigrationFillsMissingLooksWithoutReplacingSharedSelection() throws {
-        let names = (0..<2).map { _ in "doc.md-preview.tests.\(UUID().uuidString)" }
+        let names = (0..<2).map { _ in "doc.daisy.tests.\(UUID().uuidString)" }
         let stores = try names.map { try XCTUnwrap(UserDefaults(suiteName: $0)) }
         defer { for (name, store) in zip(names, stores) { store.removePersistentDomain(forName: name) } }
         let original = ThemePreset.defaultPreset
@@ -86,7 +86,7 @@ final class ThemePresetTests: XCTestCase {
     }
 
     func testAbsentOrInvalidLegacySelectionDoesNotClaimSharedIdentity() throws {
-        let names = (0..<3).map { _ in "doc.md-preview.tests.\(UUID().uuidString)" }
+        let names = (0..<3).map { _ in "doc.daisy.tests.\(UUID().uuidString)" }
         let stores = try names.map { try XCTUnwrap(UserDefaults(suiteName: $0)) }
         defer { for (name, store) in zip(names, stores) { store.removePersistentDomain(forName: name) } }
         for invalidID in [nil, "Unknown preset"] as [String?] {
@@ -101,7 +101,7 @@ final class ThemePresetTests: XCTestCase {
     }
 
     func testSharedThemeIdentityAndSavedLooksWinOverAnotherAppsLegacyValues() throws {
-        let names = (0..<3).map { _ in "doc.md-preview.tests.\(UUID().uuidString)" }
+        let names = (0..<3).map { _ in "doc.daisy.tests.\(UUID().uuidString)" }
         let stores = try names.map { try XCTUnwrap(UserDefaults(suiteName: $0)) }
         defer { for (name, store) in zip(names, stores) { store.removePersistentDomain(forName: name) } }
         let (firstApp, secondApp, shared) = (stores[0], stores[1], stores[2])
@@ -149,7 +149,7 @@ final class ThemePresetTests: XCTestCase {
     }
 
     func testThemeIdentityDoesNotDependOnCustomColors() throws {
-        let suite = "doc.md-preview.tests.\(UUID().uuidString)"
+        let suite = "doc.daisy.tests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         let graphite = try XCTUnwrap(ThemePreset.builtIn.first { $0.name == "Graphite" })
@@ -162,7 +162,7 @@ final class ThemePresetTests: XCTestCase {
     }
 
     func testSavedLooksSurviveSwitchingAndReopeningDefaults() throws {
-        let suite = "doc.md-preview.tests.\(UUID().uuidString)"
+        let suite = "doc.daisy.tests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         let original = ThemePreset.defaultPreset
@@ -208,7 +208,7 @@ final class ThemePresetTests: XCTestCase {
     }
 
     func testOriginalClearsEveryStoredColorOverride() throws {
-        let suite = "doc.md-preview.tests.\(UUID().uuidString)"
+        let suite = "doc.daisy.tests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
 

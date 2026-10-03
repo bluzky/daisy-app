@@ -14,7 +14,7 @@
 # its appex serves .md previews — open the built app once, or:
 #   /System/Library/Frameworks/CoreServices.framework/Frameworks/\
 #     LaunchServices.framework/Support/lsregister -f <path/to/app>
-# Verify with: pluginkit -m -p com.apple.quicklook.preview | grep md-preview
+# Verify with: pluginkit -m -p com.apple.quicklook.preview | grep daisy
 # ("+" marks the elected appex; `pluginkit -e use -i <appex-bundle-id>` to
 # elect the Debug build. See README.md.)
 
@@ -61,7 +61,7 @@ sleep 1
 
 # Capture appex provide timings (Debug builds only) — start before qlmanage.
 log stream --level debug --style compact \
-    --predicate 'subsystem BEGINSWITH "doc.md-preview"' \
+    --predicate 'subsystem BEGINSWITH "doc.daisy"' \
     > "$LOGFILE" 2>/dev/null &
 LOG_PID=$!
 sleep 1
@@ -121,8 +121,8 @@ awk -v L="$LABEL" -v S="$NAME" '
 
 if ! grep -q 'mdp-perf-ql' "$LOGFILE"; then
     echo "note: no [mdp-perf-ql] lines captured — is the Debug appex elected?" >&2
-    echo "      pluginkit -m -p com.apple.quicklook.preview | grep md-preview" >&2
-    echo "      pluginkit -e use -i doc.md-preview.dev.quick-look" >&2
+    echo "      pluginkit -m -p com.apple.quicklook.preview | grep daisy" >&2
+    echo "      pluginkit -e use -i doc.daisy.dev.quick-look" >&2
 fi
 
 echo "==> Done. CSV: $CSV"

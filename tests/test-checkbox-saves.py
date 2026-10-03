@@ -9,7 +9,7 @@ import subprocess
 import tempfile
 
 root = Path(__file__).resolve().parents[1]
-source = (root / 'md-preview/Document/DocumentWindowController+EditSession.swift').read_text()
+source = (root / 'daisy/Document/DocumentWindowController+EditSession.swift').read_text()
 
 
 def extract(text, signature):
@@ -110,7 +110,7 @@ for name in ['enterEditMode', 'previewPendingEdits', 'diskFileState', 'saveEdite
                                        'persistEditedMarkdown', 'write'] else '') + 'func ' + name + '('
     swift += extract(source, signature) + '\n'
 swift += '}\n'
-swift += extract((root / 'md-preview/Rendering/EscapingHTMLFormatter.swift').read_text(),
+swift += extract((root / 'daisy/Rendering/EscapingHTMLFormatter.swift').read_text(),
                  'nonisolated enum TaskCheckboxSource')
 swift += r'''
 let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)

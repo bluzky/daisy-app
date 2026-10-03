@@ -27,7 +27,7 @@ Do not run `scripts/release.sh`, including `--draft`, just to prepare the PR. Bu
 
 ### What's New window
 
-Updated readers see a What's New window once, over their first document window after the update (Help › What's New in Daisy reopens it). It lives in `md-preview/Features/WhatsNew/`:
+Updated readers see a What's New window once, over their first document window after the update (Help › What's New in Daisy reopens it). It lives in `daisy/Features/WhatsNew/`:
 
 - `WhatsNewPolicy.swift` — `featuresVersion` and `featuresBuild` name the release that introduced the listed features. A reader whose last recorded build is older than `featuresBuild` sees the window; fresh installs never do. The window title (`What's New in Daisy <featuresVersion>`) and the Release Notes button (`https://github.com/pluk-inc/markdown-preview/releases/tag/v<featuresVersion>`) both follow `featuresVersion`.
 - `WhatsNewWindow.swift` — `WhatsNewFeature.current` is the list of features shown.
@@ -47,9 +47,9 @@ Updated readers see a What's New window once, over their first document window a
 **Once the user confirms:**
 1. In `WhatsNewPolicy.swift`, set `featuresVersion` to the new `MARKETING_VERSION` and `featuresBuild` to the new `CURRENT_PROJECT_VERSION`. They must match `Version.xcconfig` in the same PR, or the title and release link name the wrong version and readers of the previous release may not see the window.
 2. Replace the entries in `WhatsNewFeature.current` with the confirmed features.
-3. Add every new title and description to both `md-preview/en.lproj/Localizable.strings` and `md-preview/zh-Hans.lproj/Localizable.strings` under `/* What's New */`, and remove strings that no entry uses any more (keep keys other UI still uses, such as "Search for Document"). Run `plutil -lint` on both files.
+3. Add every new title and description to both `daisy/en.lproj/Localizable.strings` and `daisy/zh-Hans.lproj/Localizable.strings` under `/* What's New */`, and remove strings that no entry uses any more (keep keys other UI still uses, such as "Search for Document"). Run `plutil -lint` on both files.
 4. Build the app and run `swift test --package-path tests/swift-tests --filter WhatsNewPolicyTests`.
-5. Check the window in the Debug build as an updating reader: run `defaults delete doc.md-preview.dev MarkdownPreview.whatsNewLastBuild` and `defaults write doc.md-preview.dev MainSplitView.didSeedInitialState -bool true` (a fresh Debug profile otherwise counts as a new install, which never sees the window), launch the built app with a document, and confirm the window lists the confirmed features. Before the release is published, the Release Notes link returns 404; that is expected.
+5. Check the window in the Debug build as an updating reader: run `defaults delete doc.daisy.dev MarkdownPreview.whatsNewLastBuild` and `defaults write doc.daisy.dev MainSplitView.didSeedInitialState -bool true` (a fresh Debug profile otherwise counts as a new install, which never sees the window), launch the built app with a document, and confirm the window lists the confirmed features. Before the release is published, the Release Notes link returns 404; that is expected.
 
 ### How `scripts/release.sh` actually works
 Read this before running it — the script ships the update, it doesn't just prepare a PR.
@@ -109,7 +109,7 @@ Source of truth: `Version.xcconfig` for the version numbers, `CHANGELOG.md` for 
 ./scripts/rollback-release.sh 0.0.2 --keep-github  # leave GitHub release in place
 ./scripts/rollback-release.sh --latest --yes       # skip the confirmation prompt
 ```
-Default is **unpublish** (reversible — flips `published=false` on Amore so it disappears from the appcast). Use `--delete` only when you're sure; it permanently removes the release. To re-publish after a non-destructive rollback: `amore releases update <version> -b doc.md-preview --published true`.
+Default is **unpublish** (reversible — flips `published=false` on Amore so it disappears from the appcast). Use `--delete` only when you're sure; it permanently removes the release. To re-publish after a non-destructive rollback: `amore releases update <version> -b doc.daisy --published true`.
 
 ## Amore configuration (already wired)
 - **Hosting**: Amore-managed; `Info.plist` currently uses `https://release.md-preview.app/v1/apps/doc.md-preview/appcast.xml`. Verify the current Amore hosting configuration before releasing.
@@ -117,4 +117,4 @@ Default is **unpublish** (reversible — flips `published=false` on Amore so it 
 - **Notary keychain profile**: `md-preview-notary`
 - **EdDSA public key** (in Info.plist `SUPublicEDKey`): `gIQjgqfjkIR+egQ4S1oBLxE/NCDxpXXGdZXSpn04VAY=` — private key in login Keychain
 
-To inspect or change: `amore config show --bundle-id doc.md-preview` / `amore config set ...`. CLI lives at `/usr/local/bin/amore`.
+To inspect or change: `amore config show --bundle-id doc.daisy` / `amore config set ...`. CLI lives at `/usr/local/bin/amore`.
