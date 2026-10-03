@@ -157,6 +157,20 @@ final class EscapingHTMLFormatterTests: XCTestCase {
         XCTAssertFalse(html.contains("<blockquote"), "alert should replace blockquote: \(html)")
     }
 
+    func testDisabledHighlightsAndCalloutsPreserveMarkdownSource() {
+        let html = EscapingHTMLFormatter.format(
+            "==Marked==\n\n> [!NOTE] Keep marker",
+            rendersHighlights: false,
+            rendersCallouts: false
+        )
+
+        XCTAssertTrue(html.contains("==Marked=="), html)
+        XCTAssertFalse(html.contains("md-highlight"), html)
+        XCTAssertTrue(html.contains("<blockquote"), html)
+        XCTAssertTrue(html.contains("[!NOTE] Keep marker"), html)
+        XCTAssertFalse(html.contains("markdown-alert"), html)
+    }
+
     func testGitHubAlertWithCustomTitle() {
         let html = EscapingHTMLFormatter.format("""
         > [!WARNING] Something specific

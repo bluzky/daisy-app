@@ -535,7 +535,7 @@ nonisolated extension MarkdownHTML {
             titleKey: "Mermaid",
             descriptionKey: nil,
             defaultEnabled: true,
-            userToggleable: false
+            userToggleable: true
         )
         let order = 40
 

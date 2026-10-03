@@ -296,7 +296,7 @@ nonisolated extension MarkdownHTML {
             titleKey: "Code highlighting",
             descriptionKey: nil,
             defaultEnabled: true,
-            userToggleable: false
+            userToggleable: true
         )
         let order = 10
 

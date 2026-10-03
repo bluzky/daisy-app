@@ -312,21 +312,39 @@ nonisolated enum MarkdownHTML {
         } else {
             sourceLineOffset = 0
         }
+        // These transforms run before `applyRenderExtensions`; consult its
+        // same snapshot so disabled extensions preserve authored Markdown.
+        let rendersHighlights = renderExtensionConfiguration.isEnabled("highlight")
+        let rendersCallouts = renderExtensionConfiguration.isEnabled("callout")
+        let rendersMath = renderExtensionConfiguration.isEnabled("katex")
         let footnotes = extractFootnotes(from: body)
-        let math = extractMath(from: footnotes.markdown)
+        let math = rendersMath
+            ? extractMath(from: footnotes.markdown)
+            : MathExtraction(
+                processedMarkdown: footnotes.markdown,
+                blocks: [],
+                blockLineCounts: [],
+                inlines: []
+            )
         let formatted = EscapingHTMLFormatter.format(
             math.processedMarkdown,
             sourceLineOffset: sourceLineOffset,
             sourceMarkdown: body,
-            highlightsCode: highlightsCode,
+            highlightsCode: highlightsCode && rendersHighlights,
+            rendersHighlights: rendersHighlights,
+            rendersCallouts: rendersCallouts,
             strictLineBreaks: strictLineBreaks
         )
-        let mathHTML = renderMathBlocks(in: formatted, with: math)
+        let mathHTML = rendersMath ? renderMathBlocks(in: formatted, with: math) : formatted
         let footnoteReferenceHTML = renderFootnoteReferences(in: mathHTML, with: footnotes)
         let footnoteDefinitions = renderFootnoteDefinitions(
             footnotes,
             sourceLineOffset: sourceLineOffset,
-            strictLineBreaks: strictLineBreaks
+            strictLineBreaks: strictLineBreaks,
+            rendersMath: rendersMath,
+            highlightsCode: highlightsCode && rendersHighlights,
+            rendersHighlights: rendersHighlights,
+            rendersCallouts: rendersCallouts
         )
         let headingsHTML = injectHeadingIDs(in: footnoteReferenceHTML + footnoteDefinitions.html)
         // Direction inference scans every rendered block. Most documents

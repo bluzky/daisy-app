@@ -158,7 +158,7 @@ nonisolated extension MarkdownHTML {
             titleKey: "Math",
             descriptionKey: nil,
             defaultEnabled: true,
-            userToggleable: false
+            userToggleable: true
         )
         let order = 30
 

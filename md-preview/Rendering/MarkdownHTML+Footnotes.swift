@@ -231,7 +231,11 @@ nonisolated extension MarkdownHTML {
     static func renderFootnoteDefinitions(
         _ footnotes: FootnoteExtraction,
         sourceLineOffset: Int,
-        strictLineBreaks: Bool
+        strictLineBreaks: Bool,
+        rendersMath: Bool = true,
+        highlightsCode: Bool = true,
+        rendersHighlights: Bool = true,
+        rendersCallouts: Bool = true
     ) -> FootnoteDefinitionRenderResult {
         guard !footnotes.definitions.isEmpty else {
             return FootnoteDefinitionRenderResult(
@@ -244,7 +248,11 @@ nonisolated extension MarkdownHTML {
             let renderedContent = renderFootnoteDefinitionContent(
                 definition.content,
                 sourceLineOffset: sourceLineOffset + definition.sourceLine - 1,
-                strictLineBreaks: strictLineBreaks
+                strictLineBreaks: strictLineBreaks,
+                rendersMath: rendersMath,
+                highlightsCode: highlightsCode,
+                rendersHighlights: rendersHighlights,
+                rendersCallouts: rendersCallouts
             )
 
             let backrefs = (referencesByNumber[definition.number] ?? []).map { reference in
@@ -295,15 +303,30 @@ nonisolated extension MarkdownHTML {
     private static func renderFootnoteDefinitionContent(
         _ markdown: String,
         sourceLineOffset: Int,
-        strictLineBreaks: Bool
+        strictLineBreaks: Bool,
+        rendersMath: Bool,
+        highlightsCode: Bool,
+        rendersHighlights: Bool,
+        rendersCallouts: Bool
     ) -> FootnoteDefinitionRenderResult {
-        let math = extractMath(from: markdown.trimmingCharacters(in: .whitespacesAndNewlines))
+        let source = markdown.trimmingCharacters(in: .whitespacesAndNewlines)
+        let math = rendersMath
+            ? extractMath(from: source)
+            : MathExtraction(
+                processedMarkdown: source,
+                blocks: [],
+                blockLineCounts: [],
+                inlines: []
+            )
         let formatted = EscapingHTMLFormatter.format(
             math.processedMarkdown,
             sourceLineOffset: sourceLineOffset,
+            highlightsCode: highlightsCode,
+            rendersHighlights: rendersHighlights,
+            rendersCallouts: rendersCallouts,
             strictLineBreaks: strictLineBreaks
         )
-        let mathHTML = renderMathBlocks(in: formatted, with: math)
+        let mathHTML = rendersMath ? renderMathBlocks(in: formatted, with: math) : formatted
         return FootnoteDefinitionRenderResult(
             html: mathHTML
         )
