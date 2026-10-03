@@ -7,9 +7,8 @@
 
 import Foundation
 
-/// Stores opt-outs only: every extension newly compiled into registry starts
-/// enabled without a migration. Values live in app-group defaults so both
-/// render hosts apply same configuration.
+/// Stores user overrides. Descriptor defaults apply when no override exists,
+/// and values live in app-group defaults so both render hosts agree.
 nonisolated enum RenderExtensionPreferences {
   static let defaultsKeyPrefix = "MarkdownPreview.renderExtension.enabled."
 
@@ -43,18 +42,22 @@ nonisolated enum RenderExtensionPreferences {
   }
 
   static func isEnabled(_ id: String, in defaults: UserDefaults?) -> Bool {
+    let descriptor = MarkdownHTML.renderExtensions.first { $0.id == id }?.descriptor
+    guard descriptor?.userToggleable != false else { return true }
     guard let stored = defaults?.object(forKey: defaultsKey(for: id)) as? NSNumber else {
-      return true
+      return descriptor?.defaultEnabled ?? true
     }
     return stored.boolValue
   }
 
   static func setEnabled(_ enabled: Bool, for id: String, in defaults: UserDefaults?) {
     let key = defaultsKey(for: id)
-    if enabled {
+    let descriptor = MarkdownHTML.renderExtensions.first { $0.id == id }?.descriptor
+    let defaultEnabled = descriptor?.defaultEnabled ?? true
+    if enabled == defaultEnabled {
       defaults?.removeObject(forKey: key)
     } else {
-      defaults?.set(false, forKey: key)
+      defaults?.set(enabled, forKey: key)
     }
   }
 
@@ -80,16 +83,27 @@ nonisolated enum RenderExtensionPreferences {
   }
 }
 
-/// Owns a Markdown-to-HTML transform and only assets needed when its output is
-/// present. Extensions deliberately have no access to view, file, or app state.
+/// Owns deterministic Markdown-to-HTML behavior and static page assets.
+/// Extensions deliberately have no access to view, file, or app state.
 nonisolated protocol MarkdownRenderExtension: Sendable {
   var id: String { get }
+  var descriptor: MarkdownHTML.RenderExtensionDescriptor { get }
+  /// Ascending pipeline position. Registry validation rejects duplicates.
+  var order: Int { get }
 
-  func transform(_ context: MarkdownHTML.RenderContext) -> MarkdownHTML.RenderResult
+  /// Pure activation predicate. Receives output after footnotes and each
+  /// earlier active transform, and runs exactly once per render.
+  func isActive(in context: MarkdownHTML.RenderContext) -> Bool
+  /// Optional rewrite after this extension activates.
+  func transform(_ context: MarkdownHTML.RenderContext) -> String
   func assets(mode: MarkdownHTML.VendorLoading) -> MarkdownHTML.RenderAssets
 }
 
 nonisolated extension MarkdownRenderExtension {
+  func transform(_ context: MarkdownHTML.RenderContext) -> String {
+    context.html
+  }
+
   func assets(mode _: MarkdownHTML.VendorLoading) -> MarkdownHTML.RenderAssets {
     MarkdownHTML.RenderAssets()
   }
@@ -102,9 +116,13 @@ nonisolated extension MarkdownHTML {
     let markdown: String
   }
 
-  struct RenderResult: Sendable {
-    let html: String
-    let active: Bool
+  /// Static metadata for compiled-in render extensions. Keys, not localized
+  /// strings, keep the registry independent from any particular UI.
+  struct RenderExtensionDescriptor: Sendable, Equatable {
+    let titleKey: String
+    let descriptionKey: String?
+    let defaultEnabled: Bool
+    let userToggleable: Bool
   }
 
   /// CSS is emitted in `<head>` while JavaScript retains its existing
@@ -114,6 +132,9 @@ nonisolated extension MarkdownHTML {
     var css: String = ""
     var headJS: String = ""
     var bodyJS: String = ""
+    /// Additional JavaScript capabilities supplied by these static assets.
+    /// Each active extension's own id is added to render result separately.
+    var scriptAssetIDs: Set<String> = []
   }
 
   /// Snapshot passed from each render host. Rendering never reads defaults
@@ -128,22 +149,22 @@ nonisolated extension MarkdownHTML {
     func isEnabled(_ id: String) -> Bool {
       enabledIDs.contains(id)
     }
+
+    func isEnabled(_ extension: any MarkdownRenderExtension) -> Bool {
+      !extension.descriptor.userToggleable || enabledIDs.contains(extension.id)
+    }
   }
 
-  /// Compiled-in, toggleable extensions. Mermaid, Math, and Callout render
-  /// unconditionally outside this registry (see `MarkdownHTML.render`) —
-  /// only the heading extensions are optional.
-  static let renderExtensions: [any MarkdownRenderExtension] = [
+  /// Compiled-in extensions. Mermaid, Math, and Callout still render outside
+  /// this registry; heading extensions are user-toggleable.
+  static let renderExtensions: [any MarkdownRenderExtension] = validatedAndOrdered([
     ColorfulHeadersExtension(),
     CollapsibleHeadersExtension()
-  ]
+  ])
 
   static func renderExtensionTitle(for id: String) -> String {
-    switch id {
-    case "colorful-headings": NSLocalizedString("Colorful headings", comment: "Render extension setting")
-    case "collapsible-headings": NSLocalizedString("Collapsible headings", comment: "Render extension setting")
-    default: id
-    }
+    guard let extension = renderExtensions.first(where: { $0.id == id }) else { return id }
+    return NSLocalizedString(extension.descriptor.titleKey, comment: "Render extension setting")
   }
 
   struct RenderExtensionRun {
@@ -158,17 +179,33 @@ nonisolated extension MarkdownHTML {
   static func applyRenderExtensions(
     to html: String,
     markdown: String,
-    configuration: RenderExtensionConfiguration = .allEnabled
+    configuration: RenderExtensionConfiguration = .allEnabled,
+    extensions: [any MarkdownRenderExtension] = renderExtensions
   ) -> RenderExtensionRun {
     var rendered = html
     var active: [any MarkdownRenderExtension] = []
-    for ext in renderExtensions where configuration.isEnabled(ext.id) {
-      let result = ext.transform(RenderContext(html: rendered, markdown: markdown))
-      rendered = result.html
-      if result.active {
+    for ext in validatedAndOrdered(extensions) where configuration.isEnabled(ext) {
+      let context = RenderContext(html: rendered, markdown: markdown)
+      if ext.isActive(in: context) {
         active.append(ext)
+        rendered = ext.transform(context)
       }
     }
     return RenderExtensionRun(html: rendered, active: active)
+  }
+
+  static func enabledRenderExtensions(
+    configuration: RenderExtensionConfiguration,
+    extensions: [any MarkdownRenderExtension] = renderExtensions
+  ) -> [any MarkdownRenderExtension] {
+    validatedAndOrdered(extensions).filter { configuration.isEnabled($0) }
+  }
+
+  static func validatedAndOrdered(
+    _ extensions: [any MarkdownRenderExtension]
+  ) -> [any MarkdownRenderExtension] {
+    let orders = extensions.map(\.order)
+    precondition(Set(orders).count == orders.count, "Render extension orders must be unique")
+    return extensions.sorted { $0.order < $1.order }
   }
 }

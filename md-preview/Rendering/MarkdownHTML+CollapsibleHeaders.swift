@@ -217,17 +217,27 @@ nonisolated extension MarkdownHTML {
 
   struct CollapsibleHeadersExtension: MarkdownRenderExtension {
     let id = "collapsible-headings"
+    let descriptor = RenderExtensionDescriptor(
+      titleKey: "Collapsible headings",
+      descriptionKey: nil,
+      defaultEnabled: true,
+      userToggleable: true
+    )
+    let order = 200
 
-    func transform(_ context: RenderContext) -> RenderResult {
-      let hasHeading = context.html.range(
+    func isActive(in context: RenderContext) -> Bool {
+      context.html.range(
         of: #"<h[1-6]\b"#,
         options: .regularExpression
       ) != nil
-      return RenderResult(html: context.html, active: hasHeading)
     }
 
     func assets(mode _: VendorLoading) -> RenderAssets {
-      RenderAssets(css: collapsibleHeadersStylesheet, bodyJS: collapsibleHeadersScript)
+      RenderAssets(
+        css: collapsibleHeadersStylesheet,
+        bodyJS: collapsibleHeadersScript,
+        scriptAssetIDs: [id]
+      )
     }
   }
 }

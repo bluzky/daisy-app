@@ -260,13 +260,20 @@ nonisolated enum MarkdownHTML {
         /// The Markdown the article was rendered from; the page keeps it for
         /// copy-as-source and body swaps pass it along with the article.
         let markdown: String
-        let containsMath: Bool
-        let containsMermaid: Bool
-        let containsCode: Bool
-        /// Render extensions whose assets this page carries; a loaded page
-        /// can only take a body swap if it already has the ones the next
-        /// document needs.
-        let activeExtensionIDs: Set<String>
+        /// Script capabilities and active extension ids loaded by this page.
+        /// A host may body-swap only when next document's set is a subset.
+        /// Extension CSS is separate: warmup includes every enabled CSS asset.
+        let scriptAssetIDs: Set<String>
+
+        // Temporary host compatibility accessors. RenderedHTML stores only
+        // scriptAssetIDs; these keep MarkdownWebView's existing fingerprint
+        // bridge source-compatible until its separate migration slice.
+        var containsMath: Bool { scriptAssetIDs.contains("math") }
+        var containsMermaid: Bool { scriptAssetIDs.contains("mermaid") }
+        var containsCode: Bool { scriptAssetIDs.contains("code") }
+        var activeExtensionIDs: Set<String> {
+            scriptAssetIDs.intersection(Set(renderExtensions.map(\.id)))
+        }
     }
 
     static func makeHTML(from markdown: String,
@@ -326,12 +333,7 @@ nonisolated enum MarkdownHTML {
         )
         let mermaidResult = renderMermaidBlocks(in: formatted)
         let mathResult = renderMathBlocks(in: mermaidResult.html, with: math)
-        let extensionRun = applyRenderExtensions(
-            to: mathResult.html,
-            markdown: body,
-            configuration: renderExtensionConfiguration
-        )
-        let footnoteReferenceHTML = renderFootnoteReferences(in: extensionRun.html, with: footnotes)
+        let footnoteReferenceHTML = renderFootnoteReferences(in: mathResult.html, with: footnotes)
         let footnoteDefinitions = renderFootnoteDefinitions(
             footnotes,
             sourceLineOffset: sourceLineOffset,
@@ -355,17 +357,27 @@ nonisolated enum MarkdownHTML {
         } else {
             frontmatterHTML = ""
         }
-        let bodyHTML = frontmatterHTML + renderedBodyHTML
-        let containsMath = mathResult.containsMath || footnoteDefinitions.containsMath
-        let containsMermaid = mermaidResult.containsMermaid || footnoteDefinitions.containsMermaid
-        let containsCode = detectHighlightableCode(in: bodyHTML)
-        let activeExtensions = activeRenderExtensions(
-            in: bodyHTML,
+        // Extensions activate once against complete article HTML: footnotes
+        // are present, and every active extension receives previous active
+        // transforms as input.
+        let extensionRun = applyRenderExtensions(
+            to: frontmatterHTML + renderedBodyHTML,
             markdown: body,
             configuration: renderExtensionConfiguration
         )
+        let bodyHTML = extensionRun.html
+        let containsMath = mathResult.containsMath || footnoteDefinitions.containsMath
+        let containsMermaid = mermaidResult.containsMermaid || footnoteDefinitions.containsMermaid
+        let containsCode = detectHighlightableCode(in: bodyHTML)
+        let activeExtensions = extensionRun.active
         let extensionAssets = activeExtensions.map { $0.assets(mode: vendorLoading) }
-        let extensionCSS = extensionAssets.map(\.css)
+        // Warmup establishes every enabled extension's CSS before a document
+        // arrives. Active documents still emit only their own CSS and JS.
+        let extensionCSSAssets = (warmup
+            ? enabledRenderExtensions(configuration: renderExtensionConfiguration)
+            : activeExtensions
+        ).map { $0.assets(mode: vendorLoading) }
+        let extensionCSS = extensionCSSAssets.map(\.css)
             .filter { !$0.isEmpty }
             .joined(separator: "\n")
     let scrollOverride =
@@ -433,6 +445,13 @@ nonisolated enum MarkdownHTML {
     let extensionBodyScripts = extensionAssets.map(\.bodyJS)
       .filter { !$0.isEmpty }
         let highlightBlock = containsCode ? highlightHead(mode: vendorLoading) : VendorEmission()
+        var scriptAssetIDs = Set(activeExtensions.map(\.id))
+        if containsMath { scriptAssetIDs.insert("math") }
+        if containsMermaid { scriptAssetIDs.insert("mermaid") }
+        if containsCode { scriptAssetIDs.insert("code") }
+        for assets in extensionAssets {
+            scriptAssetIDs.formUnion(assets.scriptAssetIDs)
+        }
         // Inline documents populate the article as soon as its <template> has
         // parsed — before the body-end vendor bundles below it — so the text
         // is paintable while the parser is still working through the JS. The
@@ -523,10 +542,7 @@ nonisolated enum MarkdownHTML {
             html: html,
             articleHTML: bodyHTML,
             markdown: markdown,
-            containsMath: containsMath,
-            containsMermaid: containsMermaid,
-            containsCode: containsCode,
-            activeExtensionIDs: Set(activeExtensions.map(\.id))
+            scriptAssetIDs: scriptAssetIDs
         )
     }
 
@@ -560,24 +576,6 @@ nonisolated enum MarkdownHTML {
         }
         result += nsHtml.substring(from: cursor)
         return result
-    }
-
-    // Heading extensions are transformed against the pre-footnote body in
-    // `render`, so a heading appearing only inside a footnote definition
-    // (footnote content is itself rendered Markdown, headings included)
-    // would never be seen there. Re-checking against the complete article —
-    // main body plus rendered footnote definitions — widens which
-    // extensions count as active without touching the transform output
-    // `render` already produced.
-    private static func activeRenderExtensions(
-        in bodyHTML: String,
-        markdown: String,
-        configuration: RenderExtensionConfiguration
-    ) -> [any MarkdownRenderExtension] {
-        renderExtensions.filter { ext in
-            configuration.isEnabled(ext.id)
-                && ext.transform(RenderContext(html: bodyHTML, markdown: markdown)).active
-        }
     }
 
 }
