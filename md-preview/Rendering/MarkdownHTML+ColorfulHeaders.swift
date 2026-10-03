@@ -8,7 +8,8 @@
 import Foundation
 
 nonisolated extension MarkdownHTML {
-  static let colorfulHeaderStylesheet = """
+  /// Heading palette shared by the preview and the editor page.
+  static let colorfulHeaderPalette = """
     :root {
       --mdp-heading-h1: #d14f6a;
       --mdp-heading-h2: #b97839;
@@ -35,6 +36,9 @@ nonisolated extension MarkdownHTML {
         --mdp-heading-h6: #d5a575;
       }
     }
+    """
+
+  static let colorfulHeaderStylesheet = colorfulHeaderPalette + """
     .markdown-body h1 { color: var(--mdp-heading-h1); }
     .markdown-body h2 { color: var(--mdp-heading-h2); }
     .markdown-body h3 { color: var(--mdp-heading-h3); }
@@ -42,6 +46,13 @@ nonisolated extension MarkdownHTML {
     .markdown-body h5 { color: var(--mdp-heading-h5); }
     .markdown-body h6 { color: var(--mdp-heading-h6); }
     """
+
+  /// The editor tags heading lines `cm-md-h1`…`cm-md-h6`; the module adds
+  /// `cm-colorful-headings` to the editor, so these rules apply only while
+  /// it is enabled. `#editor` outranks the base heading rules.
+  static let colorfulHeaderEditorStylesheet = colorfulHeaderPalette + (1...6).map {
+    "#editor .cm-colorful-headings .cm-md-h\($0) { color: var(--mdp-heading-h\($0)); }"
+  }.joined(separator: "\n")
 
   struct ColorfulHeadersExtension: MarkdownRenderExtension {
     let id = "colorful-headings"
@@ -52,6 +63,10 @@ nonisolated extension MarkdownHTML {
       userToggleable: true
     )
     let order = 100
+    let editor: (any EditorCapability)? = EditorModule(
+      moduleID: "colorful-headings",
+      css: MarkdownHTML.colorfulHeaderEditorStylesheet
+    )
 
     func isActive(in context: RenderContext) -> Bool {
       context.html.range(

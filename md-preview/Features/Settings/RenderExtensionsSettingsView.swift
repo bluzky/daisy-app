@@ -33,17 +33,23 @@ struct RenderExtensionsSettingsView: View {
                     id: \.id
                 ) { renderExtension in
                     Toggle(
-                        MarkdownHTML.renderExtensionTitle(for: renderExtension.id),
                         isOn: Binding(
                             get: { model.isRenderExtensionEnabled(renderExtension.id) },
                             set: { model.setRenderExtensionEnabled($0, id: renderExtension.id) }
                         )
-                    )
+                    ) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(MarkdownHTML.renderExtensionTitle(for: renderExtension.id))
+                            Text(L(renderExtension.editor == nil ? "Preview" : "Preview & Editor"))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
             } header: {
                 Text(L("Markdown rendering"))
             } footer: {
-                Text(L("These settings apply to document windows and Quick Look previews. They do not affect editor mode."))
+                Text(L("These settings apply to document windows and Quick Look previews. Extensions marked Preview & Editor also apply in editor mode."))
             }
         }
         .formStyle(.grouped)

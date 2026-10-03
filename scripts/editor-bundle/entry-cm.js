@@ -7,7 +7,7 @@
 import {
   EditorView, keymap, ViewPlugin, Decoration, BlockWrapper, WidgetType, dropCursor,
 } from "@codemirror/view"
-import { Annotation, EditorState, EditorSelection, MapMode, Prec, StateEffect, StateField, Transaction } from "@codemirror/state"
+import { Annotation, Compartment, EditorState, EditorSelection, MapMode, Prec, StateEffect, StateField, Transaction } from "@codemirror/state"
 import {
   defaultKeymap, history, historyKeymap, indentLess, insertTab,
 } from "@codemirror/commands"
@@ -1716,6 +1716,47 @@ const mermaidPreviews = StateField.define({
   provide: (field) => EditorView.decorations.from(field),
 })
 
+// ---------------------------------------------------------------------------
+// Editor extensions
+//
+// Optional editor behaviour that pairs with a render extension of the same id
+// (see MarkdownRenderExtension.editor on the Swift side). Each module lives in
+// its own compartment so the host can switch it on and off in one transaction
+// without recreating the editor, losing the selection or clearing undo history.
+// Core editing (history, keymaps, live preview) is deliberately not a module.
+// ---------------------------------------------------------------------------
+
+const editorModules = new Map()
+
+// `precedence` wraps the module's extensions so behaviour never depends on
+// registration order: "lowest" | "default" | "highest".
+function registerEditorExtension({ id, extensions, precedence = "default" }) {
+  if (editorModules.has(id)) throw new Error(`Editor extension "${id}" registered twice`)
+  editorModules.set(id, { id, extensions, precedence })
+}
+
+function editorModuleExtensions(module) {
+  const extensions = module.extensions()
+  switch (module.precedence) {
+    case "lowest": return Prec.lowest(extensions)
+    case "highest": return Prec.highest(extensions)
+    default: return extensions
+  }
+}
+
+// A module the host says nothing about stays on, so headless hosts that pass
+// no state keep the full editor.
+const editorModuleEnabled = (state, id) => !state || state[id] !== false
+
+registerEditorExtension({ id: "mermaid", extensions: () => [mermaidPreviews] })
+
+// Heading lines already carry cm-md-h1..h6; the host stylesheet colors them
+// only under this class, so toggling the module is a single attribute change.
+registerEditorExtension({
+  id: "colorful-headings",
+  extensions: () => [EditorView.editorAttributes.of({ class: "cm-colorful-headings" })],
+})
+
 function detectedCodeHighlights(details, cache) {
   const cached = cache.get(details.sourceFrom)
   if (cached?.language === details.detectedLanguage
@@ -2967,6 +3008,15 @@ window.MDEditor = {
     // Live preview spacing tokens from the host stylesheet (MarkdownHTML
     // constants) — see METRICS for the headless defaults.
     Object.assign(METRICS, (callbacks && callbacks.spacing) || {})
+    const moduleCompartments = new Map()
+    const moduleEnabled = new Map()
+    for (const module of editorModules.values()) {
+      const enabled = editorModuleEnabled(callbacks && callbacks.extensionState, module.id)
+      moduleCompartments.set(module.id, new Compartment())
+      moduleEnabled.set(module.id, enabled)
+    }
+    const moduleExtensions = [...editorModules.values()].map((module) =>
+      moduleCompartments.get(module.id).of(moduleEnabled.get(module.id) ? editorModuleExtensions(module) : []))
     const view = new EditorView({
       parent,
       state: EditorState.create({
@@ -2999,7 +3049,7 @@ window.MDEditor = {
           pointerPreview,
           stablePointerPreview,
           anchoredPointerSelection,
-          mermaidPreviews,
+          ...moduleExtensions,
           tableEditors,
           tableFormattingSelection,
           // Markdown punctuation also carries processingInstruction tags.
@@ -3337,6 +3387,17 @@ window.MDEditor = {
         pendingTableContextAction = null
         pending.perform(action)
         return true
+      },
+      setExtensionState: (state) => {
+        const effects = []
+        for (const module of editorModules.values()) {
+          const enabled = editorModuleEnabled(state, module.id)
+          if (enabled === moduleEnabled.get(module.id)) continue
+          moduleEnabled.set(module.id, enabled)
+          effects.push(moduleCompartments.get(module.id).reconfigure(
+            enabled ? editorModuleExtensions(module) : []))
+        }
+        if (effects.length) view.dispatch({ effects })
       },
       destroy: () => {
         view.destroy()

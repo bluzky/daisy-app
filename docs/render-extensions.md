@@ -22,6 +22,28 @@ Colorful and Collapsible headings are user-toggleable. Highlight, Callout,
 KaTeX, and Mermaid participate in the same registry but are always enabled
 and do not appear in Settings.
 
+## Editor capability
+
+An extension may also contribute to the CodeMirror editor. It declares this
+with `editor: (any EditorCapability)?` (nil by default, so render-only
+extensions are unchanged). The capability only names a `moduleID`; the
+behaviour is a module compiled into the editor bundle and registered under
+that id:
+
+```js
+registerEditorExtension({ id, extensions: () => [...], precedence? })
+```
+
+Descriptor, order and the Settings toggle are shared, so a both-sided extension
+(Mermaid today) switches on and off as one unit. `MarkdownHTML.editorExtensionState`
+maps the current configuration to `{ moduleID: enabled }`. The editor page
+embeds it at creation, and `EditorViewController.applyExtensionState` pushes it
+to an open editor through `__mdEditor.setExtensionState`. Each module lives in
+its own `Compartment`, so toggling reconfigures it live without recreating the
+editor or losing selection and undo history. A module the host does not
+mention stays enabled. Quick Look never loads the editor, so it only sees the
+render side. Editor-only extensions are not supported yet.
+
 ## Assets and fast path
 
 Every page shell emits CSS for every enabled extension. JavaScript emits only
@@ -57,10 +79,14 @@ mirrors excluded from find use `data-mdp-search-exclude`.
 3. Add target membership and test-package symlink when needed.
 4. Add locale keys for descriptor title/description.
 5. Test activation, assets, lifecycle behavior, and Quick Look mode.
+6. For editor behaviour, set `editor` to `EditorModule(moduleID:)`, register the
+   module in `scripts/editor-bundle/entry-cm.js`, rebuild with `npm run build`
+   there, and add a case to `smoke-test.mjs`.
 
 Run:
 
 ```bash
+(cd scripts/editor-bundle && npm run build && node smoke-test.mjs)
 swift test --package-path tests/swift-tests
 xcodebuild -project md-preview.xcodeproj -scheme md-preview -configuration Debug build
 ```

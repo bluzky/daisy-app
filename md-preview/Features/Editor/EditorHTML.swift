@@ -15,6 +15,10 @@ nonisolated enum EditorHTML {
         var readerStyleCSS = ""
         var usesPageScrolling = false
         var bridgeName = "mdEditorHost"
+        /// Enabled flag per editor module id; see `MarkdownHTML.editorExtensionState`.
+        var extensionState: [String: Bool] = [:]
+        /// Static CSS from editor-capable extensions; see `MarkdownHTML.editorExtensionCSS`.
+        var extensionCSS = ""
     }
 
     /// The reader settings the preview bakes into its page, as one stylesheet
@@ -698,6 +702,7 @@ nonisolated enum EditorHTML {
         .hl-meta { color: var(--hl-preprocessor); }
         .hl-plain { color: var(--hl-plain); }
         </style>
+        <style>\(configuration.extensionCSS)</style>
         <style id="\(MarkdownHTML.themeStyleElementID)">\(configuration.themeOverrideCSS)</style>
         <style id="\(MarkdownHTML.readerLayoutStyleElementID)">\(configuration.readerStyleCSS)</style>
         </head>
@@ -746,6 +751,7 @@ nonisolated enum EditorHTML {
                     markdown,
                     {
                         pageScrolling: \(usesPageScrolling),
+                        extensionState: \(extensionStateLiteral(configuration.extensionState)),
                         onDirty: function () { post("dirty"); },
                         onCopyCode: function (text) { post({ kind: "copyCode", value: text }); },
                         onFormattingChange: function (state) {
@@ -798,6 +804,7 @@ nonisolated enum EditorHTML {
                     performTableContextAction: function (token, action) {
                         return editor.performTableContextAction(token, action);
                     },
+                    setExtensionState: function (state) { editor.setExtensionState(state); },
                     exec: function (name) { editor.exec(name); }
                 };
                 requestAnimationFrame(function () { post("ready"); });
@@ -811,6 +818,15 @@ nonisolated enum EditorHTML {
         </body>
         </html>
         """
+    }
+
+    /// JSON object literal for the editor module state, escaped like
+    /// `jsStringLiteral` so it is safe inside an inline <script>.
+    static func extensionStateLiteral(_ state: [String: Bool]) -> String {
+        let data = (try? JSONSerialization.data(withJSONObject: state, options: [.sortedKeys]))
+            ?? Data("{}".utf8)
+        return String(decoding: data, as: UTF8.self)
+            .replacingOccurrences(of: "<", with: "\\u003c")
     }
 
     /// JSON string literal safe for embedding in an inline <script>:

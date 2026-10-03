@@ -138,6 +138,18 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
         ) { _, _ in }
     }
 
+    /// Switches editor modules on or off in an open editor after an
+    /// extension toggle in Settings. Fresh loads embed the same state in
+    /// `editorHTML`.
+    func applyExtensionState() {
+        let state = MarkdownHTML.editorExtensionState(
+            configuration: RenderExtensionPreferences.currentConfiguration
+        )
+        webView.evaluateJavaScript(
+            "window.__mdEditor && window.__mdEditor.setExtensionState(\(EditorHTML.extensionStateLiteral(state)))"
+        ) { _, _ in }
+    }
+
     private static func readerStyleCSS() -> String {
         EditorHTML.readerStyleCSS(documentFont: .current,
                                   readerLayout: .current,
@@ -557,7 +569,11 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
                 themeOverrideCSS: colors.editorOverrideCSS,
                 readerStyleCSS: readerStyleCSS(),
                 usesPageScrolling: usesPageScrolling,
-                bridgeName: EditorBridge.name
+                bridgeName: EditorBridge.name,
+                extensionState: MarkdownHTML.editorExtensionState(
+                    configuration: RenderExtensionPreferences.currentConfiguration
+                ),
+                extensionCSS: MarkdownHTML.editorExtensionCSS()
             )
         )
     }

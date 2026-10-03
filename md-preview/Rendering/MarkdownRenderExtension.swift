@@ -97,9 +97,30 @@ nonisolated protocol MarkdownRenderExtension: Sendable {
   /// Optional rewrite after this extension activates.
   func transform(_ context: MarkdownHTML.RenderContext) -> String
   func assets(mode: MarkdownHTML.VendorLoading) -> MarkdownHTML.RenderAssets
+  /// Editor-side half of this extension, when it has one. Render-only
+  /// extensions return nil. The user toggle, order and descriptor are shared,
+  /// so a both-sided extension switches on and off as one unit.
+  var editor: (any EditorCapability)? { get }
+}
+
+/// Declares that an extension also contributes to the CodeMirror editor. The
+/// behaviour itself is a module compiled into the editor bundle and registered
+/// by the same id (see `registerEditorExtension` in `entry-cm.js`).
+nonisolated protocol EditorCapability: Sendable {
+  var moduleID: String { get }
+  /// Static CSS for the editor page. It is emitted whether or not the module
+  /// is enabled, so scope every rule to a class the module adds.
+  var css: String { get }
+}
+
+nonisolated struct EditorModule: EditorCapability {
+  let moduleID: String
+  var css: String = ""
 }
 
 nonisolated extension MarkdownRenderExtension {
+  var editor: (any EditorCapability)? { nil }
+
   func transform(_ context: MarkdownHTML.RenderContext) -> String {
     context.html
   }
@@ -204,6 +225,27 @@ nonisolated extension MarkdownHTML {
     extensions: [any MarkdownRenderExtension] = renderExtensions
   ) -> [any MarkdownRenderExtension] {
     validatedAndOrdered(extensions).filter { configuration.isEnabled($0) }
+  }
+
+  /// Enabled flag for every editor module, keyed by module id. Editor pages
+  /// receive this at creation and again whenever Settings change.
+  static func editorExtensionState(
+    configuration: RenderExtensionConfiguration,
+    extensions: [any MarkdownRenderExtension] = renderExtensions
+  ) -> [String: Bool] {
+    var state: [String: Bool] = [:]
+    for ext in extensions {
+      guard let editor = ext.editor else { continue }
+      state[editor.moduleID] = configuration.isEnabled(ext)
+    }
+    return state
+  }
+
+  /// Concatenated CSS of every editor-capable extension, for the editor page.
+  static func editorExtensionCSS(
+    extensions: [any MarkdownRenderExtension] = renderExtensions
+  ) -> String {
+    extensions.compactMap { $0.editor?.css }.filter { !$0.isEmpty }.joined(separator: "\n")
   }
 
   static func validatedAndOrdered(

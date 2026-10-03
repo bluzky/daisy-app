@@ -538,6 +538,7 @@ nonisolated extension MarkdownHTML {
             userToggleable: true
         )
         let order = 40
+        let editor: (any EditorCapability)? = EditorModule(moduleID: "mermaid")
 
         func isActive(in context: RenderContext) -> Bool {
             context.html.contains("language-mermaid")

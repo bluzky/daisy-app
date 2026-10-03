@@ -352,6 +352,68 @@ final class MarkdownRenderExtensionTests: XCTestCase {
     XCTAssertFalse(bridge.contains("window.MdPreview.registerRenderer"))
   }
 
+  func testEditorExtensionStateCoversOnlyEditorCapableExtensions() {
+    let state = MarkdownHTML.editorExtensionState(configuration: .allEnabled)
+    XCTAssertEqual(state, ["mermaid": true, "colorful-headings": true])
+  }
+
+  func testEditorExtensionStateFollowsUserToggle() {
+    let configuration = MarkdownHTML.RenderExtensionConfiguration(
+      enabledIDs: Set(MarkdownHTML.renderExtensions.map(\.id)).subtracting(["mermaid"])
+    )
+    XCTAssertEqual(
+      MarkdownHTML.editorExtensionState(configuration: configuration),
+      ["mermaid": false, "colorful-headings": true]
+    )
+  }
+
+  func testRenderOnlyExtensionsHaveNoEditorCapability() {
+    let renderOnly = MarkdownHTML.renderExtensions.filter { $0.editor == nil }.map(\.id)
+    XCTAssertEqual(
+      renderOnly,
+      ["highlight", "callout", "katex", "collapsible-headings"]
+    )
+  }
+
+  func testColorfulHeadingsEditorCSSIsScopedToTheModuleClass() {
+    let css = MarkdownHTML.editorExtensionCSS()
+    XCTAssertTrue(css.contains("--mdp-heading-h1: #d14f6a"))
+    for level in 1...6 {
+      XCTAssertTrue(
+        css.contains("#editor .cm-colorful-headings .cm-md-h\(level) { color: var(--mdp-heading-h\(level)); }")
+      )
+    }
+    XCTAssertFalse(css.contains(".markdown-body"))
+  }
+
+  func testEditorPageEmbedsExtensionCSS() {
+    let html = EditorHTML.render(
+      markdown: "x",
+      editorJavaScript: "",
+      configuration: .init(extensionCSS: ".cm-colorful-headings-marker{}")
+    )
+    XCTAssertTrue(html.contains(".cm-colorful-headings-marker{}"))
+  }
+
+  func testEditorExtensionStateLiteralIsSortedAndScriptSafe() {
+    XCTAssertEqual(
+      EditorHTML.extensionStateLiteral(["b": false, "a": true]),
+      #"{"a":true,"b":false}"#
+    )
+    XCTAssertFalse(EditorHTML.extensionStateLiteral(["</script>": true]).contains("<"))
+    XCTAssertEqual(EditorHTML.extensionStateLiteral([:]), "{}")
+  }
+
+  func testEditorPageEmbedsExtensionState() {
+    let html = EditorHTML.render(
+      markdown: "x",
+      editorJavaScript: "",
+      configuration: .init(extensionState: ["mermaid": false])
+    )
+    XCTAssertTrue(html.contains(#"extensionState: {"mermaid":false}"#))
+    XCTAssertTrue(html.contains("setExtensionState"))
+  }
+
   private final class ExtensionInvocationCounter: @unchecked Sendable {
     var inputs: [String] = []
   }
