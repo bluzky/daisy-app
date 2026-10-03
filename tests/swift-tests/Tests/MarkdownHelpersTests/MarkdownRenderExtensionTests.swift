@@ -8,17 +8,41 @@ final class MarkdownRenderExtensionTests: XCTestCase {
   func testRegistryContainsBuiltInRenderExtensionsInPipelineOrder() {
     XCTAssertEqual(
       MarkdownHTML.renderExtensions.map(\.id),
-      ["colorful-headings", "collapsible-headings"]
+      ["highlight", "callout", "katex", "mermaid", "colorful-headings", "collapsible-headings"]
     )
     let orders = MarkdownHTML.renderExtensions.map(\.order)
     XCTAssertEqual(orders, orders.sorted())
     XCTAssertEqual(Set(orders).count, orders.count)
   }
 
-  func testRegistryDescriptorsDescribeToggleableDefaultExtensions() {
+  func testRegistryDescriptorsDescribeBuiltInsAndToggleableExtensions() {
     XCTAssertEqual(
       MarkdownHTML.renderExtensions.map(\.descriptor),
       [
+        .init(
+          titleKey: "Code highlighting",
+          descriptionKey: nil,
+          defaultEnabled: true,
+          userToggleable: false
+        ),
+        .init(
+          titleKey: "Callouts",
+          descriptionKey: nil,
+          defaultEnabled: true,
+          userToggleable: false
+        ),
+        .init(
+          titleKey: "Math",
+          descriptionKey: nil,
+          defaultEnabled: true,
+          userToggleable: false
+        ),
+        .init(
+          titleKey: "Mermaid",
+          descriptionKey: nil,
+          defaultEnabled: true,
+          userToggleable: false
+        ),
         .init(
           titleKey: "Colorful headings",
           descriptionKey: nil,
@@ -117,6 +141,36 @@ final class MarkdownRenderExtensionTests: XCTestCase {
     XCTAssertTrue(warmup.html.contains("mdp-collapsed-section"))
     XCTAssertFalse(warmup.html.contains("id: 'collapsible-headings'"))
     XCTAssertTrue(warmup.scriptAssetIDs.isEmpty)
+  }
+
+  func testBuiltInExtensionsEmitOnlyTheirActiveScriptAssets() {
+    let plain = MarkdownHTML.render(markdown: "Plain text.", vendorLoading: .lazy)
+    XCTAssertTrue(plain.scriptAssetIDs.isEmpty)
+    XCTAssertTrue(plain.html.contains(".hljs-keyword"))
+
+    let rendered = MarkdownHTML.render(
+      markdown: """
+      $x^2$
+
+      ```swift
+      let answer = 42
+      ```
+
+      ```mermaid
+      graph TD; A-->B;
+      ```
+      """,
+      vendorLoading: .lazy,
+      highlightsCode: false
+    )
+
+    XCTAssertEqual(
+      rendered.scriptAssetIDs,
+      Set(["highlight", "code", "katex", "math", "mermaid"])
+    )
+    XCTAssertTrue(rendered.html.contains("MdPreviewLazy.lazyExtension"))
+    XCTAssertFalse(rendered.html.contains("MdPreviewLazy.lazyRenderer"))
+    XCTAssertFalse(rendered.html.contains("registerReapplier(highlightAll)"))
   }
 
   func testHeadingExtensionsActivateForHeadingsOnlyInFootnoteDefinitions() {

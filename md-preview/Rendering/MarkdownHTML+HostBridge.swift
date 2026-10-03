@@ -473,21 +473,21 @@ nonisolated extension MarkdownHTML {
                     document.head.appendChild(s);
                 });
             },
-            // Wires up a renderer whose vendor JS is loaded after first paint.
-            // - registers a reapplier that gates on `loaded`, so fast-path
-            //   updates don't fire the renderer before its bundle has arrived
-            // - on first paint, fetches `src` (and any `extras` after) and
-            //   calls `run`
-            lazyRenderer({ src, extras, run }) {
+            // Registers a lifecycle extension before its vendor bundle loads.
+            // Its render hook gates until first paint has fetched `src`; once
+            // ready, reapplyExtensions routes the first run through same
+            // lifecycle path as every later body swap.
+            lazyExtension({ id, src, extras, render }) {
                 let loaded = false;
-                if (window.MdPreview && window.MdPreview.registerReapplier) {
-                    window.MdPreview.registerReapplier(() => { if (loaded) run(); });
-                }
+                window.MdPreview?.registerExtension({
+                    id,
+                    render(root, context) { if (loaded) render(root, context); }
+                });
                 this.afterPaint(async () => {
                     try {
                         await this.loadScript(src);
                         loaded = true;
-                        run();
+                        window.MdPreview?.reapplyExtensions();
                         if (extras) {
                             for (const e of extras) this.loadScript(e).catch(() => {});
                         }
@@ -591,6 +591,10 @@ nonisolated extension MarkdownHTML {
             }
             extensionSnapshots.clear();
         }
+        window.MdPreview.reapplyExtensions = () => {
+            const article = extensionHost.article;
+            if (article) renderExtensions(article, 'reapply');
+        };
         function captureExtensionSnapshots(root) {
             for (const extension of extensions.values()) {
                 const snapshot = callExtension(extension, 'beforeUpdate', root, extensionHost);
@@ -619,9 +623,8 @@ nonisolated extension MarkdownHTML {
             }
             return true;
         };
-        // Compatibility for KaTeX, Mermaid, and highlight until their own
-        // lifecycle migrations land. Every shim becomes an ordered render-only
-        // extension, so it gets same failure isolation as native extensions.
+        // Compatibility for out-of-tree callers. Every shim becomes an
+        // ordered render-only extension with same failure isolation.
         window.MdPreview.registerReapplier = (fn) => {
             if (typeof fn !== 'function') return false;
             legacyReapplierID += 1;
@@ -668,7 +671,10 @@ nonisolated extension MarkdownHTML {
             if (!Number.isInteger(line) || line < 1) return;
             post({ kind: 'taskCheckbox', line, checked: box.checked });
         });
-        window.MdPreview.registerReapplier(enableTaskCheckboxes);
+        window.MdPreview.registerExtension({
+            id: 'task-checkboxes',
+            render: enableTaskCheckboxes
+        });
         function mdHash(s) {
             let h = 5381;
             for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;

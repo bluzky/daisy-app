@@ -90,24 +90,28 @@ nonisolated extension MarkdownHTML {
     /// for the same reason as `dompurifyBlock`.
     static let morphdomBlock = bundledVendorScriptTag("morphdom.min", subdir: "Vendor/Morphdom")
 
-    static func katexHead(mode: VendorLoading) -> VendorEmission {
-        guard bundledVendorURL("katex.min", ext: "js", subdir: "Vendor/KaTeX") != nil else {
-            return VendorEmission(head: katexFallbackScript)
-        }
-        let css = bundledVendorResource("katex.min", ext: "css", subdir: "Vendor/KaTeX") ?? ""
+    /// Every shell carries KaTeX CSS, including documents without math. Keep
+    /// bundle I/O off render hot path now that this runs for every document.
+    private static let katexCSS = bundledVendorResource(
+        "katex.min",
+        ext: "css",
+        subdir: "Vendor/KaTeX"
+    ) ?? ""
 
-        let initScript = """
+    static func katexAssets(mode: VendorLoading) -> RenderAssets {
+        guard bundledVendorURL("katex.min", ext: "js", subdir: "Vendor/KaTeX") != nil else {
+            return RenderAssets(headJS: katexFallbackScript)
+        }
+        let css = katexCSS
+
+        let registration = """
         <script>
         (function() {
             \(katexRenderMathBody)
-            if (window.MdPreview && window.MdPreview.registerReapplier) {
-                window.MdPreview.registerReapplier(renderMath);
-            }
-            if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', renderMath, { once: true });
-            } else {
-                renderMath();
-            }
+            window.MdPreview?.registerExtension({
+                id: 'katex',
+                render() { renderMath(); }
+            });
         })();
         </script>
         """
@@ -118,29 +122,56 @@ nonisolated extension MarkdownHTML {
             let copyTex = bundledVendorResource("copy-tex.min", ext: "js", subdir: "Vendor/KaTeX") ?? ""
             let safeJS = js.replacingOccurrences(of: "</script", with: "<\\/script")
             let safeCopyTex = copyTex.replacingOccurrences(of: "</script", with: "<\\/script")
-            return VendorEmission(
-                head: "<style>\(css)</style>",
-                body: """
+            return RenderAssets(
+                css: css,
+                bodyJS: """
                 <script>\(safeJS)</script>
-                \(initScript)
+                \(registration)
                 \(safeCopyTex.isEmpty ? "" : "<script>\(safeCopyTex)</script>")
                 """
             )
         case .lazy:
             // CSS stays inline so layout is stable while KaTeX JS streams in.
-            return VendorEmission(head: """
-            <style>\(css)</style>
+            return RenderAssets(
+                css: css,
+                headJS: """
             <script>
             (function() {
                 \(katexRenderMathBody)
-                window.MdPreviewLazy.lazyRenderer({
+                window.MdPreviewLazy.lazyExtension({
+                    id: 'katex',
                     src: '\(MarkdownAssetScheme.vendorURL("katex.min.js"))',
                     extras: ['\(MarkdownAssetScheme.vendorURL("copy-tex.min.js"))'],
-                    run: renderMath,
+                    render() { renderMath(); }
                 });
             })();
             </script>
-            """)
+            """,
+                scriptAssetIDs: ["katex", "math"]
+            )
+        }
+    }
+
+    struct KaTeXExtension: MarkdownRenderExtension {
+        let id = "katex"
+        let descriptor = RenderExtensionDescriptor(
+            titleKey: "Math",
+            descriptionKey: nil,
+            defaultEnabled: true,
+            userToggleable: false
+        )
+        let order = 30
+
+        func isActive(in context: RenderContext) -> Bool {
+            context.html.contains("class=\"math ")
+        }
+
+        func assets(mode: VendorLoading) -> RenderAssets {
+            var assets = katexAssets(mode: mode)
+            if !assets.headJS.isEmpty || !assets.bodyJS.isEmpty {
+                assets.scriptAssetIDs = [id, "math"]
+            }
+            return assets
         }
     }
 }

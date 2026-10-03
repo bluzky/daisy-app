@@ -59,7 +59,7 @@ final class CodeHighlighterTests: XCTestCase {
         XCTAssertFalse(rendered.html.contains("highlight.min.js"))
         // The class rules must still reach a page that never loads the runtime.
         XCTAssertTrue(rendered.html.contains(".hljs-keyword"))
-        XCTAssertTrue(MarkdownHTML.stylesheet.contains("var(--hl-keyword)"))
+        XCTAssertTrue(rendered.html.contains("var(--hl-keyword)"))
 
         let deferred = MarkdownHTML.render(
             markdown: "```swift\nlet answer = 42\n```",

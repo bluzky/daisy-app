@@ -12,10 +12,6 @@ import Foundation
 nonisolated extension MarkdownHTML {
     // MARK: - Mermaid
 
-    struct MermaidRenderResult {
-        let html: String
-        let containsMermaid: Bool
-    }
 
     private static let mermaidRegex: NSRegularExpression = {
         // swiftlint:disable:next force_try
@@ -24,9 +20,9 @@ nonisolated extension MarkdownHTML {
         )
     }()
 
-    static func renderMermaidBlocks(in html: String) -> MermaidRenderResult {
+    static func renderMermaidBlocks(in html: String) -> String {
         guard html.contains("language-mermaid") else {
-            return MermaidRenderResult(html: html, containsMermaid: false)
+            return html
         }
         let nsHTML = html as NSString
         let matches = mermaidRegex.matches(
@@ -34,7 +30,7 @@ nonisolated extension MarkdownHTML {
             range: NSRange(location: 0, length: nsHTML.length)
         )
         guard !matches.isEmpty else {
-            return MermaidRenderResult(html: html, containsMermaid: false)
+            return html
         }
 
         var rendered = ""
@@ -84,7 +80,7 @@ nonisolated extension MarkdownHTML {
             cursor = match.range.location + match.range.length
         }
         rendered += nsHTML.substring(from: cursor)
-        return MermaidRenderResult(html: rendered, containsMermaid: true)
+        return rendered
     }
 
     private static let mermaidFallbackScript = """
@@ -490,46 +486,73 @@ nonisolated extension MarkdownHTML {
         })()
     """
 
-    static func mermaidScript(mode: VendorLoading) -> VendorEmission {
+    static func mermaidAssets(mode: VendorLoading) -> RenderAssets {
         guard bundledVendorURL("mermaid.min", ext: "js", subdir: "Vendor/Mermaid") != nil else {
-            return VendorEmission(head: mermaidFallbackScript)
+            return RenderAssets(headJS: mermaidFallbackScript)
         }
         switch mode {
         case .inline:
             let vendorJS = bundledVendorResource("mermaid.min", ext: "js", subdir: "Vendor/Mermaid") ?? ""
             let safeVendor = vendorJS.replacingOccurrences(of: "</script", with: "<\\/script")
-            return VendorEmission(
-                body: """
+            return RenderAssets(
+                bodyJS: """
                 <script>
                 \(safeVendor)
 
                 const __mdpMermaid = \(mermaidInitWiring);
-                if (window.MdPreview && window.MdPreview.registerReapplier) {
-                    window.MdPreview.registerReapplier(__mdpMermaid.bootstrap);
-                }
-                if (document.readyState === 'loading') {
-                    document.addEventListener('DOMContentLoaded', __mdpMermaid.bootstrap, { once: true });
-                } else {
-                    __mdpMermaid.bootstrap();
-                }
+                window.MdPreview?.registerExtension({
+                    id: 'mermaid',
+                    render() { __mdpMermaid.bootstrap(); }
+                });
                 </script>
                 """
             )
         case .lazy:
-            return VendorEmission(head: """
+            return RenderAssets(
+                headJS: """
             <script>
             (() => {
                 let mm = null;
-                window.MdPreviewLazy.lazyRenderer({
+                window.MdPreviewLazy.lazyExtension({
+                    id: 'mermaid',
                     src: '\(MarkdownAssetScheme.vendorURL("mermaid.min.js"))',
-                    run: () => {
+                    render() {
                         mm = mm || \(mermaidInitWiring);
                         mm.bootstrap();
-                    },
+                    }
                 });
             })();
             </script>
-            """)
+            """,
+                scriptAssetIDs: ["mermaid"]
+            )
+        }
+    }
+
+    struct MermaidExtension: MarkdownRenderExtension {
+        let id = "mermaid"
+        let descriptor = RenderExtensionDescriptor(
+            titleKey: "Mermaid",
+            descriptionKey: nil,
+            defaultEnabled: true,
+            userToggleable: false
+        )
+        let order = 40
+
+        func isActive(in context: RenderContext) -> Bool {
+            context.html.contains("language-mermaid")
+        }
+
+        func transform(_ context: RenderContext) -> String {
+            renderMermaidBlocks(in: context.html)
+        }
+
+        func assets(mode: VendorLoading) -> RenderAssets {
+            var assets = mermaidAssets(mode: mode)
+            if !assets.headJS.isEmpty || !assets.bodyJS.isEmpty {
+                assets.scriptAssetIDs = [id]
+            }
+            return assets
         }
     }
 }

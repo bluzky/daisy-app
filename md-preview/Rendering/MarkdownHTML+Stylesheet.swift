@@ -12,11 +12,8 @@ import Foundation
 nonisolated extension MarkdownHTML {
     // Shared document typography, spacing, and controls. Logical positioning
     // keeps lists, quotations, and table alignment consistent in both directions.
-    /// The shared document stylesheet plus the code highlighting class rules.
-    /// The class rules live here, not with the in-page highlighter, because a
-    /// page whose code arrived highlighted from the renderer never loads that
-    /// runtime, yet its spans still need their colors.
-    static let stylesheet = baseStylesheet + "\n" + highlightThemeCSS
+    /// Shared document stylesheet. Extension CSS is emitted from registry.
+    static let stylesheet = baseStylesheet
 
     private static let baseStylesheet = """
     :root {
