@@ -8,9 +8,9 @@
 //  State goes through `SettingsModel` rather than `@AppStorage` because these
 //  preferences aren't plain defaults: appearance lives in the app group shared
 //  with the Quick Look extension, fixed themes lock their appearance, content
-//  width clears its default key, crash reporting starts and stops the Sentry SDK, and
-//  anonymous usage analytics has its own capture lifecycle. Routing through
-//  the existing types keeps one source of truth.
+//  width clears its default key, and anonymous usage analytics has its own
+//  capture lifecycle. Routing through the existing types keeps one source of
+//  truth.
 //
 
 import Sparkle
@@ -107,6 +107,50 @@ final class SettingsModel {
 
     /// A plain stored default with nothing to apply: it is read the next time
     /// a document opens, so unlike the settings above it has no fan-out.
+    var quickCaptureEnabled: Bool {
+        didSet {
+            guard !isRestoringExternalValues, quickCaptureEnabled != oldValue else { return }
+            UserDefaults.standard.set(quickCaptureEnabled, forKey: QuickCaptureSetting.enabledDefaultsKey)
+            quickCaptureShortcutError = QuickCaptureController.shared.applyEnabledSetting()
+                ? nil : Self.shortcutTakenMessage
+            // The hotkey is useless without somewhere to write, so ask now.
+            if quickCaptureEnabled, !QuickCaptureStore.hasFolder {
+                chooseQuickCaptureFolder()
+            }
+        }
+    }
+
+    var quickCaptureFolderPath: String?
+
+    var quickCaptureShortcut: QuickCaptureShortcut
+    var quickCaptureShortcutError: String?
+
+    private static let shortcutTakenMessage = NSLocalizedString(
+        "That shortcut is already used by another app. Pick a different one.",
+        comment: "Quick Capture shortcut error")
+
+    /// Applies a newly recorded shortcut, keeping the previous one when the
+    /// system refuses the new combination.
+    func setQuickCaptureShortcut(_ shortcut: QuickCaptureShortcut) {
+        guard shortcut != quickCaptureShortcut else { return }
+        let previous = quickCaptureShortcut
+        QuickCaptureShortcut.store(shortcut)
+        if QuickCaptureController.shared.applyEnabledSetting() {
+            quickCaptureShortcut = shortcut
+            quickCaptureShortcutError = nil
+        } else {
+            QuickCaptureShortcut.store(previous)
+            QuickCaptureController.shared.applyEnabledSetting()
+            quickCaptureShortcutError = Self.shortcutTakenMessage
+        }
+    }
+
+    func chooseQuickCaptureFolder() {
+        if QuickCaptureStore.chooseFolder() {
+            quickCaptureFolderPath = QuickCaptureStore.folderDisplayPath
+        }
+    }
+
     var opensDocumentsInTabs: Bool {
         didSet {
             guard !isRestoringExternalValues, opensDocumentsInTabs != oldValue else { return }
@@ -119,13 +163,6 @@ final class SettingsModel {
             guard !isRestoringExternalValues else { return }
             UserDefaults.standard.set(opensMarkdownLinksInNewWindows,
                                       forKey: "MarkdownPreview.opensMarkdownLinksInNewWindows")
-        }
-    }
-
-    var sendsCrashReports: Bool {
-        didSet {
-            guard !isRestoringExternalValues, sendsCrashReports != oldValue else { return }
-            CrashReporter.isEnabled = sendsCrashReports
         }
     }
 
@@ -268,8 +305,10 @@ final class SettingsModel {
         strictLineBreaks = StrictLineBreaksSetting.current
         isAlwaysOnTop = AlwaysOnTopPolicy.isEnabled
         opensDocumentsInTabs = TabOpeningPolicy.isEnabled
+        quickCaptureEnabled = QuickCaptureController.isEnabled
+        quickCaptureShortcut = QuickCaptureShortcut.current()
+        quickCaptureFolderPath = QuickCaptureStore.folderDisplayPath
         opensMarkdownLinksInNewWindows = UserDefaults.standard.bool(forKey: "MarkdownPreview.opensMarkdownLinksInNewWindows")
-        sendsCrashReports = CrashReporter.isEnabled
         themeColors = ThemeColorsSetting.current
         enabledRenderExtensionIDs = RenderExtensionPreferences.currentConfiguration.enabledIDs
         sharesAnonymousUsageAnalytics = UsageAnalyticsReporter.isEnabled
@@ -310,7 +349,7 @@ final class SettingsModel {
     }
 
     /// Re-reads values that menus, document zoom, a window's own toolbar,
-    /// Sparkle, the crash reporter, or usage analytics can change while the
+    /// Sparkle or usage analytics can change while the
     /// shared Settings model remains alive.
     func refreshFromExternalSources() {
         isRestoringExternalValues = true
@@ -328,8 +367,10 @@ final class SettingsModel {
         strictLineBreaks = StrictLineBreaksSetting.current
         isAlwaysOnTop = AlwaysOnTopPolicy.isEnabled
         opensDocumentsInTabs = TabOpeningPolicy.isEnabled
+        quickCaptureEnabled = QuickCaptureController.isEnabled
+        quickCaptureShortcut = QuickCaptureShortcut.current()
+        quickCaptureFolderPath = QuickCaptureStore.folderDisplayPath
         opensMarkdownLinksInNewWindows = UserDefaults.standard.bool(forKey: "MarkdownPreview.opensMarkdownLinksInNewWindows")
-        sendsCrashReports = CrashReporter.isEnabled
         themeColors = ThemeColorsSetting.current
         enabledRenderExtensionIDs = RenderExtensionPreferences.currentConfiguration.enabledIDs
         sharesAnonymousUsageAnalytics = UsageAnalyticsReporter.isEnabled

@@ -64,6 +64,7 @@ Or grab the latest signed and notarized DMG from the [Releases](https://github.c
 - **Extensions** — code highlighting, callouts, KaTeX math, Mermaid diagrams, and colorful and collapsible headings, each switchable in **Settings → Extensions**. Mermaid, colorful headings and slash commands also apply in Edit Mode.
 - **Quick Look** — system-wide `.md` previews from Finder, Spotlight, and Mail.
 - **Search** — in-document search (<kbd>⌘F</kbd>) and Search for Document (<kbd>⇧⌘O</kbd>) to find a file by name.
+- **Quick Capture** — turn on the shortcut in Settings, then press it from any app (<kbd>⌃⌥Space</kbd> by default, changeable there; <kbd>⌥⇧⌘N</kbd> inside Daisy) to open `Inbox.md` from your capture folder in the editor. Each time adds a new `## yyyy-MM-dd HH:mm` heading at the end and puts the cursor under it.
 - **Reading settings** — text size and zoom, content width, text alignment, strict line breaks, and themes with font, spacing, and color customization.
 
 
@@ -89,13 +90,7 @@ cd daisy-app
 open daisy.xcodeproj
 ```
 
-Build and run the `daisy` scheme. Swift Package Manager will resolve [Sparkle](https://github.com/sparkle-project/Sparkle), [Sentry](https://github.com/getsentry/sentry-cocoa), and [swift-markdown](https://github.com/swiftlang/swift-markdown) on first build.
-
-### Crash reporting
-
-Release builds submit native crash reports to the `pluk-inc/markdown-preview` Sentry project. The integration does not collect performance traces, session data, breadcrumbs, network requests, user information, document contents, or file paths. Users can turn reporting off in Daisy > Settings > Privacy; on later launches, the Sentry SDK will not initialize at all.
-
-The committed DSN is a public client key. Release archives upload the app dSYM with `sentry-cli`; authenticate locally with `sentry-cli login` and keep that authentication token outside the repository.
+Build and run the `daisy` scheme. Swift Package Manager will resolve [Sparkle](https://github.com/sparkle-project/Sparkle) and [swift-markdown](https://github.com/swiftlang/swift-markdown) on first build.
 
 ### Anonymous usage analytics
 
@@ -145,7 +140,6 @@ Pull requests are welcome. For larger changes, please open an issue first to dis
 - [Mermaid](https://mermaid.js.org/) — Bundled diagram renderer for `mermaid` fenced code blocks
 - [KaTeX](https://katex.org/) — Bundled math typesetter for inline `$…$`, display `$$…$$`, and ` ```math ` blocks
 - [Sparkle](https://sparkle-project.org) — Auto-update framework
-- [Sentry](https://sentry.io) — Privacy-filtered native crash reporting
 
 ## License
 

@@ -45,6 +45,42 @@ struct GeneralSettingsView: View {
             }
 
             Section {
+                Toggle(isOn: $model.quickCaptureEnabled) {
+                    Text(L("Quick Capture shortcut"))
+                    Text(L("Press the shortcut in any app to open Inbox.md in Daisy with a new dated heading, ready to type."))
+                }
+
+                LabeledContent {
+                    HStack {
+                        ShortcutRecorderView(shortcut: model.quickCaptureShortcut) {
+                            model.setQuickCaptureShortcut($0)
+                        }
+                        Button(L("Reset")) {
+                            model.setQuickCaptureShortcut(.default)
+                        }
+                        .disabled(model.quickCaptureShortcut == .default)
+                    }
+                } label: {
+                    Text(L("Shortcut"))
+                    if let error = model.quickCaptureShortcutError {
+                        Text(error).foregroundStyle(.red)
+                    }
+                }
+                .disabled(!model.quickCaptureEnabled)
+
+                LabeledContent {
+                    Button(L("Choose…")) { model.chooseQuickCaptureFolder() }
+                } label: {
+                    Text(L("Capture folder"))
+                    Text(model.quickCaptureFolderPath ?? L("Not chosen yet"))
+                }
+            } header: {
+                Text(L("Quick Capture"))
+            } footer: {
+                Text(L("Daisy has to keep running to listen for the shortcut."))
+            }
+
+            Section {
                 LabeledContent {
                     Picker("", selection: $model.autoSaveIntervalMinutes) {
                         Text(L("Never")).tag(AutoSaveSetting.disabledMinutes)

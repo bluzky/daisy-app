@@ -10,6 +10,10 @@
     </array>
     <key>com.apple.security.files.user-selected.read-write</key>
     <true/>
+    <!-- Quick Capture remembers its destination folder as a security-scoped
+         bookmark, which the sandbox only honours with this entitlement. -->
+    <key>com.apple.security.files.bookmarks.app-scope</key>
+    <true/>
     <key>com.apple.security.automation.apple-events</key>
     <true/>
     <key>com.apple.security.temporary-exception.apple-events</key>

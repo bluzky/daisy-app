@@ -109,7 +109,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        CrashReporter.start()
         let storedAppearance = AppearanceMode.migrateLegacyValue()
         ThemePreset.migrateLegacyValues()
         let appearanceMode = ThemePreset.applied().requiredAppearance ?? storedAppearance
@@ -125,6 +124,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         installFormatMenu()
         installNewTabMenuItem()
         installSearchForDocumentMenuItem()
+        installQuickCaptureMenuItem()
         installFileExportMenuItems()
         installGoMenu()
         installSettingsMenuItem()
@@ -132,6 +132,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         installAppMenuItems()
         installWhatsNewMenuItem()
         installViewMenuItemIcons()
+        QuickCaptureController.shared.applyEnabledSetting()
         hasFinishedLaunching = true
         if !didReceiveOpenURLsDuringLaunch {
             scheduleDocumentPrompt(requiresNoDocuments: true)
@@ -888,6 +889,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let openIndex = fileMenu.items
             .firstIndex { $0.action == #selector(openDocument(_:)) }
         fileMenu.insertItem(item, at: openIndex.map { $0 + 1 } ?? 0)
+    }
+
+    private func installQuickCaptureMenuItem() {
+        guard let fileMenu = topLevelSubmenu(matching: Self.fileMenuTitles),
+              fileMenu.items.first(where: { $0.action == #selector(showQuickCapture(_:)) }) == nil
+        else { return }
+        let item = NSMenuItem(title: L("Open Inbox"),
+                              action: #selector(showQuickCapture(_:)),
+                              keyEquivalent: "n")
+        item.keyEquivalentModifierMask = [.command, .option, .shift]
+        item.target = self
+        let searchIndex = fileMenu.items.firstIndex {
+            $0.action == #selector(DocumentWindowController.searchForDocument(_:))
+        }
+        fileMenu.insertItem(item, at: searchIndex.map { $0 + 1 } ?? 0)
+    }
+
+    @objc func showQuickCapture(_ sender: Any?) {
+        QuickCaptureController.shared.openInbox()
     }
 
     private func installFileExportMenuItems() {

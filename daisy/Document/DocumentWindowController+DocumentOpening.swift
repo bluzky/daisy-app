@@ -192,7 +192,9 @@ extension DocumentWindowController {
         renderCurrentDocument(text: text, fileURL: fileURL)
         if pendingEditModeURL == fileURL.standardizedFileURL {
             pendingEditModeURL = nil
-            enterEditMode()
+            let entry = pendingEditModeAppendedEntry
+            pendingEditModeAppendedEntry = nil
+            enterEditMode(autofocus: entry != nil, appendingEntry: entry)
         }
     }
 

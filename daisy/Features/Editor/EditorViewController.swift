@@ -319,9 +319,44 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
         }
     }
 
-    func focusEditor() {
+    /// Focuses the editor. With `appendingEntry`, that text is added as a new
+    /// block at the end of the document and the cursor is left after it.
+    func focusEditor(appendingEntry entry: String? = nil) {
         view.window?.makeFirstResponder(webView)
-        webView.evaluateJavaScript("window.__mdEditor && window.__mdEditor.focus()") { _, _ in }
+        guard let entry else {
+            webView.evaluateJavaScript("window.__mdEditor && window.__mdEditor.focus()") { _, _ in }
+            return
+        }
+        // Keep one blank line between the previous content and the new entry.
+        // `insertTextAt` focuses and leaves the cursor after the inserted text.
+        let script = """
+        (function () {
+            const editor = window.__mdEditor
+            if (!editor) return
+            const markdown = editor.getMarkdown()
+            const separator = markdown === '' || markdown.endsWith('\\n\\n') ? ''
+                : markdown.endsWith('\\n') ? '\\n' : '\\n\\n'
+            editor.insertTextAt(separator + \(EditorHTML.jsStringLiteral(entry)), markdown.length, markdown.length)
+            // CodeMirror estimates the height of lines it hasn't drawn yet, so
+            // the scroll height keeps changing as scrolling renders them. Keep
+            // scrolling until it holds still for a few frames.
+            const inner = document.querySelector('#editor .cm-scroller')
+            if (!inner) return
+            // In page-scrolling layouts the inner scroller has overflow: visible
+            // and the document itself scrolls instead.
+            const scroller = getComputedStyle(inner).overflowY === 'visible'
+                ? (document.scrollingElement || document.documentElement) : inner
+            let lastHeight = -1, stableFrames = 0, frames = 0
+            const settle = () => {
+                scroller.scrollTop = scroller.scrollHeight
+                stableFrames = scroller.scrollHeight === lastHeight ? stableFrames + 1 : 0
+                lastHeight = scroller.scrollHeight
+                if (stableFrames < 4 && ++frames < 60) requestAnimationFrame(settle)
+            }
+            requestAnimationFrame(settle)
+        })()
+        """
+        webView.evaluateJavaScript(script) { _, _ in }
     }
 
     /// Applies a normalized preview scroll position after CodeMirror has

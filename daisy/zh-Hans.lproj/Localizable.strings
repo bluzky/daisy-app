@@ -58,8 +58,6 @@
 "Reset Colors" = "重置颜色";
 "Restores the default Normal theme." = "恢复默认的“标准”主题。";
 "Current theme: %@" = "当前主题：%@";
-"Send anonymous crash reports" = "发送匿名崩溃报告";
-"Crash reports contain diagnostic details such as stack traces and OS and app versions. They may include technical file paths; Daisy does not deliberately attach document contents or personal information." = "崩溃报告包含堆栈跟踪、系统版本和 App 版本等诊断信息，可能包含技术文件路径；Daisy 不会主动附加文稿内容或个人信息。";
 "Share anonymous usage analytics" = "共享匿名使用情况分析";
 "When enabled, Daisy sends at most one event per day when the app becomes active, linked to a random installation identifier. It also sends the app version, macOS major version, processor architecture, and locale country or region. This is used only to count daily and monthly active installations and understand basic platform compatibility. It does not send document contents, file names or paths, actions, screens, precise location, personal information, or advertising identifiers." = "启用后，Daisy 在 App 进入活跃状态时每天最多发送一个事件，并关联一个随机安装标识符。该事件还会发送 App 版本、macOS 主版本、处理器架构以及区域设置中的国家或地区。此信息仅用于统计每日和每月活跃安装数并了解基本平台兼容性，不会发送文稿内容、文件名或路径、操作、界面、精确位置、个人信息或广告标识符。";
 
@@ -396,3 +394,21 @@
 "Warning" = "警告";
 "Caution" = "小心";
 "Toggle \"%@\" section" = "切换“%@”章节";
+
+/* Quick Capture */
+"Quick Capture" = "快速捕获";
+"Quick Capture shortcut" = "快速捕获快捷键";
+"Press the shortcut in any app to open Inbox.md in Daisy with a new dated heading, ready to type." = "在任意 App 中按下快捷键，即可在 Daisy 中打开 Inbox.md，并添加带日期的新标题，随时输入。";
+"Shortcut" = "快捷键";
+"Reset" = "重置";
+"Type shortcut…" = "输入快捷键…";
+"That shortcut is already used by another app. Pick a different one." = "该快捷键已被其他 App 占用，请换一个。";
+"Capture folder" = "捕获文件夹";
+"Not chosen yet" = "尚未选择";
+"Choose…" = "选择…";
+"Choose" = "选择";
+"Choose where Quick Capture keeps Inbox.md" = "选择快速捕获存放 Inbox.md 的位置";
+"Choose a Quick Capture folder first." = "请先选择快速捕获文件夹。";
+"The Quick Capture folder can’t be reached. Choose it again in Settings." = "无法访问快速捕获文件夹，请在“设置”中重新选择。";
+"Daisy has to keep running to listen for the shortcut." = "Daisy 需要保持运行才能响应快捷键。";
+"Open Inbox" = "打开收件箱";

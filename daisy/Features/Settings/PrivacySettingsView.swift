@@ -13,12 +13,6 @@ struct PrivacySettingsView: View {
     var body: some View {
         Form {
             Section {
-                Toggle(L("Send anonymous crash reports"), isOn: $model.sendsCrashReports)
-            } footer: {
-                Text(L("Crash reports contain diagnostic details such as stack traces and OS and app versions. They may include technical file paths; Daisy does not deliberately attach document contents or personal information."))
-            }
-
-            Section {
                 Toggle(L("Share anonymous usage analytics"),
                        isOn: $model.sharesAnonymousUsageAnalytics)
             } footer: {

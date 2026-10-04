@@ -13,7 +13,6 @@
 		9A2040010000000000000001 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 9A2040010000000000000004 /* Localizable.strings */; };
 		9A33940A2FA5AF500015D9A4 /* Markdown in Frameworks */ = {isa = PBXBuildFile; productRef = 9A3394092FA5AF500015D9A4 /* Markdown */; };
 		9A33940C2FA5AF500015D9A4 /* Markdown in Frameworks */ = {isa = PBXBuildFile; productRef = 9A33940B2FA5AF500015D9A4 /* Markdown */; };
-		9A7B10012FB0000100010001 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = 9A7B10032FB0000100010001 /* Sentry */; };
 		9AC100010000000000000001 /* bin/markdown-preview in Copy CLI Tool */ = {isa = PBXBuildFile; fileRef = 9AC100010000000000000002 /* bin/markdown-preview */; };
 		9AF000000000000000000003 /* mermaid.min.js in Resources */ = {isa = PBXBuildFile; fileRef = 9AF000000000000000000101 /* mermaid.min.js */; };
 		9AF000000000000000000004 /* LICENSE in Resources */ = {isa = PBXBuildFile; fileRef = 9AF000000000000000000102 /* LICENSE */; };
@@ -155,7 +154,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				9A0209C12FA1100200092060 /* Sparkle in Frameworks */,
-				9A7B10012FB0000100010001 /* Sentry in Frameworks */,
 				9A33940A2FA5AF500015D9A4 /* Markdown in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -232,7 +230,6 @@
 				9A0207BF2FA0ED7C00092060 /* Resources */,
 				9AC100010000000000000003 /* Copy CLI Tool */,
 				9A02093D2FA10D4C00092060 /* Embed Foundation Extensions */,
-				9A7B10042FB0000100010001 /* Upload dSYMs to Sentry */,
 			);
 			buildRules = (
 			);
@@ -245,7 +242,6 @@
 			name = "daisy";
 			packageProductDependencies = (
 				9A0209C22FA1100200092060 /* Sparkle */,
-				9A7B10032FB0000100010001 /* Sentry */,
 				9A3394092FA5AF500015D9A4 /* Markdown */,
 			);
 			productName = "daisy";
@@ -305,7 +301,6 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				9A0209C32FA1100200092060 /* XCRemoteSwiftPackageReference "Sparkle" */,
-				9A7B10022FB0000100010001 /* XCRemoteSwiftPackageReference "sentry-cocoa" */,
 				9A3394082FA5AF500015D9A4 /* XCRemoteSwiftPackageReference "swift-markdown" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -346,29 +341,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
-
-/* Begin PBXShellScriptBuildPhase section */
-		9A7B10042FB0000100010001 /* Upload dSYMs to Sentry */ = {
-			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-			);
-			name = "Upload dSYMs to Sentry";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 1;
-			shellPath = /bin/sh;
-			shellScript = "set -eu\n\nSENTRY_CLI=\"$(command -v sentry-cli || true)\"\nif [ -z \"$SENTRY_CLI\" ] && [ -x /opt/homebrew/bin/sentry-cli ]; then\n    SENTRY_CLI=/opt/homebrew/bin/sentry-cli\nfi\nif [ -z \"$SENTRY_CLI\" ]; then\n    echo \"error: sentry-cli is required to upload release dSYMs\" >&2\n    exit 1\nfi\n\n\"$SENTRY_CLI\" debug-files upload \\\n    --org pluk-inc \\\n    --project markdown-preview \\\n    --type dsym \\\n    \"$DWARF_DSYM_FOLDER_PATH/$DWARF_DSYM_FILE_NAME\"\n";
-			showEnvVarsInLog = 0;
-		};
-/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		9A0207BD2FA0ED7C00092060 /* Sources */ = {
@@ -723,14 +695,6 @@
 				minimumVersion = 0.7.3;
 			};
 		};
-		9A7B10022FB0000100010001 /* XCRemoteSwiftPackageReference "sentry-cocoa" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/getsentry/sentry-cocoa";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 8.0.0;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -748,11 +712,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 9A3394082FA5AF500015D9A4 /* XCRemoteSwiftPackageReference "swift-markdown" */;
 			productName = Markdown;
-		};
-		9A7B10032FB0000100010001 /* Sentry */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 9A7B10022FB0000100010001 /* XCRemoteSwiftPackageReference "sentry-cocoa" */;
-			productName = Sentry;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
