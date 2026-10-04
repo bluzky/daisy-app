@@ -82,6 +82,29 @@ struct GeneralSettingsView: View {
 
             Section {
                 LabeledContent {
+                    HStack {
+                        Button(L("Choose…")) { model.chooseTemplateFile() }
+                        Button(L("Clear")) { model.clearTemplateFile() }
+                            .disabled(model.templateFilePath == nil)
+                    }
+                } label: {
+                    Text(L("Template file"))
+                    Text(model.templateFilePath ?? L("Not chosen yet"))
+                    if model.templateFilePath != nil {
+                        Text(model.templateCount == 0
+                             ? L("No templates found. Add a <!-- template: Name --> line or a ## heading for each one.")
+                             : String(format: L("%d templates found"), model.templateCount))
+                            .foregroundStyle(model.templateCount == 0 ? .red : .secondary)
+                    }
+                }
+            } header: {
+                Text(L("Templates"))
+            } footer: {
+                Text(L("A template starts at a <!-- template: Name --> line, or at each ## heading if the file has no such line. Insert one from the Templates entry in the slash menu while editing."))
+            }
+
+            Section {
+                LabeledContent {
                     Picker("", selection: $model.autoSaveIntervalMinutes) {
                         Text(L("Never")).tag(AutoSaveSetting.disabledMinutes)
                         Text(L("30 seconds")).tag(AutoSaveSetting.thirtySeconds)
@@ -141,6 +164,9 @@ struct GeneralSettingsView: View {
         .onAppear {
             model.refreshFromExternalSources()
             model.reloadOpenTargets()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: TemplateStore.didChangeNotification)) { _ in
+            model.refreshTemplates()
         }
     }
 

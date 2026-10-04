@@ -62,22 +62,22 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		9A0207C12FA0ED7C00092060 /* Daisy.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Daisy.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		9A0207C12FA0ED7C00092060 /* Daisy.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Daisy.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9A02092D2FA10D4C00092060 /* quick-look.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "quick-look.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
 		9A02092F2FA10D4C00092060 /* Quartz.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Quartz.framework; path = System/Library/Frameworks/Quartz.framework; sourceTree = SDKROOT; };
 		9A0209A02FA1100100092060 /* Version.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Version.xcconfig; sourceTree = "<group>"; };
-		9A2040010000000000000002 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = "daisy/en.lproj/Localizable.strings"; sourceTree = "<group>"; };
+		9A2040010000000000000002 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = daisy/en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		9A2040010000000000000003 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "daisy/zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
 		9AC100010000000000000002 /* bin/markdown-preview */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = "bin/markdown-preview"; sourceTree = "<group>"; };
-		9AF000000000000000000101 /* mermaid.min.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = mermaid.min.js; path = "daisy/Vendor/Mermaid/mermaid.min.js"; sourceTree = "<group>"; };
-		9AF000000000000000000102 /* LICENSE */ = {isa = PBXFileReference; lastKnownFileType = text; name = LICENSE; path = "daisy/Vendor/Mermaid/LICENSE"; sourceTree = "<group>"; };
-		9AF000000000000000000103 /* katex.min.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = katex.min.js; path = "daisy/Vendor/KaTeX/katex.min.js"; sourceTree = "<group>"; };
-		9AF000000000000000000104 /* katex.min.css */ = {isa = PBXFileReference; lastKnownFileType = text.css; name = katex.min.css; path = "daisy/Vendor/KaTeX/katex.min.css"; sourceTree = "<group>"; };
+		9AF000000000000000000101 /* mermaid.min.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = mermaid.min.js; path = daisy/Vendor/Mermaid/mermaid.min.js; sourceTree = "<group>"; };
+		9AF000000000000000000102 /* LICENSE */ = {isa = PBXFileReference; lastKnownFileType = text; name = LICENSE; path = daisy/Vendor/Mermaid/LICENSE; sourceTree = "<group>"; };
+		9AF000000000000000000103 /* katex.min.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = katex.min.js; path = daisy/Vendor/KaTeX/katex.min.js; sourceTree = "<group>"; };
+		9AF000000000000000000104 /* katex.min.css */ = {isa = PBXFileReference; lastKnownFileType = text.css; name = katex.min.css; path = daisy/Vendor/KaTeX/katex.min.css; sourceTree = "<group>"; };
 		9AF000000000000000000105 /* copy-tex.min.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = "copy-tex.min.js"; path = "daisy/Vendor/KaTeX/copy-tex.min.js"; sourceTree = "<group>"; };
 		9AF000000000000000000106 /* KaTeX-LICENSE.txt */ = {isa = PBXFileReference; lastKnownFileType = text; name = "KaTeX-LICENSE.txt"; path = "daisy/Vendor/KaTeX/KaTeX-LICENSE.txt"; sourceTree = "<group>"; };
-		9AF000000000000000000107 /* highlight.min.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = highlight.min.js; path = "daisy/Vendor/Highlight/highlight.min.js"; sourceTree = "<group>"; };
+		9AF000000000000000000107 /* highlight.min.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = highlight.min.js; path = daisy/Vendor/Highlight/highlight.min.js; sourceTree = "<group>"; };
 		9AF000000000000000000109 /* Highlight-LICENSE.txt */ = {isa = PBXFileReference; lastKnownFileType = text; name = "Highlight-LICENSE.txt"; path = "daisy/Vendor/Highlight/Highlight-LICENSE.txt"; sourceTree = "<group>"; };
-		9AF00000000000000000010A /* purify.min.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = purify.min.js; path = "daisy/Vendor/DOMPurify/purify.min.js"; sourceTree = "<group>"; };
+		9AF00000000000000000010A /* purify.min.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = purify.min.js; path = daisy/Vendor/DOMPurify/purify.min.js; sourceTree = "<group>"; };
 		9AF00000000000000000010B /* DOMPurify-LICENSE.txt */ = {isa = PBXFileReference; lastKnownFileType = text; name = "DOMPurify-LICENSE.txt"; path = "daisy/Vendor/DOMPurify/DOMPurify-LICENSE.txt"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -93,11 +93,8 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Helpers/ChromeStripClickThrough.swift,
-				en.lproj/Localizable.strings,
-				"zh-Hans.lproj/Localizable.strings",
 				Rendering/CodeFenceInfo.swift,
 				Rendering/CodeHighlighter.swift,
-
 				Rendering/DocumentFontSetting.swift,
 				Rendering/EscapingHTMLFormatter.swift,
 				Rendering/ExternalLinkPolicy.swift,
@@ -105,21 +102,20 @@
 				Rendering/MarkdownAssetSchemeHandler.swift,
 				Rendering/MarkdownFrontmatter.swift,
 				Rendering/MarkdownHTML.swift,
+				"Rendering/MarkdownHTML+CollapsibleHeaders.swift",
+				"Rendering/MarkdownHTML+ColorfulHeaders.swift",
 				"Rendering/MarkdownHTML+Footnotes.swift",
 				"Rendering/MarkdownHTML+Highlight.swift",
 				"Rendering/MarkdownHTML+HostBridge.swift",
 				"Rendering/MarkdownHTML+KaTeX.swift",
-				"Rendering/MarkdownHTML+ColorfulHeaders.swift",
-				"Rendering/MarkdownHTML+CollapsibleHeaders.swift",
 				"Rendering/MarkdownHTML+Math.swift",
 				"Rendering/MarkdownHTML+Mermaid.swift",
-				Rendering/MarkdownRenderExtension.swift,
 				"Rendering/MarkdownHTML+RTL.swift",
 				"Rendering/MarkdownHTML+Stylesheet.swift",
 				"Rendering/MarkdownHTML+Utils.swift",
+				Rendering/MarkdownRenderExtension.swift,
 				Rendering/MarkdownWebView.swift,
 				Rendering/QuickLookAppearance.swift,
-
 				Rendering/ReaderLayoutSetting.swift,
 				Rendering/StrictLineBreaksSetting.swift,
 				Rendering/TextAlignmentSetting.swift,
@@ -135,7 +131,7 @@
 			exceptions = (
 				9A0209432FA10E6600092060 /* Exceptions for "daisy" folder in "quick-look" target */,
 			);
-			path = "daisy";
+			path = daisy;
 			sourceTree = "<group>";
 		};
 		9A0209312FA10D4C00092060 /* quick-look */ = {
@@ -239,12 +235,12 @@
 			fileSystemSynchronizedGroups = (
 				9A0207C32FA0ED7C00092060 /* daisy */,
 			);
-			name = "daisy";
+			name = daisy;
 			packageProductDependencies = (
 				9A0209C22FA1100200092060 /* Sparkle */,
 				9A3394092FA5AF500015D9A4 /* Markdown */,
 			);
-			productName = "daisy";
+			productName = daisy;
 			productReference = 9A0207C12FA0ED7C00092060 /* Daisy.app */;
 			productType = "com.apple.product-type.application";
 		};
@@ -417,7 +413,7 @@
 				COPY_PHASE_STRIP = NO;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = 5P3TSMNV42;
+				DEVELOPMENT_TEAM = P5LRK5LK5T;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -484,7 +480,7 @@
 				COPY_PHASE_STRIP = NO;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = 5P3TSMNV42;
+				DEVELOPMENT_TEAM = P5LRK5LK5T;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -511,12 +507,12 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "daisy/daisy.entitlements";
+				CODE_SIGN_ENTITLEMENTS = daisy/daisy.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = 5P3TSMNV42;
+				DEVELOPMENT_TEAM = 965F2J8B9J;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SELECTED_FILES = readwrite;
@@ -532,8 +528,8 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "doc.daisy.dev";
-				PRODUCT_NAME = "Daisy";
+				PRODUCT_BUNDLE_IDENTIFIER = lemon.doc.daisy.dev;
+				PRODUCT_NAME = Daisy;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -550,12 +546,12 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "daisy/daisy.entitlements";
+				CODE_SIGN_ENTITLEMENTS = daisy/daisy.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = 5P3TSMNV42;
+				DEVELOPMENT_TEAM = 965F2J8B9J;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SELECTED_FILES = readwrite;
@@ -571,8 +567,8 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "doc.daisy";
-				PRODUCT_NAME = "Daisy";
+				PRODUCT_BUNDLE_IDENTIFIER = lemon.doc.daisy;
+				PRODUCT_NAME = Daisy;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -590,7 +586,7 @@
 				CODE_SIGN_ENTITLEMENTS = "quick-look/quick-look.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = 5P3TSMNV42;
+				DEVELOPMENT_TEAM = 965F2J8B9J;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
@@ -603,7 +599,7 @@
 					"@executable_path/../Frameworks",
 					"@executable_path/../../../../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "doc.daisy.dev.quick-look";
+				PRODUCT_BUNDLE_IDENTIFIER = "lemon.doc.daisy.dev.quick-look";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -621,7 +617,7 @@
 				CODE_SIGN_ENTITLEMENTS = "quick-look/quick-look.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = 5P3TSMNV42;
+				DEVELOPMENT_TEAM = 965F2J8B9J;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
@@ -634,7 +630,7 @@
 					"@executable_path/../Frameworks",
 					"@executable_path/../../../../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "doc.daisy.quick-look";
+				PRODUCT_BUNDLE_IDENTIFIER = "lemon.doc.daisy.quick-look";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;

@@ -56,6 +56,13 @@ A slash command normally carries a template (`convert`). One with `host` names a
 host action instead (`SLASH_HOST_ACTIONS`, e.g. `pickImage`), posts a message to
 the app, and is hidden when the page has no matching callback.
 
+Templates are not part of `options`, which are fixed when the editor is created.
+`TemplateStore` reads the file the user chose (a security-scoped bookmark),
+`TemplateFileParser` splits it at `<!-- template: Name -->` marker lines (or, when the file has none, at H2 headings), and the app pushes the result with
+`window.__mdEditor.setSlashTemplates([{ name, body }])` when the page is ready and
+whenever `TemplateStore.didChangeNotification` fires. The slash menu lists them
+behind a **Templates** row, a second menu level. Variables (`{{date}}`, `{{time}}`, `{{datetime}}`, `{{weekday}}`, `{{cursor}}`) are expanded in the editor bundle when a template is picked (`slashExpandTemplate`), using the `locale` option for day names; `slashClock` in the page callbacks overrides the clock in tests. Opening it clears the typed query, and the level searches template names only; the top level never lists templates.
+
 ## Assets and fast path
 
 Every page shell emits CSS for every enabled extension. JavaScript emits only

@@ -151,6 +151,25 @@ final class SettingsModel {
         }
     }
 
+    /// Display path and template count of the slash-menu template file.
+    /// Both are re-read from the store, so an edit on disk updates Settings.
+    var templateFilePath: String?
+    var templateCount = 0
+
+    func chooseTemplateFile() {
+        if TemplateStore.chooseFile() { refreshTemplates() }
+    }
+
+    func clearTemplateFile() {
+        TemplateStore.clearFile()
+        refreshTemplates()
+    }
+
+    func refreshTemplates() {
+        templateFilePath = TemplateStore.fileDisplayPath
+        templateCount = TemplateStore.load().count
+    }
+
     var opensDocumentsInTabs: Bool {
         didSet {
             guard !isRestoringExternalValues, opensDocumentsInTabs != oldValue else { return }
@@ -308,6 +327,8 @@ final class SettingsModel {
         quickCaptureEnabled = QuickCaptureController.isEnabled
         quickCaptureShortcut = QuickCaptureShortcut.current()
         quickCaptureFolderPath = QuickCaptureStore.folderDisplayPath
+        templateFilePath = TemplateStore.fileDisplayPath
+        templateCount = TemplateStore.load().count
         opensMarkdownLinksInNewWindows = UserDefaults.standard.bool(forKey: "MarkdownPreview.opensMarkdownLinksInNewWindows")
         themeColors = ThemeColorsSetting.current
         enabledRenderExtensionIDs = RenderExtensionPreferences.currentConfiguration.enabledIDs
@@ -370,6 +391,7 @@ final class SettingsModel {
         quickCaptureEnabled = QuickCaptureController.isEnabled
         quickCaptureShortcut = QuickCaptureShortcut.current()
         quickCaptureFolderPath = QuickCaptureStore.folderDisplayPath
+        refreshTemplates()
         opensMarkdownLinksInNewWindows = UserDefaults.standard.bool(forKey: "MarkdownPreview.opensMarkdownLinksInNewWindows")
         themeColors = ThemeColorsSetting.current
         enabledRenderExtensionIDs = RenderExtensionPreferences.currentConfiguration.enabledIDs

@@ -736,6 +736,7 @@ nonisolated enum EditorHTML {
             };
             window.onerror = function (message) { post("error: " + message); };
             let editor = null;
+            let slashTemplates = [];
             window.__mdLoadEditor = function (markdown, baseHref) {
                 let base = document.querySelector("head > base");
                 if (baseHref) {
@@ -782,6 +783,7 @@ nonisolated enum EditorHTML {
                         }
                     }
                 );
+                editor.setSlashTemplates(slashTemplates);
                 window.__mdEditor = {
                     find: function (query, backwards, beginsWith) {
                         return editor.find(query, backwards, beginsWith);
@@ -796,6 +798,12 @@ nonisolated enum EditorHTML {
                     select: function (anchor, head) { editor.select(anchor, head); },
                     insertLinkFromPopover: function (text, url, from, to) {
                         return editor.insertLinkFromPopover(text, url, from, to);
+                    },
+                    // Kept in the page too, so the next document loaded into
+                    // this page still gets the templates.
+                    setSlashTemplates: function (templates) {
+                        slashTemplates = templates;
+                        editor.setSlashTemplates(templates);
                     },
                     isSyntaxReady: function () { return editor.isSyntaxReady(); },
                     replaceMarkdown: function (markdown) { return editor.replaceMarkdown(markdown); },
@@ -835,6 +843,13 @@ nonisolated enum EditorHTML {
     static func jsonObjectLiteral(_ object: [String: Any]) -> String {
         let data = (try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]))
             ?? Data("{}".utf8)
+        return String(decoding: data, as: UTF8.self)
+            .replacingOccurrences(of: "<", with: "\\u003c")
+    }
+
+    static func jsonArrayLiteral(_ array: [Any]) -> String {
+        let data = (try? JSONSerialization.data(withJSONObject: array, options: [.sortedKeys]))
+            ?? Data("[]".utf8)
         return String(decoding: data, as: UTF8.self)
             .replacingOccurrences(of: "<", with: "\\u003c")
     }

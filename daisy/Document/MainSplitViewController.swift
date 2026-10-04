@@ -356,6 +356,18 @@ final class MainSplitViewController: NSSplitViewController {
         isEditingDocument ? cachedEditorViewController : nil
     }
 
+    /// Adds a Quick Capture entry to an edit session that is already underway.
+    /// While the editor is still preparing its DOM isn't ready, so the entry
+    /// is queued and applied when the editor is revealed.
+    func appendEntryToActiveEditor(_ entry: String) {
+        if isEditorPreparing {
+            shouldAutofocusEditor = true
+            pendingAppendedEntry = (pendingAppendedEntry ?? "") + entry
+        } else {
+            editorViewController?.focusEditor(appendingEntry: entry)
+        }
+    }
+
     @discardableResult
     func enterEditMode(markdown: String,
                        assetBaseURL: URL? = nil,

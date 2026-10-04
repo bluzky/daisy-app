@@ -323,12 +323,14 @@ nonisolated extension MarkdownHTML {
       ("bullet", "Bulleted List"), ("ordered", "Numbered List"), ("task", "Checklist"),
       ("code", "Code Block"), ("table", "Table"), ("image", "Image"), ("mermaid", "Mermaid diagram"),
       ("math", "Math Block"), ("note", "Note"), ("tip", "Tip"),
-      ("important", "Important"), ("warning", "Warning"), ("caution", "Caution")
+      ("important", "Important"), ("warning", "Warning"), ("caution", "Caution"),
+      ("templates", "Templates")
     ]
     let groups: [(id: String, key: String)] = [
       ("text", "Text"), ("lists", "Lists"), ("blocks", "Blocks")
     ]
-    var labels: [String: String] = [:]
+    // Language for the names a template variable writes, such as {{weekday}}.
+    var labels: [String: String] = ["locale": Bundle.main.preferredLocalizations.first ?? "en"]
     for command in commands {
       labels["cmd.\(command.id)"] = NSLocalizedString(command.key, comment: "Slash command")
     }
@@ -407,5 +409,24 @@ nonisolated extension MarkdownHTML {
       overflow: hidden;
       text-overflow: ellipsis;
     }
+    .cm-md-slash-label { flex: 1; }
+    .cm-md-slash-chevron {
+      flex: none;
+      color: var(--secondary);
+      font-size: 18px;
+      line-height: 1;
+    }
+    .cm-md-slash-back {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      height: 30px;
+      padding: 0 10px;
+      margin-bottom: 4px;
+      border-radius: 10px;
+      font-weight: 600;
+      cursor: default;
+    }
+    .cm-md-slash-back .cm-md-slash-chevron { width: 22px; text-align: center; }
     """
 }

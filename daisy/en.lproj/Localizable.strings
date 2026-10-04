@@ -412,3 +412,12 @@
 "The Quick Capture folder can’t be reached. Choose it again in Settings." = "The Quick Capture folder can’t be reached. Choose it again in Settings.";
 "Daisy has to keep running to listen for the shortcut." = "Daisy has to keep running to listen for the shortcut.";
 "Open Inbox" = "Open Inbox";
+
+/* Templates */
+"Templates" = "Templates";
+"Template file" = "Template file";
+"Clear" = "Clear";
+"No templates found. Add a <!-- template: Name --> line or a ## heading for each one." = "No templates found. Add a <!-- template: Name --> line or a ## heading for each one.";
+"%d templates found" = "%d templates found";
+"A template starts at a <!-- template: Name --> line, or at each ## heading if the file has no such line. Insert one from the Templates entry in the slash menu while editing." = "A template starts at a <!-- template: Name --> line, or at each ## heading if the file has no such line. Insert one from the Templates entry in the slash menu while editing.";
+"Choose a Markdown file of templates, each starting at a <!-- template: Name --> line or ## heading" = "Choose a Markdown file of templates, each starting at a <!-- template: Name --> line or ## heading";

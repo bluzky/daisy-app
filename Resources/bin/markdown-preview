@@ -1,7 +1,7 @@
 #!/bin/sh
 # Managed by Markdown Preview CLI
 if [ "$#" -eq 0 ]; then
-  exec open -b "doc.daisy" .
+  exec open -b "lemon.doc.daisy" .
 else
-  exec open -b "doc.daisy" "$@"
+  exec open -b "lemon.doc.daisy" "$@"
 fi
