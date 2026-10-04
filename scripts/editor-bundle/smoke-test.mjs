@@ -214,6 +214,189 @@ const slashEditor = (source, extra = {}) => {
   check("a slash in an indented code block stays literal", !slashVisible())
 }
 
+// --- Slash templates --------------------------------------------------------
+const slashTemplates = [
+  { name: "Meeting notes", body: "### Attendees\n\n- \n\n### Notes" },
+  { name: "Daily standup", body: "- Yesterday\n- Today" },
+]
+const slashHasBack = () => slashMenu().querySelector("[data-slash-back]") != null
+
+{
+  const { host, editor } = slashEditor("")
+  editor.insertTextAt("/", 0, 0)
+  check("no Templates row without templates", !slashLabels().includes("Templates"))
+  editor.setSlashTemplates(slashTemplates)
+  check("a Templates row appears once templates are set", slashLabels().at(-1) === "Templates")
+  check("the Templates row has an icon and a chevron",
+    slashMenu().querySelector(".cm-md-slash-item:last-child .cm-md-slash-icon svg path") != null
+    && slashMenu().querySelector(".cm-md-slash-item:last-child .cm-md-slash-chevron") != null)
+  editor.setSlashTemplates([])
+  check("clearing templates removes the row again", !slashLabels().includes("Templates"))
+  editor.setSlashTemplates(slashTemplates)
+
+  for (let i = 0; i < slashLabels().length - 1; i++) slashKey(host, "ArrowDown")
+  slashKey(host, "Enter")
+  check("Enter on Templates lists the templates instead of inserting",
+    slashVisible() && slashHasBack() && editor.getMarkdown() === "/"
+    && JSON.stringify(slashLabels()) === JSON.stringify(["Templates", "Meeting notes", "Daily standup"]))
+  slashKey(host, "ArrowDown")
+  slashKey(host, "Enter")
+  check("Enter on a template inserts its body verbatim",
+    editor.getMarkdown() === "- Yesterday\n- Today" && !slashVisible())
+}
+
+{
+  const { host, editor } = slashEditor("")
+  editor.setSlashTemplates(slashTemplates)
+  editor.insertTextAt("/", 0, 0)
+  for (let i = 0; i < slashLabels().length - 1; i++) slashKey(host, "ArrowDown")
+  slashKey(host, "ArrowRight")
+  check("ArrowRight opens the Templates list", slashHasBack())
+  slashKey(host, "ArrowLeft")
+  check("ArrowLeft goes back to the top level", !slashHasBack() && slashLabels().includes("Heading 1"))
+}
+
+{
+  const { host, editor } = slashEditor("")
+  editor.setSlashTemplates(slashTemplates)
+  editor.insertTextAt("/", 0, 0)
+  for (let i = 0; i < slashLabels().length - 1; i++) slashKey(host, "ArrowDown")
+  slashKey(host, "Enter")
+  slashKey(host, "Backspace")
+  check("Backspace on an empty query goes back and keeps the slash",
+    !slashHasBack() && slashVisible() && editor.getMarkdown() === "/")
+  slashKey(host, "ArrowRight")
+  check("ArrowRight does nothing on the first, normal row", !slashHasBack())
+  for (let i = 0; i < slashLabels().length - 1; i++) slashKey(host, "ArrowDown")
+  slashKey(host, "Enter")
+  slashKey(host, "Escape")
+  check("Escape closes the whole menu from the Templates list", !slashVisible() && editor.getMarkdown() === "/")
+}
+
+{
+  const { host, editor } = slashEditor("")
+  editor.setSlashTemplates(slashTemplates)
+  editor.insertTextAt("/", 0, 0)
+  for (let i = 0; i < slashLabels().length - 1; i++) slashKey(host, "ArrowDown")
+  slashKey(host, "Enter")
+  editor.insertTextAt("stand", 1, 1)
+  check("typing in the Templates list filters templates only",
+    JSON.stringify(slashLabels()) === JSON.stringify(["Templates", "Daily standup"]))
+  editor.insertTextAt("x", 6, 6)
+  check("a query with no match closes the menu", !slashVisible())
+}
+
+{
+  const { host, editor } = slashEditor("")
+  editor.setSlashTemplates(slashTemplates)
+  editor.insertTextAt("/meet", 0, 0)
+  check("the top level never lists templates, even on a name match", !slashVisible())
+  editor.exec("h0")
+}
+
+{
+  const { host, editor } = slashEditor("")
+  editor.setSlashTemplates(slashTemplates)
+  editor.insertTextAt("/templ", 0, 0)
+  check("searching \"templ\" finds only the Templates row", JSON.stringify(slashLabels()) === JSON.stringify(["Templates"]))
+  slashKey(host, "Enter")
+  check("Enter opens the list and clears the typed query but keeps the slash",
+    slashHasBack() && editor.getMarkdown() === "/"
+    && JSON.stringify(slashLabels()) === JSON.stringify(["Templates", "Meeting notes", "Daily standup"]))
+  editor.insertTextAt("meet", 1, 1)
+  check("then typing searches template names only",
+    JSON.stringify(slashLabels()) === JSON.stringify(["Templates", "Meeting notes"]))
+  slashKey(host, "Enter")
+  check("picking the match inserts it",
+    editor.getMarkdown() === "### Attendees\n\n- \n\n### Notes" && !slashVisible())
+}
+
+{
+  // The list searches names, not bodies or the words that opened it.
+  const { host, editor } = slashEditor("")
+  editor.setSlashTemplates(slashTemplates)
+  editor.insertTextAt("/templates", 0, 0)
+  slashKey(host, "Enter")
+  editor.insertTextAt("yesterday", 1, 1)
+  check("template bodies are not searched", !slashVisible())
+}
+
+{
+  const { host, editor } = slashEditor("Agenda ")
+  editor.setSlashTemplates(slashTemplates)
+  editor.insertTextAt("/templates", 7, 7)
+  slashKey(host, "Enter")
+  check("opening the list from the end of text keeps the text", editor.getMarkdown() === "Agenda /")
+  editor.insertTextAt("daily", 8, 8)
+  slashKey(host, "Enter")
+  check("text on the line stays above an inserted template",
+    editor.getMarkdown() === "Agenda\n\n- Yesterday\n- Today")
+}
+
+{
+  const { host, editor } = slashEditor("  ")
+  editor.setSlashTemplates([{ name: "Two", body: "a\n\nb" }])
+  editor.insertTextAt("/templates", 2, 2)
+  slashKey(host, "Enter")
+  slashKey(host, "Enter")
+  check("a template keeps the line's indent but not on blank lines", editor.getMarkdown() === "  a\n\n  b")
+}
+
+// Template variables, with a fixed clock: Sunday 4 October 2026, 14:05.
+const slashVariableClock = () => new Date(2026, 9, 4, 14, 5)
+const slashInsertTemplate = (body, { source = "", locale = "en" } = {}) => {
+  const { host, editor } = slashEditor(source, {
+    slashClock: slashVariableClock,
+    extensionOptions: { "slash-commands": { locale } },
+  })
+  editor.setSlashTemplates([{ name: "T", body }])
+  editor.insertTextAt("/templates", source.length, source.length)
+  slashKey(host, "Enter")
+  slashKey(host, "Enter")
+  return editor
+}
+
+{
+  check("{{date}} inserts the ISO date", slashInsertTemplate("# {{date}}").getMarkdown() === "# 2026-10-04")
+  check("{{time}} inserts the 24-hour time", slashInsertTemplate("at {{time}}").getMarkdown() === "at 14:05")
+  check("{{datetime}} inserts date and time", slashInsertTemplate("{{datetime}}").getMarkdown() === "2026-10-04 14:05")
+  check("{{weekday}} inserts the day name", slashInsertTemplate("{{weekday}}").getMarkdown() === "Sunday")
+  check("{{weekday}} follows the app language", slashInsertTemplate("{{weekday}}", { locale: "fr" }).getMarkdown() === "dimanche")
+  check("variable names ignore case and inner spaces", slashInsertTemplate("{{ DATE }}").getMarkdown() === "2026-10-04")
+  check("a variable can repeat", slashInsertTemplate("{{date}} / {{date}}").getMarkdown() === "2026-10-04 / 2026-10-04")
+  check("an unknown variable stays as typed", slashInsertTemplate("{{nope}} {{date}}").getMarkdown() === "{{nope}} 2026-10-04")
+  check("a backslash writes a literal {{", slashInsertTemplate("\\{{date}} {{date}}").getMarkdown() === "{{date}} 2026-10-04")
+  check("variables expand inside code fences too", slashInsertTemplate("```\n{{date}}\n```").getMarkdown() === "```\n2026-10-04\n```")
+}
+
+{
+  const editor = slashInsertTemplate("# {{date}}\n\nNotes: {{cursor}}\nmore")
+  check("{{cursor}} is removed from the text", editor.getMarkdown() === "# 2026-10-04\n\nNotes: \nmore")
+  check("{{cursor}} puts the caret where it was", editor.getLinkSelection().from === 21)
+}
+
+{
+  const editor = slashInsertTemplate("a {{cursor}} b {{cursor}} c")
+  check("only the first {{cursor}} counts and the rest are dropped",
+    editor.getMarkdown() === "a  b  c" && editor.getLinkSelection().from === 2)
+}
+
+{
+  const editor = slashInsertTemplate("one\ntwo")
+  check("without {{cursor}} the caret lands at the end", editor.getLinkSelection().from === 7)
+}
+
+{
+  const { host, editor } = slashEditor("")
+  editor.setSlashTemplates(slashTemplates)
+  editor.insertTextAt("/", 0, 0)
+  for (let i = 0; i < slashLabels().length - 1; i++) slashKey(host, "ArrowDown")
+  slashKey(host, "Enter")
+  editor.setSlashTemplates([])
+  check("emptying the templates in the list falls back to the top level",
+    slashVisible() && !slashHasBack() && slashLabels().includes("Heading 1"))
+}
+
 {
   const { editor } = slashEditor("```\n\n```")
   editor.insertTextAt("/", 4, 4)

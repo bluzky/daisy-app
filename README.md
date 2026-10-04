@@ -61,6 +61,7 @@ Or grab the latest signed and notarized DMG from the [Releases](https://github.c
 - **Read Mode** — native `WKWebView` rendering with a document outline, file navigator and inspector panel. Task checkboxes save straight to the file.
 - **Edit Mode** — edit in place with a formatting toolbar, Markdown syntax that previews as you type, and inline table editing (<kbd>⌘E</kbd> to toggle, <kbd>⌘S</kbd> to save).
 - **Slash commands** — type `/` at the start of a line or after a space to turn it into a heading, list, quote, divider, code block, table, image, Mermaid diagram, math block, or callout.
+- **Templates** — insert your own Markdown snippets from the slash menu. Choose a template file in **Settings → General → Templates**; see [Templates](#templates) below.
 - **Extensions** — code highlighting, callouts, KaTeX math, Mermaid diagrams, and colorful and collapsible headings, each switchable in **Settings → Extensions**. Mermaid, colorful headings and slash commands also apply in Edit Mode.
 - **Quick Look** — system-wide `.md` previews from Finder, Spotlight, and Mail.
 - **Search** — in-document search (<kbd>⌘F</kbd>) and Search for Document (<kbd>⇧⌘O</kbd>) to find a file by name.
@@ -71,6 +72,41 @@ Or grab the latest signed and notarized DMG from the [Releases](https://github.c
 
 - **Command line and URL scheme** — `mdp .` from a shell, or `daisy://file/<absolute path>` from a browser link. `md-preview://` links still work.
 
+
+### Templates
+
+Keep your reusable notes in one Markdown file and pick it in **Settings → General → Templates**. In Edit Mode, type `/`, open **Templates** (or type `/templates` and press <kbd>Enter</kbd>), then type part of a name to search only your templates. <kbd>Enter</kbd> inserts the chosen one. Edits to the file show up in the menu without restarting.
+
+Each template starts at a marker line and runs to the next one, so its body can hold any heading, `##` included:
+
+```markdown
+<!-- template: Meeting notes -->
+
+# Meeting — {{date}}
+
+## Attendees
+
+- {{cursor}}
+
+<!-- template: Daily standup -->
+
+- **Yesterday:**
+- **Today:**
+```
+
+Everything before the first marker is ignored. A file with no marker falls back to one template per `##` heading, named after it. See [`samples/templates.md`](samples/templates.md) for a full example.
+
+Variables are filled in when you insert a template:
+
+| Variable | Inserts |
+| --- | --- |
+| `{{date}}` | Today's date, `2026-10-04` |
+| `{{time}}` | The time, `14:05` |
+| `{{datetime}}` | Both, `2026-10-04 14:05` |
+| `{{weekday}}` | The day's name, in the app's language |
+| `{{cursor}}` | Nothing; the caret lands here (the first one counts) |
+
+Write `\{{` for a literal `{{`. An unknown name is left as typed.
 
 ## Supported file types
 

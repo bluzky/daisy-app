@@ -50,6 +50,9 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
         webView.underPageBackgroundColor = .clear
         bridge.owner = self
         self.webView = webView
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(templatesDidChange),
+            name: TemplateStore.didChangeNotification, object: nil)
         if #available(macOS 26.0, *) {
             view = webView
         } else {
@@ -149,6 +152,20 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
         webView.evaluateJavaScript(
             "window.__mdEditor && window.__mdEditor.setExtensionState(\(EditorHTML.extensionStateLiteral(state)))"
         ) { _, _ in }
+    }
+
+    /// Hands the template file's templates to the slash menu. Called when the
+    /// page becomes ready and whenever the file or its choice changes.
+    func applySlashTemplates() {
+        let templates = TemplateStore.load().map { ["name": $0.name, "body": $0.body] }
+        webView.evaluateJavaScript(
+            "window.__mdEditor && window.__mdEditor.setSlashTemplates(\(EditorHTML.jsonArrayLiteral(templates)))"
+        ) { _, _ in }
+    }
+
+    @objc private func templatesDidChange() {
+        guard hasLoadedEditorPage else { return }
+        applySlashTemplates()
     }
 
     private static func readerStyleCSS() -> String {
@@ -485,6 +502,7 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
                 // page, clobbering the themed value.
                 updateUnderPageBackgroundColor()
                 updateObscuredContentInsets()
+                applySlashTemplates()
                 editorDidBecomeReady?()
             case "cancel":
                 cancelRequested?()

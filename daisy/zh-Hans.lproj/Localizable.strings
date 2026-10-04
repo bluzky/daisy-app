@@ -412,3 +412,12 @@
 "The Quick Capture folder can’t be reached. Choose it again in Settings." = "无法访问快速捕获文件夹，请在“设置”中重新选择。";
 "Daisy has to keep running to listen for the shortcut." = "Daisy 需要保持运行才能响应快捷键。";
 "Open Inbox" = "打开收件箱";
+
+/* Templates */
+"Templates" = "模板";
+"Template file" = "模板文件";
+"Clear" = "清除";
+"No templates found. Add a <!-- template: Name --> line or a ## heading for each one." = "未找到模板。请为每个模板添加 <!-- template: 名称 --> 行或 ## 标题。";
+"%d templates found" = "找到 %d 个模板";
+"A template starts at a <!-- template: Name --> line, or at each ## heading if the file has no such line. Insert one from the Templates entry in the slash menu while editing." = "模板以 <!-- template: 名称 --> 行开始；若文件中没有这样的行，则每个 ## 标题是一个模板。编辑时可从斜杠菜单的“模板”中插入。";
+"Choose a Markdown file of templates, each starting at a <!-- template: Name --> line or ## heading" = "选择模板 Markdown 文件，每个模板以 <!-- template: 名称 --> 行或 ## 标题开始";

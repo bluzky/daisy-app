@@ -1807,6 +1807,7 @@ const SLASH_ICONS = {
   important: '<circle cx="10" cy="10" r="6.5"/><path d="M10 6.6v4.2M10 13.2v.1"/>',
   warning: '<path d="M10 3.8L17 16H3z"/><path d="M10 8.6v3.2M10 13.8v.1"/>',
   caution: '<path d="M7 3.5h6l3.5 3.5v6L13 16.5H7L3.5 13V7z"/><path d="M10 7v3.5M10 12.8v.1"/>',
+  templates: '<path d="M6 3.5h5.5L15 7v8.5a1 1 0 01-1 1H6a1 1 0 01-1-1v-11a1 1 0 011-1z"/><path d="M11.5 3.5V7H15M7.5 10.5h5M7.5 13.5h5"/>',
 }
 
 // A command with `host` has no template: it asks the host to do something the
@@ -1870,6 +1871,66 @@ const SLASH_COMMANDS = [
     convert: (raw) => slashCallout("CAUTION", raw) },
 ]
 
+// Templates come from the host's template file (`setSlashTemplates`). They sit
+// behind one "Templates" row, a second menu level that searches template names
+// only; the top level never lists them. `body` is inserted verbatim, with the
+// caret at its end.
+const slashTemplatesChanged = StateEffect.define()
+
+const SLASH_TEMPLATES_ENTRY = {
+  id: "templates", group: "blocks", label: "Templates", aliases: [], submenu: "templates",
+}
+
+// Variables in a template body are filled in when it is picked, so the date is
+// the moment of insertion. `\{{` writes a literal `{{`; an unknown name stays
+// as typed so a typo is visible. `{{cursor}}` marks where the caret lands.
+const SLASH_VARIABLE = /\\\{\{|\{\{\s*([A-Za-z]+)\s*\}\}/g
+
+function slashExpandTemplate(body, now, locale) {
+  const pad = (value) => String(value).padStart(2, "0")
+  const date = () => `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+  const time = () => `${pad(now.getHours())}:${pad(now.getMinutes())}`
+  const weekday = () => {
+    try { return new Intl.DateTimeFormat(locale || undefined, { weekday: "long" }).format(now) }
+    catch (_) { return new Intl.DateTimeFormat("en", { weekday: "long" }).format(now) }
+  }
+  const values = { date, time, datetime: () => `${date()} ${time()}`, weekday }
+  let cursor = -1
+  let text = ""
+  let last = 0
+  for (const match of body.matchAll(SLASH_VARIABLE)) {
+    text += body.slice(last, match.index)
+    last = match.index + match[0].length
+    const name = match[1] && match[1].toLowerCase()
+    if (!match[1]) text += "{{"
+    else if (name === "cursor") { if (cursor < 0) cursor = text.length }
+    else if (values[name]) text += values[name]()
+    else text += match[0]
+  }
+  text += body.slice(last)
+  return { text, cursor: cursor < 0 ? text.length : cursor }
+}
+
+function slashTemplateCommands(templates, context) {
+  return templates.map((template, index) => ({
+    id: `tpl:${index}`,
+    group: "templates",
+    label: template.name,
+    template: true,
+    names: [template.name.toLowerCase()],
+    convert: (raw) => {
+      const lead = raw ? [raw, ""] : []
+      const { text, cursor } = slashExpandTemplate(template.body, context.now(), context.locale)
+      const body = text.split("\n")
+      const before = text.slice(0, cursor).split("\n")
+      return {
+        lines: [...lead, ...body],
+        caret: { line: lead.length + before.length - 1, ch: before[before.length - 1].length },
+      }
+    },
+  }))
+}
+
 // `/` opens the menu at the start of a line or after a space or tab, so it
 // also works at the end of a line of text. A `/` glued to a word (`and/or`,
 // `1/2`, a path) never does, nor does one inside code, frontmatter, HTML,
@@ -1928,7 +1989,8 @@ function applySlashCommand(view, trigger, command, host) {
   const after = view.state.doc.sliceString(trigger.to, line.to).trim()
   const raw = [before, after].filter(Boolean).join(" ")
   const { lines, caret } = command.convert(raw)
-  const indented = lines.map((text) => trigger.indent + text)
+  // A template's blank lines stay empty rather than carrying the indent.
+  const indented = lines.map((text) => (command.template && !text ? text : trigger.indent + text))
   let position = line.from
   for (let i = 0; i < caret.line; i++) position += indented[i].length + 1
   position += trigger.indent.length + caret.ch
@@ -1955,10 +2017,31 @@ function slashExtensions(options, host) {
     }
   })
   const groupLabel = (id) => options[`group.${id}`] || SLASH_GROUPS.find((group) => group.id === id).label
+  const templatesLabel = options["cmd.templates"] || SLASH_TEMPLATES_ENTRY.label
+  const templateContext = {
+    now: () => (host.callbacks.slashClock ? host.callbacks.slashClock() : new Date()),
+    locale: options.locale,
+  }
+
+  // What each level lists. The top level has one Templates row (searchable as
+  // "templates") and never the templates themselves.
+  const levelCommands = (level) => {
+    const templates = host.slashTemplates || []
+    if (level === "templates") return slashTemplateCommands(templates, templateContext)
+    if (!templates.length) return commands
+    const label = templatesLabel
+    return [...commands, {
+      ...SLASH_TEMPLATES_ENTRY,
+      label,
+      names: [label.toLowerCase(), SLASH_TEMPLATES_ENTRY.label.toLowerCase(), "template"],
+    }]
+  }
 
   const move = StateEffect.define()
   const pick = StateEffect.define()
   const dismiss = StateEffect.define()
+  const enter = StateEffect.define()
+  const back = StateEffect.define()
 
   const field = StateField.define({
     create: () => null,
@@ -1967,17 +2050,26 @@ function slashExtensions(options, host) {
       if (!trigger) return null
       // Open only from typing or deleting; a loaded document never pops it up.
       if (!value && !(tr.docChanged && (tr.isUserEvent("input") || tr.isUserEvent("delete")))) return null
-      const items = slashMatches(commands, trigger.query)
-      if (!items.length) return null
       const sameLine = value && tr.changes.mapPos(value.lineFrom, -1) === trigger.lineFrom
-      let index = sameLine && value.query === trigger.query ? Math.min(value.index, items.length - 1) : 0
+      let level = sameLine ? value.level : "root"
+      let navigated = false
+      for (const effect of tr.effects) {
+        if (effect.is(enter)) { level = "templates"; navigated = true }
+        else if (effect.is(back)) { level = "root"; navigated = true }
+      }
+      // Templates edited away while their list is open: fall back to the root.
+      if (level === "templates" && !(host.slashTemplates || []).length) level = "root"
+      const items = slashMatches(levelCommands(level), trigger.query)
+      if (!items.length) return null
+      const sameList = sameLine && !navigated && value.level === level && value.query === trigger.query
+      let index = sameList ? Math.min(value.index, items.length - 1) : 0
       let dismissed = !!(sameLine && value.dismissed)
       for (const effect of tr.effects) {
         if (effect.is(move)) index = (index + effect.value + items.length) % items.length
         else if (effect.is(pick)) index = Math.max(0, Math.min(effect.value, items.length - 1))
         else if (effect.is(dismiss)) dismissed = true
       }
-      return { ...trigger, items, index, dismissed }
+      return { ...trigger, items, index, dismissed, level }
     },
   })
 
@@ -1986,10 +2078,37 @@ function slashExtensions(options, host) {
     const state = view.state.field(field, false)
     return state && !state.dismissed ? state : null
   }
+  // Opening the list clears the typed query (the `/` stays), so what is typed
+  // next searches template names rather than the word that got here.
+  const openTemplates = (view, state) => {
+    view.dispatch({
+      changes: state.query ? { from: state.from + 1, to: state.to, insert: "" } : undefined,
+      selection: EditorSelection.cursor(state.from + 1),
+      effects: enter.of(null),
+    })
+  }
+  // A submenu row opens its list; anything else is applied to the line.
+  const choose = (view, state, command) => {
+    if (command.submenu) openTemplates(view, state)
+    else applySlashCommand(view, state, command, host)
+  }
   const accept = (view) => {
     const state = active(view)
     if (!state) return false
-    applySlashCommand(view, state, state.items[state.index], host)
+    choose(view, state, state.items[state.index])
+    return true
+  }
+  const into = (view) => {
+    const state = active(view)
+    if (!state || !state.items[state.index].submenu) return false
+    openTemplates(view, state)
+    return true
+  }
+  // Left always leaves the list; Backspace only once nothing is left to delete.
+  const out = (onlyWhenEmpty) => (view) => {
+    const state = active(view)
+    if (!state || state.level !== "templates" || (onlyWhenEmpty && state.query)) return false
+    view.dispatch({ effects: back.of(null) })
     return true
   }
   const step = (delta) => (view) => {
@@ -2001,7 +2120,7 @@ function slashExtensions(options, host) {
   const menu = ViewPlugin.fromClass(class {
     constructor(view) {
       this.view = view
-      this.query = null
+      this.key = null
       const doc = view.dom.ownerDocument
       this.dom = doc.createElement("div")
       this.dom.className = "cm-md-slash-menu"
@@ -2012,7 +2131,12 @@ function slashExtensions(options, host) {
         event.preventDefault()
         const row = event.target.closest && event.target.closest("[data-slash-index]")
         const state = active(this.view)
-        if (row && state) applySlashCommand(this.view, state, state.items[Number(row.dataset.slashIndex)], host)
+        if (!state) return
+        if (event.target.closest && event.target.closest("[data-slash-back]")) {
+          this.view.dispatch({ effects: back.of(null) })
+        } else if (row) {
+          choose(this.view, state, state.items[Number(row.dataset.slashIndex)])
+        }
       })
       this.dom.addEventListener("mousemove", (event) => {
         const row = event.target.closest && event.target.closest("[data-slash-index]")
@@ -2030,11 +2154,12 @@ function slashExtensions(options, host) {
       const state = active(this.view)
       if (!state) {
         this.dom.hidden = true
-        this.query = null
+        this.key = null
         return
       }
-      if (this.query !== state.query || this.dom.hidden) this.rebuild(state)
-      this.query = state.query
+      const key = `${state.level}|${state.query}|${state.items.map((item) => item.id).join(",")}`
+      if (this.key !== key || this.dom.hidden) this.rebuild(state)
+      this.key = key
       let selected = null
       for (const row of this.dom.querySelectorAll("[data-slash-index]")) {
         const isSelected = Number(row.dataset.slashIndex) === state.index
@@ -2067,9 +2192,16 @@ function slashExtensions(options, host) {
         return element
       }
       this.dom.textContent = ""
+      if (state.level === "templates") {
+        const header = make("div", "cm-md-slash-back")
+        header.dataset.slashBack = ""
+        header.appendChild(make("span", "cm-md-slash-chevron", "‹"))
+        header.appendChild(make("span", "cm-md-slash-label", templatesLabel))
+        this.dom.appendChild(header)
+      }
       let group = null
       state.items.forEach((command, index) => {
-        if (!state.query && command.group !== group) {
+        if (!state.query && state.level === "root" && command.group !== group) {
           group = command.group
           this.dom.appendChild(make("div", "cm-md-slash-group", groupLabel(group)))
         }
@@ -2077,9 +2209,10 @@ function slashExtensions(options, host) {
         row.setAttribute("role", "option")
         row.dataset.slashIndex = String(index)
         const icon = make("span", "cm-md-slash-icon")
-        icon.innerHTML = `<svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SLASH_ICONS[command.id] || ""}</svg>`
+        icon.innerHTML = `<svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SLASH_ICONS[command.id] || (command.template ? SLASH_ICONS.templates : "")}</svg>`
         row.appendChild(icon)
         row.appendChild(make("span", "cm-md-slash-label", command.label))
+        if (command.submenu) row.appendChild(make("span", "cm-md-slash-chevron", "›"))
         this.dom.appendChild(row)
       })
       this.dom.scrollTop = 0
@@ -2107,6 +2240,9 @@ function slashExtensions(options, host) {
     keymap.of([
       { key: "ArrowDown", run: step(1) },
       { key: "ArrowUp", run: step(-1) },
+      { key: "ArrowRight", run: into },
+      { key: "ArrowLeft", run: out(false) },
+      { key: "Backspace", run: out(true) },
       { key: "Enter", run: accept },
       { key: "Tab", run: accept },
       { key: "Escape", run: (view) => {
@@ -3379,7 +3515,7 @@ window.MDEditor = {
     const moduleCompartments = new Map()
     const moduleEnabled = new Map()
     // Handed to every module: the callbacks the page gave this editor.
-    const moduleHost = { callbacks: callbacks || {} }
+    const moduleHost = { callbacks: callbacks || {}, slashTemplates: [] }
     const moduleOptions = (id) => (callbacks && callbacks.extensionOptions && callbacks.extensionOptions[id]) || {}
     for (const module of editorModules.values()) {
       const enabled = editorModuleEnabled(callbacks && callbacks.extensionState, module.id)
@@ -3758,6 +3894,13 @@ window.MDEditor = {
         pendingTableContextAction = null
         pending.perform(action)
         return true
+      },
+      // The host's template file as `[{ name, body }]`; the slash menu shows
+      // them under Templates. Safe to call at any time, with the module off too.
+      setSlashTemplates: (templates) => {
+        moduleHost.slashTemplates = (Array.isArray(templates) ? templates : []).filter(
+          (template) => template && typeof template.name === "string" && typeof template.body === "string")
+        view.dispatch({ effects: slashTemplatesChanged.of(null) })
       },
       setExtensionState: (state) => {
         const effects = []
