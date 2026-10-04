@@ -56,12 +56,13 @@ final class QuickCaptureController {
                 // Already editing: add the entry to the live buffer so nothing
                 // typed so far is lost, and show that window.
                 controller.window?.makeKeyAndOrderFront(nil)
-                controller.mainSplit?.editorViewController?.focusEditor(appendingEntry: entry)
+                controller.mainSplit?.appendEntryToActiveEditor(entry)
             } else if controller.currentMarkdown != nil {
                 controller.enterEditMode(autofocus: true, appendingEntry: entry)
             } else {
                 // Still loading; the loader enters edit mode once the text arrives.
-                controller.pendingEditModeAppendedEntry = entry
+                // Repeated presses queue up rather than replace each other.
+                controller.pendingEditModeAppendedEntry = (controller.pendingEditModeAppendedEntry ?? "") + entry
                 controller.pendingEditModeURL = url.standardizedFileURL
             }
         }
