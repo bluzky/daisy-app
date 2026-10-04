@@ -1000,9 +1000,12 @@ image?.dispatchEvent(new dom.window.MouseEvent("click", {
 }))
 check("clicking a local image requests its native rename flow",
   requestedImageRename === "md-asset:///test-pictures/1.png")
+// A real click has detail 1, which is what lets the pointer-preview snapshot
+// activate the new selection and reveal the source.
 imageSource?.dispatchEvent(new dom.window.MouseEvent("mousedown", {
   bubbles: true,
   cancelable: true,
+  detail: 1,
 }))
 check("clicking image source restores editable Markdown without changing it",
   imageHost.querySelector(".cm-md-image-preview") == null

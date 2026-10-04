@@ -5,7 +5,7 @@
 	<key>PostHogProjectToken</key>
 	<string>$(POSTHOG_PROJECT_TOKEN)</string>
 	<key>MarkdownPreviewAppGroupIdentifier</key>
-	<string>$(DEVELOPMENT_TEAM).doc.daisy</string>
+	<string>$(DEVELOPMENT_TEAM).lemon.doc.daisy</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

@@ -83,23 +83,24 @@ final class EditorScrollAnchorTests: XCTestCase {
                         const focusStyle = document.createElement('style');
                         if (isEditor) {
                             const rule = [...document.styleSheets].flatMap(sheet => [...sheet.cssRules])
-                                .find(rule => rule.selectorText === '.cm-md-table-cell:focus');
+                                .find(rule => rule.selectorText?.includes(':has(> .cm-md-table-cell:focus)'));
                             if (!rule) return 'missing focus rule';
                             focusStyle.textContent = '.theme-focus-probe {' + rule.style.cssText + '}';
                             document.head.append(focusStyle);
-                            cell.classList.add('theme-focus-probe');
+                            td.classList.add('theme-focus-probe');
                         }
                         const expected = document.createElement('span');
                         expected.style.background = 'color-mix(in srgb, var(--link) 8%, transparent)';
                         document.body.append(expected);
+                        // The tint sits on the cell's <td>, not the editable box.
                         const focusMatches = !isEditor || (getComputedStyle(cell).outlineStyle === 'none'
-                            && getComputedStyle(cell).backgroundColor === getComputedStyle(expected).backgroundColor);
+                            && getComputedStyle(td).backgroundColor === getComputedStyle(expected).backgroundColor);
                         focusStyle.remove();
-                        cell.classList.remove('theme-focus-probe');
+                        td.classList.remove('theme-focus-probe');
                         cell.classList.remove('is-editing');
                         cell.classList.add('is-table-part-selected');
                         expected.style.background = 'color-mix(in srgb, var(--link) 16%, transparent)';
-                        const selectionMatches = !isEditor || (getComputedStyle(cell).backgroundColor === getComputedStyle(expected).backgroundColor
+                        const selectionMatches = !isEditor || (getComputedStyle(td).backgroundColor === getComputedStyle(expected).backgroundColor
                             && getComputedStyle(cell).boxShadow === 'none');
                         let checkboxMatches = true;
                         if (!isEditor) {

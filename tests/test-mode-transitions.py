@@ -52,7 +52,7 @@ struct Deadline { static func now() -> Self { Self() }; static func +(lhs: Self,
     func applyPageZoom(_ zoom: Double) { pageZoom = zoom }
     func fetchScrollAnchor(_ body: @escaping (SourceScrollAnchor?) -> Void) { anchorCallback = body }
     func applyScrollProgress(_ p: Double, sourceAnchor: SourceScrollAnchor?, completion: @escaping () -> Void) { scrollCallback = completion }
-    func focusEditor() {}
+    func focusEditor(appendingEntry: String? = nil) {}
 }
 // Stand in only for WebKit's zoom backend. Controller actions and both
 // callback assignments below are extracted from production, unchanged.
@@ -103,6 +103,7 @@ swift += '''
     var isEditorDOMReady = true
     var pendingPreviewScrollProgress: Double = 0
     var shouldAutofocusEditor = false
+    var pendingAppendedEntry: String?
     func refreshFindAfterModeChange() {}
 '''
 swift += '\n'.join(method(name) for name in [

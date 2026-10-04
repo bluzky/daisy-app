@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>MarkdownPreviewAppGroupIdentifier</key>
-	<string>$(DEVELOPMENT_TEAM).doc.daisy</string>
+	<string>$(DEVELOPMENT_TEAM).lemon.doc.daisy</string>
 	<key>NSExtension</key>
 	<dict>
 		<key>NSExtensionAttributes</key>

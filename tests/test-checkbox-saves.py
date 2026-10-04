@@ -60,13 +60,15 @@ final class Editor {
     var contentDidChange: (() -> Void)?
     var formattingDidChange: ((Int, [String]) -> Void)?
     var pasteImageRequested: ((Int, Int) -> Void)?
+    var pickImageRequested: ((Int, Int) -> Void)?
     var imageClicked: ((URL) -> Void)?
     func fetchMarkdown(_ completion: (String?) -> Void) { completion(markdown) }
 }
 final class Split {
     var isEditingDocument = false
     var editorViewController: Editor? = Editor()
-    func enterEditMode(markdown: String, assetBaseURL: URL?, autofocus: Bool) -> Editor {
+    func enterEditMode(markdown: String, assetBaseURL: URL?, autofocus: Bool,
+                       appendingEntry: String?) -> Editor {
         isEditingDocument = true
         editorViewController!.markdown = markdown
         return editorViewController!
@@ -85,6 +87,7 @@ final class Controller {
     func startAutoSaveTimerIfNeeded() {}
     func updateFormattingSelection(heading: Int, commands: [String]) {}
     func pasteImage(at: Int, replacing: Int) {}
+    func pickImage(at: Int, replacing: Int) {}
     func renameImage(at: URL) {}
     func showEditAccessory() {}
     func updateEditToolbarItem() {}
