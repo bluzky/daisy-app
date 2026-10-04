@@ -1874,7 +1874,7 @@ const SLASH_COMMANDS = [
 // Templates come from the host's template file (`setSlashTemplates`). They sit
 // behind one "Templates" row, a second menu level that searches template names
 // only; the top level never lists them. `body` is inserted verbatim, with the
-// caret at its end.
+// caret at its first `{{cursor}}` marker, or at its end when there is none.
 const slashTemplatesChanged = StateEffect.define()
 
 const SLASH_TEMPLATES_ENTRY = {
@@ -1993,7 +1993,8 @@ function applySlashCommand(view, trigger, command, host) {
   const indented = lines.map((text) => (command.template && !text ? text : trigger.indent + text))
   let position = line.from
   for (let i = 0; i < caret.line; i++) position += indented[i].length + 1
-  position += trigger.indent.length + caret.ch
+  // Blank template lines carry no indent, so measure the line as inserted.
+  position += indented[caret.line].length - lines[caret.line].length + caret.ch
   view.dispatch({
     changes: { from: line.from, to: line.to, insert: indented.join("\n") },
     selection: caret.select
