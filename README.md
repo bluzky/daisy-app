@@ -66,6 +66,7 @@ Or grab the latest signed and notarized DMG from the [Releases](https://github.c
 - **Quick Look** — system-wide `.md` previews from Finder, Spotlight, and Mail.
 - **Search** — in-document search (<kbd>⌘F</kbd>) and Search for Document (<kbd>⇧⌘O</kbd>) to find a file by name.
 - **Quick Capture** — turn on the shortcut in Settings, then press it from any app (<kbd>⌃⌥Space</kbd> by default, changeable there; <kbd>⌥⇧⌘N</kbd> inside Daisy) to open `Inbox.md` from your capture folder in the editor. Each time adds a new `## yyyy-MM-dd HH:mm` heading at the end and puts the cursor under it.
+- **Custom shortcuts** — rebind Daisy commands in **Settings → Shortcuts**. Daisy reads and writes `~/.config/daisy/keymap.json`; bindings apply only in their Global, Reading, Editing, or Search context.
 - **Reading settings** — text size and zoom, content width, text alignment, strict line breaks, and themes with font, spacing, and color customization.
 
 

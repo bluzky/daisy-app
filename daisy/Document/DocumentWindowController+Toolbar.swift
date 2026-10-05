@@ -244,15 +244,22 @@ extension DocumentWindowController {
 
     @objc private func navigateHistory(_ sender: NSToolbarItemGroup) {
         switch sender.selectedIndex {
-        case 0:
-            guard let entry = backHistory.last else { return }
-            present(url: entry.url, intent: .back)
-        case 1:
-            guard let entry = forwardHistory.last else { return }
-            present(url: entry.url, intent: .forward)
-        default:
-            break
+        case 0: goBackInHistory(sender)
+        case 1: goForwardInHistory(sender)
+        default: break
         }
+    }
+
+    /// Backs Go > Back and the toolbar's back chevron.
+    @objc func goBackInHistory(_ sender: Any?) {
+        guard let entry = backHistory.last else { return }
+        present(url: entry.url, intent: .back)
+    }
+
+    /// Backs Go > Forward and the toolbar's forward chevron.
+    @objc func goForwardInHistory(_ sender: Any?) {
+        guard let entry = forwardHistory.last else { return }
+        present(url: entry.url, intent: .forward)
     }
 
     func updateNavigationItem() {

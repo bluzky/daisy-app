@@ -15,8 +15,9 @@ import SwiftUI
 
 enum SettingsPane: String, CaseIterable, Identifiable {
     case general = "General"
-    case reading = "Reading"
     case theme = "Appearance"
+    case reading = "Reading"
+    case shortcuts = "Shortcuts"
     case renderExtensions = "Extensions"
     case privacy = "Privacy"
     case about = "About"
@@ -32,7 +33,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
     var iconAssetName: String? {
         switch self {
         case .general: "SettingsGeneral"
-        case .reading, .theme, .renderExtensions: nil
+        case .shortcuts, .reading, .theme, .renderExtensions: nil
         case .privacy: "SettingsPrivacy"
         case .about: "SettingsAbout"
         }
@@ -53,7 +54,7 @@ struct SettingsPaneIcon: View {
                     .resizable()
                     .interpolation(.high)
                     .frame(width: 24, height: 24)
-            } else if pane == .reading || pane == .theme {
+            } else if pane == .reading || pane == .theme || pane == .shortcuts {
                 generatedTile
             } else {
                 extensionTile
@@ -69,15 +70,15 @@ struct SettingsPaneIcon: View {
             RoundedRectangle(cornerRadius: 4.4, style: .continuous)
                 .fill(LinearGradient(
                     colors: [
-                        pane == .reading ? Color(red: 0.2, green: 0.55, blue: 0.95) : Color(red: 0.25, green: 0.25, blue: 0.27),
-                        pane == .reading ? Color(red: 0.05, green: 0.3, blue: 0.75) : Color(red: 0.05, green: 0.05, blue: 0.06)
+                        pane == .reading || pane == .shortcuts ? Color(red: 0.2, green: 0.55, blue: 0.95) : Color(red: 0.25, green: 0.25, blue: 0.27),
+                        pane == .reading || pane == .shortcuts ? Color(red: 0.05, green: 0.3, blue: 0.75) : Color(red: 0.05, green: 0.05, blue: 0.06)
                     ],
                     startPoint: .top,
                     endPoint: .bottom
                 ))
                 .frame(width: 20, height: 20)
                 .shadow(color: .black.opacity(0.22), radius: 0.6, y: 0.6)
-            Image(systemName: pane == .reading ? "book.closed.fill" : "circle.lefthalf.filled")
+            Image(systemName: pane == .reading ? "book.closed.fill" : pane == .shortcuts ? "keyboard" : "circle.lefthalf.filled")
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.white)
         }
@@ -378,6 +379,7 @@ struct SettingsDetailView: View {
     var body: some View {
         switch viewModel.selectedPane {
         case .general: GeneralSettingsView()
+        case .shortcuts: KeymapSettingsView()
         case .reading: ReadingSettingsView()
         case .theme: ThemeSettingsView()
         case .renderExtensions: RenderExtensionsSettingsView()

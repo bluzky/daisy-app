@@ -4,6 +4,19 @@
 
 /* Settings */
 "General" = "通用";
+"Shortcuts" = "快捷键";
+"Paste and Match Style" = "粘贴并匹配样式";
+"Find…" = "查找…";
+"Find and Replace…" = "查找并替换…";
+"Find Next" = "查找下一个";
+"Find Previous" = "查找上一个";
+"Jump to Selection" = "跳转到所选内容";
+"Show Toolbar" = "显示工具栏";
+"Global" = "全局";
+"Reset All" = "全部重置";
+"Export All Defaults" = "导出所有默认值";
+"Reveal in Finder" = "在访达中显示";
+"Open in Editor" = "在编辑器中打开";
 "Privacy" = "隐私";
 "About" = "关于";
 "Appearance also applies to Quick Look previews." = "外观设置也会应用于“快速查看”预览。";

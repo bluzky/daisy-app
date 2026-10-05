@@ -95,6 +95,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private weak var darkAppearanceMenuItem: NSMenuItem?
     private weak var normalContentWidthMenuItem: NSMenuItem?
     private weak var fullContentWidthMenuItem: NSMenuItem?
+    private var keymapMenuItems: [KeymapCommand: NSMenuItem] = [:]
+    private var firstResponderObservation: NSKeyValueObservation?
     private var isDocumentPromptScheduled = false
     private var documentPromptScheduleGeneration = 0
     private var didReceiveOpenURLsDuringLaunch = false
@@ -128,6 +130,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         installFileExportMenuItems()
         installGoMenu()
         installSettingsMenuItem()
+        tagKeymapMenuItems()
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(keymapDidChange(_:)),
+                                               name: .keymapDidChange,
+                                               object: KeymapStore.shared)
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(keymapWindowDidBecomeKey(_:)),
+                                               name: NSWindow.didBecomeKeyNotification,
+                                               object: nil)
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(keymapWindowDidResignKey(_:)),
+                                               name: NSWindow.didResignKeyNotification,
+                                               object: nil)
+        observeKeymapFirstResponder(in: NSApp.keyWindow)
+        applyKeymap()
         NSApp.windowsMenu?.delegate = self
         installAppMenuItems()
         installWhatsNewMenuItem()
@@ -141,6 +158,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationDidBecomeActive(_ notification: Notification) {
         UsageAnalyticsReporter.recordAppBecameActive()
+        KeymapStore.shared.checkForExternalChanges()
+        observeKeymapFirstResponder(in: NSApp.keyWindow)
         guard hasFinishedLaunching else { return }
         let model = SettingsModel.shared
         let changed = model.appliedPreset != ThemePreset.applied()
@@ -855,6 +874,126 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
+    // MARK: - Configurable shortcuts
+
+    @objc private func keymapDidChange(_ notification: Notification) {
+        applyKeymap()
+    }
+
+    @objc private func keymapWindowDidBecomeKey(_ notification: Notification) {
+        observeKeymapFirstResponder(in: notification.object as? NSWindow)
+        applyKeymap()
+    }
+
+    @objc private func keymapWindowDidResignKey(_ notification: Notification) {
+        guard (notification.object as? NSWindow) === NSApp.keyWindow else { return }
+        observeKeymapFirstResponder(in: nil)
+        applyKeymap()
+    }
+
+    private func observeKeymapFirstResponder(in window: NSWindow?) {
+        firstResponderObservation = window?.observe(\.firstResponder, options: [.new]) { [weak self] _, _ in
+            DispatchQueue.main.async { self?.applyKeymap() }
+        }
+    }
+
+    private func tagKeymapMenuItems() {
+        guard let menu = NSApp.mainMenu else { return }
+        func visit(_ menu: NSMenu) {
+            for item in menu.items {
+                if let command = commandForKeymapMenuItem(item) {
+                    item.identifier = NSUserInterfaceItemIdentifier(command.rawValue)
+                    keymapMenuItems[command] = item
+                }
+                if let submenu = item.submenu { visit(submenu) }
+            }
+        }
+        visit(menu)
+    }
+
+    private func commandForKeymapMenuItem(_ item: NSMenuItem) -> KeymapCommand? {
+        if item.action == #selector(NSTextView.pasteAsPlainText(_:)) {
+            return .editPasteAndMatchStyle
+        }
+        switch item.action {
+        case #selector(DocumentWindowController.newDocumentTab(_:)): return .fileNewTab
+        case #selector(DocumentWindowController.searchForDocument(_:)): return .fileSearchDocument
+        case #selector(showQuickCapture(_:)): return .fileOpenInbox
+        case #selector(toggleSidebarFromMenu(_:)): return .viewToggleSidebar
+        case #selector(hideSidebarFromMenu(_:)): return .viewHideSidebar
+        case #selector(selectOutlineMode(_:)): return .viewShowOutline
+        case #selector(selectFilesMode(_:)): return .viewShowProjectNavigator
+        case #selector(toggleEditModeFromMenu(_:)): return .viewToggleEditMode
+        case #selector(performFindPanelAction(_:)):
+            switch item.tag {
+            case 1: return .findFind
+            case 12: return .findReplace
+            case 2: return .findNext
+            case 3: return .findPrevious
+            default: return nil
+            }
+        case #selector(NSResponder.centerSelectionInVisibleArea(_:)): return .findJumpToSelection
+        case #selector(NSWindow.toggleToolbarShown(_:)): return .viewToggleToolbar
+        case #selector(DocumentWindowController.toggleAlwaysOnTop(_:)): return .viewToggleAlwaysOnTop
+        case #selector(DocumentWindowController.goBackInHistory(_:)): return .goBack
+        case #selector(DocumentWindowController.goForwardInHistory(_:)): return .goForward
+        case #selector(NSResponder.scrollLineUp(_:)): return .goLineUp
+        case #selector(NSResponder.scrollLineDown(_:)): return .goLineDown
+        case #selector(NSResponder.scrollPageUp(_:)): return .goPageUp
+        case #selector(NSResponder.scrollPageDown(_:)): return .goPageDown
+        case #selector(MarkdownWebView.mdScrollPreviousHeading(_:)): return .goPreviousItem
+        case #selector(MarkdownWebView.mdScrollNextHeading(_:)): return .goNextItem
+        case #selector(NSResponder.scrollToBeginningOfDocument(_:)): return .goTop
+        case #selector(NSResponder.scrollToEndOfDocument(_:)): return .goBottom
+        case #selector(formatMarkdownFromMenu(_:)):
+            guard let name = item.representedObject as? String else { return nil }
+            return ["h0": .formatBody, "h1": .formatHeading1, "h2": .formatHeading2,
+                    "h3": .formatHeading3, "bold": .formatBold, "italic": .formatItalic,
+                    "strikethrough": .formatStrikethrough, "code": .formatInlineCode,
+                    "link": .formatLink, "bulletList": .formatBulletList,
+                    "orderedList": .formatOrderedList, "taskList": .formatChecklist,
+                    "quote": .formatQuote][name]
+        default: return nil
+        }
+    }
+
+    private func applyKeymap() {
+        let contexts = activeKeymapContexts()
+        let keymap = KeymapStore.shared.keymap
+        for (command, item) in keymapMenuItems {
+            guard command.context == .global || contexts.contains(command.context),
+                  let binding = keymap.bindings(for: command).first else {
+                item.keyEquivalent = ""
+                item.keyEquivalentModifierMask = []
+                continue
+            }
+            item.keyEquivalent = binding.keyEquivalent
+            item.keyEquivalentModifierMask = binding.modifierMask
+        }
+    }
+
+    private func activeKeymapContexts() -> Set<KeymapContext> {
+        guard let window = NSApp.keyWindow else { return [.global] }
+        if FileSearchPanelController.isKeymapPanel(window) { return [.global, .search] }
+        guard let responder = window.firstResponder as? NSView else { return [.global] }
+        if responderSuperviewContains(responder, MarkdownWebView.self) { return [.global, .reading] }
+        if let controller = window.windowController as? DocumentWindowController,
+           let editor = controller.mainSplit?.editorViewController,
+           responder.isDescendant(of: editor.view) {
+            return [.global, .editing]
+        }
+        return [.global]
+    }
+
+    private func responderSuperviewContains<T: NSView>(_ view: NSView, _ type: T.Type) -> Bool {
+        var current: NSView? = view
+        while let candidate = current {
+            if candidate is T { return true }
+            current = candidate.superview
+        }
+        return false
+    }
+
     private func installNewTabMenuItem() {
         guard let fileMenu = topLevelSubmenu(matching: Self.fileMenuTitles),
               fileMenu.items.first(where: {
@@ -986,6 +1125,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         let goTitle = L("Go")
         let menu = NSMenu(title: goTitle)
+
+        menu.addItem(makeItem("Back",
+                              action: #selector(DocumentWindowController.goBackInHistory(_:)),
+                              keyEquivalent: "[",
+                              modifiers: .command,
+                              symbol: "chevron.backward"))
+        menu.addItem(makeItem("Forward",
+                              action: #selector(DocumentWindowController.goForwardInHistory(_:)),
+                              keyEquivalent: "]",
+                              modifiers: .command,
+                              symbol: "chevron.forward"))
+
+        menu.addItem(.separator())
 
         menu.addItem(makeItem("Up",
                               action: #selector(NSResponder.scrollLineUp(_:)),

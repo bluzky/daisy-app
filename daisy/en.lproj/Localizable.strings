@@ -4,6 +4,19 @@
 
 /* Settings */
 "General" = "General";
+"Shortcuts" = "Shortcuts";
+"Paste and Match Style" = "Paste and Match Style";
+"Find…" = "Find…";
+"Find and Replace…" = "Find and Replace…";
+"Find Next" = "Find Next";
+"Find Previous" = "Find Previous";
+"Jump to Selection" = "Jump to Selection";
+"Show Toolbar" = "Show Toolbar";
+"Global" = "Global";
+"Reset All" = "Reset All";
+"Export All Defaults" = "Export All Defaults";
+"Reveal in Finder" = "Reveal in Finder";
+"Open in Editor" = "Open in Editor";
 "Privacy" = "Privacy";
 "About" = "About";
 "Appearance also applies to Quick Look previews." = "Appearance also applies to Quick Look previews.";

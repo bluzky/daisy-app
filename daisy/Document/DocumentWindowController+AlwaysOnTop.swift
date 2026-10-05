@@ -56,6 +56,12 @@ extension DocumentWindowController {
         if menuItem.action == #selector(searchForDocument(_:)) {
             return true
         }
+        if menuItem.action == #selector(goBackInHistory(_:)) {
+            return !backHistory.isEmpty
+        }
+        if menuItem.action == #selector(goForwardInHistory(_:)) {
+            return !forwardHistory.isEmpty
+        }
         if menuItem.action == #selector(toggleAlwaysOnTop(_:)) {
             menuItem.state = isAlwaysOnTop ? .on : .off
             menuItem.image = Self.alwaysOnTopMenuImage(isPinned: isAlwaysOnTop)

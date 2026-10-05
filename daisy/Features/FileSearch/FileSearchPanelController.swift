@@ -27,6 +27,10 @@ final class FileSearchPanelController: NSViewController {
     var onDismiss: (() -> Void)?
     private var presentation: FileSearchPanelPresentation?
 
+    static func isKeymapPanel(_ window: NSWindow) -> Bool {
+        window is FileSearchPanel
+    }
+
     func present(relativeTo parent: NSWindow?) {
         let presentation = FileSearchPanelPresentation()
         self.presentation = presentation
@@ -417,18 +421,42 @@ final class FileSearchPanelController: NSViewController {
         let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         guard !modifiers.contains(.control) else { return false }
 
+        if event.keyCode == Key.escape {
+            closePalette()
+            return true
+        }
+        if let binding = KeyBinding(event: event),
+           let command = KeymapStore.shared.keymap.command(for: binding, in: .search) {
+            return performSearchCommand(command)
+        }
+
+        // Historically modifier variants of palette navigation keys (notably
+        // ⇧↓) moved selection. Keep that behavior only while bare binding
+        // remains active, so clearing `down` releases it to query field.
+        if let binding = KeyBinding(event: event),
+           let command = KeymapStore.shared.keymap.command(
+               for: KeyBinding(key: binding.key), in: .search
+           ), command == .searchSelectPrevious || command == .searchSelectNext {
+            return performSearchCommand(command)
+        }
+
         switch event.keyCode {
-        case Key.upArrow: moveSelection(by: -1)
-        case Key.downArrow: moveSelection(by: 1)
         case Key.home: selectRow(0)
         case Key.end: selectRow(results.count - 1)
         case Key.pageUp: moveSelection(by: -visibleRowCount)
         case Key.pageDown: moveSelection(by: visibleRowCount)
-        case Key.escape: closePalette()
-        case Key.return, Key.keypadEnter:
-            if modifiers.contains(.command) { return activateSelection(target: .newTab) }
-            if modifiers.contains(.option) { return activateSelection(target: .newWindow) }
-            return activateSelection(target: .currentTab)
+        default: return false
+        }
+        return true
+    }
+
+    private func performSearchCommand(_ command: KeymapCommand) -> Bool {
+        switch command {
+        case .searchSelectPrevious: moveSelection(by: -1)
+        case .searchSelectNext: moveSelection(by: 1)
+        case .searchOpenResult: return activateSelection(target: .currentTab)
+        case .searchOpenResultInNewTab: return activateSelection(target: .newTab)
+        case .searchOpenResultInNewWindow: return activateSelection(target: .newWindow)
         default: return false
         }
         return true

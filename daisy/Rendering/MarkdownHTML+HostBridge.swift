@@ -161,6 +161,16 @@ nonisolated extension MarkdownHTML {
             ].join(','));
         }
 
+        function reportFocusedControl(event) {
+            post({ kind: 'focusedControl', value: keyBelongsToFocusedControl(event.target) });
+        }
+        document.addEventListener('focusin', reportFocusedControl, true);
+        document.addEventListener('focusout', () => {
+            // Focusout runs before focusin for next element. Defer so a
+            // control-to-control move never re-enables preview navigation.
+            queueMicrotask(() => reportFocusedControl({ target: document.activeElement }));
+        }, true);
+
         function handlePreviewScrollKey(event) {
             if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || event.isComposing) return false;
             if (keyBelongsToFocusedControl(event.target)) return false;

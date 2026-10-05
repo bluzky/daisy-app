@@ -231,6 +231,7 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
     private var accumulatedMagnification: CGFloat = 0
     private var didMagnifyDuringCurrentGesture = false
     private var isPointerOverMermaidFigure = false
+    private var isWebControlFocused = false
     private var currentMarkdown: String?
     private var currentDocumentID = "page"
     private weak var webScrollView: NSScrollView?
@@ -383,6 +384,7 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
     /// Empties the visible article without unloading the page, so the next
     /// `display()` still hits the fast-path.
     func clearContent() {
+        isWebControlFocused = false
         guard isPageReady else { return }
         webView.evaluateJavaScript("window.MdPreview && MdPreview.update('');") { _, _ in }
     }
@@ -403,6 +405,7 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         currentMarkdown = markdown
         currentDocumentID = documentID
         isPointerOverMermaidFigure = false
+        isWebControlFocused = false
         assetScheme.setBaseURL(assetBaseURL)
         currentAssetBase = assetBaseURL
         let baseHref = currentBaseHref
@@ -630,6 +633,9 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         case "mermaidHover":
             guard let value = dict["value"] as? NSNumber else { return }
             isPointerOverMermaidFigure = value.boolValue
+        case "focusedControl":
+            guard let value = dict["value"] as? Bool else { return }
+            isWebControlFocused = value
         #if !QUICK_LOOK_EXTENSION
         case "mermaidPopup":
             presentMermaidPopup(dict)
@@ -1388,13 +1394,39 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         if let responder = window?.firstResponder as? NSView,
            responder.isDescendant(of: self),
-           let action = Self.headingScrollAction(for: event) {
-            performScrollAction(action)
-            return true
+           !isWebControlFocused {
+#if QUICK_LOOK_EXTENSION
+            if let action = Self.headingScrollAction(for: event) {
+                performScrollAction(action)
+                return true
+            }
+#else
+            if let binding = KeyBinding(event: event),
+               let command = KeymapStore.shared.keymap.command(for: binding, in: .reading),
+               let action = Self.scrollAction(for: command) {
+                performScrollAction(action)
+                return true
+            }
+#endif
         }
         return super.performKeyEquivalent(with: event)
     }
 
+#if !QUICK_LOOK_EXTENSION
+    private static func scrollAction(for command: KeymapCommand) -> ScrollAction? {
+        switch command {
+        case .goLineUp: .lineUp
+        case .goLineDown: .lineDown
+        case .goPageUp: .pageUp
+        case .goPageDown: .pageDown
+        case .goPreviousItem: .previousHeading
+        case .goNextItem: .nextHeading
+        case .goTop: .top
+        case .goBottom: .bottom
+        default: nil
+        }
+    }
+#else
     private static func headingScrollAction(for event: NSEvent) -> ScrollAction? {
         guard event.type == .keyDown,
               event.modifierFlags.contains(.option),
@@ -1409,6 +1441,7 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         default: return nil
         }
     }
+#endif
 
     /// Legacy path, slated for removal. Older WKWebView configurations
     /// happen to embed an NSScrollView in the private subview tree; finding
