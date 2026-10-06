@@ -34,6 +34,7 @@ import { c, cpp, java, kotlin, objectiveC, csharp } from "@codemirror/legacy-mod
 import { sql } from "@codemirror/legacy-modes/mode/sql"
 import { toml } from "@codemirror/legacy-modes/mode/toml"
 import { hcl } from "codemirror-lang-hcl"
+import { convertClipboardToMarkdown } from "./clipboard-markdown.mjs"
 
 // ---------------------------------------------------------------------------
 // Fenced-code languages
@@ -3603,12 +3604,32 @@ window.MDEditor = {
             paste(event, view) {
               if (event.target instanceof Element
                   && event.target.closest(".cm-md-table-cell")) return false
-              const items = Array.from(event.clipboardData?.items || [])
-              if (!items.some((item) => String(item.type || "").toLowerCase().startsWith("image/"))) return false
-              if (typeof onPasteImage !== "function") return false
+              const clipboard = event.clipboardData
+              const items = Array.from(clipboard?.items || [])
+              if (items.some((item) => String(item.type || "").toLowerCase().startsWith("image/"))) {
+                if (typeof onPasteImage !== "function") return false
+                event.preventDefault()
+                const selection = view.state.selection.main
+                onPasteImage(selection.from, selection.to)
+                return true
+              }
+              const clipboardText = typeof clipboard?.getData === "function"
+                ? (type) => clipboard.getData(type)
+                : () => ""
+              const markdown = convertClipboardToMarkdown({
+                html: clipboardText("text/html"),
+                text: clipboardText("text/plain"),
+                types: clipboard?.types,
+              })
+              if (!markdown) return false
               event.preventDefault()
               const selection = view.state.selection.main
-              onPasteImage(selection.from, selection.to)
+              view.dispatch({
+                changes: { from: selection.from, to: selection.to, insert: markdown },
+                selection: { anchor: selection.from + markdown.length },
+                userEvent: "input.paste",
+                scrollIntoView: true,
+              })
               return true
             },
           }),
