@@ -47,7 +47,28 @@ private final class FileNode {
     }
 }
 
+/// Header row of the Bookmarks section; a single instance per navigator.
+private final class BookmarksGroupNode {}
+
+/// Header row above the project tree, shown while the Bookmarks section is.
+private final class FilesHeaderNode {}
+
+private final class BookmarkNode {
+    let bookmark: Bookmark
+    /// Where the bookmark points now; nil once the target is gone.
+    let url: URL?
+
+    init(bookmark: Bookmark, url: URL?) {
+        self.bookmark = bookmark
+        self.url = url
+    }
+
+    var displayName: String { url?.lastPathComponent ?? bookmark.name }
+}
+
 final class ProjectNavigatorView: NSView {
+
+    private static let bookmarksExpandedKey = "Sidebar.BookmarksExpanded"
 
     private static let draggedURLsPasteboardType = NSPasteboard.PasteboardType(
         "doc.daisy.project-navigator.urls"
@@ -58,6 +79,9 @@ final class ProjectNavigatorView: NSView {
     private let scrollView = NSScrollView()
     private let outlineView = NSOutlineView()
     private var rootNode: FileNode?
+    private let bookmarksGroup = BookmarksGroupNode()
+    private let filesHeader = FilesHeaderNode()
+    private var bookmarkNodes: [BookmarkNode] = []
     /// The file whose document is actually open. Keep this separate from the
     /// outline's transient click selection so a pending Save/Don't Save/Cancel
     /// decision cannot make the navigator disagree with the editor.
@@ -115,6 +139,11 @@ final class ProjectNavigatorView: NSView {
 
         scrollView.documentView = outlineView
 
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(bookmarksDidChange),
+            name: BookmarkStore.didChangeNotification, object: nil
+        )
+
         NSLayoutConstraint.activate([
             scrollView.topAnchor.constraint(equalTo: topAnchor),
             scrollView.leadingAnchor.constraint(equalTo: leadingAnchor),
@@ -127,10 +156,57 @@ final class ProjectNavigatorView: NSView {
         cancelAllWatchers()
         rootNode = url.map { FileNode(url: $0.standardizedFileURL, isDirectory: true) }
         updateSecurityScopedAccess()
+        reloadBookmarkNodes()
         outlineView.reloadData()
+        expandBookmarksGroupIfNeeded()
         if let rootNode {
             outlineView.expandItem(rootNode)
             syncWatchers()
+        }
+    }
+
+    // MARK: - Bookmarks
+
+    private func reloadBookmarkNodes() {
+        let store = BookmarkStore.shared
+        bookmarkNodes = store.bookmarks.map { BookmarkNode(bookmark: $0, url: store.resolve($0)) }
+    }
+
+    private func expandBookmarksGroupIfNeeded() {
+        guard !bookmarkNodes.isEmpty else { return }
+        let stored = UserDefaults.standard.object(forKey: Self.bookmarksExpandedKey) as? Bool
+        if stored ?? true { outlineView.expandItem(bookmarksGroup) }
+    }
+
+    @objc private func bookmarksDidChange() {
+        refreshTree()
+        setCurrentFile(currentFileURL)
+    }
+
+    @objc private func toggleBookmark(_ sender: NSMenuItem) {
+        guard let url = sender.representedObject as? URL else { return }
+        let store = BookmarkStore.shared
+        if let existing = store.bookmark(for: url) {
+            store.remove(id: existing.id)
+        } else {
+            store.add(url)
+        }
+    }
+
+    @objc private func removeBookmark(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? UUID else { return }
+        BookmarkStore.shared.remove(id: id)
+    }
+
+    private func open(_ node: BookmarkNode) {
+        guard let url = node.url else {
+            NSSound.beep()
+            return
+        }
+        if node.bookmark.isDirectory {
+            documentWindowController?.openFolder(url)
+        } else if url != currentFileURL {
+            onSelectFile?(url)
         }
     }
 
@@ -175,7 +251,9 @@ final class ProjectNavigatorView: NSView {
     private func refreshTree() {
         let expandedURLs = collectExpandedURLs()
         if let rootNode { invalidateCaches(rootNode) }
+        reloadBookmarkNodes()
         outlineView.reloadData()
+        expandBookmarksGroupIfNeeded()
         if let rootNode {
             outlineView.expandItem(rootNode)
             reExpand(rootNode, expanded: expandedURLs)
@@ -278,6 +356,10 @@ final class ProjectNavigatorView: NSView {
 
     @objc private func rowClicked() {
         let row = outlineView.clickedRow
+        if row >= 0, let bookmarkNode = outlineView.item(atRow: row) as? BookmarkNode {
+            open(bookmarkNode)
+            return
+        }
         guard row >= 0, let node = outlineView.item(atRow: row) as? FileNode else { return }
         if node.isDirectory {
             // Disclosure buttons handle their own clicks in AppKit; this
@@ -674,6 +756,7 @@ private extension ProjectNavigatorView {
         if let node = item as? FileNode {
             return node.isDirectory ? node.url : node.url.deletingLastPathComponent()
         }
+        if item is BookmarksGroupNode || item is BookmarkNode { return nil }
         return rootNode?.url
     }
 
@@ -794,6 +877,10 @@ extension ProjectNavigatorView: NSMenuDelegate {
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
         let row = outlineView.clickedRow
+        if row >= 0, let bookmarkNode = outlineView.item(atRow: row) as? BookmarkNode {
+            addBookmarkNodeItems(to: menu, for: bookmarkNode)
+            return
+        }
         guard row >= 0, let node = outlineView.item(atRow: row) as? FileNode else { return }
         let url = node.url
 
@@ -835,6 +922,33 @@ extension ProjectNavigatorView: NSMenuDelegate {
                                   symbol: "document.on.document",
                                   action: #selector(copyPath(_:)),
                                   url: url))
+        menu.addItem(.separator())
+        let isBookmarked = BookmarkStore.shared.isBookmarked(url)
+        menu.addItem(makeMenuItem(
+            title: isBookmarked
+                ? NSLocalizedString("Remove Bookmark", comment: "Project navigator context menu")
+                : NSLocalizedString("Bookmark", comment: "Project navigator context menu"),
+            symbol: isBookmarked ? "bookmark.slash" : "bookmark",
+            action: #selector(toggleBookmark(_:)),
+            url: url
+        ))
+    }
+
+    private func addBookmarkNodeItems(to menu: NSMenu, for node: BookmarkNode) {
+        if let url = node.url {
+            menu.addItem(makeMenuItem(title: NSLocalizedString("Show in Finder", comment: "Project navigator context menu"),
+                                      symbol: "folder",
+                                      action: #selector(showInFinder(_:)),
+                                      url: url))
+            menu.addItem(.separator())
+        }
+        let remove = NSMenuItem(title: NSLocalizedString("Remove Bookmark", comment: "Project navigator context menu"),
+                                action: #selector(removeBookmark(_:)),
+                                keyEquivalent: "")
+        remove.target = self
+        remove.representedObject = node.bookmark.id
+        remove.image = NSImage(systemSymbolName: "bookmark.slash", accessibilityDescription: nil)
+        menu.addItem(remove)
     }
 
     private func addCreationItems(to menu: NSMenu, for url: URL) {
@@ -896,15 +1010,29 @@ extension ProjectNavigatorView: NSOutlineViewDataSource {
 
     func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
         if let node = item as? FileNode { return node.children().count }
-        return rootNode == nil ? 0 : 1
+        if item is BookmarksGroupNode { return bookmarkNodes.count }
+        guard item == nil else { return 0 }
+        return topLevelItems.count
+    }
+
+    private var topLevelItems: [Any] {
+        var items: [Any] = []
+        if !bookmarkNodes.isEmpty {
+            items.append(bookmarksGroup)
+            if rootNode != nil { items.append(filesHeader) }
+        }
+        if let rootNode { items.append(rootNode) }
+        return items
     }
 
     func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any {
         if let node = item as? FileNode { return node.children()[index] }
-        return rootNode!
+        if item is BookmarksGroupNode { return bookmarkNodes[index] }
+        return topLevelItems[index]
     }
 
     func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool {
+        if item is BookmarksGroupNode { return true }
         guard let node = item as? FileNode else { return false }
         return node.isDirectory && !node.children().isEmpty
     }
@@ -964,7 +1092,26 @@ extension ProjectNavigatorView: NSOutlineViewDelegate {
     func outlineView(_ outlineView: NSOutlineView,
                      viewFor tableColumn: NSTableColumn?,
                      item: Any) -> NSView? {
-        guard let node = item as? FileNode else { return nil }
+        if item is BookmarksGroupNode {
+            return sectionHeaderCell(title: NSLocalizedString("Bookmarks", comment: "Project navigator section header"),
+                                     identifier: "BookmarksHeaderCell")
+        }
+        if item is FilesHeaderNode { return sectionHeaderCell(title: NSLocalizedString("Files", comment: "Project navigator section header"), identifier: "FilesHeaderCell") }
+        let name: String
+        let iconPath: String
+        let isSelectedRow: Bool
+        if let node = item as? FileNode {
+            name = node.displayName
+            iconPath = node.url.path
+            let row = outlineView.row(forItem: node)
+            isSelectedRow = row >= 0 && row == outlineView.selectedRow
+        } else if let node = item as? BookmarkNode {
+            name = node.displayName
+            iconPath = node.url?.path ?? node.bookmark.path
+            isSelectedRow = false
+        } else {
+            return nil
+        }
         let identifier = NSUserInterfaceItemIdentifier("FileCell")
         let cell: NSTableCellView
         if let recycled = outlineView.makeView(withIdentifier: identifier, owner: self) as? NSTableCellView {
@@ -998,23 +1145,50 @@ extension ProjectNavigatorView: NSOutlineViewDelegate {
             ])
         }
 
-        cell.textField?.stringValue = node.displayName
-        let icon = NSWorkspace.shared.icon(forFile: node.url.path)
+        cell.textField?.stringValue = name
+        let icon = NSWorkspace.shared.icon(forFile: iconPath)
         icon.size = NSSize(width: 16, height: 16)
         cell.imageView?.image = icon
-        let row = outlineView.row(forItem: node)
-        cell.textField?.textColor = row >= 0 && row == outlineView.selectedRow
+        let isMissing = (item as? BookmarkNode).map { $0.url == nil } ?? false
+        cell.imageView?.alphaValue = isMissing ? 0.4 : 1
+        cell.textField?.textColor = isSelectedRow
             ? (themeAccent ?? .controlAccentColor)
-            : .labelColor
+            : (isMissing ? .tertiaryLabelColor : .labelColor)
         return cell
     }
 
+    private func sectionHeaderCell(title: String, identifier rawIdentifier: String) -> NSView {
+        let identifier = NSUserInterfaceItemIdentifier(rawIdentifier)
+        if let recycled = outlineView.makeView(withIdentifier: identifier, owner: self) as? NSTableCellView {
+            return recycled
+        }
+        let cell = NSTableCellView()
+        cell.identifier = identifier
+        let textField = NSTextField(labelWithString: title)
+        textField.translatesAutoresizingMaskIntoConstraints = false
+        textField.font = .systemFont(ofSize: 11, weight: .semibold)
+        textField.textColor = .secondaryLabelColor
+        cell.addSubview(textField)
+        cell.textField = textField
+        NSLayoutConstraint.activate([
+            textField.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 2),
+            textField.trailingAnchor.constraint(lessThanOrEqualTo: cell.trailingAnchor, constant: -6),
+            textField.centerYAnchor.constraint(equalTo: cell.centerYAnchor)
+        ])
+        return cell
+    }
+
+    func outlineView(_ outlineView: NSOutlineView, isGroupItem item: Any) -> Bool {
+        item is BookmarksGroupNode || item is FilesHeaderNode
+    }
+
     func outlineView(_ outlineView: NSOutlineView, rowViewForItem item: Any) -> NSTableRowView? {
-        QuietSelectionRowView()
+        if item is BookmarksGroupNode || item is FilesHeaderNode { return nil }
+        return QuietSelectionRowView()
     }
 
     func outlineView(_ outlineView: NSOutlineView, heightOfRowByItem item: Any) -> CGFloat {
-        return 24
+        return item is FilesHeaderNode ? 30 : 24
     }
 
     func outlineViewSelectionDidChange(_ notification: Notification) {
@@ -1033,8 +1207,18 @@ extension ProjectNavigatorView: NSOutlineViewDelegate {
     }
 
     func outlineViewItemDidExpand(_ notification: Notification) {
+        if notification.userInfo?["NSObject"] is BookmarksGroupNode {
+            UserDefaults.standard.set(true, forKey: Self.bookmarksExpandedKey)
+            return
+        }
         // Newly-loaded subtree needs its own watcher.
         syncWatchers()
+    }
+
+    func outlineViewItemDidCollapse(_ notification: Notification) {
+        if notification.userInfo?["NSObject"] is BookmarksGroupNode {
+            UserDefaults.standard.set(false, forKey: Self.bookmarksExpandedKey)
+        }
     }
 }
 
