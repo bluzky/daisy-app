@@ -49,6 +49,10 @@ private final class FileNode {
 
 final class ProjectNavigatorView: NSView {
 
+    private static let draggedURLsPasteboardType = NSPasteboard.PasteboardType(
+        "doc.daisy.project-navigator.urls"
+    )
+
     var onSelectFile: ((URL) -> Void)?
 
     private let scrollView = NSScrollView()
@@ -61,10 +65,17 @@ final class ProjectNavigatorView: NSView {
     // One watcher per loaded directory; kept in sync with which FileNodes
     // currently have a populated children cache.
     private var watchers: [URL: DirectoryWatcher] = [:]
+    /// Security-scoped folder selected through the Open panel. Retain access
+    /// for file mutations while this navigator is rooted within it.
+    private var accessedDirectoryURL: URL?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         setUp()
+    }
+
+    deinit {
+        accessedDirectoryURL?.stopAccessingSecurityScopedResource()
     }
 
     required init?(coder: NSCoder) {
@@ -90,6 +101,7 @@ final class ProjectNavigatorView: NSView {
         outlineView.action = #selector(rowClicked)
         outlineView.indentationPerLevel = 14
         outlineView.refusesFirstResponder = true
+        outlineView.registerForDraggedTypes([Self.draggedURLsPasteboardType])
 
         let contextMenu = NSMenu()
         contextMenu.delegate = self
@@ -114,6 +126,7 @@ final class ProjectNavigatorView: NSView {
     func setRoot(_ url: URL?) {
         cancelAllWatchers()
         rootNode = url.map { FileNode(url: $0.standardizedFileURL, isDirectory: true) }
+        updateSecurityScopedAccess()
         outlineView.reloadData()
         if let rootNode {
             outlineView.expandItem(rootNode)
@@ -182,8 +195,8 @@ final class ProjectNavigatorView: NSView {
         var result: Set<URL> = []
         func walk(_ item: Any?) {
             let count = outlineView.numberOfChildren(ofItem: item)
-            for i in 0..<count {
-                let child = outlineView.child(i, ofItem: item)
+            for index in 0..<count {
+                let child = outlineView.child(index, ofItem: item)
                 if let node = child as? FileNode, outlineView.isItemExpanded(node) {
                     result.insert(node.url.standardizedFileURL)
                     walk(child)
@@ -319,6 +332,461 @@ final class ProjectNavigatorView: NSView {
             }
         }
     }
+
+}
+
+enum ProjectFileCommand {
+    case newFile, newFolder, rename, moveToTrash
+}
+
+extension ProjectNavigatorView {
+
+    /// The item a file command acts on: the selected row, else the open file,
+    /// else the project root. Rename and trash never act on the root.
+    private func target(for command: ProjectFileCommand) -> URL? {
+        guard let rootURL = rootNode?.url.standardizedFileURL else { return nil }
+        let selected = (outlineView.item(atRow: outlineView.selectedRow) as? FileNode)?.url
+        let url = (selected ?? currentFileURL ?? rootURL).standardizedFileURL
+        switch command {
+        case .newFile, .newFolder: return url
+        case .rename, .moveToTrash: return url == rootURL ? nil : url
+        }
+    }
+
+    func canPerform(_ command: ProjectFileCommand) -> Bool {
+        !isHidden && target(for: command) != nil
+    }
+
+    func perform(_ command: ProjectFileCommand) {
+        guard canPerform(command), let url = target(for: command) else {
+            NSSound.beep()
+            return
+        }
+        let item = NSMenuItem()
+        item.representedObject = url
+        switch command {
+        case .newFile: createNewFile(item)
+        case .newFolder: createNewFolder(item)
+        case .rename: renameItem(item)
+        case .moveToTrash: deleteItem(item)
+        }
+    }
+}
+
+private extension ProjectNavigatorView {
+
+    @objc private func createNewFile(_ sender: NSMenuItem) {
+        guard let url = sender.representedObject as? URL else { return }
+        let directory = directoryForNewItem(at: url)
+        presentNameAlert(
+            title: NSLocalizedString("New File", comment: "Project navigator new file alert title"),
+            message: NSLocalizedString(
+                "Enter a name for the new Markdown file.",
+                comment: "Project navigator new file alert message"
+            ),
+            buttonTitle: NSLocalizedString("Create", comment: "Project navigator create button"),
+            initialName: "Untitled.md"
+        ) { [weak self] name in
+            self?.createMarkdownFile(named: name, in: directory)
+        }
+    }
+
+    @objc private func createNewFolder(_ sender: NSMenuItem) {
+        guard let url = sender.representedObject as? URL else { return }
+        let directory = directoryForNewItem(at: url)
+        presentNameAlert(
+            title: NSLocalizedString("New Folder", comment: "Project navigator new folder alert title"),
+            message: NSLocalizedString(
+                "Enter a name for the new folder.",
+                comment: "Project navigator new folder alert message"
+            ),
+            buttonTitle: NSLocalizedString("Create", comment: "Project navigator create button"),
+            initialName: "New Folder"
+        ) { [weak self] name in
+            self?.createFolder(named: name, in: directory)
+        }
+    }
+
+    @objc private func renameItem(_ sender: NSMenuItem) {
+        guard let url = sender.representedObject as? URL else { return }
+        presentNameAlert(
+            title: NSLocalizedString("Rename", comment: "Project navigator rename alert title"),
+            message: NSLocalizedString(
+                "Enter a new name.",
+                comment: "Project navigator rename alert message"
+            ),
+            buttonTitle: NSLocalizedString("Rename", comment: "Project navigator rename button"),
+            initialName: url.lastPathComponent
+        ) { [weak self] name in
+            self?.rename(url, to: name)
+        }
+    }
+
+    private func directoryForNewItem(at url: URL) -> URL {
+        url.isExistingDirectory ? url : url.deletingLastPathComponent()
+    }
+
+    private func createMarkdownFile(named name: String, in directory: URL) {
+        guard let fileName = markdownFileName(from: name) else {
+            presentInvalidNameAlert()
+            return
+        }
+        let destination = directory.appendingPathComponent(fileName, isDirectory: false)
+        guard !FileManager.default.fileExists(atPath: destination.path) else {
+            presentItemExistsAlert()
+            return
+        }
+
+        ensureProjectWriteAccess { [weak self] in
+            guard let self else { return }
+            guard !FileManager.default.fileExists(atPath: destination.path) else {
+                self.presentItemExistsAlert()
+                return
+            }
+            do {
+                try Data().write(to: destination, options: .atomic)
+            } catch {
+                self.presentFileOperationError(error)
+                return
+            }
+            self.refreshTree()
+            self.onSelectFile?(destination)
+        }
+    }
+
+    private func createFolder(named name: String, in directory: URL) {
+        guard let folderName = validItemName(name) else {
+            presentInvalidNameAlert()
+            return
+        }
+        let destination = directory.appendingPathComponent(folderName, isDirectory: true)
+        guard !FileManager.default.fileExists(atPath: destination.path) else {
+            presentItemExistsAlert()
+            return
+        }
+
+        ensureProjectWriteAccess { [weak self] in
+            guard let self else { return }
+            do {
+                try FileManager.default.createDirectory(
+                    at: destination,
+                    withIntermediateDirectories: false
+                )
+            } catch {
+                self.presentFileOperationError(error)
+                return
+            }
+            self.refreshTree()
+            self.selectDirectory(at: destination)
+        }
+    }
+
+    @objc private func deleteItem(_ sender: NSMenuItem) {
+        guard let representedURL = sender.representedObject as? URL,
+              let window = outlineView.window else { return }
+        let url = representedURL.standardizedFileURL
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = String(
+            format: NSLocalizedString(
+                "Move “%@” to the Trash?",
+                comment: "Project navigator delete alert title; %@ is the file or folder name"
+            ),
+            url.lastPathComponent
+        )
+        alert.informativeText = url.isExistingDirectory
+            ? NSLocalizedString(
+                "The folder and everything in it will be moved to the Trash.",
+                comment: "Project navigator delete folder alert message"
+            )
+            : NSLocalizedString(
+                "You can restore it from the Trash.",
+                comment: "Project navigator delete file alert message"
+            )
+        alert.addButton(withTitle: NSLocalizedString("Move to Trash", comment: "Project navigator delete button"))
+        alert.addButton(withTitle: NSLocalizedString("Cancel", comment: "Alert button"))
+        alert.buttons[0].hasDestructiveAction = true
+        alert.beginSheetModal(for: window) { [weak self] response in
+            guard response == .alertFirstButtonReturn else { return }
+            self?.ensureProjectWriteAccess { [weak self] in
+                self?.trash(url)
+            }
+        }
+    }
+
+    private func trash(_ url: URL) {
+        do {
+            try FileManager.default.trashItem(at: url, resultingItemURL: nil)
+        } catch {
+            presentFileOperationError(error)
+            return
+        }
+        refreshTree()
+    }
+
+    private func rename(_ source: URL, to name: String) {
+        let source = source.standardizedFileURL
+        guard let fileName = source.isExistingDirectory
+            ? validItemName(name)
+            : markdownFileName(from: name, defaultExtension: source.pathExtension) else {
+            presentInvalidNameAlert()
+            return
+        }
+        let destination = source.deletingLastPathComponent()
+            .appendingPathComponent(fileName, isDirectory: source.isExistingDirectory)
+            .standardizedFileURL
+        guard destination != source else { return }
+        // A case-only rename (readme.md -> README.md) resolves to the same
+        // file on a case-insensitive volume, so it must not count as a clash.
+        let isCaseOnlyRename = destination.path.caseInsensitiveCompare(source.path) == .orderedSame
+        guard isCaseOnlyRename || !FileManager.default.fileExists(atPath: destination.path) else {
+            presentItemExistsAlert()
+            return
+        }
+
+        ensureProjectWriteAccess { [weak self] in
+            _ = self?.moveItem(from: source, to: destination)
+        }
+    }
+
+    private func validItemName(_ name: String) -> String? {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              trimmed != ".",
+              trimmed != "..",
+              !trimmed.contains("/"),
+              !trimmed.contains("\\"),
+              !trimmed.unicodeScalars.contains(where: { $0.value == 0 }) else { return nil }
+        return trimmed
+    }
+
+    private func markdownFileName(from name: String, defaultExtension: String = "md") -> String? {
+        guard var fileName = validItemName(name) else { return nil }
+        if URL(fileURLWithPath: fileName).pathExtension.isEmpty {
+            fileName += ".\(defaultExtension)"
+        }
+        guard ProjectFileIndex.markdownExtensions.contains(
+            URL(fileURLWithPath: fileName).pathExtension.lowercased()
+        ) else { return nil }
+        return fileName
+    }
+
+    private func presentNameAlert(title: String,
+                                  message: String,
+                                  buttonTitle: String,
+                                  initialName: String,
+                                  completion: @escaping (String) -> Void) {
+        guard let window = outlineView.window else { return }
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = message
+        let field = NSTextField(string: initialName)
+        field.frame = NSRect(x: 0, y: 0, width: 300, height: 24)
+        alert.accessoryView = field
+        alert.addButton(withTitle: buttonTitle)
+        alert.addButton(withTitle: NSLocalizedString("Cancel", comment: "Alert button"))
+        alert.window.initialFirstResponder = field
+        alert.beginSheetModal(for: window) { response in
+            guard response == .alertFirstButtonReturn else { return }
+            completion(field.stringValue)
+        }
+    }
+
+    private func presentInvalidNameAlert() {
+        presentAlert(
+            title: NSLocalizedString(
+                "Invalid Name",
+                comment: "Project navigator invalid name alert title"
+            ),
+            message: NSLocalizedString(
+                "Use a valid Markdown file name.",
+                comment: "Project navigator invalid name alert message"
+            )
+        )
+    }
+
+    private func presentItemExistsAlert() {
+        presentAlert(
+            title: NSLocalizedString(
+                "Item Already Exists",
+                comment: "Project navigator item exists alert title"
+            ),
+            message: NSLocalizedString(
+                "Choose a different name.",
+                comment: "Project navigator item exists alert message"
+            )
+        )
+    }
+
+    private func presentFileOperationError(_ error: Error) {
+        guard let window = outlineView.window else { return }
+        NSAlert(error: error).beginSheetModal(for: window)
+    }
+
+    private func presentAlert(title: String, message: String) {
+        guard let window = outlineView.window else { return }
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = message
+        alert.addButton(withTitle: NSLocalizedString("OK", comment: "Alert button"))
+        alert.beginSheetModal(for: window)
+    }
+
+    private func selectDirectory(at url: URL) {
+        guard let rootNode else { return }
+        var path: [FileNode] = []
+        guard collectPath(to: url.standardizedFileURL, from: rootNode, into: &path) else { return }
+        for ancestor in path.dropLast() {
+            outlineView.expandItem(ancestor)
+        }
+        if let node = path.last {
+            let row = outlineView.row(forItem: node)
+            if row >= 0 {
+                outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+                outlineView.scrollRowToVisible(row)
+            }
+        }
+    }
+
+    private func didMoveItem(from source: URL, to destination: URL) {
+        let movedCurrentURL = documentWindowController?.currentFileURL.flatMap {
+            movedURL($0, from: source, to: destination)
+        }
+        if let movedCurrentURL {
+            documentWindowController?.handleRename(to: movedCurrentURL)
+        }
+        refreshTree()
+        if destination.isExistingDirectory {
+            selectDirectory(at: destination)
+        } else if let movedCurrentURL {
+            setCurrentFile(movedCurrentURL)
+        }
+    }
+
+    private func draggedURLs(from pasteboard: NSPasteboard) -> [URL] {
+        guard let paths = pasteboard.propertyList(forType: Self.draggedURLsPasteboardType) as? [String] else {
+            return []
+        }
+        return paths.map { URL(fileURLWithPath: $0).standardizedFileURL }
+    }
+
+    private func dropTargetDirectory(for item: Any?) -> URL? {
+        if let node = item as? FileNode {
+            return node.isDirectory ? node.url : node.url.deletingLastPathComponent()
+        }
+        return rootNode?.url
+    }
+
+    private func canMove(_ source: URL, to directory: URL) -> Bool {
+        guard let rootURL = rootNode?.url.standardizedFileURL else { return false }
+        let source = source.standardizedFileURL
+        let directory = directory.standardizedFileURL
+        guard source != rootURL,
+              source.isDescendantOrSame(of: rootURL),
+              !directory.isDescendantOrSame(of: source),
+              FileManager.default.fileExists(atPath: source.path) else { return false }
+        let destination = directory.appendingPathComponent(source.lastPathComponent)
+            .standardizedFileURL
+        return destination != source && !FileManager.default.fileExists(atPath: destination.path)
+    }
+
+    private func movedURL(_ url: URL, from source: URL, to destination: URL) -> URL? {
+        let url = url.standardizedFileURL
+        let source = source.standardizedFileURL
+        guard url.isDescendantOrSame(of: source) else { return nil }
+        let relativePath = String(url.path.dropFirst(source.path.count))
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard !relativePath.isEmpty else { return destination }
+        return destination.appendingPathComponent(relativePath).standardizedFileURL
+    }
+
+    private func updateSecurityScopedAccess() {
+        guard let rootURL = rootNode?.url.standardizedFileURL else {
+            stopAccessingDirectory()
+            return
+        }
+        if let accessedDirectoryURL,
+           rootURL.isDescendantOrSame(of: accessedDirectoryURL) { return }
+        stopAccessingDirectory()
+        if rootURL.startAccessingSecurityScopedResource() {
+            accessedDirectoryURL = rootURL
+        }
+    }
+
+    private func stopAccessingDirectory() {
+        accessedDirectoryURL?.stopAccessingSecurityScopedResource()
+        accessedDirectoryURL = nil
+    }
+
+    private func hasProjectWriteAccess() -> Bool {
+        guard let rootURL = rootNode?.url.standardizedFileURL,
+              let accessedDirectoryURL else { return false }
+        return rootURL.isDescendantOrSame(of: accessedDirectoryURL)
+    }
+
+    private func ensureProjectWriteAccess(_ completion: @escaping () -> Void) {
+        guard !hasProjectWriteAccess(),
+              let rootURL = rootNode?.url.standardizedFileURL,
+              let window = outlineView.window else {
+            completion()
+            return
+        }
+
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.directoryURL = rootURL
+        panel.message = NSLocalizedString(
+            "Allow Daisy to manage files in this folder.",
+            comment: "Project navigator folder permission prompt"
+        )
+        panel.prompt = NSLocalizedString("Allow Access", comment: "Project navigator folder permission button")
+        panel.beginSheetModal(for: window) { [weak self] response in
+            guard let self, response == .OK, let selectedURL = panel.url else { return }
+            let selectedDirectoryURL = selectedURL.standardizedFileURL
+            guard rootURL.isDescendantOrSame(of: selectedDirectoryURL) else {
+                self.presentAlert(
+                    title: NSLocalizedString(
+                        "Choose Project Folder",
+                        comment: "Project navigator folder permission error title"
+                    ),
+                    message: NSLocalizedString(
+                        "Choose this project folder or a folder that contains it.",
+                        comment: "Project navigator folder permission error message"
+                    )
+                )
+                return
+            }
+            guard selectedDirectoryURL.startAccessingSecurityScopedResource() else {
+                self.presentAlert(
+                    title: NSLocalizedString(
+                        "Access Not Granted",
+                        comment: "Project navigator folder permission error title"
+                    ),
+                    message: NSLocalizedString(
+                        "Daisy needs write access to manage files in this folder.",
+                        comment: "Project navigator folder permission error message"
+                    )
+                )
+                return
+            }
+            self.stopAccessingDirectory()
+            self.accessedDirectoryURL = selectedDirectoryURL
+            completion()
+        }
+    }
+
+    private func moveItem(from source: URL, to destination: URL) -> Bool {
+        do {
+            try FileManager.default.moveItem(at: source, to: destination)
+        } catch {
+            presentFileOperationError(error)
+            return false
+        }
+        didMoveItem(from: source, to: destination)
+        return true
+    }
 }
 
 extension ProjectNavigatorView: NSMenuDelegate {
@@ -333,17 +801,23 @@ extension ProjectNavigatorView: NSMenuDelegate {
                                   symbol: "folder",
                                   action: #selector(showInFinder(_:)),
                                   url: url))
+        menu.addItem(.separator())
+        addCreationItems(to: menu, for: url)
 
         if !node.isDirectory {
             menu.addItem(.separator())
-            menu.addItem(makeMenuItem(title: NSLocalizedString("Open in New Tab", comment: "Project navigator context menu"),
-                                      symbol: "macwindow",
-                                      action: #selector(openInNewTab(_:)),
-                                      url: url))
-            menu.addItem(makeMenuItem(title: NSLocalizedString("Open in New Window", comment: "Project navigator context menu"),
-                                      symbol: "macwindow.badge.plus",
-                                      action: #selector(openInNewWindow(_:)),
-                                      url: url))
+            menu.addItem(makeMenuItem(
+                title: NSLocalizedString("Open in New Tab", comment: "Project navigator context menu"),
+                symbol: "macwindow",
+                action: #selector(openInNewTab(_:)),
+                url: url
+            ))
+            menu.addItem(makeMenuItem(
+                title: NSLocalizedString("Open in New Window", comment: "Project navigator context menu"),
+                symbol: "macwindow.badge.plus",
+                action: #selector(openInNewWindow(_:)),
+                url: url
+            ))
             if let controller = documentWindowController {
                 for item in controller.contextMenuEditorItems(for: url) {
                     menu.addItem(item)
@@ -354,13 +828,32 @@ extension ProjectNavigatorView: NSMenuDelegate {
                                       symbol: "document.on.clipboard",
                                       action: #selector(copyContents(_:)),
                                       url: url))
-        } else {
-            menu.addItem(.separator())
         }
 
+        menu.addItem(.separator())
         menu.addItem(makeMenuItem(title: NSLocalizedString("Copy Path", comment: "Project navigator context menu"),
                                   symbol: "document.on.document",
                                   action: #selector(copyPath(_:)),
+                                  url: url))
+    }
+
+    private func addCreationItems(to menu: NSMenu, for url: URL) {
+        menu.addItem(makeMenuItem(title: NSLocalizedString("New File", comment: "Project navigator context menu"),
+                                  symbol: "doc.badge.plus",
+                                  action: #selector(createNewFile(_:)),
+                                  url: url))
+        menu.addItem(makeMenuItem(title: NSLocalizedString("New Folder", comment: "Project navigator context menu"),
+                                  symbol: "folder.badge.plus",
+                                  action: #selector(createNewFolder(_:)),
+                                  url: url))
+        guard url.standardizedFileURL != rootNode?.url.standardizedFileURL else { return }
+        menu.addItem(makeMenuItem(title: NSLocalizedString("Rename", comment: "Project navigator context menu"),
+                                  symbol: "pencil",
+                                  action: #selector(renameItem(_:)),
+                                  url: url))
+        menu.addItem(makeMenuItem(title: NSLocalizedString("Move to Trash", comment: "Project navigator context menu"),
+                                  symbol: "trash",
+                                  action: #selector(deleteItem(_:)),
                                   url: url))
     }
 
@@ -414,6 +907,55 @@ extension ProjectNavigatorView: NSOutlineViewDataSource {
     func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool {
         guard let node = item as? FileNode else { return false }
         return node.isDirectory && !node.children().isEmpty
+    }
+
+    func outlineView(_ outlineView: NSOutlineView,
+                     writeItems items: [Any],
+                     to pasteboard: NSPasteboard) -> Bool {
+        guard items.count == 1,
+              let node = items.first as? FileNode,
+              let rootURL = rootNode?.url.standardizedFileURL,
+              node.url.standardizedFileURL != rootURL else { return false }
+        return pasteboard.setPropertyList(
+            [node.url.standardizedFileURL.path],
+            forType: Self.draggedURLsPasteboardType
+        )
+    }
+
+    func outlineView(_ outlineView: NSOutlineView,
+                     validateDrop info: NSDraggingInfo,
+                     proposedItem item: Any?,
+                     proposedChildIndex index: Int) -> NSDragOperation {
+        let sources = draggedURLs(from: info.draggingPasteboard)
+        guard sources.count == 1,
+              let directory = dropTargetDirectory(for: item),
+              canMove(sources[0], to: directory) else { return [] }
+        // Dropping on a file moves into its folder, so highlight that folder.
+        let target = (item as? FileNode).flatMap { $0.isDirectory ? item : outlineView.parent(forItem: $0) } ?? item
+        outlineView.setDropItem(target, dropChildIndex: NSOutlineViewDropOnItemIndex)
+        return .move
+    }
+
+    func outlineView(_ outlineView: NSOutlineView,
+                     acceptDrop info: NSDraggingInfo,
+                     item: Any?,
+                     childIndex index: Int) -> Bool {
+        let sources = draggedURLs(from: info.draggingPasteboard)
+        guard sources.count == 1,
+              let directory = dropTargetDirectory(for: item),
+              canMove(sources[0], to: directory) else { return false }
+        let source = sources[0]
+        let destination = directory.appendingPathComponent(
+            source.lastPathComponent,
+            isDirectory: source.isExistingDirectory
+        ).standardizedFileURL
+        if hasProjectWriteAccess() {
+            return moveItem(from: source, to: destination)
+        }
+        ensureProjectWriteAccess { [weak self] in
+            _ = self?.moveItem(from: source, to: destination)
+        }
+        return false
     }
 }
 
@@ -504,12 +1046,12 @@ private final class DirectoryWatcher {
 
     init(url: URL, onChange: @escaping () -> Void) {
         self.onChange = onChange
-        let fd = Darwin.open(url.path, O_EVTONLY)
-        guard fd >= 0 else { return }
-        fileDescriptor = fd
+        let descriptor = Darwin.open(url.path, O_EVTONLY)
+        guard descriptor >= 0 else { return }
+        fileDescriptor = descriptor
 
         let source = DispatchSource.makeFileSystemObjectSource(
-            fileDescriptor: fd,
+            fileDescriptor: descriptor,
             eventMask: [.write, .extend, .delete, .rename, .revoke],
             queue: .main
         )

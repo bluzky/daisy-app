@@ -333,7 +333,7 @@
 "Release Notes" = "发布说明";
 "Continue" = "继续";
 "Find any document fast" = "快速查找任意文稿";
-"Press ⇧⌘O and type part of a file name to open it from the current project." = "按下 ⇧⌘O 并输入文件名的一部分，即可打开当前项目中的文件。";
+"Press ⌘K and type part of a file name to open it from the current project." = "按下 ⌘K 并输入文件名的一部分，即可打开当前项目中的文件。";
 "Redesigned formatting bar" = "全新设计的格式栏";
 "On macOS 26 and later, the formatting bar uses Liquid Glass, with headings, links, lists, and styles in compact groups." = "在 macOS 26 及更高版本上，格式栏采用 Liquid Glass 设计，标题、链接、列表和样式分组排列，更加紧凑。";
 "Redesigned code blocks" = "全新设计的代码块";
@@ -424,7 +424,6 @@
 "Choose a Quick Capture folder first." = "请先选择快速捕获文件夹。";
 "The Quick Capture folder can’t be reached. Choose it again in Settings." = "无法访问快速捕获文件夹，请在“设置”中重新选择。";
 "Daisy has to keep running to listen for the shortcut." = "Daisy 需要保持运行才能响应快捷键。";
-"Open Inbox" = "打开收件箱";
 
 /* Templates */
 "Templates" = "模板";
@@ -434,3 +433,8 @@
 "%d templates found" = "找到 %d 个模板";
 "A template starts at a <!-- template: Name --> line, or at each ## heading if the file has no such line. Insert one from the Templates entry in the slash menu while editing." = "模板以 <!-- template: 名称 --> 行开始；若文件中没有这样的行，则每个 ## 标题是一个模板。编辑时可从斜杠菜单的“模板”中插入。";
 "Choose a Markdown file of templates, each starting at a <!-- template: Name --> line or ## heading" = "选择模板 Markdown 文件，每个模板以 <!-- template: 名称 --> 行或 ## 标题开始";
+
+/* File commands */
+"New File" = "新建文件";
+"New Folder" = "新建文件夹";
+"Move to Trash" = "移到废纸篓";

@@ -56,6 +56,9 @@ extension DocumentWindowController {
         if menuItem.action == #selector(searchForDocument(_:)) {
             return true
         }
+        if let command = projectFileCommand(for: menuItem.action) {
+            return canPerform(command)
+        }
         if menuItem.action == #selector(goBackInHistory(_:)) {
             return !backHistory.isEmpty
         }

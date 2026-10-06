@@ -64,9 +64,9 @@ Or grab the latest signed and notarized DMG from the [Releases](https://github.c
 - **Templates** — insert your own Markdown snippets from the slash menu. Choose a template file in **Settings → General → Templates**; see [Templates](#templates) below.
 - **Extensions** — code highlighting, callouts, KaTeX math, Mermaid diagrams, and colorful and collapsible headings, each switchable in **Settings → Extensions**. Mermaid, colorful headings and slash commands also apply in Edit Mode.
 - **Quick Look** — system-wide `.md` previews from Finder, Spotlight, and Mail.
-- **Search** — in-document search (<kbd>⌘F</kbd>) and Search for Document (<kbd>⇧⌘O</kbd>) to find a file by name.
-- **Quick Capture** — turn on the shortcut in Settings, then press it from any app (<kbd>⌃⌥Space</kbd> by default, changeable there; <kbd>⌥⇧⌘N</kbd> inside Daisy) to open `Inbox.md` from your capture folder in the editor. Each time adds a new `## yyyy-MM-dd HH:mm` heading at the end and puts the cursor under it.
-- **Custom shortcuts** — rebind Daisy commands in **Settings → Shortcuts**. Daisy reads and writes `~/.config/daisy/keymap.json`; bindings apply only in their Global, Reading, Editing, or Search context.
+- **Search** — in-document search (<kbd>⌘F</kbd>) and Search for Document (<kbd>⌘K</kbd>) to find a file by name.
+- **Quick Capture** — turn on the shortcut in Settings, then press it from any app (<kbd>⌃⌥Space</kbd> by default, changeable there) to open `Inbox.md` from your capture folder in the editor. Each time adds a new `## yyyy-MM-dd HH:mm` heading at the end and puts the cursor under it.
+- **Custom shortcuts** — rebind Daisy commands in **Settings → Shortcuts**. Daisy reads and writes `~/.config/daisy/keymap.json`; bindings apply only in their Global, Reading, Editing, or Search context. Project Navigator file commands (New File <kbd>⌥⌘N</kbd>, New Folder <kbd>⇧⌘N</kbd>, Rename, Move to Trash) are in the File menu and act on the selected sidebar item; Rename and Move to Trash have no default shortcut.
 - **Reading settings** — text size and zoom, content width, text alignment, strict line breaks, and themes with font, spacing, and color customization.
 
 

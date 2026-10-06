@@ -333,7 +333,7 @@
 "Release Notes" = "Release Notes";
 "Continue" = "Continue";
 "Find any document fast" = "Find any document fast";
-"Press ⇧⌘O and type part of a file name to open it from the current project." = "Press ⇧⌘O and type part of a file name to open it from the current project.";
+"Press ⌘K and type part of a file name to open it from the current project." = "Press ⌘K and type part of a file name to open it from the current project.";
 "Redesigned formatting bar" = "Redesigned formatting bar";
 "On macOS 26 and later, the formatting bar uses Liquid Glass, with headings, links, lists, and styles in compact groups." = "On macOS 26 and later, the formatting bar uses Liquid Glass, with headings, links, lists, and styles in compact groups.";
 "Redesigned code blocks" = "Redesigned code blocks";
@@ -424,7 +424,6 @@
 "Choose a Quick Capture folder first." = "Choose a Quick Capture folder first.";
 "The Quick Capture folder can’t be reached. Choose it again in Settings." = "The Quick Capture folder can’t be reached. Choose it again in Settings.";
 "Daisy has to keep running to listen for the shortcut." = "Daisy has to keep running to listen for the shortcut.";
-"Open Inbox" = "Open Inbox";
 
 /* Templates */
 "Templates" = "Templates";
@@ -434,3 +433,8 @@
 "%d templates found" = "%d templates found";
 "A template starts at a <!-- template: Name --> line, or at each ## heading if the file has no such line. Insert one from the Templates entry in the slash menu while editing." = "A template starts at a <!-- template: Name --> line, or at each ## heading if the file has no such line. Insert one from the Templates entry in the slash menu while editing.";
 "Choose a Markdown file of templates, each starting at a <!-- template: Name --> line or ## heading" = "Choose a Markdown file of templates, each starting at a <!-- template: Name --> line or ## heading";
+
+/* File commands */
+"New File" = "New File";
+"New Folder" = "New Folder";
+"Move to Trash" = "Move to Trash";
