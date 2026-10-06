@@ -167,6 +167,15 @@ final class SidebarViewController: NSViewController {
         isViewLoaded && currentMode == .files && projectNavigator.canPerform(command)
     }
 
+    /// Creates a Markdown file in the project on behalf of OmniSearch. Mounts
+    /// the navigator's tree first, because in outline mode it has not been
+    /// enumerated and has no root to create under.
+    func createProjectFile(atRelativePath relativePath: String, completion: @escaping (URL?) -> Void) {
+        loadViewIfNeeded()
+        refreshNavigatorIfNeeded()
+        projectNavigator.createFile(atRelativePath: relativePath, completion: completion)
+    }
+
     func perform(_ command: ProjectFileCommand) {
         guard canPerform(command) else {
             NSSound.beep()

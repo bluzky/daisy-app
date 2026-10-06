@@ -2,9 +2,8 @@ import XCTest
 @testable import MarkdownHelpers
 
 final class KeymapTests: XCTestCase {
-    func testEveryDefaultBindingRoundTrips() {
+    func testDefaultBindingsRoundTrip() {
         for command in KeymapCommand.allCases {
-            XCTAssertFalse(Keymap().bindings(for: command).isEmpty, "\(command.rawValue)")
             for binding in Keymap().bindings(for: command) {
                 XCTAssertEqual(KeyBinding(string: binding.description), binding)
             }

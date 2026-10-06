@@ -179,16 +179,3 @@ private extension KeymapContext {
         }
     }
 }
-
-private extension KeyBinding {
-    var displayString: String {
-        var value = ""
-        if modifiers.contains(.control) { value += "⌃" }
-        if modifiers.contains(.option) { value += "⌥" }
-        if modifiers.contains(.shift) { value += "⇧" }
-        if modifiers.contains(.command) { value += "⌘" }
-        let labels = ["up": "↑", "down": "↓", "left": "←", "right": "→", "pageup": "⇞",
-                      "pagedown": "⇟", "return": "↩", "space": "Space", "escape": "Esc"]
-        return value + (labels[key] ?? key.uppercased())
-    }
-}
