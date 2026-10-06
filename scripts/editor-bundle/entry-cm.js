@@ -3606,6 +3606,33 @@ window.MDEditor = {
                   && event.target.closest(".cm-md-table-cell")) return false
               const clipboard = event.clipboardData
               const items = Array.from(clipboard?.items || [])
+              const clipboardText = typeof clipboard?.getData === "function"
+                ? (type) => clipboard.getData(type)
+                : () => ""
+              const html = clipboardText("text/html")
+              const text = clipboardText("text/plain")
+              const types = clipboard?.types
+              const markdown = convertClipboardToMarkdown({ html, text, types })
+              // Excel also puts a bitmap preview on the pasteboard. A table is
+              // more useful than that preview, so let explicit tabular data
+              // beat an image while ordinary image pastes stay native.
+              const hasTabularData = /<table\b/i.test(html)
+                || Array.from(types || []).some((type) =>
+                  /^text\/tab-separated-values(?:;|$)/.test(String(type).toLowerCase()))
+                || text.split(/\r?\n/).filter((row) => row.includes("\t")).length >= 2
+              const insertMarkdown = () => {
+                if (!markdown) return false
+                event.preventDefault()
+                const selection = view.state.selection.main
+                view.dispatch({
+                  changes: { from: selection.from, to: selection.to, insert: markdown },
+                  selection: { anchor: selection.from + markdown.length },
+                  userEvent: "input.paste",
+                  scrollIntoView: true,
+                })
+                return true
+              }
+              if (hasTabularData && insertMarkdown()) return true
               if (items.some((item) => String(item.type || "").toLowerCase().startsWith("image/"))) {
                 if (typeof onPasteImage !== "function") return false
                 event.preventDefault()
@@ -3613,24 +3640,7 @@ window.MDEditor = {
                 onPasteImage(selection.from, selection.to)
                 return true
               }
-              const clipboardText = typeof clipboard?.getData === "function"
-                ? (type) => clipboard.getData(type)
-                : () => ""
-              const markdown = convertClipboardToMarkdown({
-                html: clipboardText("text/html"),
-                text: clipboardText("text/plain"),
-                types: clipboard?.types,
-              })
-              if (!markdown) return false
-              event.preventDefault()
-              const selection = view.state.selection.main
-              view.dispatch({
-                changes: { from: selection.from, to: selection.to, insert: markdown },
-                selection: { anchor: selection.from + markdown.length },
-                userEvent: "input.paste",
-                scrollIntoView: true,
-              })
-              return true
+              return insertMarkdown()
             },
           }),
         ],

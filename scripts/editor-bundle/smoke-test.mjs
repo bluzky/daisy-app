@@ -110,6 +110,15 @@ check("image clipboard keeps native bridge priority",
   imagePaste.defaultPrevented && pastedImages.length === 1
     && JSON.stringify(pastedImages[0]) === JSON.stringify([0, 3])
     && imagePasteEditor.getMarkdown() === "old")
+const excelPaste = paste(imagePasteHost.querySelector(".cm-content"), {
+  html: "<table><tr><th>Name</th><th>Score</th></tr><tr><td>Ada</td><td>10</td></tr></table>",
+  text: "Name\tScore\nAda\t10",
+  types: ["text/html", "text/tab-separated-values"],
+  items: [{ type: "image/png" }],
+})
+check("spreadsheet table wins over Excel preview image",
+  excelPaste.defaultPrevented && pastedImages.length === 1
+    && imagePasteEditor.getMarkdown() === "| Name | Score |\n| --- | --- |\n| Ada | 10 |")
 imagePasteEditor.destroy()
 
 const tablePasteHost = dom.window.document.createElement("div")
