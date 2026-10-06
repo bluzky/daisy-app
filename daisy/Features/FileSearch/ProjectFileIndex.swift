@@ -2,7 +2,7 @@
 //  ProjectFileIndex.swift
 //  daisy
 //
-//  Walks the project folder once and caches the files Search for Document can
+//  Walks the project folder once and caches the files OmniSearch can
 //  offer. Kept free of AppKit so the SPM helper tests can exercise the walk
 //  against a temporary directory without a GUI host.
 //
