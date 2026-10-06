@@ -126,7 +126,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         installFormatMenu()
         installNewTabMenuItem()
         installSearchForDocumentMenuItem()
-        installQuickCaptureMenuItem()
+        installFileCommandMenuItems()
         installFileExportMenuItems()
         installGoMenu()
         installSettingsMenuItem()
@@ -918,7 +918,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         switch item.action {
         case #selector(DocumentWindowController.newDocumentTab(_:)): return .fileNewTab
         case #selector(DocumentWindowController.searchForDocument(_:)): return .fileSearchDocument
-        case #selector(showQuickCapture(_:)): return .fileOpenInbox
+        case #selector(DocumentWindowController.newProjectFile(_:)): return .fileNewFile
+        case #selector(DocumentWindowController.newProjectFolder(_:)): return .fileNewFolder
+        case #selector(DocumentWindowController.renameProjectItem(_:)): return .fileRename
+        case #selector(DocumentWindowController.trashProjectItem(_:)): return .fileMoveToTrash
         case #selector(toggleSidebarFromMenu(_:)): return .viewToggleSidebar
         case #selector(hideSidebarFromMenu(_:)): return .viewHideSidebar
         case #selector(selectOutlineMode(_:)): return .viewShowOutline
@@ -1023,30 +1026,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // a project to search.
         let item = NSMenuItem(title: L("Search for Document…"),
                               action: #selector(DocumentWindowController.searchForDocument(_:)),
-                              keyEquivalent: "o")
-        item.keyEquivalentModifierMask = [.command, .shift]
+                              keyEquivalent: "k")
         let openIndex = fileMenu.items
             .firstIndex { $0.action == #selector(openDocument(_:)) }
         fileMenu.insertItem(item, at: openIndex.map { $0 + 1 } ?? 0)
     }
 
-    private func installQuickCaptureMenuItem() {
+    private func installFileCommandMenuItems() {
         guard let fileMenu = topLevelSubmenu(matching: Self.fileMenuTitles),
-              fileMenu.items.first(where: { $0.action == #selector(showQuickCapture(_:)) }) == nil
-        else { return }
-        let item = NSMenuItem(title: L("Open Inbox"),
-                              action: #selector(showQuickCapture(_:)),
-                              keyEquivalent: "n")
-        item.keyEquivalentModifierMask = [.command, .option, .shift]
-        item.target = self
+              fileMenu.items.first(where: {
+                  $0.action == #selector(DocumentWindowController.newProjectFile(_:))
+              }) == nil else { return }
+        // nil targets: resolved through the responder chain to the key
+        // document window, which forwards to the Project Navigator.
+        let specs: [(String, Selector)] = [
+            ("New File", #selector(DocumentWindowController.newProjectFile(_:))),
+            ("New Folder", #selector(DocumentWindowController.newProjectFolder(_:))),
+            ("Rename", #selector(DocumentWindowController.renameProjectItem(_:))),
+            ("Move to Trash", #selector(DocumentWindowController.trashProjectItem(_:)))
+        ]
         let searchIndex = fileMenu.items.firstIndex {
             $0.action == #selector(DocumentWindowController.searchForDocument(_:))
         }
-        fileMenu.insertItem(item, at: searchIndex.map { $0 + 1 } ?? 0)
-    }
-
-    @objc func showQuickCapture(_ sender: Any?) {
-        QuickCaptureController.shared.openInbox()
+        var index = searchIndex.map { $0 + 1 } ?? 0
+        for (title, action) in specs {
+            fileMenu.insertItem(NSMenuItem(title: L(title), action: action, keyEquivalent: ""), at: index)
+            index += 1
+        }
     }
 
     private func installFileExportMenuItems() {
@@ -1474,7 +1480,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(item("Italic", command: "italic", key: "i"))
         menu.addItem(item("Strikethrough", command: "strikethrough", key: "x", modifiers: [.shift, .command]))
         menu.addItem(item("Inline Code", command: "code", key: "m", modifiers: [.shift, .command]))
-        menu.addItem(item("Link", command: "link", key: "k"))
+        menu.addItem(item("Link", command: "link"))
         menu.addItem(.separator())
         menu.addItem(item("Bulleted List", command: "bulletList", key: "7", modifiers: [.shift, .command]))
         menu.addItem(item("Numbered List", command: "orderedList", key: "9", modifiers: [.shift, .command]))

@@ -23,7 +23,7 @@ struct WhatsNewFeature: Identifiable {
                 id: "search-for-document",
                 symbol: "doc.text.magnifyingglass",
                 title: L("Find any document fast"),
-                detail: L("Press ⇧⌘O and type part of a file name to open it from the current project.")
+                detail: L("Press ⌘K and type part of a file name to open it from the current project.")
             ),
         ]
         if #available(macOS 26.0, *) {

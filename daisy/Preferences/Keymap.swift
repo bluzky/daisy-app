@@ -17,7 +17,10 @@ enum KeymapContext: String, CaseIterable, Hashable {
 enum KeymapCommand: String, CaseIterable, Hashable {
     case fileNewTab = "file.newTab"
     case fileSearchDocument = "file.searchDocument"
-    case fileOpenInbox = "file.openInbox"
+    case fileNewFile = "file.newFile"
+    case fileNewFolder = "file.newFolder"
+    case fileRename = "file.rename"
+    case fileMoveToTrash = "file.moveToTrash"
     case viewToggleSidebar = "view.toggleSidebar"
     case viewHideSidebar = "view.hideSidebar"
     case viewShowOutline = "view.showOutline"
@@ -67,7 +70,8 @@ enum KeymapCommand: String, CaseIterable, Hashable {
 
     var context: KeymapContext {
         switch self {
-        case .fileNewTab, .fileSearchDocument, .fileOpenInbox,
+        case .fileNewTab, .fileSearchDocument,
+             .fileNewFile, .fileNewFolder, .fileRename, .fileMoveToTrash,
              .viewToggleSidebar, .viewHideSidebar, .viewShowOutline,
              .viewShowProjectNavigator, .viewToggleEditMode, .viewToggleToolbar,
              .viewToggleAlwaysOnTop, .findFind, .findReplace, .findNext,
@@ -91,7 +95,10 @@ enum KeymapCommand: String, CaseIterable, Hashable {
         switch self {
         case .fileNewTab: "New Tab"
         case .fileSearchDocument: "Search for Document…"
-        case .fileOpenInbox: "Open Inbox"
+        case .fileNewFile: "New File"
+        case .fileNewFolder: "New Folder"
+        case .fileRename: "Rename"
+        case .fileMoveToTrash: "Move to Trash"
         case .viewToggleSidebar: "Toggle Sidebar"
         case .viewHideSidebar: "Hide Sidebar"
         case .viewShowOutline: "Table of Contents"
@@ -418,8 +425,9 @@ struct Keymap {
 
     private static let defaultBindings: [KeymapContext: [(KeyBinding, KeymapCommand)]] = [
         .global: pairs([
-            ("cmd+t", .fileNewTab), ("shift+cmd+o", .fileSearchDocument),
-            ("opt+shift+cmd+n", .fileOpenInbox), ("cmd+l", .viewToggleSidebar),
+            ("cmd+t", .fileNewTab), ("cmd+k", .fileSearchDocument),
+            ("opt+cmd+n", .fileNewFile),
+            ("shift+cmd+n", .fileNewFolder), ("cmd+l", .viewToggleSidebar),
             ("ctrl+cmd+1", .viewHideSidebar), ("ctrl+cmd+2", .viewShowOutline),
             ("ctrl+cmd+3", .viewShowProjectNavigator), ("cmd+e", .viewToggleEditMode),
             ("opt+cmd+t", .viewToggleToolbar), ("ctrl+cmd+t", .viewToggleAlwaysOnTop),
@@ -438,7 +446,7 @@ struct Keymap {
             ("opt+cmd+2", .formatHeading2), ("opt+cmd+3", .formatHeading3),
             ("cmd+b", .formatBold), ("cmd+i", .formatItalic),
             ("shift+cmd+x", .formatStrikethrough), ("shift+cmd+m", .formatInlineCode),
-            ("cmd+k", .formatLink), ("shift+cmd+7", .formatBulletList),
+            ("shift+cmd+7", .formatBulletList),
             ("shift+cmd+9", .formatOrderedList), ("shift+cmd+l", .formatChecklist),
             ("cmd+'", .formatQuote)
         ]),

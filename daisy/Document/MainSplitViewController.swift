@@ -674,6 +674,14 @@ final class MainSplitViewController: NSSplitViewController {
     /// palette searches.
     var projectRootURL: URL? { sidebarViewController?.projectRootURL }
 
+    func canPerform(_ command: ProjectFileCommand) -> Bool {
+        sidebarViewController?.canPerform(command) ?? false
+    }
+
+    func perform(_ command: ProjectFileCommand) {
+        sidebarViewController?.perform(command)
+    }
+
     private var sidebarViewController: SidebarViewController? {
         splitViewItems.first?.viewController as? SidebarViewController
     }

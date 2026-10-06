@@ -163,6 +163,18 @@ final class SidebarViewController: NSViewController {
     /// has not been enumerated yet.
     var projectRootURL: URL? { pendingFolderURL }
 
+    func canPerform(_ command: ProjectFileCommand) -> Bool {
+        isViewLoaded && currentMode == .files && projectNavigator.canPerform(command)
+    }
+
+    func perform(_ command: ProjectFileCommand) {
+        guard canPerform(command) else {
+            NSSound.beep()
+            return
+        }
+        projectNavigator.perform(command)
+    }
+
     /// Mounts an explicitly chosen folder as the Project Navigator root.
     /// If the current document is inside that folder, keep it selected.
     func openFolder(_ folderURL: URL, selectedFileURL: URL?) {
