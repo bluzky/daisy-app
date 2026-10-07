@@ -47,7 +47,7 @@ Updated readers see a What's New window once, over their first document window a
 **Once the user confirms:**
 1. In `WhatsNewPolicy.swift`, set `featuresVersion` to the new `MARKETING_VERSION` and `featuresBuild` to the new `CURRENT_PROJECT_VERSION`. They must match `Version.xcconfig` in the same PR, or the title and release link name the wrong version and readers of the previous release may not see the window.
 2. Replace the entries in `WhatsNewFeature.current` with the confirmed features.
-3. Add every new title and description to both `daisy/en.lproj/Localizable.strings` and `daisy/zh-Hans.lproj/Localizable.strings` under `/* What's New */`, and remove strings that no entry uses any more (keep keys other UI still uses, such as "Search for Document"). Run `plutil -lint` on both files.
+3. Add every new title and description to both `daisy/en.lproj/Localizable.strings` and `daisy/zh-Hans.lproj/Localizable.strings` under `/* What's New */`, and remove strings that no entry uses any more (keep keys other UI still uses, such as "OmniSearch"). Run `plutil -lint` on both files.
 4. Build the app and run `swift test --package-path tests/swift-tests --filter WhatsNewPolicyTests`.
 5. Check the window in the Debug build as an updating reader: run `defaults delete doc.daisy.dev MarkdownPreview.whatsNewLastBuild` and `defaults write doc.daisy.dev MainSplitView.didSeedInitialState -bool true` (a fresh Debug profile otherwise counts as a new install, which never sees the window), launch the built app with a document, and confirm the window lists the confirmed features. Before the release is published, the Release Notes link returns 404; that is expected.
 

@@ -16,7 +16,7 @@ enum KeymapContext: String, CaseIterable, Hashable {
 
 enum KeymapCommand: String, CaseIterable, Hashable {
     case fileNewTab = "file.newTab"
-    case fileSearchDocument = "file.searchDocument"
+    case fileOmniSearch = "file.omniSearch"
     case fileNewFile = "file.newFile"
     case fileNewFolder = "file.newFolder"
     case fileRename = "file.rename"
@@ -70,7 +70,7 @@ enum KeymapCommand: String, CaseIterable, Hashable {
 
     var context: KeymapContext {
         switch self {
-        case .fileNewTab, .fileSearchDocument,
+        case .fileNewTab, .fileOmniSearch,
              .fileNewFile, .fileNewFolder, .fileRename, .fileMoveToTrash,
              .viewToggleSidebar, .viewHideSidebar, .viewShowOutline,
              .viewShowProjectNavigator, .viewToggleEditMode, .viewToggleToolbar,
@@ -94,7 +94,7 @@ enum KeymapCommand: String, CaseIterable, Hashable {
     var titleKey: String {
         switch self {
         case .fileNewTab: "New Tab"
-        case .fileSearchDocument: "Search for Document…"
+        case .fileOmniSearch: "OmniSearch…"
         case .fileNewFile: "New File"
         case .fileNewFolder: "New Folder"
         case .fileRename: "Rename"
@@ -192,6 +192,36 @@ struct KeyBinding: Hashable, Comparable, CustomStringConvertible {
     }
 
     static func < (lhs: KeyBinding, rhs: KeyBinding) -> Bool { lhs.description < rhs.description }
+
+    /// The binding as a menu shows it: `⌘↩`, `⌥↑`, `⇧⌘P`.
+    var displayString: String {
+        var text = ""
+        if modifiers.contains(.control) { text += "⌃" }
+        if modifiers.contains(.option) { text += "⌥" }
+        if modifiers.contains(.shift) { text += "⇧" }
+        if modifiers.contains(.command) { text += "⌘" }
+        return text + Self.glyph(for: key)
+    }
+
+    private static func glyph(for key: String) -> String {
+        switch key {
+        case "up": "↑"
+        case "down": "↓"
+        case "left": "←"
+        case "right": "→"
+        case "return": "↩"
+        case "escape": "Esc"
+        case "tab": "⇥"
+        case "space": "Space"
+        case "delete": "⌫"
+        case "forwarddelete": "⌦"
+        case "pageup": "⇞"
+        case "pagedown": "⇟"
+        case "home": "↖"
+        case "end": "↘"
+        default: key.uppercased()
+        }
+    }
 
     private static func isSupportedKey(_ key: String) -> Bool {
         if key.count == 1, key.unicodeScalars.allSatisfy({ $0.isASCII && !$0.properties.isWhitespace }) {
@@ -425,7 +455,7 @@ struct Keymap {
 
     private static let defaultBindings: [KeymapContext: [(KeyBinding, KeymapCommand)]] = [
         .global: pairs([
-            ("cmd+t", .fileNewTab), ("cmd+k", .fileSearchDocument),
+            ("cmd+t", .fileNewTab), ("cmd+k", .fileOmniSearch),
             ("opt+cmd+n", .fileNewFile),
             ("shift+cmd+n", .fileNewFolder), ("cmd+l", .viewToggleSidebar),
             ("ctrl+cmd+1", .viewHideSidebar), ("ctrl+cmd+2", .viewShowOutline),

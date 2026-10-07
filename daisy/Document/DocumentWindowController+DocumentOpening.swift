@@ -14,9 +14,9 @@ extension DocumentWindowController {
         let appURL: URL
     }
 
-    func openInNewTab(_ fileURL: URL) {
+    func openInNewTab(_ fileURL: URL, startEditing: Bool = false) {
         Self.markNextWindowAsTab()
-        openDocumentWindow(for: fileURL) {
+        openDocumentWindow(for: fileURL, startEditing: startEditing) {
             // If the document was already open, no window was created and
             // the override wasn't consumed — don't let it leak to the next one.
             Self.nextWindowRequestsTab = false
@@ -32,11 +32,15 @@ extension DocumentWindowController {
         }
     }
 
-    private func openDocumentWindow(for fileURL: URL, completion: (() -> Void)? = nil) {
+    private func openDocumentWindow(for fileURL: URL, startEditing: Bool = false,
+                                    completion: (() -> Void)? = nil) {
         let fragment = fileURL.fragment?.removingPercentEncoding
         NSDocumentController.shared.openDocument(withContentsOf: Self.fileURLWithoutFragment(fileURL),
                                                  display: true) { [weak self] document, _, error in
             completion?()
+            if startEditing, let controller = document?.windowControllers.first as? DocumentWindowController {
+                controller.pendingEditModeURL = fileURL.standardizedFileURL
+            }
             if let fragment,
                let controller = document?.windowControllers.first as? DocumentWindowController,
                let split = controller.documentWindow.contentViewController as? MainSplitViewController {

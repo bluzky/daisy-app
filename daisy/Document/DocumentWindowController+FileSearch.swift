@@ -2,8 +2,8 @@
 //  DocumentWindowController+FileSearch.swift
 //  daisy
 //
-//  Wires the Search for Document palette to the window: which project it
-//  searches, and what opening a result actually does.
+//  Wires the OmniSearch palette to the window: which project it searches,
+//  and what choosing a result actually does.
 //
 
 import Cocoa
@@ -28,9 +28,16 @@ extension DocumentWindowController {
             existing.view.window?.makeKeyAndOrderFront(nil)
             return
         }
-        let palette = FileSearchPanelController(projectRoot: split.projectRootURL)
+        // Read the menus now, while this window is still key: once the panel is
+        // up the responder chain starts at the panel and every item would
+        // validate against it instead.
+        let palette = FileSearchPanelController(projectRoot: split.projectRootURL,
+                                                commands: OmniSearchCommandCatalog(mainMenu: NSApp.mainMenu))
         palette.onOpen = { [weak self] url, target in
             self?.openSearchResult(url, in: target)
+        }
+        palette.onCreateFile = { [weak self] relativePath in
+            self?.createSearchFile(atRelativePath: relativePath)
         }
         palette.onRequestOpenFolder = { [weak self] in
             self?.openDocument(nil)
@@ -47,11 +54,11 @@ extension DocumentWindowController {
     /// document, the field searches inside one.
     func makeSearchForDocumentItem() -> NSToolbarItem {
         let item = NSToolbarItem(itemIdentifier: .searchForDocument)
-        let label = NSLocalizedString("Search for Document", comment: "Search for Document toolbar item label")
+        let label = NSLocalizedString("OmniSearch", comment: "OmniSearch toolbar item label")
         item.label = label
         item.paletteLabel = label
-        item.toolTip = NSLocalizedString("Search for a file by name",
-                                         comment: "Search for Document toolbar item tooltip")
+        item.toolTip = NSLocalizedString("Search files, contents and commands",
+                                         comment: "OmniSearch toolbar item tooltip")
         item.image = NSImage(systemSymbolName: "doc.text.magnifyingglass",
                              accessibilityDescription: label)
         item.isBordered = true
@@ -63,6 +70,17 @@ extension DocumentWindowController {
     func validateToolbarItem(_ item: NSToolbarItem) -> Bool {
         guard item.action == #selector(searchForDocument(_:)) else { return true }
         return true
+    }
+
+    /// Creates the file OmniSearch offered and opens it in a new tab, ready to
+    /// write in: a name typed into a "create" row means the reader is about to
+    /// write it, so the open target keys do not apply.
+    func createSearchFile(atRelativePath relativePath: String) {
+        guard let split = documentWindow.contentViewController as? MainSplitViewController else { return }
+        split.createProjectFile(atRelativePath: relativePath) { [weak self] url in
+            guard let self, let url else { return }
+            self.openInNewTab(url, startEditing: true)
+        }
     }
 
     func openSearchResult(_ url: URL, in target: FileSearchPanelController.OpenTarget) {

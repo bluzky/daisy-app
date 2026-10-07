@@ -498,7 +498,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             palette.view.window?.makeKeyAndOrderFront(nil)
             return
         }
-        let palette = FileSearchPanelController(projectRoot: nil)
+        let palette = FileSearchPanelController(projectRoot: nil,
+                                                commands: OmniSearchCommandCatalog(mainMenu: NSApp.mainMenu))
         palette.onOpen = { url, _ in
             NSDocumentController.shared.openDocument(withContentsOf: url, display: true) { _, _, error in
                 if let error { NSApp.presentError(error) }
@@ -917,7 +918,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         switch item.action {
         case #selector(DocumentWindowController.newDocumentTab(_:)): return .fileNewTab
-        case #selector(DocumentWindowController.searchForDocument(_:)): return .fileSearchDocument
+        case #selector(DocumentWindowController.searchForDocument(_:)): return .fileOmniSearch
         case #selector(DocumentWindowController.newProjectFile(_:)): return .fileNewFile
         case #selector(DocumentWindowController.newProjectFolder(_:)): return .fileNewFolder
         case #selector(DocumentWindowController.renameProjectItem(_:)): return .fileRename
@@ -1024,7 +1025,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // nil target, as with New Tab: resolves through the responder chain to
         // the key document window's controller, which decides whether there is
         // a project to search.
-        let item = NSMenuItem(title: L("Search for Document…"),
+        let item = NSMenuItem(title: L("OmniSearch…"),
                               action: #selector(DocumentWindowController.searchForDocument(_:)),
                               keyEquivalent: "k")
         let openIndex = fileMenu.items

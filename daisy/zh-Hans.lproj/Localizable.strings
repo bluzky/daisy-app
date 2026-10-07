@@ -316,16 +316,25 @@
 "Open documents in tabs" = "以标签页打开文稿";
 "A file opened from Finder joins the front window as a tab instead of getting one of its own — Open in New Window still opens a window." = "从“访达”打开的文件会作为标签页加入最前面的窗口，而不是各自新建一个窗口——“在新窗口中打开”仍会打开新窗口。";
 
-/* Search for Document */
-"Search for Document…" = "搜索文稿…";
-"Search files by name" = "按名称搜索文件";
-"No matching files" = "没有匹配的文件";
+/* OmniSearch */
+"OmniSearch…" = "OmniSearch…";
+"Search files and commands" = "搜索文件和命令";
+"No results" = "没有结果";
 "Open a folder to search its files" = "打开一个文件夹以搜索其中的文件";
 "Open Folder…" = "打开文件夹…";
 "Showing the first %d files in this project" = "仅显示此项目中的前 %d 个文件";
 "↑↓ browse · ↩ open · ⌘↩ new tab · ⌥↩ new window" = "↑↓ 浏览 · ↩ 打开 · ⌘↩ 新标签页 · ⌥↩ 新窗口";
-"Search for Document" = "搜索文稿";
-"Search for a file by name" = "按名称搜索文件";
+"OmniSearch" = "OmniSearch";
+"Search files, contents and commands" = "搜索文件、内容和命令";
+"Commands" = "命令";
+"Found in Files" = "在文件中找到";
+"Searching…" = "正在搜索…";
+"open" = "打开";
+"open in new tab" = "在新标签页中打开";
+"open in new window" = "在新窗口中打开";
+"Create “%@”" = "创建“%@”";
+"Can’t Create File Here" = "无法在此创建文件";
+"That location leads outside the project folder." = "该位置指向项目文件夹之外。";
 
 /* What's New */
 "What’s New in Daisy" = "Daisy 的新功能";

@@ -682,6 +682,14 @@ final class MainSplitViewController: NSSplitViewController {
         sidebarViewController?.perform(command)
     }
 
+    func createProjectFile(atRelativePath relativePath: String, completion: @escaping (URL?) -> Void) {
+        guard let sidebarViewController else {
+            completion(nil)
+            return
+        }
+        sidebarViewController.createProjectFile(atRelativePath: relativePath, completion: completion)
+    }
+
     private var sidebarViewController: SidebarViewController? {
         splitViewItems.first?.viewController as? SidebarViewController
     }

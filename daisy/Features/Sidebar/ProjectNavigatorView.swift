@@ -439,6 +439,52 @@ extension ProjectNavigatorView {
         !isHidden && target(for: command) != nil
     }
 
+    /// Creates an empty Markdown file at a project-relative path, making any
+    /// missing folders on the way, without asking for a name. Hands back the
+    /// file's URL — or the existing file's, if one is already there — and
+    /// leaves opening it to the caller.
+    func createFile(atRelativePath relativePath: String, completion: @escaping (URL?) -> Void) {
+        guard let rootURL = rootNode?.url.standardizedFileURL,
+              ProjectItemName.newFileRelativePath(from: relativePath) == relativePath else {
+            completion(nil)
+            return
+        }
+        let destination = rootURL.appendingPathComponent(relativePath, isDirectory: false)
+        // A folder on the way may be a symlink out of the project. Check before
+        // anything is created, and again once the folders exist.
+        guard ProjectItemName.isContained(destination, in: rootURL) else {
+            presentOutsideProjectAlert()
+            completion(nil)
+            return
+        }
+        if FileManager.default.fileExists(atPath: destination.path) {
+            completion(destination)
+            return
+        }
+        ensureProjectWriteAccess { [weak self] in
+            guard let self else { return }
+            do {
+                try FileManager.default.createDirectory(
+                    at: destination.deletingLastPathComponent(),
+                    withIntermediateDirectories: true
+                )
+                guard ProjectItemName.isContained(destination, in: rootURL) else {
+                    self.presentOutsideProjectAlert()
+                    completion(nil)
+                    return
+                }
+                try Data().write(to: destination, options: [.atomic, .withoutOverwriting])
+            } catch {
+                self.presentFileOperationError(error)
+                completion(nil)
+                return
+            }
+            Task { await ProjectFileIndex.shared.invalidate(root: rootURL) }
+            self.refreshTree()
+            completion(destination)
+        }
+    }
+
     func perform(_ command: ProjectFileCommand) {
         guard canPerform(command), let url = target(for: command) else {
             NSSound.beep()
@@ -632,25 +678,11 @@ private extension ProjectNavigatorView {
     }
 
     private func validItemName(_ name: String) -> String? {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty,
-              trimmed != ".",
-              trimmed != "..",
-              !trimmed.contains("/"),
-              !trimmed.contains("\\"),
-              !trimmed.unicodeScalars.contains(where: { $0.value == 0 }) else { return nil }
-        return trimmed
+        ProjectItemName.validated(name)
     }
 
     private func markdownFileName(from name: String, defaultExtension: String = "md") -> String? {
-        guard var fileName = validItemName(name) else { return nil }
-        if URL(fileURLWithPath: fileName).pathExtension.isEmpty {
-            fileName += ".\(defaultExtension)"
-        }
-        guard ProjectFileIndex.markdownExtensions.contains(
-            URL(fileURLWithPath: fileName).pathExtension.lowercased()
-        ) else { return nil }
-        return fileName
+        ProjectItemName.markdownFileName(from: name, defaultExtension: defaultExtension)
     }
 
     private func presentNameAlert(title: String,
@@ -683,6 +715,19 @@ private extension ProjectNavigatorView {
             message: NSLocalizedString(
                 "Use a valid Markdown file name.",
                 comment: "Project navigator invalid name alert message"
+            )
+        )
+    }
+
+    private func presentOutsideProjectAlert() {
+        presentAlert(
+            title: NSLocalizedString(
+                "Can’t Create File Here",
+                comment: "Project navigator create file outside project alert title"
+            ),
+            message: NSLocalizedString(
+                "That location leads outside the project folder.",
+                comment: "Project navigator create file outside project alert message"
             )
         )
     }
