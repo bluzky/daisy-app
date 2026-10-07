@@ -55,7 +55,12 @@ const unsafe = convert({ html: [
   "<script>alert('no')</script><a href='javascript:alert(1)'>bad link</a>",
   "<img src='https://example.com/image.png' alt='diagram'><svg><text>hidden</text></svg>",
 ].join("") })
-check("unsafe HTML is dropped and useful image alt remains", unsafe, (markdown) =>
-  markdown === "bad linkdiagram" && !/javascript|https:\/\/example/.test(markdown))
+check("unsafe HTML is dropped and https image becomes Markdown", unsafe, (markdown) =>
+  markdown === "bad link![diagram](https://example.com/image.png)" && !/javascript|hidden/.test(markdown))
+
+check("linked image, data URI and relative image", convert({ html: [
+  "<a href='https://example.com'><img src='https://example.com/a (1).png' alt='logo'></a>",
+  "<img src='data:image/png;base64,AAAA' alt='inline'><img src='/rel.png' alt='rel'>",
+].join("") }), "[![logo](https://example.com/a%20%281%29.png)](https://example.com)inlinerel")
 
 process.exitCode = failures ? 1 : 0

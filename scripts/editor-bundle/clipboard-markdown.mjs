@@ -121,7 +121,14 @@ function markdownForNode(node) {
     const href = safeHref(node.getAttribute("href"))
     return href && label ? `[${label}](${escapeLinkDestination(href)})` : label
   }
-  if (tag === "img") return escapeText(node.getAttribute("alt") || "")
+  if (tag === "img") {
+    const alt = escapeText(node.getAttribute("alt") || "")
+    const src = node.getAttribute("src")
+    // Only absolute http(s) images are portable; anything else keeps its alt text.
+    return src && /^https?:\/\//i.test(src.trim()) && safeHref(src.trim())
+      ? `![${alt}](${escapeLinkDestination(src.trim())})`
+      : alt
+  }
   if (tag === "blockquote") {
     const value = normalizeMarkdown(inline())
     return value ? `\n\n${value.split("\n").map(line => `> ${line}`).join("\n")}\n\n` : ""
