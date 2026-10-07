@@ -59,6 +59,7 @@ Or grab the latest signed and notarized DMG from the [Releases](https://github.c
 ## Features
 
 - **Read Mode** — native `WKWebView` rendering with a document outline, file navigator and inspector panel. Task checkboxes save straight to the file.
+- **Bookmarks** — right-click a file or folder in the file navigator and choose **Bookmark** to pin it in a Bookmarks section at the top of the Files tab. Click a bookmarked file to open it, or a folder to make it the project root; remove one from its right-click menu.
 - **Edit Mode** — edit in place with a formatting toolbar, Markdown syntax that previews as you type, and inline table editing (<kbd>⌘E</kbd> to toggle, <kbd>⌘S</kbd> to save).
 - **Slash commands** — type `/` at the start of a line or after a space to turn it into a heading, list, quote, divider, code block, table, image, Mermaid diagram, math block, or callout.
 - **Templates** — insert your own Markdown snippets from the slash menu. Choose a template file in **Settings → General → Templates**; see [Templates](#templates) below.
