@@ -38,6 +38,14 @@ check("HTML table wins over TSV", convert({
   types: ["text/html", "text/tab-separated-values"],
 }), "| Name | Note |\n| --- | --- |\n| A\\|B | **ok** |")
 
+check("table cells drop stray breaks and blank lines", convert({
+  html: "<table><tr><th><p>Name</p></th></tr><tr><td><p>Intro:</p><p>a</p><p>b</p><br></td></tr></table>",
+}), "| Name |\n| --- |\n| Intro:<br>a<br>b |")
+
+check("snake_case stays unescaped in table cells", convert({
+  html: "<table><tr><th>Name</th></tr><tr><td>page_size and _x_</td></tr></table>",
+}), "| Name |\n| --- |\n| page_size and \\_x\\_ |")
+
 check("TSV makes GFM table", convert({ text: "Name\tScore\nAda\t10" }),
   "| Name | Score |\n| --- | --- |\n| Ada | 10 |")
 check("single tabbed plain-text row stays plain text", convert({ text: "const x\t= 1" }), null)

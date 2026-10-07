@@ -14,7 +14,9 @@ function escapeText(value) {
   return String(value || "")
     .replace(/\\/g, "\\\\")
     .replace(/[\[\]]/g, "\\$&")
-    .replace(/([*_~])/g, "\\$1")
+    .replace(/([*~])/g, "\\$1")
+    // Intraword underscores (snake_case) are never emphasis in CommonMark.
+    .replace(/(?<![\p{L}\p{N}])_|_(?![\p{L}\p{N}])/gu, "\\_")
 }
 
 function escapeLinkDestination(value) {
@@ -24,14 +26,15 @@ function escapeLinkDestination(value) {
       : encodeURIComponent(character))
 }
 
-function escapeTableCell(value) {
-  return value
-    .replace(/\\/g, "\\\\")
+// Converted HTML is already escaped by escapeText; raw text (TSV) is not.
+function escapeTableCell(value, escapeBackslashes = false) {
+  return (escapeBackslashes ? value.replace(/\\/g, "\\\\") : value)
     .replace(/\|/g, "\\|")
-    .replace(/\u0000/g, "<br>")
-    .replace(/\r?\n/g, "<br>")
-    .replace(/[ \t]+/g, " ")
-    .trim()
+    .replace(/[\u0000\r\n]+/g, "\n")
+    .split("\n")
+    .map(line => line.replace(/[ \t]+/g, " ").trim())
+    .filter(Boolean)
+    .join("<br>")
 }
 
 function normalizeMarkdown(value) {
@@ -168,7 +171,7 @@ function tsvMarkdown(text, explicit) {
   const tabbedRows = rows.filter(row => row.includes("\t"))
   if (!explicit && tabbedRows.length < 2) return null
   if (!explicit && tabbedRows.length !== rows.length) return null
-  const cells = rows.map(row => row.split("\t").map(escapeTableCell))
+  const cells = rows.map(row => row.split("\t").map(cell => escapeTableCell(cell, true)))
   if (!cells.length || (!explicit && !cells.every(row => row.length > 1))) return null
   const columns = Math.max(...cells.map(row => row.length))
   for (const row of cells) while (row.length < columns) row.push("")
