@@ -473,7 +473,9 @@ extension ProjectNavigatorView {
                     completion(nil)
                     return
                 }
-                try Data().write(to: destination, options: [.atomic, .withoutOverwriting])
+                // `.withoutOverwriting` cannot be combined with `.atomic`;
+                // Foundation traps on the pair.
+                try Data().write(to: destination, options: .withoutOverwriting)
             } catch {
                 self.presentFileOperationError(error)
                 completion(nil)
