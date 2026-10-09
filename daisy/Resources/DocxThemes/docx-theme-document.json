@@ -1,0 +1,92 @@
+{
+  "id": "document",
+  "name": "Document",
+
+  "global": {
+    "font": "Calibri",
+    "size": 11,
+    "lineHeight": 1.0,
+    "spaceAfter": 4,
+    "color": "$ink",
+    "palette": {
+      "ink": "000000",
+      "navy": "1F3864",
+      "slate": "44546A",
+      "border": "CCCCCC",
+      "label": "F4F6F8",
+      "band": "EEF2F7"
+    }
+  },
+
+  "page": { "margin": 54 },
+
+  "elements": {
+    "heading1": {
+      "size": 18,
+      "color": "$navy",
+      "spaceBefore": 0,
+      "spaceAfter": 12
+    },
+    "heading2": {
+      "size": 13,
+      "color": "$navy",
+      "spaceBefore": 15,
+      "spaceAfter": 7.5
+    },
+    "heading3": {
+      "size": 11.5,
+      "color": "$navy",
+      "spaceBefore": 12,
+      "spaceAfter": 6
+    },
+    "heading4": {
+      "size": 10.5,
+      "color": "$navy",
+      "spaceBefore": 10,
+      "spaceAfter": 4
+    },
+    "heading5": {
+      "size": 10.5,
+      "color": "$slate",
+      "spaceBefore": 10,
+      "spaceAfter": 4
+    },
+    "heading6": {
+      "size": 10.5,
+      "color": "$slate",
+      "italic": true,
+      "spaceBefore": 10,
+      "spaceAfter": 4
+    },
+
+    "link": { "color": "2E74B5" },
+    "list": { "indent": 18, "hanging": 13, "spaceAfter": 4 },
+    "quote": {
+      "color": "$slate",
+      "indent": 18,
+      "border": { "left": { "width": 2.25, "space": 8, "color": "$navy" } }
+    },
+    "rule": {
+      "border": { "bottom": { "width": 0.75, "space": 1, "color": "$border" } }
+    },
+
+    "codeBlock": {
+      "size": 9.5,
+      "background": "$label",
+      "border": { "all": { "width": 0.5, "space": 4, "color": "$border" } }
+    },
+    "inlineCode": { "size": 9.5, "background": "$band" },
+
+    "table": {
+      "border": { "all": { "width": 0.5, "space": 0, "color": "$border" } },
+      "cellPadding": { "vertical": 5, "horizontal": 6 }
+    },
+    "tableHeader": {
+      "size": 10,
+      "bold": true,
+      "color": "FFFFFF",
+      "background": "$navy"
+    },
+    "tableBody": { "size": 10, "color": "$ink" }
+  }
+}

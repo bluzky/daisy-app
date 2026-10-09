@@ -1,0 +1,116 @@
+{
+  "id": "github",
+  "name": "GitHub",
+  "global": {
+    "font": "Calibri",
+    "size": 11,
+    "language": "en-US",
+    "lineHeight": 1.15,
+    "spaceAfter": 6,
+    "palette": {
+      "muted": "59636E",
+      "border": "BFC5CC",
+      "surface": "F6F8FA"
+    }
+  },
+
+  "page": { "margin": 72 },
+
+  "elements": {
+    "paragraph": {},
+
+    "heading1": {
+      "size": 20,
+      "bold": true,
+      "spaceBefore": 18,
+      "spaceAfter": 6,
+      "color": "1F2328"
+    },
+    "heading2": {
+      "size": 16,
+      "bold": true,
+      "spaceBefore": 14,
+      "spaceAfter": 6,
+      "color": "1F2328"
+    },
+    "heading3": {
+      "size": 14,
+      "bold": true,
+      "spaceBefore": 14,
+      "spaceAfter": 6,
+      "color": "1F2328"
+    },
+    "heading4": {
+      "size": 12,
+      "bold": true,
+      "spaceBefore": 14,
+      "spaceAfter": 6,
+      "color": "1F2328"
+    },
+    "heading5": {
+      "size": 11,
+      "bold": true,
+      "spaceBefore": 14,
+      "spaceAfter": 6,
+      "color": "1F2328"
+    },
+    "heading6": {
+      "size": 11,
+      "bold": true,
+      "spaceBefore": 14,
+      "spaceAfter": 6,
+      "color": "$muted"
+    },
+
+    "link": { "color": "0969DA", "underline": true },
+    "list": {
+      "spaceAfter": 3,
+      "indent": 36,
+      "hanging": 18,
+      "markerFont": "Calibri"
+    },
+    "quote": {
+      "color": "$muted",
+      "indent": 28.35,
+      "border": { "left": { "width": 2.25, "space": 8, "color": "$border" } }
+    },
+    "rule": {
+      "border": { "bottom": { "width": 0.75, "space": 1, "color": "$border" } }
+    },
+
+    "codeBlock": {
+      "font": "Consolas",
+      "size": 10,
+      "background": "$surface",
+      "lineHeight": 1.0,
+      "spaceBefore": 6,
+      "spaceAfter": 0,
+      "indent": 5.65,
+      "indentRight": 5.65,
+      "border": { "all": { "width": 0.5, "space": 4, "color": "E1E4E8" } }
+    },
+    "inlineCode": { "font": "Consolas", "size": 10, "background": "EFF1F3" },
+
+    "table": {
+      "border": { "all": { "width": 0.5, "space": 0, "color": "$border" } },
+      "cellPadding": { "vertical": 3, "horizontal": 5 }
+    },
+    "tableHeader": { "bold": true, "background": "F2F4F7" },
+    "tableBody": {}
+  },
+
+  "syntax": {
+    "keyword": "9B2393",
+    "title": "0F68A0",
+    "titleClass": "0B4F79",
+    "string": "C41A16",
+    "number": "1C00CF",
+    "comment": "5D6C79",
+    "doctag": "4A5560",
+    "type": "3900A0",
+    "builtIn": "6C36A9",
+    "property": "326D74",
+    "meta": "643820",
+    "attribute": "815F03"
+  }
+}

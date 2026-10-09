@@ -19,6 +19,7 @@ private enum DocumentExportFormat: String, CaseIterable {
     case pdf
     case html
     case png
+    case docx
 
     private static let defaultsKey = "DocumentExportFormat"
 
@@ -43,6 +44,9 @@ private enum DocumentExportFormat: String, CaseIterable {
         case .png:
             return NSLocalizedString(
                 "PNG Image", comment: "Export format name")
+        case .docx:
+            return NSLocalizedString(
+                "Word Document", comment: "Export format name")
         }
     }
 
@@ -51,6 +55,7 @@ private enum DocumentExportFormat: String, CaseIterable {
         case .pdf: return .pdf
         case .html: return .html
         case .png: return .png
+        case .docx: return .wordDocument
         }
     }
 
@@ -77,6 +82,18 @@ private struct FileExportSource {
         )
         try html.write(to: url, atomically: true, encoding: .utf8)
     }
+
+    func writeDOCX(to url: URL) throws {
+        try DocxExporter.write(
+            markdown: markdown, assetBaseURL: assetBaseURL,
+            theme: DocxThemeStore.selected, to: url)
+    }
+}
+
+private extension UTType {
+    static let wordDocument = UTType(
+        importedAs: "org.openxmlformats.wordprocessingml.document",
+        conformingTo: .data)
 }
 
 private enum AccessoryRowMetrics {
@@ -138,6 +155,68 @@ private final class ExportFormatRowView: NSView {
         }
         selectedFormat = formats[sender.indexOfSelectedItem]
         onChange?(selectedFormat)
+    }
+}
+
+/// `Theme: [ GitHub ]` — the look of a Word export. Always present in export
+/// mode but only enabled for Word documents, so the pane never changes height.
+private final class ExportThemeRowView: NSView {
+    var onChange: ((DocxTheme) -> Void)?
+    private(set) var selectedTheme: DocxTheme
+
+    private let themes: [DocxTheme]
+    private let popup = NSPopUpButton()
+
+    var isEnabled: Bool {
+        get { popup.isEnabled }
+        set { popup.isEnabled = newValue }
+    }
+
+    init(width: CGFloat, themes: [DocxTheme], selectedID: String) {
+        self.themes = themes
+        selectedTheme = themes.first { $0.id == selectedID } ?? themes[0]
+        super.init(frame: NSRect(x: 0, y: 0,
+                                 width: width, height: AccessoryRowMetrics.height))
+        autoresizingMask = [.width]
+
+        let label = NSTextField(labelWithString: NSLocalizedString(
+            "Theme:", comment: "Word export theme field label"))
+        popup.addItems(withTitles: themes.map(DocxThemeStore.displayName))
+        popup.selectItem(at: themes.firstIndex { $0.id == selectedTheme.id } ?? 0)
+        popup.target = self
+        popup.action = #selector(themeChanged(_:))
+
+        let spacer = NSView()
+        spacer.setContentHuggingPriority(
+            NSLayoutConstraint.Priority(1), for: .horizontal)
+
+        let stack = NSStackView(views: [label, spacer, popup])
+        stack.orientation = .horizontal
+        stack.alignment = .centerY
+        stack.spacing = 6
+        stack.distribution = .fill
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(stack)
+
+        NSLayoutConstraint.activate([
+            heightAnchor.constraint(equalToConstant: AccessoryRowMetrics.height),
+            popup.widthAnchor.constraint(greaterThanOrEqualToConstant: 190),
+            stack.centerYAnchor.constraint(equalTo: centerYAnchor),
+            stack.leadingAnchor.constraint(
+                equalTo: leadingAnchor,
+                constant: AccessoryRowMetrics.horizontalInset),
+            stack.trailingAnchor.constraint(
+                equalTo: trailingAnchor,
+                constant: -AccessoryRowMetrics.horizontalInset),
+        ])
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    @objc private func themeChanged(_ sender: NSPopUpButton) {
+        guard themes.indices.contains(sender.indexOfSelectedItem) else { return }
+        selectedTheme = themes[sender.indexOfSelectedItem]
+        onChange?(selectedTheme)
     }
 }
 
@@ -282,6 +361,7 @@ private final class PrintSizeAccessoryController: NSViewController, NSPrintPanel
     private var pointSize = PrintSizeOptions.pointSize
     private var exportFormat: DocumentExportFormat?
     private let showsPrintSize: Bool
+    private var themeRow: ExportThemeRowView?
 
     init(exportFormat: DocumentExportFormat? = nil) {
         self.exportFormat = exportFormat
@@ -319,9 +399,26 @@ private final class PrintSizeAccessoryController: NSViewController, NSPrintPanel
                 self.willChangeValue(forKey: "localizedSummaryItems")
                 self.exportFormat = format
                 self.didChangeValue(forKey: "localizedSummaryItems")
+                self.themeRow?.isEnabled = format == .docx
                 self.exportFormatDidChange?(format)
             }
             rows.insert(formatRow, at: 0)
+
+            DocxThemeStore.ensureUserDirectory()
+            let themeRow = ExportThemeRowView(
+                width: 620,
+                themes: DocxThemeStore.themes(),
+                selectedID: DocxThemeStore.selectedID
+            )
+            themeRow.isEnabled = exportFormat == .docx
+            themeRow.onChange = { [weak self] theme in
+                guard let self else { return }
+                self.willChangeValue(forKey: "localizedSummaryItems")
+                DocxThemeStore.selectedID = theme.id
+                self.didChangeValue(forKey: "localizedSummaryItems")
+            }
+            self.themeRow = themeRow
+            rows.insert(themeRow, at: 1)
         }
 
         let stack = NSStackView(views: rows)
@@ -368,6 +465,13 @@ private final class PrintSizeAccessoryController: NSViewController, NSPrintPanel
                     "Format", comment: "Export format summary item name"),
                 .itemDescription: exportFormat.title,
             ], at: 0)
+            if exportFormat == .docx {
+                items.insert([
+                    .itemName: NSLocalizedString(
+                        "Theme", comment: "Word export theme summary item name"),
+                    .itemDescription: DocxThemeStore.displayName(DocxThemeStore.selected),
+                ], at: 1)
+            }
         }
         return items
     }
@@ -616,6 +720,14 @@ private final class ExportPrintPanel: NSPrintPanel {
             case .html:
                 do {
                     try fileExportSource.writeHTML(to: url)
+                } catch {
+                    NSAlert(error: error).beginSheetModal(for: printSheetWindow)
+                    return
+                }
+                self.dismissAfterFileExport()
+            case .docx:
+                do {
+                    try fileExportSource.writeDOCX(to: url)
                 } catch {
                     NSAlert(error: error).beginSheetModal(for: printSheetWindow)
                     return
