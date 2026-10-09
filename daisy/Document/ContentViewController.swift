@@ -326,9 +326,14 @@ final class ContentViewController: NSViewController {
         exportSource != nil
     }
 
-    func exportDocument() {
+    func exportPDF() {
+        guard let window = view.window, hasExportableDocument else { return }
+        webView.exportPDF(from: window)
+    }
+
+    func exportHTML() {
         guard let window = view.window, let source = exportSource else { return }
-        webView.exportDocument(
+        webView.exportHTML(
             markdown: source.markdown,
             sourceURL: source.sourceURL,
             assetBaseURL: source.assetBaseURL,
@@ -336,9 +341,18 @@ final class ContentViewController: NSViewController {
         )
     }
 
-    func exportPDF() {
+    func exportPNG() {
         guard let window = view.window, let source = exportSource else { return }
-        webView.exportPDF(
+        webView.exportPNG(
+            sourceURL: source.sourceURL,
+            assetBaseURL: source.assetBaseURL,
+            from: window
+        )
+    }
+
+    func exportWord() {
+        guard let window = view.window, let source = exportSource else { return }
+        webView.exportWord(
             markdown: source.markdown,
             sourceURL: source.sourceURL,
             assetBaseURL: source.assetBaseURL,

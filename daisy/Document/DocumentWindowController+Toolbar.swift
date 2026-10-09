@@ -378,7 +378,7 @@ extension DocumentWindowController {
     }
 
     private func makeExportItem() -> NSToolbarItem {
-        let item = NSToolbarItem(itemIdentifier: .exportDocument)
+        let item = NSMenuToolbarItem(itemIdentifier: .exportDocument)
         let label = NSLocalizedString(
             "Export", comment: "Export toolbar item label")
         item.label = label
@@ -388,7 +388,19 @@ extension DocumentWindowController {
         item.image = NSImage(systemSymbolName: "document.badge.arrow.up",
                              accessibilityDescription: label)
         item.isBordered = true
-        item.action = #selector(MainSplitViewController.exportMarkdownDocument(_:))
+        item.showsIndicator = true
+
+        let menu = NSMenu(title: label)
+        let formats: [(String, Selector)] = [
+            ("PDF…", #selector(MainSplitViewController.exportMarkdownAsPDF(_:))),
+            ("HTML…", #selector(MainSplitViewController.exportMarkdownAsHTML(_:))),
+            ("PNG…", #selector(MainSplitViewController.exportMarkdownAsPNG(_:))),
+            ("Word…", #selector(MainSplitViewController.exportMarkdownAsWord(_:))),
+        ]
+        for (title, action) in formats {
+            menu.addItem(NSMenuItem(title: title, action: action, keyEquivalent: ""))
+        }
+        item.menu = menu
         return item
     }
 

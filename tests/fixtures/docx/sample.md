@@ -4,7 +4,7 @@ title: DOCX export test
 
 # DOCX export test
 
-Open this file in Daisy, choose **File ▸ Export…**, pick **Word Document**, then open the result in Word and compare it with the checklist at the end.
+Open this file in Daisy, choose **File ▸ Export ▸ Word…**, then open the result in Word and compare it with the checklist at the end.
 
 ## Inline formatting
 

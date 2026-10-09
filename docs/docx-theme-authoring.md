@@ -11,8 +11,8 @@ Themes come from two places: the ones bundled with the app, and your own in
 ## 1. Add a theme
 
 For yourself, no rebuild: put `docx-theme-<id>.json` in
-`~/.config/daisy/docx-themes/` and reopen the export panel. Daisy creates the
-folder the first time the export panel opens.
+`~/.config/daisy/docx-themes/` and reopen the Export ▸ Word… dialog. Daisy creates the
+folder the first time the Export ▸ Word… dialog opens.
 Same file rules as below. A file there with the id of a bundled theme (say
 `serif`) replaces it; a new id adds a theme. The same folder holds
 `keymap.json`, which the app already reads.
@@ -25,7 +25,7 @@ To ship one with the app:
 3. Build. The `daisy` folder is a synchronized Xcode group, so the file is
    copied to the root of the app's `Contents/Resources` automatically; no
    project edit is needed. The Quick Look extension does not get it.
-4. The theme appears in **Export… ▸ Word Document ▸ Theme**, sorted by id.
+4. The theme appears in **File ▸ Export ▸ Word… ▸ Theme**, sorted by id.
 
 To give it a localised name, add `"DocxTheme.<id>" = "…";` to each
 `Localizable.strings`; otherwise the JSON `name` is shown.
@@ -35,7 +35,7 @@ Start from `docx-theme-serif.json` (a small theme) or `docx-theme-github.json`
 
 ## 2. User themes
 
-See §1. The folder is read each time the export panel opens. A broken file is
+See §1. The folder is read each time the Export ▸ Word… dialog opens. A broken file is
 skipped and the rest still load. There is nothing to configure and no
 sandbox change: `~/.config/daisy/` is already open to the app for the keymap.
 
@@ -204,7 +204,7 @@ light paper. Themes are light-only.
 
 1. Build and open a Markdown file with headings, lists, a quote, code and a
    table; `tests/fixtures/docx/sample.md` covers all of them.
-2. **Export… ▸ Word Document**, pick your theme, open the result in Word.
+2. **File ▸ Export ▸ Word…**, pick your theme, open the result in Word.
    Check headings, nested lists, the quote and nested quote, the code box, table header and links.
 3. For a bundled theme, add its id to the expected list in
    `tests/swift-tests/Tests/MarkdownHelpersTests/DocxThemeTests.swift`

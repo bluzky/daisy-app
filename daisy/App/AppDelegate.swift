@@ -124,9 +124,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         installSidebarViewMenuItems()
         installEditModeMenuItem()
         installFormatMenu()
-        installNewTabMenuItem()
         installSearchForDocumentMenuItem()
-        installFileCommandMenuItems()
         installFileExportMenuItems()
         installGoMenu()
         installSettingsMenuItem()
@@ -917,12 +915,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return .editPasteAndMatchStyle
         }
         switch item.action {
-        case #selector(DocumentWindowController.newDocumentTab(_:)): return .fileNewTab
         case #selector(DocumentWindowController.searchForDocument(_:)): return .fileOmniSearch
-        case #selector(DocumentWindowController.newProjectFile(_:)): return .fileNewFile
-        case #selector(DocumentWindowController.newProjectFolder(_:)): return .fileNewFolder
-        case #selector(DocumentWindowController.renameProjectItem(_:)): return .fileRename
-        case #selector(DocumentWindowController.trashProjectItem(_:)): return .fileMoveToTrash
         case #selector(toggleSidebarFromMenu(_:)): return .viewToggleSidebar
         case #selector(hideSidebarFromMenu(_:)): return .viewHideSidebar
         case #selector(selectOutlineMode(_:)): return .viewShowOutline
@@ -998,31 +991,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return false
     }
 
-    private func installNewTabMenuItem() {
-        guard let fileMenu = topLevelSubmenu(matching: Self.fileMenuTitles),
-              fileMenu.items.first(where: {
-                  $0.action == #selector(DocumentWindowController.newDocumentTab(_:))
-              }) == nil else { return }
-
-        // nil target: resolves through the responder chain to the key
-        // document window's controller, and disables itself when no
-        // document window is open. Custom selector, not newWindowForTab —
-        // see DocumentWindowController.newDocumentTab.
-        let item = NSMenuItem(title: L("New Tab"),
-                              action: #selector(DocumentWindowController.newDocumentTab(_:)),
-                              keyEquivalent: "t")
-        let insertIndex = fileMenu.items
-            .firstIndex { $0.action == #selector(openDocument(_:)) } ?? 0
-        fileMenu.insertItem(item, at: insertIndex)
-    }
-
     private func installSearchForDocumentMenuItem() {
         guard let fileMenu = topLevelSubmenu(matching: Self.fileMenuTitles),
               fileMenu.items.first(where: {
                   $0.action == #selector(DocumentWindowController.searchForDocument(_:))
               }) == nil else { return }
 
-        // nil target, as with New Tab: resolves through the responder chain to
+        // nil target: resolves through the responder chain to
         // the key document window's controller, which decides whether there is
         // a project to search.
         let item = NSMenuItem(title: L("OmniSearch…"),
@@ -1033,64 +1008,50 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         fileMenu.insertItem(item, at: openIndex.map { $0 + 1 } ?? 0)
     }
 
-    private func installFileCommandMenuItems() {
-        guard let fileMenu = topLevelSubmenu(matching: Self.fileMenuTitles),
-              fileMenu.items.first(where: {
-                  $0.action == #selector(DocumentWindowController.newProjectFile(_:))
-              }) == nil else { return }
-        // nil targets: resolved through the responder chain to the key
-        // document window, which forwards to the Project Navigator.
-        let specs: [(String, Selector)] = [
-            ("New File", #selector(DocumentWindowController.newProjectFile(_:))),
-            ("New Folder", #selector(DocumentWindowController.newProjectFolder(_:))),
-            ("Rename", #selector(DocumentWindowController.renameProjectItem(_:))),
-            ("Move to Trash", #selector(DocumentWindowController.trashProjectItem(_:)))
-        ]
-        let searchIndex = fileMenu.items.firstIndex {
-            $0.action == #selector(DocumentWindowController.searchForDocument(_:))
-        }
-        var index = searchIndex.map { $0 + 1 } ?? 0
-        for (title, action) in specs {
-            fileMenu.insertItem(NSMenuItem(title: L(title), action: action, keyEquivalent: ""), at: index)
-            index += 1
-        }
-    }
-
     private func installFileExportMenuItems() {
         guard let fileMenu = topLevelSubmenu(matching: Self.fileMenuTitles),
-              let pdfIndex = fileMenu.items.firstIndex(where: {
-                  $0.action == #selector(
-                      MainSplitViewController.exportMarkdownAsPDF(_:))
+              let exportIndex = fileMenu.items.firstIndex(where: {
+                  $0.submenu?.items.contains {
+                      $0.action == #selector(
+                          MainSplitViewController.exportMarkdownAsPDF(_:))
+                  } == true
               })
         else { return }
 
         let shareItem = NSDocumentController.shared.standardShareMenuItem()
-        fileMenu.insertItem(shareItem, at: pdfIndex + 1)
+        fileMenu.insertItem(shareItem, at: exportIndex + 1)
 
         guard #available(macOS 26.0, *) else { return }
+        func item(in menu: NSMenu?, _ action: Selector) -> NSMenuItem? {
+            menu?.items.first { $0.action == action }
+        }
+        let exportMenu = fileMenu.items[exportIndex].submenu
         let icons: [(item: NSMenuItem?, symbol: String)] = [
+            (fileMenu.items[exportIndex], "square.and.arrow.up.on.square"),
             (
-                fileMenu.items.first {
-                    $0.action == #selector(
-                        MainSplitViewController.exportMarkdownDocument(_:))
-                },
-                "square.and.arrow.up.on.square"
-            ),
-            (
-                fileMenu.items.first {
-                    $0.action == #selector(
-                        MainSplitViewController.exportMarkdownAsPDF(_:))
-                },
+                item(in: exportMenu,
+                     #selector(MainSplitViewController.exportMarkdownAsPDF(_:))),
                 "arrow.up.document"
             ),
-            (shareItem, "square.and.arrow.up"),
             (
-                fileMenu.items.first {
-                    $0.action == #selector(
-                        MainSplitViewController.printMarkdown(_:))
-                },
-                "printer"
+                item(in: exportMenu,
+                     #selector(MainSplitViewController.exportMarkdownAsHTML(_:))),
+                "chevron.left.forwardslash.chevron.right"
             ),
+            (
+                item(in: exportMenu,
+                     #selector(MainSplitViewController.exportMarkdownAsPNG(_:))),
+                "photo"
+            ),
+            (
+                item(in: exportMenu,
+                     #selector(MainSplitViewController.exportMarkdownAsWord(_:))),
+                "doc.richtext"
+            ),
+            (shareItem, "square.and.arrow.up"),
+            (item(in: fileMenu,
+                  #selector(MainSplitViewController.printMarkdown(_:))),
+             "printer"),
         ]
         for (item, symbol) in icons {
             guard let item,

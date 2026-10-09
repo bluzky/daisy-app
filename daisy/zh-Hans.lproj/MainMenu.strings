@@ -52,11 +52,20 @@
 /* Class = "NSMenuItem"; title = "Close"; ObjectID = "DVo-aG-piG"; */
 "DVo-aG-piG.title" = "关闭";
 
-/* Class = "NSMenuItem"; title = "Export…"; ObjectID = "Ex0-fm-F00"; */
-"Ex0-fm-F00.title" = "导出…";
+/* Class = "NSMenuItem"; title = "Export"; ObjectID = "Ex0-fm-F00"; */
+"Ex0-fm-F00.title" = "导出";
 
-/* Class = "NSMenuItem"; title = "Export as PDF…"; ObjectID = "Ex1-pd-F01"; */
-"Ex1-pd-F01.title" = "导出为 PDF…";
+/* Class = "NSMenuItem"; title = "PDF…"; ObjectID = "Ex1-pd-F01"; */
+"Ex1-pd-F01.title" = "PDF…";
+
+/* Class = "NSMenuItem"; title = "HTML…"; ObjectID = "Ex1-ht-F01"; */
+"Ex1-ht-F01.title" = "HTML…";
+
+/* Class = "NSMenuItem"; title = "PNG…"; ObjectID = "Ex1-pn-F01"; */
+"Ex1-pn-F01.title" = "PNG…";
+
+/* Class = "NSMenuItem"; title = "Word…"; ObjectID = "Ex1-wd-F01"; */
+"Ex1-wd-F01.title" = "Word…";
 
 /* Class = "NSMenuItem"; title = "Spelling and Grammar"; ObjectID = "Dv1-io-Yv7"; */
 "Dv1-io-Yv7.title" = "拼写和语法";
@@ -84,9 +93,6 @@
 
 /* Class = "NSMenuItem"; title = "Open…"; ObjectID = "IAo-SY-fd9"; */
 "IAo-SY-fd9.title" = "打开…";
-
-/* Class = "NSMenuItem"; title = "Revert to Saved"; ObjectID = "KaW-ft-85H"; */
-"KaW-ft-85H.title" = "复原到已存储的版本";
 
 /* Class = "NSMenuItem"; title = "Show All"; ObjectID = "Kd2-mp-pUS"; */
 "Kd2-mp-pUS.title" = "全部显示";

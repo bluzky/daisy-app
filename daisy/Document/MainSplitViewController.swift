@@ -185,14 +185,23 @@ final class MainSplitViewController: NSSplitViewController {
         contentViewController?.printDocument()
     }
 
-    @IBAction func exportMarkdownDocument(_ sender: Any?) {
-        contentViewController?.exportDocument()
-    }
-
-    /// Custom selector for the same reason as `printMarkdown(_:)`: keep the
-    /// action distinct from AppKit's built-in document/window responders.
+    // Custom selectors (instead of `export…`) for the same reason as
+    // `printMarkdown(_:)`: keep the actions distinct from AppKit's built-in
+    // document/window responders.
     @IBAction func exportMarkdownAsPDF(_ sender: Any?) {
         contentViewController?.exportPDF()
+    }
+
+    @IBAction func exportMarkdownAsHTML(_ sender: Any?) {
+        contentViewController?.exportHTML()
+    }
+
+    @IBAction func exportMarkdownAsPNG(_ sender: Any?) {
+        contentViewController?.exportPNG()
+    }
+
+    @IBAction func exportMarkdownAsWord(_ sender: Any?) {
+        contentViewController?.exportWord()
     }
 
     /// The document's current page zoom, for the toolbar popover's text-size
@@ -215,8 +224,10 @@ final class MainSplitViewController: NSSplitViewController {
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         let documentActions = [
-            #selector(exportMarkdownDocument(_:)),
             #selector(exportMarkdownAsPDF(_:)),
+            #selector(exportMarkdownAsHTML(_:)),
+            #selector(exportMarkdownAsPNG(_:)),
+            #selector(exportMarkdownAsWord(_:)),
             #selector(printMarkdown(_:)),
         ]
         if let action = menuItem.action, documentActions.contains(action) {
