@@ -260,17 +260,6 @@
 
 /* Table editing */
 "Table" = "Table";
-"Row" = "Row";
-"Column" = "Column";
-"Select Row" = "Select Row";
-"Add Row Above" = "Add Row Above";
-"Add Row Below" = "Add Row Below";
-"Duplicate Row" = "Duplicate Row";
-"Delete Row" = "Delete Row";
-"Select Column" = "Select Column";
-"Add Column Left" = "Add Column Left";
-"Add Column Right" = "Add Column Right";
-"Delete Column" = "Delete Column";
 "Edit Table Cell" = "Edit Table Cell";
 "Add Row" = "Add Row";
 "Add Column" = "Add Column";

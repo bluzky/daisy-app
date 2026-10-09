@@ -260,17 +260,6 @@
 
 /* Table editing */
 "Table" = "表格";
-"Row" = "行";
-"Column" = "列";
-"Select Row" = "选择行";
-"Add Row Above" = "在上方添加行";
-"Add Row Below" = "在下方添加行";
-"Duplicate Row" = "复制行";
-"Delete Row" = "删除行";
-"Select Column" = "选择列";
-"Add Column Left" = "在左侧添加列";
-"Add Column Right" = "在右侧添加列";
-"Delete Column" = "删除列";
 "Edit Table Cell" = "编辑表格单元格";
 "Add Row" = "添加行";
 "Add Column" = "添加列";

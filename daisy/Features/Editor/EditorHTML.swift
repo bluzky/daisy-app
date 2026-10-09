@@ -647,6 +647,18 @@ nonisolated enum EditorHTML {
         .cm-md-table-grid th {
             font-weight: 600;
         }
+        /* Only the cell's text is selectable. A native selection that ends in
+           the <td>'s empty space (below a short cell's text, after a drag or
+           double-click) makes WebKit fill that space with selection blue. */
+        .cm-md-table-grid th,
+        .cm-md-table-grid td {
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        .cm-md-table-cell {
+            -webkit-user-select: text;
+            user-select: text;
+        }
         .cm-md-table-cell {
             min-height: calc(\(MarkdownHTML.bodyFontSize)px * \(MarkdownHTML.bodyLineHeight));
             padding: 8px 12px;
@@ -677,6 +689,64 @@ nonisolated enum EditorHTML {
         .cm-md-table-grid :is(th, td):has(> .cm-md-table-cell.is-table-part-selected) {
             background: color-mix(in srgb, var(--accent) 16%, transparent);
         }
+        /* Hover controls that insert a row or column at the nearest boundary. */
+        .cm-md-table-add {
+            position: absolute;
+            z-index: 2;
+            width: 16px;
+            height: 16px;
+            padding: 0;
+            border: 1px solid var(--grid);
+            border-radius: 50%;
+            background: Canvas;
+            color: var(--secondary);
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+            transform: translate(-50%, -50%);
+            cursor: pointer;
+        }
+        .cm-md-table-add svg,
+        .cm-md-table-grip svg {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        .cm-md-table-add:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+        .cm-md-table-add-line {
+            position: absolute;
+            z-index: 1;
+            background: var(--accent);
+            pointer-events: none;
+        }
+        .cm-md-table-add-line-row { height: 2px; transform: translateY(-50%); }
+        .cm-md-table-add-line-column { width: 2px; transform: translateX(-50%); }
+        .cm-md-table-add[hidden],
+        .cm-md-table-add-line[hidden] { display: none; }
+        /* Pill grips on the left/top edge that select the hovered row/column. */
+        .cm-md-table-grip {
+            position: absolute;
+            z-index: 2;
+            padding: 0;
+            border: 1px solid var(--grid);
+            border-radius: 999px;
+            background: Canvas;
+            color: var(--secondary);
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+            transform: translate(-50%, -50%);
+            cursor: pointer;
+        }
+        .cm-md-table-grip-row { width: 12px; height: 22px; }
+        .cm-md-table-grip-column { width: 22px; height: 12px; }
+        .cm-md-table-grip:hover,
+        .cm-md-table-grip.is-selected {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+        .cm-md-table-grip[hidden] { display: none; }
         /* Page scrolling lets WebKit own the native toolbar backdrop.
            The macOS 15 editor keeps its internal scroller. */
         html[data-page-scrolling="true"],
@@ -727,9 +797,6 @@ nonisolated enum EditorHTML {
         (function () {
             const post = function (m) {
                 try { window.webkit.messageHandlers.\(configuration.bridgeName).postMessage(m); } catch (e) {}
-            };
-            window.__mdRequestTableContextMenu = function (details) {
-                post(Object.assign({ kind: "tableContextMenu" }, details));
             };
             window.__mdRequestImageRename = function (src) {
                 post({ kind: "imageClick", src: src });
@@ -814,9 +881,6 @@ nonisolated enum EditorHTML {
                     },
                     insertTextAt: function (text, from, to) {
                         return editor.insertTextAt(text, from, to);
-                    },
-                    performTableContextAction: function (token, action) {
-                        return editor.performTableContextAction(token, action);
                     },
                     setExtensionState: function (state) { editor.setExtensionState(state); },
                     exec: function (name) { editor.exec(name); }
