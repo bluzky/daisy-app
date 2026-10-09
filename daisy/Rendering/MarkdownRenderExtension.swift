@@ -108,7 +108,7 @@ nonisolated protocol MarkdownRenderExtension: Sendable {
 
 /// Declares that an extension also contributes to the CodeMirror editor. The
 /// behaviour itself is a module compiled into the editor bundle and registered
-/// by the same id (see `registerEditorExtension` in `entry-cm.js`).
+/// by the same id (see `registerEditorExtension` in `scripts/editor-bundle/src/extensions.js`).
 nonisolated protocol EditorCapability: Sendable {
   var moduleID: String { get }
   /// Static CSS for the editor page. It is emitted whether or not the module

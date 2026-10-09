@@ -226,7 +226,7 @@ nonisolated enum MarkdownHTML {
 
     // Block margin-top tokens. The editor bundle receives these through
     // MDEditor.create's `spacing` option so both surfaces space blocks
-    // identically — change them here, never in entry-cm.js.
+    // identically — change them here, never in the editor bundle source (`scripts/editor-bundle/src`).
     static let paragraphSpacing = bodyFontSize * 0.8
     /// Height of the final blank line in a run of authored blanks. A single
     /// blank between paragraphs then reads as blankLineGap + paragraphSpacing

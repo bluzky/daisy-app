@@ -99,7 +99,7 @@ mirrors excluded from find use `data-mdp-search-exclude`.
 4. Add locale keys for descriptor title/description.
 5. Test activation, assets, lifecycle behavior, and Quick Look mode.
 6. For editor behaviour, set `editor` to `EditorModule(moduleID:)`, register the
-   module in `scripts/editor-bundle/entry-cm.js`, rebuild with `npm run build`
+   module with `registerEditorExtension` (see `scripts/editor-bundle/src/`), rebuild with `npm run build`
    there, and add a case to `smoke-test.mjs`.
 
 Run:
