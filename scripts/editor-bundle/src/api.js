@@ -21,7 +21,6 @@ import { alignInactiveHeadings, livePreview } from "./live-preview/plugins.js"
 import { obsidianHighlight } from "./obsidian-highlight.js"
 import { activeCodeBlock, anchoredPointerSelection, pointerPreview, stablePointerPreview } from "./pointer.js"
 import { slashTemplatesChanged } from "./slash.js"
-import { tableContext } from "./table/context.js"
 import { tableEditors } from "./table/editors.js"
 import { escapedTableCell } from "./table/model.js"
 import { captureTableSelection, prepareTableFormatting, restoreTableFormatting, tableCellSourceRange, tableFormattingCallbacks, tableFormattingSelection, tableFormattingTargets, tableInlineCommands } from "./table/selection.js"
@@ -443,13 +442,6 @@ window.MDEditor = {
         }
         command(view)
         view.focus()
-        return true
-      },
-      performTableContextAction: (token, action) => {
-        if (!tableContext.pending || tableContext.pending.token !== token) return false
-        const pending = tableContext.pending
-        tableContext.pending = null
-        pending.perform(action)
         return true
       },
       // The host's template file as `[{ name, body }]`; the slash menu shows

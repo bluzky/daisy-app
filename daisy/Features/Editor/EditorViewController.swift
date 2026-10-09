@@ -543,30 +543,8 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
                   let url = URL(string: source),
                   let fileURL = MarkdownAssetResolution.fileURL(for: url) else { return }
             imageClicked?(fileURL)
-        case "tableContextMenu":
-            presentTableContextMenu(payload)
         default:
             break
-        }
-    }
-
-    private func presentTableContextMenu(_ payload: [String: Any]) {
-        guard let token = payload["token"] as? String else { return }
-        let context = TableContextMenuPresenter.Context(
-            canInsertRowAbove: (payload["canInsertRowAbove"] as? NSNumber)?.boolValue ?? false,
-            canDuplicateRow: (payload["canDuplicateRow"] as? NSNumber)?.boolValue ?? false,
-            canDeleteRow: (payload["canDeleteRow"] as? NSNumber)?.boolValue ?? false,
-            canDeleteColumn: (payload["canDeleteColumn"] as? NSNumber)?.boolValue ?? false,
-            showsDuplicateRow: (payload["showsDuplicateRow"] as? NSNumber)?.boolValue ?? false
-        )
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            let presenter = TableContextMenuPresenter(context: context) { [weak self] operation in
-                guard let self else { return }
-                let script = "window.__mdEditor && window.__mdEditor.performTableContextAction(\(EditorHTML.jsStringLiteral(token)), \(EditorHTML.jsStringLiteral(operation)))"
-                self.webView.evaluateJavaScript(script) { _, _ in }
-            }
-            presenter.present(in: self.webView)
         }
     }
 

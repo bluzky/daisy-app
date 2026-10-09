@@ -132,3 +132,39 @@ export function serializeTable(model) {
   const lines = [dataRow(model.rows[0]), delimiter, ...model.rows.slice(1).map(dataRow)]
   return lines.join("\n") + (model.trailingNewline ? "\n" : "")
 }
+
+// Rows of cells from clipboard text: tab-separated columns, one row per line
+// (the format Excel, Numbers and Sheets write). Quoted fields may hold tabs,
+// newlines and "" escapes. Returns null for empty input.
+export function parseClipboardGrid(text) {
+  const source = text.replace(/\r\n?/g, "\n").replace(/\n+$/, "")
+  if (!source) return null
+  const rows = [[]]
+  let cell = ""
+  let index = 0
+  const endCell = () => { rows[rows.length - 1].push(cell); cell = "" }
+  while (index < source.length) {
+    const character = source[index]
+    if (character === '"' && cell === "") {
+      let end = index + 1
+      let quoted = ""
+      while (end < source.length) {
+        if (source[end] === '"' && source[end + 1] === '"') { quoted += '"'; end += 2 }
+        else if (source[end] === '"') break
+        else quoted += source[end++]
+      }
+      if (end < source.length && (source[end + 1] === "\t" || source[end + 1] === "\n"
+          || end + 1 === source.length)) {
+        cell = quoted
+        index = end + 1
+        continue
+      }
+    }
+    if (character === "\t") endCell()
+    else if (character === "\n") { endCell(); rows.push([]) }
+    else cell += character
+    index++
+  }
+  endCell()
+  return rows.map((row) => row.map((value) => value.replace(/\n+/g, " ")))
+}
