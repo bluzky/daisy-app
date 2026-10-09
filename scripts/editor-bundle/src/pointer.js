@@ -28,7 +28,7 @@ export const stablePointerPreview = ViewPlugin.fromClass(class {
     this.view = view
     this.releaseTimer = null
     this.down = (event) => {
-      if (event.button !== 0 || event.target.closest('input, textarea, button, select, .cm-md-table-cell')) return
+      if (event.button !== 0 || event.target.closest('input, textarea, button, select, .cm-md-table-widget')) return
       clearTimeout(this.releaseTimer)
       if (view.state.field(pointerPreview)) return
       view.dispatch({ effects: setPointerPreview.of({

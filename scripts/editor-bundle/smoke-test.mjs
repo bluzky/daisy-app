@@ -130,6 +130,99 @@ const tablePaste = tableCell && paste(tableCell, { html: "<p><strong>New</strong
 check("table cells retain native paste handling", tablePaste != null && !tablePaste.defaultPrevented)
 tablePasteEditor.destroy()
 
+// A short cell's editable box is shorter than its <td> when a sibling cell
+// wraps; the <td>'s empty space must still activate that cell.
+const tableGapHost = dom.window.document.createElement("div")
+dom.window.document.body.appendChild(tableGapHost)
+const tableGapEditor = dom.window.MDEditor.create(tableGapHost,
+  "| A   | B   |\n| --- | --- |\n| 1   | 2   |\n| 3   | 4   |", {})
+const gapCell = tableGapHost.querySelector('[data-table-row="1"][data-table-column="0"]')
+const gapContainer = gapCell?.parentElement
+let gapFocused = false
+if (gapCell) gapCell.focus = () => { gapFocused = true }
+const gapDown = gapContainer && new dom.window.MouseEvent("mousedown",
+  { bubbles: true, cancelable: true, button: 0 })
+gapContainer?.dispatchEvent(gapDown)
+check("clicking a table cell's empty space focuses that cell", gapFocused && gapDown.defaultPrevented)
+const gapTarget = tableGapHost.querySelector('[data-table-row="2"][data-table-column="1"]')?.parentElement
+gapTarget?.dispatchEvent(new dom.window.MouseEvent("mousemove", { bubbles: true, cancelable: true }))
+check("dragging over another cell's empty space selects a cell range",
+  tableGapHost.querySelector(".cm-md-table-widget")?.classList.contains("is-table-range-selected"))
+dom.window.document.dispatchEvent(new dom.window.MouseEvent("mouseup", { bubbles: true }))
+
+// Left/Right at a cell's edge hop to the neighbouring cell.
+const arrowCells = [...tableGapHost.querySelectorAll(".cm-md-table-cell")]
+const arrowAt = (row, column) => arrowCells.find((cell) =>
+  cell.dataset.tableRow === String(row) && cell.dataset.tableColumn === String(column))
+const focusedCells = []
+for (const cell of arrowCells) {
+  const value = cell.textContent
+  Object.defineProperty(cell, "innerText", { value, configurable: true })
+  cell.focus = () => focusedCells.push(`${cell.dataset.tableRow},${cell.dataset.tableColumn}`)
+}
+const arrow = (cell, key, offset) => {
+  const text = cell.firstChild
+  dom.window.getSelection().setBaseAndExtent(text, offset, text, offset)
+  const event = new dom.window.KeyboardEvent("keydown", { key, bubbles: true, cancelable: true })
+  cell.dispatchEvent(event)
+  return event
+}
+const rightAtEnd = arrow(arrowAt(1, 0), "ArrowRight", 1)
+check("ArrowRight at the end of a cell moves to the next cell",
+  rightAtEnd.defaultPrevented && focusedCells.at(-1) === "1,1")
+const leftAtStart = arrow(arrowAt(1, 1), "ArrowLeft", 0)
+check("ArrowLeft at the start of a cell moves to the previous cell",
+  leftAtStart.defaultPrevented && focusedCells.at(-1) === "1,0")
+const rightWrap = arrow(arrowAt(1, 1), "ArrowRight", 1)
+check("ArrowRight at the end of a row wraps to the next row",
+  rightWrap.defaultPrevented && focusedCells.at(-1) === "2,0")
+const leftWrap = arrow(arrowAt(2, 0), "ArrowLeft", 0)
+check("ArrowLeft at the start of a row wraps to the previous row",
+  leftWrap.defaultPrevented && focusedCells.at(-1) === "1,1")
+const focusedBefore = focusedCells.length
+const leftMid = arrow(arrowAt(2, 1), "ArrowLeft", 1)
+check("ArrowLeft mid-text keeps native caret movement",
+  !leftMid.defaultPrevented && focusedCells.length === focusedBefore)
+const down = arrow(arrowAt(1, 1), "ArrowDown", 1)
+check("ArrowDown on a single-line cell moves to the cell below",
+  down.defaultPrevented && focusedCells.at(-1) === "2,1")
+const up = arrow(arrowAt(2, 0), "ArrowUp", 1)
+check("ArrowUp on a single-line cell moves to the cell above",
+  up.defaultPrevented && focusedCells.at(-1) === "1,0")
+check("ArrowDown in the last row keeps native behavior",
+  !arrow(arrowAt(2, 0), "ArrowDown", 0).defaultPrevented)
+check("ArrowUp in the header row keeps native behavior",
+  !arrow(arrowAt(0, 1), "ArrowUp", 0).defaultPrevented)
+// Fake a three-line cell: lines are 18px tall inside 8px padding.
+const wrapped = arrowAt(1, 0)
+wrapped.style.paddingTop = "8px"
+wrapped.style.paddingBottom = "8px"
+wrapped.getBoundingClientRect = () => ({ top: 0, bottom: 70, left: 0, right: 100, width: 100, height: 70 })
+const realRects = dom.window.Range.prototype.getClientRects
+const caretOnLine = (line) => {
+  dom.window.Range.prototype.getClientRects = () => [{
+    top: 8 + line * 18, bottom: 26 + line * 18, height: 18, left: 0, right: 0, width: 0,
+  }]
+}
+caretOnLine(1)
+check("ArrowUp from a wrapped cell's middle line stays inside the cell",
+  !arrow(wrapped, "ArrowUp", 1).defaultPrevented)
+check("ArrowDown from a wrapped cell's middle line stays inside the cell",
+  !arrow(wrapped, "ArrowDown", 1).defaultPrevented)
+caretOnLine(0)
+const wrappedUp = arrow(wrapped, "ArrowUp", 1)
+check("ArrowUp from a wrapped cell's top line moves to the cell above",
+  wrappedUp.defaultPrevented && focusedCells.at(-1) === "0,0")
+caretOnLine(2)
+const wrappedDown = arrow(wrapped, "ArrowDown", 1)
+check("ArrowDown from a wrapped cell's bottom line moves to the cell below",
+  wrappedDown.defaultPrevented && focusedCells.at(-1) === "2,0")
+dom.window.Range.prototype.getClientRects = realRects
+const leftHeader = arrow(arrowAt(0, 0), "ArrowLeft", 0)
+check("ArrowLeft in the first cell of the table does nothing",
+  !leftHeader.defaultPrevented)
+tableGapEditor.destroy()
+
 const moduleMermaidSource = "```mermaid\ngraph TD; A-->B\n```\n\nafter"
 const moduleMermaidHost = dom.window.document.createElement("div")
 dom.window.document.body.appendChild(moduleMermaidHost)

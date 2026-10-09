@@ -5,6 +5,46 @@ import { renderTableCell, tableRenderedTextOffsets } from "./cell-render.js"
 import { parseTableSource, serializeTable } from "./model.js"
 import { captureTableSelection, prepareTableFormatting, restoreTableFormatting, tableCellCommit, tableCellSourceRange, tableFormattingTargets } from "./selection.js"
 
+// True when the caret is collapsed at the very start (or end) of the cell.
+function caretAtCellEdge(editor, atStart) {
+  const selection = window.getSelection()
+  if (!selection || !selection.isCollapsed || !selection.anchorNode
+      || !editor.contains(selection.anchorNode)) return false
+  const range = document.createRange()
+  range.selectNodeContents(editor)
+  if (atStart) range.setEnd(selection.anchorNode, selection.anchorOffset)
+  else range.setStart(selection.anchorNode, selection.anchorOffset)
+  return range.toString().length === 0
+}
+
+// Character offset of the caret from the start of the cell's text.
+function caretOffset(editor) {
+  const selection = window.getSelection()
+  if (!selection || !selection.anchorNode || !editor.contains(selection.anchorNode)) return 0
+  const range = document.createRange()
+  range.selectNodeContents(editor)
+  range.setEnd(selection.anchorNode, selection.anchorOffset)
+  return range.toString().length
+}
+
+// True when the collapsed caret sits on the cell's first (or last) visual
+// line. Without layout (empty cell, no caret box) the cell counts as one line.
+function caretOnEdgeLine(editor, atTop) {
+  const selection = window.getSelection()
+  if (!selection || !selection.isCollapsed || !selection.rangeCount
+      || !selection.anchorNode || !editor.contains(selection.anchorNode)) return false
+  const range = selection.getRangeAt(0).cloneRange()
+  range.collapse(true)
+  const caret = range.getClientRects()[0] ?? range.getBoundingClientRect?.()
+  if (!caret || !caret.height) return true
+  const box = editor.getBoundingClientRect()
+  const style = window.getComputedStyle(editor)
+  const half = caret.height / 2
+  return atTop
+    ? caret.top - (box.top + (parseFloat(style.paddingTop) || 0)) < half
+    : (box.bottom - (parseFloat(style.paddingBottom) || 0)) - caret.bottom < half
+}
+
 export class TableEditorWidget extends WidgetType {
   constructor(source, from) {
     super()
@@ -35,15 +75,40 @@ export class TableEditorWidget extends WidgetType {
     table.className = "cm-md-table-grid"
     scroll.appendChild(table)
 
-    const focusCellAfterUpdate = (row, column) => {
+    // A cell's editable box is only as tall as its text, while its <td> grows
+    // to the row height. Treat the <td>'s empty space as part of the cell.
+    const cellFor = (target) => {
+      const element = target?.closest?.(".cm-md-table-cell")
+        ?? target?.closest?.("td, th")?.querySelector(":scope > .cm-md-table-cell")
+      return element && root.contains(element) ? element : null
+    }
+
+    const focusCell = (cell, caret) => {
+      cell?.focus()
+      if (!cell || caret == null) return
+      const selection = window.getSelection()
+      if (typeof caret === "number") {
+        // Keep the horizontal position when moving up or down a column.
+        const text = cell.firstChild
+        if (text) {
+          const offset = Math.min(caret, text.length ?? 0)
+          selection?.setBaseAndExtent(text, offset, text, offset)
+          return
+        }
+      }
+      selection?.selectAllChildren(cell)
+      if (caret === "end") selection?.collapseToEnd()
+      else selection?.collapseToStart()
+    }
+
+    const focusCellAfterUpdate = (row, column, caret) => {
       requestAnimationFrame(() => requestAnimationFrame(() => {
         const replacement = view.dom.querySelector(
           `.cm-md-table-widget[data-table-from="${this.from}"]`
         )
-        const cell = replacement && replacement.querySelector(
+        focusCell(replacement && replacement.querySelector(
           `[data-table-row="${row}"][data-table-column="${column}"]`
-        )
-        cell?.focus()
+        ), caret)
       }))
     }
 
@@ -51,9 +116,9 @@ export class TableEditorWidget extends WidgetType {
       const source = serializeTable(model)
       if (source === this.source) {
         if (focusTarget) {
-          root.querySelector(
+          focusCell(root.querySelector(
             `[data-table-row="${focusTarget.row}"][data-table-column="${focusTarget.column}"]`
-          )?.focus()
+          ), focusTarget.caret)
         }
         return
       }
@@ -63,7 +128,7 @@ export class TableEditorWidget extends WidgetType {
         annotations: commitsCell ? tableCellCommit.of(true) : [],
         userEvent: "input",
       })
-      if (focusTarget) focusCellAfterUpdate(focusTarget.row, focusTarget.column)
+      if (focusTarget) focusCellAfterUpdate(focusTarget.row, focusTarget.column, focusTarget.caret)
     }
 
     const captureActiveValue = () => {
@@ -202,7 +267,7 @@ export class TableEditorWidget extends WidgetType {
           tableFormattingTargets.set(view, { tableFrom: this.from, row, column, element: editor, anchor: 0, head: 0 })
           active = { row, column, element: editor }
         })
-        editor.addEventListener("contextmenu", (event) => {
+        const openContextMenu = (event) => {
           event.preventDefault()
           editor.focus()
           active = { row, column, element: editor }
@@ -219,6 +284,10 @@ export class TableEditorWidget extends WidgetType {
             canDeleteColumn: model.alignments.length > 1,
             showsDuplicateRow: true,
           })
+        }
+        editor.addEventListener("contextmenu", openContextMenu)
+        container.addEventListener("contextmenu", (event) => {
+          if (event.target === container) openContextMenu(event)
         })
         editor.addEventListener("blur", () => {
           captureTableSelection(view)
@@ -251,6 +320,41 @@ export class TableEditorWidget extends WidgetType {
             view.focus()
             return
           }
+          if ((event.key === "ArrowLeft" || event.key === "ArrowRight")
+              && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey
+              && !event.isComposing) {
+            // Only at the cell's edge; elsewhere the arrow moves the caret.
+            const backwards = event.key === "ArrowLeft"
+            if (!caretAtCellEdge(editor, backwards)) return
+            let nextRow = row
+            let nextColumn = column + (backwards ? -1 : 1)
+            if (nextColumn < 0) {
+              nextRow--
+              nextColumn = model.alignments.length - 1
+            } else if (nextColumn >= model.alignments.length) {
+              nextRow++
+              nextColumn = 0
+            }
+            if (nextRow < 0 || nextRow >= model.rows.length) return
+            event.preventDefault()
+            model.rows[row][column] = editor.innerText || ""
+            applyModel({ row: nextRow, column: nextColumn, caret: backwards ? "end" : "start" })
+            return
+          }
+          if ((event.key === "ArrowUp" || event.key === "ArrowDown")
+              && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey
+              && !event.isComposing) {
+            // Inside a wrapped cell the arrow moves between its lines; only
+            // from the topmost (bottommost) line does it change cell.
+            const up = event.key === "ArrowUp"
+            if (!caretOnEdgeLine(editor, up)) return
+            const nextRow = row + (up ? -1 : 1)
+            if (nextRow < 0 || nextRow >= model.rows.length) return
+            event.preventDefault()
+            model.rows[row][column] = editor.innerText || ""
+            applyModel({ row: nextRow, column, caret: caretOffset(editor) })
+            return
+          }
           if (event.key !== "Tab" && event.key !== "Enter") return
           event.preventDefault()
           model.rows[row][column] = editor.innerText || ""
@@ -278,8 +382,9 @@ export class TableEditorWidget extends WidgetType {
     })
     root.addEventListener("mousedown", (event) => {
       if (event.button !== 0) return
-      const cell = event.target.closest?.(".cm-md-table-cell")
+      const cell = cellFor(event.target)
       if (!cell) return
+      const fromEmptySpace = !event.target.closest?.(".cm-md-table-cell")
       const row = Number(cell.dataset.tableRow)
       const column = Number(cell.dataset.tableColumn)
       if (!Number.isInteger(row) || row < 0 || !Number.isInteger(column)) return
@@ -297,7 +402,14 @@ export class TableEditorWidget extends WidgetType {
           event.preventDefault()
         }
       }
+      if (fromEmptySpace) event.preventDefault()
       cell.focus({ preventScroll: true })
+      if (fromEmptySpace) {
+        // Below the text: put the caret at the end of the cell's source.
+        const selection = window.getSelection()
+        selection?.selectAllChildren(cell)
+        selection?.collapseToEnd()
+      }
       const selectSource = (head) => {
         const text = cell.firstChild
         if (!text) return
@@ -325,9 +437,8 @@ export class TableEditorWidget extends WidgetType {
           moveEvent.clientX,
           moveEvent.clientY,
         )
-        const head = hitTarget?.closest?.(".cm-md-table-cell")
-          || moveEvent.target.closest?.(".cm-md-table-cell")
-        if (!head || !root.contains(head)) return
+        const head = cellFor(hitTarget) || cellFor(moveEvent.target)
+        if (!head) return
         if (head === cellDrag.cell && !cellDrag.active) {
           if (sourceAnchor != null) {
             moveEvent.preventDefault()
