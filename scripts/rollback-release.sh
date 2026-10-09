@@ -2,33 +2,33 @@
 #
 # Roll back a Daisy release.
 #
-# Default action: unpublish the release on Amore (reversible) and delete the
-# matching GitHub release + tag. Use --delete to permanently remove from Amore.
+# Removes the version from the Sparkle appcast on the gh-pages branch (so
+# installed apps stop being offered it) and deletes the matching GitHub
+# release + tag.
 #
 # Usage:
 #   scripts/rollback-release.sh <version>            Roll back a specific version
 #   scripts/rollback-release.sh --latest             Roll back the most recent release
-#   scripts/rollback-release.sh 0.0.2 --delete       Permanently delete on Amore
 #   scripts/rollback-release.sh 0.0.2 --keep-github  Leave GitHub release in place
 #   scripts/rollback-release.sh --latest --yes       Skip confirmation prompt
 #
-# To re-publish after a non-destructive rollback:
-#   amore releases update <version> -b doc.daisy --published true
+# Apps that already installed the release are not downgraded; ship a newer
+# build to supersede it.
 
 set -euo pipefail
 
-BUNDLE_ID="doc.daisy"
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$PROJECT_ROOT"
+PAGES_BRANCH="gh-pages"
 
 VERSION=""
 USE_LATEST=false
-DELETE=false
 KEEP_GH=false
 YES=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --latest)      USE_LATEST=true;  shift;;
-        --delete)      DELETE=true;      shift;;
         --keep-github) KEEP_GH=true;     shift;;
         --yes|-y)      YES=true;         shift;;
         -h|--help)     sed -n '/^# Usage:/,/^$/p' "$0" | sed 's/^# //;s/^#//'; exit 0;;
@@ -37,35 +37,33 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-amore_bin() {
-    if command -v amore >/dev/null 2>&1; then command -v amore
-    elif [[ -x /usr/local/bin/amore ]]; then echo /usr/local/bin/amore
-    else echo "error: amore CLI not found" >&2; return 1
-    fi
-}
+for tool in gh python3; do
+    command -v "$tool" >/dev/null || { echo "✗ $tool not installed" >&2; exit 1; }
+done
+gh auth status >/dev/null 2>&1 || { echo "✗ gh not authenticated — run: gh auth login" >&2; exit 1; }
+git remote get-url origin >/dev/null 2>&1 || { echo "✗ no git remote 'origin'" >&2; exit 1; }
+ORIGIN="$(git remote get-url origin)"
 
-AMORE="$(amore_bin)"
-
-if ! "$AMORE" whoami >/dev/null 2>&1; then
-    echo "✗ amore not logged in — run: amore login" >&2
+if ! git ls-remote --exit-code --heads origin "$PAGES_BRANCH" >/dev/null 2>&1; then
+    echo "✗ no $PAGES_BRANCH branch on origin — nothing to roll back" >&2
     exit 1
 fi
 
+WORK="$(mktemp -d)"
+git clone --quiet --branch "$PAGES_BRANCH" --single-branch "$ORIGIN" "$WORK/pages"
+FEED="$WORK/pages/appcast.xml"
+[[ -f "$FEED" ]] || { echo "✗ appcast.xml missing on $PAGES_BRANCH" >&2; exit 1; }
+
 # ── Resolve target version ─────────────────────────────────────────────────
-LIST="$("$AMORE" releases list --bundle-id "$BUNDLE_ID" 2>&1)"
-
-# Parse the table — strip borders, drop header, take rows that contain a UUID
-ROWS="$(echo "$LIST" | grep -E '[0-9A-F]{8}-[0-9A-F]{4}-' | sed 's/[│├┤]//g')"
-
-if [[ -z "$ROWS" ]]; then
-    echo "✗ no releases found for $BUNDLE_ID" >&2
+# The appcast lists newest first.
+VERSIONS="$(sed -nE 's|.*<sparkle:shortVersionString>([^<]+)</sparkle:shortVersionString>.*|\1|p' "$FEED")"
+if [[ -z "$VERSIONS" ]]; then
+    echo "✗ no releases in the appcast" >&2
     exit 1
 fi
 
 if $USE_LATEST; then
-    # First row is most recent
-    ROW="$(echo "$ROWS" | head -1)"
-    VERSION="$(echo "$ROW" | awk '{print $2}')"
+    VERSION="$(head -1 <<<"$VERSIONS")"
 fi
 
 if [[ -z "$VERSION" ]]; then
@@ -73,25 +71,17 @@ if [[ -z "$VERSION" ]]; then
     exit 2
 fi
 
-# Find the row matching $VERSION
-ROW="$(echo "$ROWS" | awk -v v="$VERSION" '$2 == v {print; exit}')"
-if [[ -z "$ROW" ]]; then
-    echo "✗ no release found for version $VERSION" >&2
-    echo "$LIST"
+if ! grep -qxF "$VERSION" <<<"$VERSIONS"; then
+    echo "✗ no release found for version $VERSION. In the appcast:" >&2
+    echo "$VERSIONS" >&2
     exit 1
 fi
 
-BUILD="$(echo "$ROW" | awk '{print $3}')"
-STATUS="$(echo "$ROW" | awk '{print $4}')"
 TAG="v$VERSION"
 
 # ── Confirm ────────────────────────────────────────────────────────────────
-echo "▸ Target: $VERSION (build $BUILD), currently $STATUS"
-if $DELETE; then
-    echo "  Action: permanently DELETE from Amore"
-else
-    echo "  Action: UNPUBLISH from Amore (reversible)"
-fi
+echo "▸ Target: $VERSION"
+echo "  Action: remove from the appcast on $PAGES_BRANCH"
 if ! $KEEP_GH; then
     echo "  Action: delete GitHub release + tag $TAG"
 fi
@@ -102,37 +92,28 @@ if ! $YES; then
     case "$ans" in [yY]|[yY][eE][sS]) ;; *) echo "aborted"; exit 1;; esac
 fi
 
-# ── Roll back on Amore ─────────────────────────────────────────────────────
-if $DELETE; then
-    echo "▸ Deleting release $VERSION on Amore"
-    "$AMORE" releases delete "$VERSION" --bundle-id "$BUNDLE_ID" --yes
-else
-    echo "▸ Unpublishing release $VERSION on Amore"
-    "$AMORE" releases update "$VERSION" --bundle-id "$BUNDLE_ID" --published false
-fi
+# ── Roll back the appcast (first, so no one is offered a deleted DMG) ──────
+echo "▸ Removing $VERSION from the appcast"
+"$PROJECT_ROOT/scripts/appcast.py" remove "$FEED" --version "$VERSION"
+git -C "$WORK/pages" add -A
+git -C "$WORK/pages" commit --quiet -m "Appcast: remove $VERSION"
+git -C "$WORK/pages" push --quiet origin "$PAGES_BRANCH"
 
 # ── Roll back on GitHub ────────────────────────────────────────────────────
 if ! $KEEP_GH; then
-    if command -v gh >/dev/null && git remote get-url origin >/dev/null 2>&1; then
-        if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "▸ Deleting GitHub release $TAG"
-            gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null \
-                || gh release delete "$TAG" --yes
-        else
-            echo "  ⚠ no GitHub release for $TAG"
-        fi
-        # Best-effort tag cleanup if --cleanup-tag was unsupported
-        if git rev-parse "$TAG" >/dev/null 2>&1; then
-            git tag -d "$TAG" >/dev/null
-            git push origin ":refs/tags/$TAG" >/dev/null 2>&1 || true
-            echo "▸ Removed local + remote tag $TAG"
-        fi
+    if gh release view "$TAG" >/dev/null 2>&1; then
+        echo "▸ Deleting GitHub release $TAG"
+        gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null \
+            || gh release delete "$TAG" --yes
     else
-        echo "  ⚠ skipping GitHub cleanup (no gh / no origin remote)"
+        echo "  ⚠ no GitHub release for $TAG"
+    fi
+    # Best-effort tag cleanup if --cleanup-tag was unsupported
+    if git rev-parse "$TAG" >/dev/null 2>&1; then
+        git tag -d "$TAG" >/dev/null
+        git push origin ":refs/tags/$TAG" >/dev/null 2>&1 || true
+        echo "▸ Removed local + remote tag $TAG"
     fi
 fi
 
-echo "✓ Rolled back $VERSION (build $BUILD)"
-if ! $DELETE; then
-    echo "  To re-publish: amore releases update $VERSION -b $BUNDLE_ID --published true"
-fi
+echo "✓ Rolled back $VERSION"

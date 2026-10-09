@@ -1,6 +1,6 @@
 # Daisy — agent guide
 
-A macOS app for previewing Markdown files. AppKit, sandboxed, ships with a Quick Look extension. Updates via Sparkle, distributed via Amore.
+A macOS app for previewing Markdown files. AppKit, sandboxed, ships with a Quick Look extension. Updates via Sparkle, distributed via GitHub releases.
 
 ## Project facts
 
@@ -13,7 +13,7 @@ A macOS app for previewing Markdown files. AppKit, sandboxed, ships with a Quick
 | Min macOS         | 15.0                                                        |
 | Sandboxed         | yes — uses Sparkle XPC services for updates                 |
 | Auto-updater      | Sparkle 2.x (Swift package)                                 |
-| Distribution      | Amore (managed); appcast at `release.md-preview.app` |
+| Distribution      | GitHub releases + Sparkle appcast on `gh-pages` (Pages) |
 
 Version is managed centrally in `Version.xcconfig` (`MARKETING_VERSION`, `CURRENT_PROJECT_VERSION`). Both the app and the quick-look extension inherit from it.
 
@@ -66,11 +66,11 @@ grep -rn "<the behaviour you changed>" README.md samples/ tests/fixtures/ docs/
 - Secrets (currently `POSTHOG_PROJECT_TOKEN`) live in `Secrets.xcconfig`,
   gitignored — copy `Secrets.xcconfig.example` to `Secrets.xcconfig` locally.
   Never hardcode a real token into a tracked file, Info.plist, or a commit.
-- The Sparkle/Amore signing material (EdDSA key, notary keychain profile) is
+- The Sparkle/notarization signing material (EdDSA key, notary keychain profile) is
   documented in the `release-process` skill. Don't touch `SUPublicEDKey` in
   `Info.plist` or the entitlements' `mach-lookup` names without reading that
   skill first — they're paired with private material outside the repo (login
-  Keychain / Amore), so an unmatched change breaks Sparkle updates silently.
+  Keychain), so an unmatched change breaks Sparkle updates silently.
 - `daisy.entitlements` / `quick-look.entitlements` — the sandbox
   `temporary-exception` entries (Sparkle XPC mach-lookup names, the read-only
   filesystem exception) are narrowly scoped, notarization-review-sensitive
@@ -79,7 +79,7 @@ grep -rn "<the behaviour you changed>" README.md samples/ tests/fixtures/ docs/
 - A release PR must update **both** `MARKETING_VERSION` and
   `CURRENT_PROJECT_VERSION` in `Version.xcconfig`, together with the matching
   `CHANGELOG.md` entry. Edit the version file directly during PR preparation.
-  `scripts/release.sh` builds and publishes; run it only when release execution
+  `scripts/release.sh` builds, notarizes and publishes; run it only when release execution
   is requested, not merely to create the PR.
 
 ## Releasing
@@ -90,11 +90,11 @@ with `gh pr edit <PR> --add-label release`. If the label does not exist in the
 repository, create it first. Verify the label is present before handing off
 the release PR.
 
-See the `release-process` skill for branch/PR naming, exactly what `scripts/release.sh` and `scripts/rollback-release.sh` do, and the Amore config already wired for this project.
+See the `release-process` skill for branch/PR naming, exactly what `scripts/release.sh` and `scripts/rollback-release.sh` do, and the distribution setup (Developer ID signing, notary profile, gh-pages appcast).
 
 ## Release references
 
-- `Info.plist` currently sets `SUFeedURL` to `https://release.md-preview.app/v1/apps/doc.md-preview/appcast.xml`. Check the current plist and Amore configuration before releasing; do not assume an old hostname or mismatch still applies.
+- `Info.plist` currently sets `SUFeedURL` to `https://release.md-preview.app/v1/apps/doc.md-preview/appcast.xml`. The release scripts publish the appcast to `https://<owner>.github.io/<repo>/appcast.xml` on `gh-pages`, and `release.sh` warns when `SUFeedURL` differs. Check the current plist before releasing; installed apps only follow the URL baked into their own `Info.plist`.
 - The canonical GitHub repository is `pluk-inc/markdown-preview`. Older remotes may redirect from `pluk-inc/md-preview.app`; check `git remote -v` and `gh repo view` before publishing.
 
 ## Common Xcode tasks
