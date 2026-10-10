@@ -86,6 +86,19 @@ def prepare_sources(snapshot: Path, sources: Path) -> None:
         (sources / "EditorHTML.swift").write_text(legacy_editor(snapshot))
 
 
+def build_editor_bundle(label: str, snapshot: Path, out: Path) -> None:
+    """Build the revision's CodeMirror bundle; it is gitignored, so `git archive` omits it."""
+    bundle = snapshot / "daisy/Vendor/CodeMirror/mdedit.min.js"
+    package = snapshot / "scripts/editor-bundle"
+    # Older revisions checked the bundle in and have nothing to build.
+    if bundle.exists() or not (package / "package.json").exists():
+        return
+    with (out / f"{label}-bundle.log").open("w") as log:
+        for command in (["npm", "ci"], ["npm", "run", "build"]):
+            print("+", " ".join(command), flush=True)
+            subprocess.run(command, cwd=package, stdout=log, stderr=subprocess.STDOUT, check=True, timeout=600)
+
+
 def prepare(label: str, commit: str, out: Path) -> tuple[Path, Path]:
     snapshot = out / "work" / label / "repo"
     package = out / "work" / label / "probe"
@@ -94,6 +107,7 @@ def prepare(label: str, commit: str, out: Path) -> tuple[Path, Path]:
     run(["git", "archive", "--format=tar", "--output", str(archive), commit], cwd=ROOT)
     run(["tar", "-xf", str(archive), "-C", str(snapshot)])
     archive.unlink()
+    build_editor_bundle(label, snapshot, out)
     sources = package / "Sources"
     prepare_sources(snapshot, sources)
     (sources / "Vendor").symlink_to(snapshot / "daisy/Vendor", target_is_directory=True)
