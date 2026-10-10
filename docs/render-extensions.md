@@ -18,7 +18,7 @@ extension provides:
 - `transform(_:)` — optional HTML rewrite; identity by default.
 - `assets(mode:)` — static CSS and JavaScript declaration.
 
-Colorful and Collapsible headings are user-toggleable. Highlight, Callout,
+Colorful headings are user-toggleable. Highlight, Callout,
 KaTeX, and Mermaid participate in the same registry but are always enabled
 and do not appear in Settings.
 

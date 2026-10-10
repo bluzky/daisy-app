@@ -102,7 +102,6 @@
 				Rendering/MarkdownAssetSchemeHandler.swift,
 				Rendering/MarkdownFrontmatter.swift,
 				Rendering/MarkdownHTML.swift,
-				"Rendering/MarkdownHTML+CollapsibleHeaders.swift",
 				"Rendering/MarkdownHTML+ColorfulHeaders.swift",
 				"Rendering/MarkdownHTML+Footnotes.swift",
 				"Rendering/MarkdownHTML+Highlight.swift",
