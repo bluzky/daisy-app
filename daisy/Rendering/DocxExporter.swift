@@ -11,12 +11,14 @@
 //
 //  The look comes from a `DocxTheme` (Docx/DocxTheme.swift): fonts, sizes,
 //  colors, borders, spacing, the page margin and the syntax palette. The
-//  default `github` theme is Calibri 11 pt body, Consolas 10 pt code, headings
+//  default `github` theme is Calibri 11 pt body, Menlo 10 pt code, headings
 //  20 / 16 / 14 / 12 / 11 / 11 pt, 1 inch margins. Page size is A4 (Letter in
 //  US/CA/MX) whatever the theme.
 //
-//  Not exported: Mermaid diagrams and math render as their source text, raw
-//  HTML is dropped, and remote images become links.
+//  Mermaid diagrams become pictures when the caller supplies them already
+//  rendered (`MermaidRasterizer`, keyed by source); otherwise they export as
+//  code. Not exported: math renders as its source text, raw HTML is dropped,
+//  and remote images become links.
 //
 
 import AppKit
@@ -24,15 +26,46 @@ import Foundation
 import ImageIO
 import Markdown
 
+/// An image ready to embed. `width` / `height` are CSS pixels (96 dpi).
+struct DocxImage {
+    let data: Data
+    let ext: String
+    let width: Double
+    let height: Double
+}
+
 enum DocxExporter {
     static func write(
-        markdown: String, assetBaseURL: URL?, theme: DocxTheme = .github, to url: URL
+        markdown: String, assetBaseURL: URL?, theme: DocxTheme = .github,
+        mermaidDiagrams: [String: DocxImage] = [:], to url: URL
     ) throws {
         let body = MarkdownFrontmatter.split(markdown).body
         let document = Document(parsing: body)
-        var builder = DocxBuilder(assetBaseURL: assetBaseURL, theme: theme)
+        var builder = DocxBuilder(
+            assetBaseURL: assetBaseURL, theme: theme, mermaidDiagrams: mermaidDiagrams)
         let data = builder.build(document)
         try data.write(to: url, options: .atomic)
+    }
+
+    /// Sources of the document's mermaid fences, in the form `write` expects
+    /// them as `mermaidDiagrams` keys.
+    static func mermaidSources(in markdown: String) -> [String] {
+        let document = Document(parsing: MarkdownFrontmatter.split(markdown).body)
+        var collector = MermaidCollector()
+        collector.visit(document)
+        return collector.sources
+    }
+
+    fileprivate static func isMermaid(_ code: CodeBlock) -> Bool {
+        CodeFenceInfo(rawInfoString: code.language).language == "mermaid"
+    }
+}
+
+private struct MermaidCollector: MarkupWalker {
+    var sources: [String] = []
+
+    mutating func visitCodeBlock(_ codeBlock: CodeBlock) {
+        if DocxExporter.isMermaid(codeBlock) { sources.append(codeBlock.code) }
     }
 }
 
@@ -99,6 +132,7 @@ private struct BlockContext {
 private struct DocxBuilder {
     let assetBaseURL: URL?
     let theme: DocxTheme
+    let mermaidDiagrams: [String: DocxImage]
 
     private var body = ""
     private var relationships: [String] = []
@@ -117,9 +151,10 @@ private struct DocxBuilder {
     private var margin: Int { DocxUnits.twips(theme.page.margin) }
     private var textWidth: Int { pageWidth - 2 * margin }
 
-    init(assetBaseURL: URL?, theme: DocxTheme) {
+    init(assetBaseURL: URL?, theme: DocxTheme, mermaidDiagrams: [String: DocxImage]) {
         self.assetBaseURL = assetBaseURL
         self.theme = theme
+        self.mermaidDiagrams = mermaidDiagrams
     }
 
     mutating func build(_ document: Document) -> Data {
@@ -202,7 +237,16 @@ private struct DocxBuilder {
                 context: context,
                 continuation: context.listLevel != nil)
         case let code as CodeBlock:
-            body += codeBlock(code.code, language: code.language)
+            if DocxExporter.isMermaid(code), let diagram = mermaidDiagrams[code.code] {
+                body += paragraph(
+                    style: nil,
+                    content: drawing(diagram, alt: code.code, fitsPage: true),
+                    context: context,
+                    continuation: context.listLevel != nil,
+                    alignment: "center")
+            } else {
+                body += codeBlock(code.code, language: code.language)
+            }
         case let quote as BlockQuote:
             var inner = context
             inner.quoteDepth += 1
@@ -472,7 +516,14 @@ private struct DocxBuilder {
                 "<Relationship Id=\"\(id)\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink\" Target=\"\(xmlEscape(source))\" TargetMode=\"External\"/>")
             return "<w:hyperlink r:id=\"\(id)\">\(run(label, next))</w:hyperlink>"
         }
+        return drawing(embedded, alt: alt)
+    }
 
+    /// `fitsPage` also caps the height, so a tall picture shrinks onto one
+    /// page instead of running off its bottom edge.
+    private mutating func drawing(
+        _ embedded: DocxImage, alt: String, fitsPage: Bool = false
+    ) -> String {
         let mediaName = "image\(media.count + 1).\(embedded.ext)"
         media.append((mediaName, embedded.data))
         mediaExtensions.insert(embedded.ext)
@@ -488,6 +539,12 @@ private struct DocxBuilder {
         if width > maxPoints {
             height *= maxPoints / width
             width = maxPoints
+        }
+        // Leave room for the paragraph's own spacing within the text area.
+        let maxHeight = Double(pageHeight - 2 * margin) / 20 * 0.9
+        if fitsPage, height > maxHeight {
+            width *= maxHeight / height
+            height = maxHeight
         }
         let cx = Int(width * 12700)
         let cy = Int(height * 12700)
@@ -519,7 +576,7 @@ private struct DocxBuilder {
     /// re-encoded as PNG.
     private func embeddedImage(
         at url: URL
-    ) -> (data: Data, ext: String, width: Double, height: Double)? {
+    ) -> DocxImage? {
         guard let data = try? Data(contentsOf: url),
               let source = CGImageSourceCreateWithData(data as CFData, nil),
               let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil)
@@ -529,15 +586,15 @@ private struct DocxBuilder {
               width > 0, height > 0
         else { return nil }
         switch CGImageSourceGetType(source) as String? {
-        case "public.png": return (data, "png", width, height)
-        case "public.jpeg": return (data, "jpeg", width, height)
-        case "com.compuserve.gif": return (data, "gif", width, height)
+        case "public.png": return DocxImage(data: data, ext: "png", width: width, height: height)
+        case "public.jpeg": return DocxImage(data: data, ext: "jpeg", width: width, height: height)
+        case "com.compuserve.gif": return DocxImage(data: data, ext: "gif", width: width, height: height)
         default:
             guard let cgImage = CGImageSourceCreateImageAtIndex(source, 0, nil),
                   let png = NSBitmapImageRep(cgImage: cgImage)
                     .representation(using: .png, properties: [:])
             else { return nil }
-            return (png, "png", width, height)
+            return DocxImage(data: png, ext: "png", width: width, height: height)
         }
     }
 

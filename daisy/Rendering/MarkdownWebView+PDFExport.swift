@@ -810,7 +810,8 @@ extension MarkdownWebView {
     }
 
     /// File ▸ Export ▸ Word… — a save panel with a theme popup. The .docx is
-    /// built from the Markdown, not the rendered page.
+    /// built from the Markdown, not the rendered page; Mermaid diagrams are
+    /// drawn offscreen first and embedded as pictures.
     func exportWord(
         markdown: String,
         sourceURL: URL?,
@@ -831,13 +832,23 @@ extension MarkdownWebView {
             contentType: .wordDocument, sourceURL: sourceURL,
             assetBaseURL: assetBaseURL, accessoryView: themeRow, from: window
         ) { url, done in
-            do {
-                try DocxExporter.write(
-                    markdown: markdown, assetBaseURL: assetBaseURL,
-                    theme: themeRow.selectedTheme, to: url)
-                done(nil)
-            } catch {
-                done(error)
+            let theme = themeRow.selectedTheme
+            // Diagrams follow the Mermaid switch in Settings ▸ Extensions;
+            // switched off, they export as code like any other fence.
+            let mermaidEnabled = RenderExtensionPreferences.currentConfiguration
+                .isEnabled("mermaid")
+            Task { @MainActor in
+                let diagrams = mermaidEnabled
+                    ? await MermaidRasterizer.render(DocxExporter.mermaidSources(in: markdown))
+                    : [:]
+                do {
+                    try DocxExporter.write(
+                        markdown: markdown, assetBaseURL: assetBaseURL,
+                        theme: theme, mermaidDiagrams: diagrams, to: url)
+                    done(nil)
+                } catch {
+                    done(error)
+                }
             }
         }
     }

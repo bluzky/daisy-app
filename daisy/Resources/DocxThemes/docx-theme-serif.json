@@ -37,7 +37,7 @@
       "background": "$surface",
       "border": { "all": { "style": "none" } }
     },
-    "inlineCode": { "background": "$surface" },
+    "inlineCode": { "color": "$accent", "background": "$surface" },
 
     "table": { "border": { "all": { "color": "$border" } } },
     "tableHeader": { "background": "$surface" }

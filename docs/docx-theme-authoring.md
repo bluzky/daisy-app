@@ -54,12 +54,12 @@ you leave out keeps GitHub's value, so a theme can be a few lines:
 ```
 
 This changes the body font and Heading 1's color. Everything else, including
-heading sizes and the Consolas code font, stays as in GitHub.
+heading sizes and the Menlo code font, stays as in GitHub.
 
 Two consequences:
 
 - **Global values do not reach elements that already set their own.** GitHub's
-  headings declare size, color and spacing, and code declares Consolas 10 pt.
+  headings declare size, color and spacing, and code declares Menlo 10 pt.
   Changing `global.font` changes body text only; set `font` on `heading1`–`6`
   (and `codeBlock`, `inlineCode`) to change those.
 - **You can replace a value but not remove one.** To get "no shading" use

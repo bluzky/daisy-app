@@ -682,12 +682,12 @@ final class MarkdownHTMLRenderTests: XCTestCase {
             3
         )
         XCTAssertTrue(rendered.html.contains(".md-source-blank-line {"))
-        XCTAssertTrue(rendered.html.contains("height: 4.0px;"))
+        XCTAssertTrue(rendered.html.contains("height: \(MarkdownHTML.textScaled(MarkdownHTML.blankLineGap));"))
         XCTAssertTrue(rendered.html.contains(".md-source-blank-line:has(+ .md-source-blank-line)"))
-        XCTAssertTrue(rendered.html.contains("height: \(MarkdownHTML.sourceLineHeight)px;"))
+        XCTAssertTrue(rendered.html.contains("height: \(MarkdownHTML.textScaled(MarkdownHTML.sourceLineHeight));"))
         XCTAssertFalse(rendered.html.contains(".md-source-blank-line + *"))
         XCTAssertTrue(rendered.html.contains(".md-source-blank-line + h3,"))
-        XCTAssertTrue(rendered.html.contains("margin-top: \(MarkdownHTML.sourceLineHeight)px;"))
+        XCTAssertTrue(rendered.html.contains("margin-top: \(MarkdownHTML.textScaled(MarkdownHTML.sourceLineHeight));"))
     }
 
     func testListsAndDecoratedCodeBlocksOwnTheirOuterSpacing() {
@@ -700,7 +700,7 @@ final class MarkdownHTMLRenderTests: XCTestCase {
         XCTAssertTrue(rendered.html.contains("ul { list-style: none; }"))
         XCTAssertTrue(rendered.html.contains(".md-code-wrap > pre { margin: 0;"))
         XCTAssertTrue(rendered.html.contains(".md-code-wrap {"))
-        XCTAssertTrue(rendered.html.contains("margin: \(MarkdownHTML.paragraphSpacing)px 0 0;"))
+        XCTAssertTrue(rendered.html.contains("margin: \(MarkdownHTML.textScaled(MarkdownHTML.paragraphSpacing)) 0 0;"))
     }
 
     func testInlineTabsRemainVisibleInReadMode() {

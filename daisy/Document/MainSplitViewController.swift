@@ -204,10 +204,10 @@ final class MainSplitViewController: NSSplitViewController {
         contentViewController?.exportWord()
     }
 
-    /// The document's current page zoom, for the toolbar popover's text-size
-    /// scale. 1.0 when there is no content view yet — the default stop.
+    /// The document's current text size, for the toolbar popover's scale.
+    /// 1.0 when there is no content view yet — the default stop.
     var documentPageZoom: CGFloat {
-        contentViewController?.pageZoom ?? 1.0
+        contentViewController?.textScale ?? 1.0
     }
 
     @IBAction func zoomInDocument(_ sender: Any?) {
@@ -234,7 +234,7 @@ final class MainSplitViewController: NSSplitViewController {
             return contentViewController?.hasExportableDocument == true
         }
         if menuItem.action == #selector(resetDocumentZoom(_:)) {
-            return abs((contentViewController?.pageZoom ?? 1.0) - 1.0) > 0.001
+            return abs((contentViewController?.textScale ?? 1.0) - 1.0) > 0.001
         }
         return true
     }
@@ -409,9 +409,9 @@ final class MainSplitViewController: NSSplitViewController {
             cachedEditorViewController = editorVC
         }
 
-        // Captured before the swap so the editor renders at the same
-        // zoom (and therefore the same column width) as the preview.
-        let previewZoom = contentViewController?.pageZoom ?? 1
+        // Captured before the swap so the editor renders at the same text
+        // size (and therefore the same column and line wrapping) as the preview.
+        let previewZoom = contentViewController?.textScale ?? 1
         let previewScrollProgress = contentViewController?.scrollProgress ?? 0
 
         let generation = UUID()

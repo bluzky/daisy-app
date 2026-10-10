@@ -9,6 +9,11 @@ nonisolated enum EditorHTML {
         var fullWidth = false
         /// Column measure in CSS px when not `fullWidth`.
         var columnWidth = MarkdownHTML.contentColumnWidth
+        /// The page zoom the host applies to mirror the preview's text size.
+        /// Seeds `--mdp-page-zoom`, which the column and gutters divide out
+        /// so they keep the preview's on-screen measure; the host updates
+        /// the property live when the text size changes.
+        var pageZoom: CGFloat = 1
         var lightPageBackground = "transparent"
         var darkPageBackground = "transparent"
         var themeOverrideCSS = ""
@@ -57,7 +62,11 @@ nonisolated enum EditorHTML {
                        mermaidJavaScript: String? = nil,
                        assetBaseURL: URL? = nil,
                        configuration: Configuration = Configuration()) -> String {
-        let columnMaxWidth = configuration.fullWidth ? "none" : "\(configuration.columnWidth)px"
+        // Divided by the page zoom: the preview scales its type, not its
+        // column, so the editor's zoom must leave the measure where it was.
+        let columnMaxWidth = configuration.fullWidth
+            ? "none"
+            : "calc(\(configuration.columnWidth)px / var(--mdp-page-zoom, 1))"
         let lightPageBackground = configuration.lightPageBackground
         let darkPageBackground = configuration.darkPageBackground
         let usesPageScrolling = configuration.usesPageScrolling
@@ -85,6 +94,7 @@ nonisolated enum EditorHTML {
             --code-border: #f0f0f0;
             /* Same code palette as the preview stylesheet. */
             \(MarkdownHTML.lightCodePaletteCSS)
+            --mdp-page-zoom: \(configuration.pageZoom);
         }
         @media (prefers-color-scheme: dark) {
             :root {
@@ -129,7 +139,7 @@ nonisolated enum EditorHTML {
             overflow-y: auto;
             overscroll-behavior-x: none;
             /* Keep page gutters outside the editable content column. */
-            padding-inline: var(--mdp-page-padding, \(MarkdownHTML.pagePaddingHorizontal)px);
+            padding-inline: calc(var(--mdp-page-padding, \(MarkdownHTML.pagePaddingHorizontal)px) / var(--mdp-page-zoom, 1));
             /* Document clearance is outside contenteditable and scrolls
                away naturally; it must not be a fixed interaction shield. */
             padding-top: calc(\(MarkdownHTML.pagePaddingTop + (usesPageScrolling ? MarkdownHTML.appPageTopClearance : 0))px / var(--mdp-chrome-zoom, 1));
@@ -148,7 +158,7 @@ nonisolated enum EditorHTML {
             min-height: 100%;
             margin: 0 auto;
             /* Reader margins: symmetric inset inside the column, as in the preview. */
-            padding: 0 var(--mdp-page-inset, 0) \(MarkdownHTML.pagePaddingBottom)px;
+            padding: 0 calc(var(--mdp-page-inset, 0px) / var(--mdp-page-zoom, 1)) calc(\(MarkdownHTML.pagePaddingBottom)px / var(--mdp-page-zoom, 1));
             box-sizing: border-box;
             caret-color: var(--text);
             cursor: text;

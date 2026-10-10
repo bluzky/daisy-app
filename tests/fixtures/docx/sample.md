@@ -110,14 +110,18 @@ Text above.
 
 Text below.
 
-## Known unsupported (expected to differ)
+## Mermaid
 
-Math stays as source text: $E = mc^2$
+The diagram below becomes a centred picture with "Start" above "End".
 
 ```mermaid
 graph TD
   A[Start] --> B[End]
 ```
+
+## Known unsupported (expected to differ)
+
+Math stays as source text: $E = mc^2$
 
 <div>Raw HTML block is dropped.</div>
 
@@ -128,8 +132,9 @@ graph TD
 - [ ] Both ordered lists start at 1; the third starts at 5
 - [ ] Nested bullets indent; the continuation paragraph lines up with its bullet
 - [ ] Tables are real Word tables with a shaded header; alignment matches; long cell wraps
-- [ ] Code is Consolas 10 pt in a shaded box, tabs and special characters preserved
+- [ ] Code is Menlo 10 pt in a shaded box, tabs and special characters preserved
 - [ ] Quote has a left border; nested quote is indented further
 - [ ] Links are blue and underlined and open the right URL
 - [ ] Horizontal rule renders as a line
+- [ ] Mermaid diagram is a sharp picture, not source text; it stays code when Mermaid is off in Settings
 - [ ] Frontmatter does not appear at the top
