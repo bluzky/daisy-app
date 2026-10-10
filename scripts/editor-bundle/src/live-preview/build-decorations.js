@@ -1,12 +1,12 @@
 import { Decoration } from "@codemirror/view"
-import { syntaxTree, LanguageDescription } from "@codemirror/language"
+import { LanguageDescription } from "@codemirror/language"
 import { highlightTree, tags as t } from "@lezer/highlight"
 import { codeHighlight } from "../code-highlight.js"
 import { HEADING_LINE, METRICS, SEPARATOR_BLOCKS, activeBulletDeco, activeOrderedDeco, blockGapLine, blockSeparatorLine, bulletDeco, codeLine, codeLineFirst, codeLineLast, codeScrollText, collapsedLine, completedTaskLine, emphasisMark, fenceMark, frontmatterDelim, frontmatterFirstLine, frontmatterLastLine, frontmatterLine, headingAfterBlankLine, headingMarker, headingPrefix, hiddenCodeFenceSource, hiddenHeadingSource, hide, highlightMark, hrDeco, imageLine, inactiveHeadingLine, linkMark, listContinuationLine, listDepthLine, listItemGapLine, listItemLine, markdownListMarker, orderedDeco, quoteLine, ruleLine, setextMarkerLine, setextSource, strikethroughMark, strongMark, tableLine, taskLine, urlMark } from "../decoration-parts.js"
 import { fencedCodeDetails } from "../fenced-code.js"
 import { currentFindTouches } from "../find.js"
 import { codeLanguages } from "../languages.js"
-import { pendingCoversFence } from "../commands/code-fence.js"
+import { pendingCoversFence, previewTree } from "../commands/code-fence.js"
 import { activeCodeBlock, pointerPreview } from "../pointer.js"
 import { TaskCheckboxWidget } from "../task-list.js"
 import { ImageWidget } from "../widgets/basic.js"
@@ -210,7 +210,7 @@ export function buildDecorations(view, detectedCodeCache) {
 
   for (const { from, to } of view.visibleRanges) {
     let contentDocumentDepth = null
-    syntaxTree(state).iterate({
+    previewTree(state).iterate({
       from, to,
       enter: (node) => {
         depth++
