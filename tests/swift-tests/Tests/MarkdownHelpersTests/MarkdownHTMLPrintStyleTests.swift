@@ -59,12 +59,13 @@ final class MarkdownHTMLPrintStyleTests: XCTestCase {
     }
 
     /// Media queries add no specificity, so the print body size only wins by
-    /// coming later in the sheet than the screen `body { font-size: 14px }`.
+    /// coming later in the sheet than the screen body rule (14px times the
+    /// reader's text scale).
     /// Moving the print block above it would silently restore the old size.
     func testPrintBlockFollowsTheScreenBodyRuleSoItWinsTheCascade() throws {
         let html = MarkdownHTML.render(markdown: "text", vendorLoading: .lazy).html
         let screenRule = try XCTUnwrap(
-            html.range(of: "font-size: \(MarkdownHTML.bodyFontSize)px"))
+            html.range(of: "font-size: \(MarkdownHTML.textScaled(MarkdownHTML.bodyFontSize))"))
         let printBlock = try XCTUnwrap(html.range(of: "@media print {"))
         XCTAssertLessThan(screenRule.lowerBound, printBlock.lowerBound)
     }

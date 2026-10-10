@@ -26,6 +26,11 @@ struct SourceScrollAnchor {
     /// the position one padding too low.
     let topGap: CGFloat
 
+    init(sourcePosition: CGFloat, topGap: CGFloat) {
+        self.sourcePosition = sourcePosition
+        self.topGap = topGap
+    }
+
     /// Decodes the `{position, gap}` dictionaries produced by the editor's
     /// getScrollAnchor() and the preview's source-anchor script.
     init?(scriptResult: Any?) {
@@ -33,6 +38,12 @@ struct SourceScrollAnchor {
               let position = raw["position"] as? NSNumber else { return nil }
         sourcePosition = CGFloat(truncating: position)
         topGap = (raw["gap"] as? NSNumber).map { CGFloat(truncating: $0) } ?? 0
+    }
+
+    /// The same anchor with `topGap` in CSS px of a page zoomed `factor`
+    /// times as far as this one's.
+    func convertingGap(by factor: CGFloat) -> SourceScrollAnchor {
+        SourceScrollAnchor(sourcePosition: sourcePosition, topGap: topGap * factor)
     }
 }
 
@@ -235,6 +246,7 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         let baseHref = MarkdownAssetResolution.rootBaseHref
         let markdown = Self.warmupMarkdown
         let contentWidth = ContentWidthSetting.current.renderWidth
+        let textScale = textScale
         let themeOverrides = Self.currentThemeOverrides()
         let renderExtensionConfiguration = RenderExtensionPreferences.currentConfiguration
         Task { @concurrent [weak self] in
@@ -242,6 +254,7 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
                                             markdown: markdown,
                                             assetBaseHref: baseHref,
                                             contentWidth: contentWidth,
+                                            textScale: textScale,
                                             themeOverrides: themeOverrides,
                                             renderExtensionConfiguration: renderExtensionConfiguration,
                                             warmup: true)
@@ -326,6 +339,7 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         renderGeneration &+= 1
         let generation = renderGeneration
         let contentWidth = ContentWidthSetting.current.renderWidth
+        let textScale = textScale
         let themeOverrides = Self.currentThemeOverrides()
         let renderExtensionConfiguration = RenderExtensionPreferences.currentConfiguration
         Task { @concurrent [weak self] in
@@ -333,6 +347,7 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
                                             markdown: markdown,
                                             assetBaseHref: baseHref,
                                             contentWidth: contentWidth,
+                                            textScale: textScale,
                                             themeOverrides: themeOverrides,
                                             renderExtensionConfiguration: renderExtensionConfiguration,
                                             documentID: documentID)
@@ -356,6 +371,7 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
                                                 markdown: String,
                                                 assetBaseHref: String,
                                                 contentWidth: MarkdownHTML.ContentWidth,
+                                                textScale: CGFloat,
                                                 themeOverrides: MarkdownHTML.ThemeOverrides? = nil,
                                                 renderExtensionConfiguration: MarkdownHTML.RenderExtensionConfiguration,
                                                 documentID: String = "page",
@@ -369,6 +385,7 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
                                            themeOverrides: themeOverrides,
                                            warmup: warmup,
                                            pageTopClearance: MarkdownHTML.appPageTopClearance,
+                                           textScale: textScale,
                                            documentID: documentID,
                                            renderExtensionConfiguration: renderExtensionConfiguration)
         let elapsedMs = Int(
@@ -627,9 +644,9 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         webView.evaluateJavaScript(script) { _, _ in }
     }
 
-    // Discrete zoom stops, mirroring Safari's ⌘+/⌘− cadence. Not private:
-    // the toolbar popover draws one dot per stop to show where the current
-    // text size sits on the scale.
+    // Discrete text-size stops, mirroring Safari's ⌘+/⌘− cadence. Not
+    // private: the toolbar popover draws one dot per stop to show where the
+    // current text size sits on the scale.
     static let zoomSteps: [CGFloat] = [
         0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0
     ]
@@ -640,14 +657,22 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         zoomSteps.indices.min { abs(zoomSteps[$0] - zoom) < abs(zoomSteps[$1] - zoom) } ?? 0
     }
 
+    /// WebKit's page zoom, the factor between CSS pixels and view points.
+    /// The text-size controls no longer change it — they scale type through
+    /// `textScale` — but coordinate conversions keep going through it.
     var pageZoom: CGFloat { webView.pageZoom }
 
-    func zoomIn() { setPageZoom(nextZoomStep(from: webView.pageZoom, increasing: true)) }
-    func zoomOut() { setPageZoom(nextZoomStep(from: webView.pageZoom, increasing: false)) }
-    func resetZoom() { setPageZoom(1.0) }
+    /// The reader's text size: ⌘+ / ⌘−, pinch, and the Settings stops.
+    /// Applied as `--mdp-text-scale` rather than WebKit page zoom, which
+    /// would scale the Content Width column along with the text.
+    private(set) var textScale: CGFloat = 1
+
+    func zoomIn() { setTextScale(nextZoomStep(from: textScale, increasing: true)) }
+    func zoomOut() { setTextScale(nextZoomStep(from: textScale, increasing: false)) }
+    func resetZoom() { setTextScale(1.0) }
 
     fileprivate func beginMagnificationZoom() {
-        magnificationStartZoom = webView.pageZoom
+        magnificationStartZoom = textScale
         accumulatedMagnification = 0
         didMagnifyDuringCurrentGesture = false
     }
@@ -665,7 +690,7 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         didMagnifyDuringCurrentGesture = true
         accumulatedMagnification += delta
         let scale = max(0.1, 1 + accumulatedMagnification)
-        setPageZoom((magnificationStartZoom ?? webView.pageZoom) * scale, persist: false)
+        setTextScale((magnificationStartZoom ?? textScale) * scale, persist: false)
     }
 
     fileprivate func endMagnificationZoom() {
@@ -675,24 +700,24 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         accumulatedMagnification = 0
         didMagnifyDuringCurrentGesture = false
         if shouldPersistZoom {
-            persistPageZoom(webView.pageZoom)
+            persistTextScale(textScale)
         }
     }
 
     func enablePersistentZoom(defaultsKey: String) {
         zoomDefaultsKey = defaultsKey
         guard let stored = UserDefaults.standard.object(forKey: defaultsKey) as? NSNumber else { return }
-        setPageZoom(CGFloat(truncating: stored), persist: false, notifyHeight: false)
+        setTextScale(CGFloat(truncating: stored), persist: false)
     }
 
-    /// Re-reads the stored zoom after Settings changes it. Unlike
+    /// Re-reads the stored text size after Settings changes it. Unlike
     /// `enablePersistentZoom` this applies the absent-key case too, so picking
     /// the default size — which clears the key — still resets an already-zoomed
     /// window instead of leaving it where it was.
     func applyPersistedZoom() {
         guard let zoomDefaultsKey else { return }
         let stored = UserDefaults.standard.object(forKey: zoomDefaultsKey) as? NSNumber
-        setPageZoom(stored.map { CGFloat(truncating: $0) } ?? 1.0, persist: false)
+        setTextScale(stored.map { CGFloat(truncating: $0) } ?? 1.0, persist: false)
     }
 
     private func nextZoomStep(from current: CGFloat, increasing: Bool) -> CGFloat {
@@ -704,20 +729,23 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         }
     }
 
-    private func setPageZoom(_ value: CGFloat,
-                             persist: Bool = true,
-                             notifyHeight: Bool = true) {
+    /// The page reflows and reports its new height itself, so unlike a page
+    /// zoom change there is no height to re-fire from here.
+    private func setTextScale(_ value: CGFloat, persist: Bool = true) {
         let clamped = clampedZoom(value)
-        guard abs(webView.pageZoom - clamped) > 0.001 else { return }
-        webView.pageZoom = clamped
-        updateChromeZoom()
+        guard abs(textScale - clamped) > 0.001 else { return }
+        textScale = clamped
+        applyTextScaleToPage()
         zoomDidChange?(clamped)
         if persist {
-            persistPageZoom(clamped)
+            persistTextScale(clamped)
         }
-        if notifyHeight {
-            heightDidChange?(lastReportedDocumentHeight * clamped)
-        }
+    }
+
+    /// Fresh renders carry the scale in their markup; this covers the loaded
+    /// page, and a load that started before the scale last changed.
+    private func applyTextScaleToPage() {
+        webView.evaluateJavaScript("document.documentElement.style.setProperty('\(MarkdownHTML.textScaleProperty)', '\(textScale)')", completionHandler: nil)
     }
 
     private func updateChromeZoom() {
@@ -730,7 +758,7 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         return max(Self.zoomSteps.first!, min(Self.zoomSteps.last!, value))
     }
 
-    private func persistPageZoom(_ value: CGFloat) {
+    private func persistTextScale(_ value: CGFloat) {
         guard let zoomDefaultsKey else { return }
         if abs(value - 1.0) <= 0.001 {
             UserDefaults.standard.removeObject(forKey: zoomDefaultsKey)
@@ -1540,6 +1568,7 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         configureWebKitScrollView()
         isPageReady = true
         updateChromeZoom()
+        applyTextScaleToPage()
         #if !QUICK_LOOK_EXTENSION
         // A render snapshots the theme before its concurrent pass; if the
         // colors changed mid-flight, the navigation just installed stale

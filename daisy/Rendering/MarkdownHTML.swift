@@ -299,6 +299,7 @@ nonisolated enum MarkdownHTML {
                        textAlignment: TextAlignmentSetting = .current,
                        warmup: Bool = false,
                        pageTopClearance: CGFloat = 0,
+                       textScale: CGFloat = 1,
                        highlightsCode: Bool = true,
                        documentID: String = "page",
                        renderExtensionConfiguration: RenderExtensionConfiguration = .allEnabled) -> RenderedHTML {
@@ -499,13 +500,19 @@ nonisolated enum MarkdownHTML {
         let colorSchemeAttribute = colorScheme.map {
             " data-mdp-color-scheme=\"\($0.rawValue)\""
         } ?? ""
+        // Inline on <html> so a full load paints at the reader's text size, and
+        // so the host's live updates (`style.setProperty`) target the same
+        // declaration instead of fighting a stylesheet rule.
+        let textScaleAttribute = abs(textScale - 1) > 0.001
+            ? " style=\"\(textScaleProperty): \(textScale)\""
+            : ""
         // Always emitted (possibly empty) so a live theme edit has a stable
         // element to rewrite instead of creating one per page variant.
         let themeStyleBlock =
             "<style id=\"\(themeStyleElementID)\">\(themeOverrides?.css ?? "")</style>"
         let html = """
         <!DOCTYPE html>
-        <html\(colorSchemeAttribute)>
+        <html\(colorSchemeAttribute)\(textScaleAttribute)>
         <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">

@@ -332,7 +332,7 @@ final class ContentViewController: NSViewController {
     func zoomIn() { webView.zoomIn() }
     func zoomOut() { webView.zoomOut() }
     func resetZoom() { webView.resetZoom() }
-    var pageZoom: CGFloat { webView.pageZoom }
+    var textScale: CGFloat { webView.textScale }
 
     /// Normalized top-of-viewport position used when handing the document to
     /// the editor, whose content height differs slightly from the preview.
@@ -434,7 +434,7 @@ final class ContentViewController: NSViewController {
             pixelHeight: Int((size.height * scale).rounded()),
             isDark: isDark,
             settings: ReaderRenderSettings.current.fingerprint,
-            zoom: Double(webView.pageZoom),
+            zoom: Double(webView.textScale),
             topInset: Double(snapshotTopInset)
         )
     }

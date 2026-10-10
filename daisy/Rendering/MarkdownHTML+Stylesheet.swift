@@ -15,6 +15,17 @@ nonisolated extension MarkdownHTML {
     /// Shared document stylesheet. Extension CSS is emitted from registry.
     static let stylesheet = baseStylesheet
 
+    /// The reader's text size (⌘+ / ⌘−, pinch, Settings) as a multiplier on
+    /// `:root`. It scales the body type and the text-rhythm spacing, never
+    /// the page geometry, so the Content Width column keeps its on-screen
+    /// measure at every text size.
+    static let textScaleProperty = "--mdp-text-scale"
+
+    /// A `px` length that follows the reader's text size.
+    static func textScaled(_ px: CGFloat) -> String {
+        "calc(\(px)px * var(\(textScaleProperty), 1))"
+    }
+
     private static let baseStylesheet = """
     :root {
         color-scheme: light dark;
@@ -130,7 +141,7 @@ nonisolated extension MarkdownHTML {
     }
     body {
         font-family: var(--mdp-doc-font, \(bodyFontFamily));
-        font-size: \(bodyFontSize)px;
+        font-size: \(textScaled(bodyFontSize));
         font-weight: var(--mdp-body-weight, 400);
         line-height: var(--mdp-line-height, \(bodyLineHeight));
         letter-spacing: var(--mdp-letter-spacing, normal);
@@ -203,7 +214,7 @@ nonisolated extension MarkdownHTML {
     }
     .md-source-list-line {
         display: block;
-        margin-top: \(listItemSpacing)px;
+        margin-top: \(textScaled(listItemSpacing));
     }
     .md-source-list-marker {
         display: inline-block;
@@ -269,17 +280,17 @@ nonisolated extension MarkdownHTML {
     }
 
     p {
-        margin: \(paragraphSpacing)px 0 0;
+        margin: \(textScaled(paragraphSpacing)) 0 0;
     }
     /* The final blank of a run shrinks to a small gap so a single authored
        blank plus the next block's margin matches other renderers' paragraph
        rhythm. Earlier blanks in the run keep their natural line height, so
        extra authored blanks still grow the gap. */
     .md-source-blank-line {
-        height: \(blankLineGap)px;
+        height: \(textScaled(blankLineGap));
     }
     .md-source-blank-line:has(+ .md-source-blank-line) {
-        height: \(sourceLineHeight)px;
+        height: \(textScaled(sourceLineHeight));
     }
 
     h1, h2, h3, h4, h5, h6 {
@@ -288,7 +299,7 @@ nonisolated extension MarkdownHTML {
         /* Top-only, like every block: the next block's own top margin is the
            gap below a heading. In the flex column margins no longer collapse,
            so a bottom margin here would add to it. */
-        margin: calc(0.6rem + 0.5em) 0 0;
+        margin: calc(0.6rem * var(\(textScaleProperty), 1) + 0.5em) 0 0;
         overflow-wrap: anywhere;
     }
     /* System title scale as ratios of a 13px body: Large Title 26, Title 1
@@ -309,7 +320,7 @@ nonisolated extension MarkdownHTML {
     .md-source-blank-line + h4,
     .md-source-blank-line + h5,
     .md-source-blank-line + h6 {
-        margin-top: \(sourceLineHeight)px;
+        margin-top: \(textScaled(sourceLineHeight));
     }
 
     a { color: var(--link); text-decoration: none; }
@@ -375,7 +386,7 @@ nonisolated extension MarkdownHTML {
     }
     pre {
         position: relative;
-        margin: \(paragraphSpacing)px 0 0;
+        margin: \(textScaled(paragraphSpacing)) 0 0;
         padding: 16px;
         background: var(--code-bg);
         border: 0.5px solid var(--code-border);
@@ -407,7 +418,7 @@ nonisolated extension MarkdownHTML {
     }
     .md-code-wrap {
         position: relative;
-        margin: \(paragraphSpacing)px 0 0;
+        margin: \(textScaled(paragraphSpacing)) 0 0;
         background: var(--code-bg);
         border: 0.5px solid var(--code-border);
         border-radius: 16px;
@@ -439,7 +450,7 @@ nonisolated extension MarkdownHTML {
     .md-code-action:focus-visible { outline: 2px solid AccentColor; outline-offset: 1px; }
     .mermaid-figure {
         position: relative;
-        margin: \(largeBlockSpacing)px auto 0;
+        margin: \(textScaled(largeBlockSpacing)) auto 0;
         background: var(--code-bg);
         border-radius: 15px;
         overflow: hidden;
@@ -594,7 +605,7 @@ nonisolated extension MarkdownHTML {
 
     blockquote {
         position: relative;
-        margin: \(quoteSpacing)px 0 0;
+        margin: \(textScaled(quoteSpacing)) 0 0;
         padding: 0.4em 1em;
         padding-inline-start: 1.5em;
         color: var(--secondary);
@@ -612,7 +623,7 @@ nonisolated extension MarkdownHTML {
     blockquote > *:first-child { margin-top: 0; }
 
     .markdown-alert {
-        margin: \(largeBlockSpacing)px 0 0;
+        margin: \(textScaled(largeBlockSpacing)) 0 0;
         padding: 12px 16px;
         background: var(--aside-bg);
         border-left: 4px solid var(--aside-border);
@@ -646,7 +657,7 @@ nonisolated extension MarkdownHTML {
     .markdown-alert-caution .markdown-alert-title { color: #d1242f; }
 
     ul, ol {
-        margin: \(paragraphSpacing)px 0 0;
+        margin: \(textScaled(paragraphSpacing)) 0 0;
         padding-inline-start: var(--mdp-list-indent);
         padding-inline-end: 0;
     }
@@ -668,9 +679,9 @@ nonisolated extension MarkdownHTML {
         border: 0.2em solid var(--link);
         border-radius: 50%;
     }
-    li { margin-top: \(listItemSpacing)px; }
+    li { margin-top: \(textScaled(listItemSpacing)); }
     li:first-child { margin-top: 0; }
-    li > ul, li > ol { margin-top: \(listItemSpacing)px; }
+    li > ul, li > ol { margin-top: \(textScaled(listItemSpacing)); }
     li > p:first-child { margin-top: 0; }
 
     li.task-list-item { list-style: none; }
@@ -712,7 +723,7 @@ nonisolated extension MarkdownHTML {
     }
 
     table {
-        margin: \(largeBlockSpacing)px 0 0;
+        margin: \(textScaled(largeBlockSpacing)) 0 0;
         border-collapse: collapse;
         display: block;
         overflow-x: auto;
@@ -738,14 +749,14 @@ nonisolated extension MarkdownHTML {
         border: 0;
         height: 1px;
         background: var(--grid);
-        margin: \(hrSpacing)px 0 0;
+        margin: \(textScaled(hrSpacing)) 0 0;
     }
 
     img {
         /* Follow the surrounding text, including explicit HTML alignment. */
         display: inline-block;
         max-width: 100%;
-        margin: \(paragraphSpacing)px 0 0;
+        margin: \(textScaled(paragraphSpacing)) 0 0;
         border-radius: 8px;
     }
     /* Keep downscaled images proportional, but let explicit width/height
@@ -783,6 +794,12 @@ nonisolated extension MarkdownHTML {
        excludes these paper-only changes and preserves the read-only page.
        --------------------------------------------------------------------- */
     @media print {
+        /* Paper and PDF keep their own type size; the on-screen text size
+           is a reading preference, not part of the document. Important so
+           it beats the live value the app sets inline on <html>. */
+        :root {
+            \(textScaleProperty): 1 !important;
+        }
         :root:not(.\(previewPrintClass)) {
             color-scheme: light;
             --text: #1d1d1f;

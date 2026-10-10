@@ -4,15 +4,17 @@
 //
 //  Preferred size for rendered Markdown.
 //
-//  This is not a separate preference from zoom — it is the *same* stored page
-//  zoom that ⌘+ / ⌘− , pinch, and the toolbar's A/A buttons write. Giving
+//  This is not a separate preference from zoom — it is the *same* stored
+//  scale that ⌘+ / ⌘− , pinch, and the toolbar's A/A buttons write. Giving
 //  Settings its own font-size value would mean two knobs fighting over one
 //  rendered size; instead Settings offers three named stops on the scale the
 //  document window already uses, and reads back whatever the window last set.
 //
-//  Base *typography* (`MarkdownHTML.bodyFontSize`) is deliberately left alone:
-//  its derived spacing tokens are shared with the CodeMirror editor bundle, so
-//  scaling there would change editor layout too.
+//  The preview applies it as `--mdp-text-scale` (type and text spacing only),
+//  not WebKit page zoom, so the Content Width column keeps its on-screen
+//  measure. The editor mirrors it with page zoom and divides that back out of
+//  its column; see `EditorViewController.applyPageZoom`. The defaults key
+//  keeps its old name so existing users keep their size.
 //
 
 import CoreGraphics
@@ -26,7 +28,7 @@ enum TextSizeSetting: CaseIterable {
     /// Shared with `ContentViewController`, which seeds each web view from it.
     static let defaultsKey = "MarkdownPreview.pageZoom"
 
-    /// Page zoom each stop maps to. All three are exact members of
+    /// Text scale each stop maps to. All three are exact members of
     /// `MarkdownWebView.zoomSteps`, so stepping with ⌘+ / ⌘− lands back on a
     /// named stop rather than between two of them.
     var zoom: CGFloat {
