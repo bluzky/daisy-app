@@ -20,9 +20,14 @@ export class MermaidWidget extends WidgetType {
     figure.addEventListener("mousedown", (event) => {
       event.preventDefault()
       view.focus()
-      const widgetPosition = view.posAtDOM(figure)
+      // Land on the first source line, not the opening fence: the caret never
+      // rests on a fence, and from below it would be bounced above the block.
+      const opening = view.state.doc.lineAt(view.posAtDOM(figure))
+      const anchor = opening.number < view.state.doc.lines
+        ? view.state.doc.line(opening.number + 1).from
+        : opening.to
       view.dispatch({
-        selection: { anchor: widgetPosition + 1 },
+        selection: { anchor },
         userEvent: "select.pointer",
       })
     })

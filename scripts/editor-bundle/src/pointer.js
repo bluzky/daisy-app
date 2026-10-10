@@ -102,18 +102,23 @@ export const activeCodeBlock = StateField.define({
     }
 
     const selection = tr.state.selection.main
-    if (!selection.empty) return null
-
     const head = selection.head
-    if (tr.isUserEvent("select.pointer")) return fencedCodeAt(tr.state, head)
+    // A range selected inside the block (double-click, Shift-arrows, a drag)
+    // keeps it active; one reaching outside the block ends it.
+    const contains = (range) => range != null
+      && selection.from >= range.from && selection.to <= range.to
+
+    if (tr.isUserEvent("select.pointer")) {
+      const fence = fencedCodeAt(tr.state, head)
+      return contains(fence) ? fence : null
+    }
     // A fence authored from plain text has no prior active range. Resolve it
     // after input so its source stays editable as soon as the opening marker
     // becomes valid, including while a Mermaid block is being typed.
     if (!value && tr.docChanged && tr.isUserEvent("input")) {
-      return fencedCodeAt(tr.state, head)
+      return selection.empty ? fencedCodeAt(tr.state, head) : null
     }
-    if (!value) return null
-    if (head < value.from || head > value.to) return null
+    if (!contains(value)) return null
 
     if (tr.docChanged) return fencedCodeAt(tr.state, head) || value
     return value

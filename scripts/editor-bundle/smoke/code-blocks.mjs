@@ -215,6 +215,44 @@ check("active Mermaid block preserves source",
   mermaidEditor.getMarkdown().includes("flowchart LR\n  A --> B"))
 mermaidEditor.destroy()
 
+// One click on the diagram reveals its source, wherever the caret was before.
+for (const [where, start] of [["above", 0], ["below", -1]]) {
+  const host = dom.window.document.createElement("div")
+  dom.window.document.body.appendChild(host)
+  const source = "intro\n\n```mermaid\nflowchart LR\n  A --> B\n```\n\nafter"
+  const editor = dom.window.MDEditor.create(host, source, {})
+  editor.select(start < 0 ? source.length : start)
+  host.querySelector(".cm-md-mermaid-preview").dispatchEvent(
+    new dom.window.MouseEvent("mousedown", { bubbles: true, cancelable: true, button: 0, detail: 1 }))
+  dom.window.document.dispatchEvent(new dom.window.MouseEvent("mouseup", { bubbles: true }))
+  await new Promise((resolve) => setTimeout(resolve, 10))
+  check(`one click on a Mermaid diagram with the caret ${where} reveals its source`,
+    host.querySelector(".cm-md-mermaid-preview") == null)
+  editor.destroy()
+}
+
+// Selecting inside revealed Mermaid source keeps it revealed; a selection
+// reaching outside the block shows the diagram again.
+{
+  const host = dom.window.document.createElement("div")
+  dom.window.document.body.appendChild(host)
+  const source = "intro\n\n```mermaid\nflowchart LR\n  A --> B\n```\n\nafter"
+  const editor = dom.window.MDEditor.create(host, source, {})
+  const view = host.querySelector(".cm-content").cmTile.view
+  const code = source.indexOf("flowchart")
+  view.dispatch({ selection: { anchor: code + 2 }, userEvent: "select.pointer" })
+  view.dispatch({ selection: { anchor: code, head: code + 9 }, userEvent: "select.pointer" })
+  check("a word selected in Mermaid source keeps the source revealed",
+    host.querySelector(".cm-md-mermaid-preview") == null)
+  view.dispatch({ selection: { anchor: code, head: code + 14 }, userEvent: "select" })
+  check("a Shift-arrow selection in Mermaid source keeps the source revealed",
+    host.querySelector(".cm-md-mermaid-preview") == null)
+  view.dispatch({ selection: { anchor: code, head: source.length }, userEvent: "select" })
+  check("a selection reaching past the Mermaid block shows the diagram",
+    host.querySelector(".cm-md-mermaid-preview") != null)
+  editor.destroy()
+}
+
 const authoredMermaidHost = dom.window.document.createElement("div")
 dom.window.document.body.appendChild(authoredMermaidHost)
 const authoredMermaidEditor = dom.window.MDEditor.create(

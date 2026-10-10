@@ -94,6 +94,20 @@ check("a whole block inserted at once renders as a block, not a pending fence",
   fc.h.querySelector(".cm-md-code-toggle-wrap") != null)
 fc.ed.destroy()
 
+// Rich clipboard content pasted into a code block goes in as plain text; the
+// Markdown conversion would wrap a <pre> in fences that split the block.
+{
+  const code = "%% Styling\n    classDef a fill:#FFE4B5\n    \n    class B a"
+  fc = fenceCase("a\n```\n\n```\nz", 6)
+  const paste = new dom.window.Event("paste", { bubbles: true, cancelable: true })
+  const data = { "text/plain": code, "text/html": `<pre>${code}</pre>` }
+  paste.clipboardData = { types: Object.keys(data), items: [], getData: (type) => data[type] ?? "" }
+  fc.h.querySelector(".cm-content").dispatchEvent(paste)
+  check("rich text pasted into a code block stays inside the block",
+    fc.md() === `a\n\`\`\`\n${code}\n\`\`\`\nz`)
+  fc.ed.destroy()
+}
+
 // The first character typed into an empty code line must leave the DOM caret
 // inside the text, not on the line element after it.
 fc = fenceCase("intro\n```js\n\n```\n", 12)
