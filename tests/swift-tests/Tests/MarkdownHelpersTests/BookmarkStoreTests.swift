@@ -6,13 +6,15 @@ import XCTest
 final class BookmarkStoreTests: XCTestCase {
     private var directory: URL!
 
-    override func setUpWithError() throws {
+    // Async overrides so they can run on the main actor: the synchronous
+    // setUpWithError/tearDownWithError are nonisolated in Xcode 16's XCTest.
+    override func setUp() async throws {
         directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("BookmarkStoreTests-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     }
 
-    override func tearDownWithError() throws {
+    override func tearDown() async throws {
         try? FileManager.default.removeItem(at: directory)
     }
 

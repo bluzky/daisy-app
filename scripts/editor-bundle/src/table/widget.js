@@ -209,6 +209,25 @@ export class TableEditorWidget extends WidgetType {
       model.rows[active.row][active.column] = active.element.innerText || ""
     }
 
+    // Deleting the header promotes the first remaining row to header; deleting
+    // every row removes the table, with the line break that separated it.
+    const deleteRows = (top, bottom, column) => {
+      captureActiveValue()
+      model.rows.splice(top, bottom - top + 1)
+      if (model.rows.length) {
+        applyModel({ row: Math.min(top, model.rows.length - 1), column })
+        return
+      }
+      active = null
+      tableFormattingTargets.delete(view)
+      let from = this.from
+      let to = this.from + this.source.length
+      if (from > 0) from--
+      else if (to < view.state.doc.length) to++
+      view.dispatch({ changes: { from, to }, selection: { anchor: from }, userEvent: "delete", scrollIntoView: true })
+      view.focus()
+    }
+
     const clearPartSelection = () => {
       root.querySelectorAll(".is-table-part-selected").forEach((cell) => {
         cell.classList.remove("is-table-part-selected")
@@ -252,11 +271,14 @@ export class TableEditorWidget extends WidgetType {
       } else {
         const first = kind === "row" ? bounds.top : bounds.left + 1
         const last = kind === "row" ? bounds.bottom : bounds.right + 1
+        const name = (index) => kind === "row" && index === 0 ? "header row" : `${kind} ${index}`
         root.setAttribute(
           "aria-label",
           first === last
-            ? `Selected ${kind} ${first}. Press Delete to remove it.`
-            : `Selected ${kind}s ${first} to ${last}. Press Delete to remove them.`
+            ? `Selected ${name(first)}. Press Delete to remove it.`
+            : first === 0 && kind === "row"
+              ? `Selected header row to row ${last}. Press Delete to remove them.`
+              : `Selected ${kind}s ${first} to ${last}. Press Delete to remove them.`
         )
       }
       // Focusing the root must not scroll the (possibly tall) table into view.
@@ -270,7 +292,7 @@ export class TableEditorWidget extends WidgetType {
       const anchor = extend && from ? { row: from.row, column: from.column } : { row, column }
       const bounds = kind === "row"
         ? {
-            top: Math.max(1, Math.min(anchor.row, row)),
+            top: Math.min(anchor.row, row),
             right: model.alignments.length - 1,
             bottom: Math.max(anchor.row, row),
             left: 0,
@@ -298,9 +320,6 @@ export class TableEditorWidget extends WidgetType {
       if (action === "insertRowAfter") {
         model.rows.splice(row + 1, 0, Array(model.alignments.length).fill(""))
         applyModel({ row: row + 1, column })
-      } else if (action === "deleteRow" && row > 0) {
-        model.rows.splice(row, 1)
-        applyModel({ row: Math.min(row, model.rows.length - 1), column })
       } else if (action === "insertColumnBefore") {
         for (const cells of model.rows) cells.splice(column, 0, "")
         model.alignments.splice(column, 0, "none")
@@ -637,10 +656,8 @@ export class TableEditorWidget extends WidgetType {
       event.preventDefault()
       const { kind, row, column, bounds } = selectedPart
       clearPartSelection()
-      if (kind === "row" && bounds.bottom > bounds.top) {
-        captureActiveValue()
-        model.rows.splice(bounds.top, bounds.bottom - bounds.top + 1)
-        applyModel({ row: Math.min(bounds.top, model.rows.length - 1), column })
+      if (kind === "row") {
+        deleteRows(bounds.top, bounds.bottom, column)
       } else if (kind === "column" && bounds.right > bounds.left) {
         // A table keeps at least one column.
         if (bounds.right - bounds.left + 1 >= model.alignments.length) return
@@ -650,7 +667,7 @@ export class TableEditorWidget extends WidgetType {
         model.alignments.splice(bounds.left, count)
         applyModel({ row, column: Math.min(bounds.left, model.alignments.length - 1) })
       } else {
-        performAction(kind === "row" ? "deleteRow" : "deleteColumn", row, column)
+        performAction("deleteColumn", row, column)
       }
     })
     // Icons are inline SVG so strokes stay crisp at any zoom level.
@@ -871,11 +888,10 @@ export class TableEditorWidget extends WidgetType {
       const rootRect = root.getBoundingClientRect()
       const scrollRect = scroll.getBoundingClientRect()
       const box = cell.closest("td, th").getBoundingClientRect()
-      // Header rows can't be selected as a row; a "+" nearby takes the spot.
       // The grip yields only when a "+" sits right on top of it.
       const clear = (control, center) => control.boundary == null
         || Math.abs(control.at - center) > GRIP_CLEARANCE
-      const showRow = row > 0 && clear(addRow, (box.top + box.bottom) / 2)
+      const showRow = clear(addRow, (box.top + box.bottom) / 2)
       const showColumn = model.alignments.length > 1
         && clear(addColumn, (box.left + box.right) / 2)
         && box.left >= scrollRect.left - 1 && box.right <= scrollRect.right + 1
