@@ -566,11 +566,6 @@ final class ContentViewController: NSViewController {
     /// The search row sits in the content host beneath the native toolbar.
     weak var findOverlay: NSView?
 
-    /// The formatting controls. The preview is hidden while editing; legacy
-    /// rows still affect page padding during the exit hand-off, while the
-    /// macOS 26 floating controls intentionally do not.
-    weak var formattingBar: NSView?
-
     func chromeOverlaysDidChange() {
         updateObscuredContentInsets()
     }
@@ -590,9 +585,6 @@ final class ContentViewController: NSViewController {
             // then lagged one step behind the strip (missing while it was
             // shown, still covering the page after it was gone).
             inset += MainSplitViewController.nativeAccessoryHeight(findOverlay, in: window)
-            if !MainSplitViewController.usesFloatingFormattingBar {
-                inset += MainSplitViewController.nativeAccessoryHeight(formattingBar, in: window)
-            }
             return max(0, inset)
         }
         if #available(macOS 26.0, *),

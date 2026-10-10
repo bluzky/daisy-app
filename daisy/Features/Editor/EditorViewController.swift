@@ -187,18 +187,8 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
         observeWindowChrome()
     }
 
-    /// The formatting bar overlaying this editor (a content-view sibling,
-    /// not a titlebar accessory — see DocumentWindowController.editBar).
-    /// The page padding must clear it like any other chrome.
-    weak var formattingBar: NSView? {
-        didSet {
-            guard formattingBar !== oldValue else { return }
-            updateObscuredContentInsets()
-        }
-    }
-
     /// The find bar overlay (permanent, toggled by isHidden) — like the
-    /// formatting bar, it hangs below the titlebar over this editor.
+    /// it hangs below the titlebar over this editor.
     weak var findOverlay: NSView?
 
     /// Reapplies the page padding; the window controller calls this when
@@ -248,9 +238,6 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
             // See ContentViewController.fullChromeTopInset: the safe area
             // lags accessory changes by a layout pass, so measure the bars.
             gap += MainSplitViewController.nativeAccessoryHeight(findOverlay, in: window)
-            if !MainSplitViewController.usesFloatingFormattingBar {
-                gap += MainSplitViewController.nativeAccessoryHeight(formattingBar, in: window)
-            }
             return max(0, gap)
         }
         for accessory in window.titlebarAccessoryViewControllers
@@ -268,10 +255,6 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
         // (MainSplitViewController.formattingBarTabBarOverlap), so that
         // amount comes back off once.
         var overlays: CGFloat = 0
-        if !MainSplitViewController.usesFloatingFormattingBar,
-           let bar = formattingBar, bar.window === window, !bar.isHidden {
-            overlays += bar.fittingSize.height
-        }
         if let find = findOverlay, find.window === window, !find.isHidden {
             overlays += find.fittingSize.height
         }

@@ -12,7 +12,7 @@ final class MainSplitViewController: NSSplitViewController {
     /// Keeps the pane picker and sidebar toggle visible beside the window controls.
     private static let minimumSidebarWidth: CGFloat = 230
 
-    /// How far the chrome overlays (formatting bar, find bar) tuck up into
+    /// How far the chrome overlays (find bar) tuck up into
     /// the native tab bar's empty bottom margin, closing the visual gap
     /// between tabs and bar. Applied only while a tab bar is visible; the
     /// editor's page padding subtracts the same amount
@@ -458,56 +458,8 @@ final class MainSplitViewController: NSSplitViewController {
         return editorVC
     }
 
-    /// Mounts the formatting bar as a content overlay directly below the
-    /// titlebar chrome. See DocumentWindowController.editBar for why it is
-    /// not a titlebar accessory (the native tab bar always renders below
-    /// accessories, and would jump on every edit-mode toggle).
-    func installFormattingBar(_ bar: NSView) {
-        if Self.usesFloatingFormattingBar {
-            if Self.usesNativeChromeAccessories {
-                layeredContentViewController?.nativeFindOverlay = findOverlayView
-            }
-            layeredContentViewController?.installFormattingBar(bar)
-        } else if Self.usesNativeChromeAccessories {
-            formattingAccessory = installNativeChromeAccessory(bar)
-        } else {
-            layeredContentViewController?.installFormattingBar(bar)
-        }
-        // The editor pads its page below the chrome; the bar is part of
-        // that chrome now, so it must be measured alongside the titlebar.
-        cachedEditorViewController?.formattingBar = bar
-        if Self.usesNativeChromeAccessories {
-            contentViewController?.formattingBar = bar
-            contentViewController?.chromeOverlaysDidChange()
-        }
-    }
-
-    func removeFormattingBar() {
-        if Self.usesFloatingFormattingBar {
-            layeredContentViewController?.removeFormattingBar()
-        } else if #available(macOS 26.1, *), Self.usesNativeChromeAccessories,
-           let item = splitViewItems.dropFirst().first,
-           let index = item.topAlignedAccessoryViewControllers.firstIndex(where: { $0 === formattingAccessory }) {
-            item.removeTopAlignedAccessoryViewController(at: index)
-            formattingAccessory = nil
-        } else {
-            layeredContentViewController?.removeFormattingBar()
-        }
-        cachedEditorViewController?.formattingBar = nil
-        if Self.usesNativeChromeAccessories {
-            contentViewController?.formattingBar = nil
-            contentViewController?.chromeOverlaysDidChange()
-        }
-    }
-
     private weak var findOverlayView: NSView?
-    private var formattingAccessory: NSViewController?
     private var findAccessory: NSViewController?
-
-    static var usesFloatingFormattingBar: Bool {
-        if #available(macOS 26.0, *) { return true }
-        return false
-    }
 
     static var usesNativeChromeAccessories: Bool {
         if #available(macOS 27.0, *) { return false }
@@ -537,7 +489,7 @@ final class MainSplitViewController: NSSplitViewController {
         return accessory
     }
 
-    /// Mounts the find bar the same way — see installFormattingBar. Stays
+    /// Mounts the find bar the same way — like the layered find bar. Stays
     /// mounted for the window's lifetime; visibility toggles via isHidden.
     func installFindOverlay(_ bar: NSView) {
         if Self.usesNativeChromeAccessories {
@@ -779,10 +731,8 @@ private final class LayeredContentViewController: NSViewController {
     }
 
     private var legacyEditorTopConstraint: NSLayoutConstraint?
-    private weak var formattingBar: NSView?
     private weak var findOverlay: NSView?
     weak var nativeFindOverlay: NSView?
-    private var formattingBarTopConstraint: NSLayoutConstraint?
     private var findOverlayTopConstraint: NSLayoutConstraint?
     private var chromeObservation: NSKeyValueObservation?
 
@@ -791,20 +741,6 @@ private final class LayeredContentViewController: NSViewController {
     /// or disappearing reposition them automatically. In full screen the
     /// guide reaches the top of the screen and the revealed toolbar floats
     /// over them, like it floats over the rest of the content.
-    func installFormattingBar(_ bar: NSView) {
-        guard bar.superview !== view else { return }
-        formattingBar = bar
-        formattingBarTopConstraint = installChromeOverlay(bar)
-        updateChromeOverlayLayout()
-    }
-
-    func removeFormattingBar() {
-        formattingBar?.removeFromSuperview()
-        formattingBar = nil
-        formattingBarTopConstraint = nil
-        updateChromeOverlayLayout()
-    }
-
     /// The find bar stays mounted for the window's lifetime and toggles
     /// via isHidden — an overlay never reflows the layout, so showing it
     /// cannot move the tab bar the way a titlebar accessory did.
@@ -866,13 +802,9 @@ private final class LayeredContentViewController: NSViewController {
         if let find = findOverlay, find.superview === view, !find.isHidden {
             editTop += find.fittingSize.height
         }
-        if let top = formattingBarTopConstraint, top.constant != editTop {
-            top.constant = editTop
-        }
         if #unavailable(macOS 26.0), let top = legacyEditorTopConstraint {
             var contentTop: CGFloat = 0
             if let find = findOverlay, !find.isHidden { contentTop += find.fittingSize.height }
-            if let bar = formattingBar, !bar.isHidden { contentTop += bar.fittingSize.height }
             if contentTop > 0 { contentTop += overlap }
             top.constant = max(0, contentTop)
         }

@@ -124,6 +124,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         installSidebarViewMenuItems()
         installEditModeMenuItem()
         installFormatMenu()
+        installInsertMenu()
         installSearchForDocumentMenuItem()
         installFileExportMenuItems()
         installGoMenu()
@@ -577,7 +578,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return true
         case #selector(toggleEditModeFromMenu(_:)):
             return activeDocumentWindowController?.canToggleEditMode ?? false
-        case #selector(formatMarkdownFromMenu(_:)):
+        case #selector(formatMarkdownFromMenu(_:)),
+             #selector(insertImageFromMenu(_:)),
+             #selector(insertCodeBlockFromMenu(_:)),
+             #selector(insertTableFromMenu(_:)):
             return activeDocumentWindowController?.canFormatMarkdown ?? false
         default:
             return true
@@ -942,7 +946,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case #selector(MarkdownWebView.mdScrollNextHeading(_:)): return .goNextItem
         case #selector(NSResponder.scrollToBeginningOfDocument(_:)): return .goTop
         case #selector(NSResponder.scrollToEndOfDocument(_:)): return .goBottom
-        case #selector(formatMarkdownFromMenu(_:)):
+        case #selector(formatMarkdownFromMenu(_:)),
+             #selector(insertImageFromMenu(_:)),
+             #selector(insertCodeBlockFromMenu(_:)),
+             #selector(insertTableFromMenu(_:)):
             guard let name = item.representedObject as? String else { return nil }
             return ["h0": .formatBody, "h1": .formatHeading1, "h2": .formatHeading2,
                     "h3": .formatHeading3, "bold": .formatBold, "italic": .formatItalic,
@@ -1457,6 +1464,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         mainMenu.insertItem(rootItem, at: insertIndex)
     }
 
+    /// Insert menu for block-level content, placed right after Format.
+    private func installInsertMenu() {
+        guard let mainMenu = NSApp.mainMenu,
+              topLevelMenuItem(matching: Self.insertMenuTitles) == nil else { return }
+
+        func item(_ titleKey: String, symbol: String, action: Selector) -> NSMenuItem {
+            let item = NSMenuItem(title: L(titleKey), action: action, keyEquivalent: "")
+            item.target = self
+            item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: L(titleKey))
+            return item
+        }
+
+        let insertTitle = L("Insert")
+        let menu = NSMenu(title: insertTitle)
+        menu.addItem(item("Image…", symbol: "photo", action: #selector(insertImageFromMenu(_:))))
+        menu.addItem(item("Code Block", symbol: "curlybraces.square", action: #selector(insertCodeBlockFromMenu(_:))))
+        menu.addItem(item("Table", symbol: "tablecells", action: #selector(insertTableFromMenu(_:))))
+
+        let rootItem = NSMenuItem(title: insertTitle, action: nil, keyEquivalent: "")
+        rootItem.submenu = menu
+        let insertIndex = topLevelMenuItem(matching: Self.formatMenuTitles)
+            .flatMap { mainMenu.items.firstIndex(of: $0) }
+            .map { $0 + 1 } ?? mainMenu.items.count
+        mainMenu.insertItem(rootItem, at: insertIndex)
+    }
+
+    @objc private func insertImageFromMenu(_ sender: Any?) {
+        activeDocumentWindowController?.insertImageFromMenu()
+    }
+
+    @objc private func insertCodeBlockFromMenu(_ sender: Any?) {
+        activeDocumentWindowController?.insertCodeBlockFromMenu()
+    }
+
+    @objc private func insertTableFromMenu(_ sender: Any?) {
+        activeDocumentWindowController?.insertTableFromMenu()
+    }
+
     @objc private func formatMarkdownFromMenu(_ sender: NSMenuItem) {
         guard let command = sender.representedObject as? String else { return }
         activeDocumentWindowController?.formatMarkdown(command)
@@ -1506,6 +1551,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private static let viewMenuTitles: Set<String> = ["View", "显示"]
     private static let windowMenuTitles: Set<String> = ["Window", "窗口"]
     private static let formatMenuTitles: Set<String> = ["Format", "格式"]
+    private static let insertMenuTitles: Set<String> = ["Insert", "插入"]
     private static let goMenuTitles: Set<String> = ["Go", "前往"]
     private static let appearanceMenuTitles: Set<String> = ["Appearance", "外观"]
     private static let contentWidthMenuTitles: Set<String> = ["Content Width", "内容宽度"]
