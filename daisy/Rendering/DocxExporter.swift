@@ -11,7 +11,7 @@
 //
 //  The look comes from a `DocxTheme` (Docx/DocxTheme.swift): fonts, sizes,
 //  colors, borders, spacing, the page margin and the syntax palette. The
-//  default `github` theme is Calibri 11 pt body, Consolas 10 pt code, headings
+//  default `github` theme is Calibri 11 pt body, Menlo 10 pt code, headings
 //  20 / 16 / 14 / 12 / 11 / 11 pt, 1 inch margins. Page size is A4 (Letter in
 //  US/CA/MX) whatever the theme.
 //

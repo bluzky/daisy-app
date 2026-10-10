@@ -128,7 +128,7 @@ graph TD
 - [ ] Both ordered lists start at 1; the third starts at 5
 - [ ] Nested bullets indent; the continuation paragraph lines up with its bullet
 - [ ] Tables are real Word tables with a shaded header; alignment matches; long cell wraps
-- [ ] Code is Consolas 10 pt in a shaded box, tabs and special characters preserved
+- [ ] Code is Menlo 10 pt in a shaded box, tabs and special characters preserved
 - [ ] Quote has a left border; nested quote is indented further
 - [ ] Links are blue and underlined and open the right URL
 - [ ] Horizontal rule renders as a line

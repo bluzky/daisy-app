@@ -79,7 +79,7 @@
     },
 
     "codeBlock": {
-      "font": "Consolas",
+      "font": "Menlo",
       "size": 10,
       "background": "$surface",
       "lineHeight": 1.0,
@@ -89,7 +89,7 @@
       "indentRight": 5.65,
       "border": { "all": { "width": 0.5, "space": 4, "color": "E1E4E8" } }
     },
-    "inlineCode": { "font": "Consolas", "size": 10, "background": "EFF1F3" },
+    "inlineCode": { "font": "Menlo", "size": 10, "color": "1F2328", "background": "EFF1F3" },
 
     "table": {
       "border": { "all": { "width": 0.5, "space": 0, "color": "$border" } },

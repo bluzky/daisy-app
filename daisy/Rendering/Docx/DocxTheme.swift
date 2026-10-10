@@ -694,7 +694,7 @@ nonisolated extension DocxTheme {
         elements[.rule] = rule
 
         var code = ElementStyle()
-        code.font = "Consolas"
+        code.font = "Menlo"
         code.size = 10
         code.background = surface
         code.lineHeight = 1.0
@@ -707,8 +707,9 @@ nonisolated extension DocxTheme {
         elements[.codeBlock] = code
 
         var inline = ElementStyle()
-        inline.font = "Consolas"
+        inline.font = "Menlo"
         inline.size = 10
+        inline.color = "1F2328"
         inline.background = "EFF1F3"
         elements[.inlineCode] = inline
 

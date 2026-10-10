@@ -90,11 +90,11 @@ eighth-points) happens in one place, the style sheet writer.
                      "border": { "left": { "width": 2.25, "space": 8, "color": "$border" } } },
     "rule":        { "border": { "bottom": { "width": 0.75, "space": 1, "color": "$border" } } },
 
-    "codeBlock":   { "font": "Consolas", "size": 10, "background": "$surface",
+    "codeBlock":   { "font": "Menlo", "size": 10, "background": "$surface",
                      "lineHeight": 1.0, "spaceBefore": 6, "spaceAfter": 0,
                      "indent": 5.65, "indentRight": 5.65,
                      "border": { "all": { "width": 0.5, "space": 4, "color": "E1E4E8" } } },
-    "inlineCode":  { "font": "Consolas", "size": 10, "background": "EFF1F3" },
+    "inlineCode":  { "font": "Menlo", "size": 10, "color": "1F2328", "background": "EFF1F3" },
 
     "table":       { "border": { "all": { "width": 0.5, "color": "$border" } },
                      "cellPadding": { "vertical": 3, "horizontal": 5 } },
@@ -284,7 +284,7 @@ The effective field precedence is:
 
 Global and page fields are overlaid independently on GitHub's global/page
 fields. A theme containing only `global.font: "Georgia"` changes body and
-heading fonts, but code stays Consolas; `global.size: 12` changes body size,
+heading fonts, but code stays Menlo; `global.size: 12` changes body size,
 not GitHub's six heading sizes or 10 pt code. To change those, explicitly set
 an element override. `global.color` has no built-in value; automatic color
 applies only when both the merged element and merged global omit color.
@@ -651,7 +651,7 @@ Packaging
 Tests (`tests/swift-tests`, following `ThemePresetTests.swift`)
 
 1. Overlay and effective precedence: theme element → GitHub element → theme
-   global → GitHub global. A global-only Georgia/12 pt theme preserves Consolas
+   global → GitHub global. A global-only Georgia/12 pt theme preserves Menlo
    10 pt code and GitHub heading sizes; explicit element overrides still win.
    Assert sparse declarations do not gain global-inherited fields.
 2. `$palette` resolution, including an unknown reference.
@@ -722,7 +722,7 @@ Per the "documentation that describes behaviour" rule in `AGENTS.md`, in the sam
 commit:
 
 - The header comment of `DocxExporter.swift` (it states "a fixed style sheet" and
-  lists Calibri/Consolas sizes) — rewrite to describe themes.
+  lists Calibri/Menlo sizes) — rewrite to describe themes.
 - `README.md` export section: mention DOCX themes and where they live.
 - `samples/docx-export.md` (and regenerate `.docx`/`.html` siblings): exercise
   every element so each theme can be eyeballed.

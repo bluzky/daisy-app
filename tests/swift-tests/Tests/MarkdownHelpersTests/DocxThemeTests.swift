@@ -89,7 +89,7 @@ final class DocxThemeTests: XCTestCase {
         let theme = try theme("\"global\":{\"font\":\"Georgia\",\"size\":12}")
         XCTAssertEqual(theme.global.font, "Georgia")
         XCTAssertEqual(theme.global.size, 12)
-        XCTAssertEqual(theme.declarations(.codeBlock).font, "Consolas")
+        XCTAssertEqual(theme.declarations(.codeBlock).font, "Menlo")
         XCTAssertEqual(theme.declarations(.codeBlock).size, 10)
         XCTAssertEqual(theme.declarations(.heading1).size, 20)
         XCTAssertNil(theme.declarations(.heading1).font, "sparse: no global fill")
@@ -126,7 +126,7 @@ final class DocxThemeTests: XCTestCase {
         let theme = try theme("\"global\":{\"font\":\"Georgia\",\"color\":\"112233\"}")
         XCTAssertEqual(theme.resolved(.paragraph).font, "Georgia")
         XCTAssertEqual(theme.resolved(.paragraph).color, "112233")
-        XCTAssertEqual(theme.resolved(.codeBlock).font, "Consolas")
+        XCTAssertEqual(theme.resolved(.codeBlock).font, "Menlo")
         XCTAssertEqual(theme.resolved(.heading1).color, "1F2328")
     }
 
@@ -371,9 +371,8 @@ final class DocxThemeTests: XCTestCase {
         """)
         let document = try XCTUnwrap(
             export("| H |\n|---|\n| `code` [link](https://x.org) **b** |", theme: theme)["word/document.xml"])
-        // Inline code defines font and size: only the cell color and underline remain.
-        XCTAssertTrue(document.contains(
-            "<w:rStyle w:val=\"InlineCode\"/><w:color w:val=\"334455\"/><w:u w:val=\"single\"/>"))
+        // Inline code defines font, size and color: only the cell underline remains.
+        XCTAssertTrue(document.contains("<w:rStyle w:val=\"InlineCode\"/><w:u w:val=\"single\"/>"))
         // Links define color and underline: only the cell font and size remain.
         XCTAssertTrue(document.contains(
             "<w:rStyle w:val=\"Hyperlink\"/><w:rFonts w:ascii=\"Georgia\" w:hAnsi=\"Georgia\" w:cs=\"Georgia\"/>"
