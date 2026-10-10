@@ -21,6 +21,19 @@ final class MermaidRasterizer: NSObject, WKNavigationDelegate {
     private static let scale: CGFloat = 2
     /// Largest CSS width or height drawn; bigger diagrams are scaled down.
     private static let maxDimension: CGFloat = 4000
+    /// Largest PNG area in pixels (64 MiB as RGBA). The side cap alone allows
+    /// 8000×8000 at 2×, which a near-square diagram can reach.
+    private static let maxPixels: CGFloat = 4096 * 4096
+
+    /// The CSS size a diagram is drawn at: its natural size, scaled down
+    /// (keeping its shape) so neither side passes `maxDimension` and the PNG
+    /// stays within `maxPixels`. Nil for an empty or unmeasurable diagram.
+    static func drawingSize(width: CGFloat, height: CGFloat) -> CGSize? {
+        guard width > 0, height > 0, width.isFinite, height.isFinite else { return nil }
+        let maxArea = maxPixels / (scale * scale)
+        let fit = min(1, maxDimension / max(width, height), (maxArea / (width * height)).squareRoot())
+        return CGSize(width: (width * fit).rounded(.up), height: (height * fit).rounded(.up))
+    }
 
     private let webView: WKWebView
     private var loaded: CheckedContinuation<Bool, Never>?
@@ -104,32 +117,42 @@ final class MermaidRasterizer: NSObject, WKNavigationDelegate {
                 const box = svg.getBBox();
                 width = box.width; height = box.height;
             }
-            if (!(width > 0 && height > 0)) return null;
-            const fit = Math.min(1, maxDimension / Math.max(width, height));
-            width = Math.ceil(width * fit);
-            height = Math.ceil(height * fit);
-            // Mermaid sizes the SVG to its container (width 100%, max-width);
-            // pin it to the diagram's own size instead.
-            svg.removeAttribute('style');
-            svg.setAttribute('width', width);
-            svg.setAttribute('height', height);
             await document.fonts.ready;
             return { width, height };
             """,
-            arguments: ["source": source, "id": id, "maxDimension": Self.maxDimension],
+            arguments: ["source": source, "id": id],
             in: nil, contentWorld: .page)
-        guard let size = result as? [String: Any],
-              let width = (size["width"] as? NSNumber)?.doubleValue,
-              let height = (size["height"] as? NSNumber)?.doubleValue
+        guard let natural = result as? [String: Any],
+              let naturalWidth = (natural["width"] as? NSNumber)?.doubleValue,
+              let naturalHeight = (natural["height"] as? NSNumber)?.doubleValue,
+              let size = Self.drawingSize(width: naturalWidth, height: naturalHeight)
+        else { return nil }
+        let width = size.width
+        let height = size.height
+        // Mermaid sizes the SVG to its container (width 100%, max-width);
+        // pin it to the drawing size instead.
+        guard (try? await webView.callAsyncJavaScript("""
+            const svg = document.querySelector('#stage svg');
+            svg.removeAttribute('style');
+            svg.setAttribute('width', width);
+            svg.setAttribute('height', height);
+            return true;
+            """,
+            arguments: ["width": Double(width), "height": Double(height)],
+            in: nil, contentWorld: .page)) as? Bool == true
         else { return nil }
 
         webView.frame = NSRect(x: 0, y: 0, width: width, height: height)
         let configuration = WKSnapshotConfiguration()
         configuration.rect = NSRect(x: 0, y: 0, width: width, height: height)
         // `snapshotWidth` is in points and WebKit multiplies it by the
-        // screen's backing scale, so ask for at least `scale` and resample to
-        // exactly that: the PNG is then the same on every display.
-        configuration.snapshotWidth = NSNumber(value: Double(width * Self.scale))
+        // screen's backing scale, so divide that out: asking for `scale`
+        // points per CSS pixel would draw a Retina snapshot at 4×, four times
+        // the PNG's memory. Resample to exactly `scale` either way, so the
+        // PNG is the same on every display.
+        let backing = max(1, webView.window?.backingScaleFactor
+            ?? NSScreen.main?.backingScaleFactor ?? 1)
+        configuration.snapshotWidth = NSNumber(value: Double(width * Self.scale / backing))
         configuration.afterScreenUpdates = true
         guard let image = try? await webView.takeSnapshot(configuration: configuration),
               let png = Self.png(image, pixelsWide: Int(width * Self.scale), pixelsHigh: Int(height * Self.scale))
@@ -166,6 +189,14 @@ final class MermaidRasterizer: NSObject, WKNavigationDelegate {
         _ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!,
         withError error: Error
     ) {
+        loaded?.resume(returning: false)
+        loaded = nil
+    }
+
+    /// WebKit reports no navigation failure when the content process stops
+    /// mid-load, so end the load here or the export would wait forever.
+    /// Diagrams then export as their code.
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
         loaded?.resume(returning: false)
         loaded = nil
     }

@@ -94,6 +94,20 @@ check("a whole block inserted at once renders as a block, not a pending fence",
   fc.h.querySelector(".cm-md-code-toggle-wrap") != null)
 fc.ed.destroy()
 
+// Rich clipboard content pasted into a code block goes in as plain text; the
+// Markdown conversion would wrap a <pre> in fences that split the block.
+{
+  const code = "%% Styling\n    classDef a fill:#FFE4B5\n    \n    class B a"
+  fc = fenceCase("a\n```\n\n```\nz", 6)
+  const paste = new dom.window.Event("paste", { bubbles: true, cancelable: true })
+  const data = { "text/plain": code, "text/html": `<pre>${code}</pre>` }
+  paste.clipboardData = { types: Object.keys(data), items: [], getData: (type) => data[type] ?? "" }
+  fc.h.querySelector(".cm-content").dispatchEvent(paste)
+  check("rich text pasted into a code block stays inside the block",
+    fc.md() === `a\n\`\`\`\n${code}\n\`\`\`\nz`)
+  fc.ed.destroy()
+}
+
 // The first character typed into an empty code line must leave the DOM caret
 // inside the text, not on the line element after it.
 fc = fenceCase("intro\n```js\n\n```\n", 12)
@@ -144,4 +158,40 @@ fc = fenceCase("> ```js\n> a\n> ```", 10)
 fc.key("Backspace")
 check("Backspace at the start of quoted code unwraps the block",
   fc.md() === "> a")
+fc.ed.destroy()
+
+// Closing a block that has no closing fence: the typed fence closes it.
+fc = fenceCase("```\nbody\n", 9)
+fc.type("```")
+check("a fence typed to close an unclosed block keeps the block rendered",
+  fc.h.querySelector(".cm-md-codeblock") != null)
+fc.key("Enter")
+check("Enter after closing an unclosed block adds no second closing fence",
+  fc.md() === "```\nbody\n```\n")
+fc.ed.destroy()
+
+// A pending fence leaves blocks it cannot re-pair rendered, and shows the
+// ones it re-pairs as plain text.
+fc = fenceCase("x\n\npara\n```\na\n```\nmid\n```\nb\n```\n", 2)
+fc.type("```")
+check("blocks re-paired by a pending fence render as plain text",
+  fc.h.querySelector(".cm-md-codeblock") == null)
+fc.ed.destroy()
+fc = fenceCase("x\n\npara\n```js\na\n```\n", 2)
+fc.type("~~~")
+check("a block a pending fence does not re-pair stays rendered",
+  [...fc.h.querySelectorAll(".cm-md-codeblock")].some((l) => l.textContent === "a"))
+fc.ed.destroy()
+
+// A fence typed on the only code line leaves the block with an empty line.
+fc = fenceCase("```js\n\n```\nz", 6)
+fc.type("```"); fc.key("Enter")
+check("a fence typed on the only code line leaves the block and keeps the line",
+  fc.md() === "```js\n\n```\n\nz" && fc.caret() === "4:0")
+fc.ed.destroy()
+
+// Delete on a blank first line lands after the quote marker of the code.
+fc = fenceCase("\n> ```js\n> a\n> ```", 0); fc.key("Delete")
+check("Delete on a blank first line above a quoted block lands inside the code",
+  fc.md() === "> ```js\n> a\n> ```" && fc.caret() === "2:2")
 fc.ed.destroy()

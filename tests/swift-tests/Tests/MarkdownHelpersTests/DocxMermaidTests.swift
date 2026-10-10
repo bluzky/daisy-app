@@ -153,4 +153,26 @@ final class DocxMermaidTests: XCTestCase {
         }
         XCTAssertGreaterThan(dark, 50)
     }
+
+    @MainActor
+    func testDrawingSizeCapsSidesAndPixelArea() throws {
+        let small = try XCTUnwrap(MermaidRasterizer.drawingSize(width: 300.5, height: 200))
+        XCTAssertEqual(small, CGSize(width: 301, height: 200), "small diagrams keep their size")
+
+        // A near-square diagram within the side cap would still be 8000×8000
+        // pixels at 2×; the area cap brings it down to about 4096×4096.
+        let square = try XCTUnwrap(MermaidRasterizer.drawingSize(width: 4000, height: 3900))
+        let pixels = square.width * 2 * square.height * 2
+        XCTAssertLessThanOrEqual(pixels, 4096 * 4096 + 2 * (square.width + square.height) * 2 + 4)
+        XCTAssertGreaterThan(pixels, 4000 * 4000, "capped, not shrunk further than needed")
+        XCTAssertEqual(square.width / square.height, 4000 / 3900, accuracy: 0.01, "keeps its shape")
+
+        // A long, thin diagram is limited by the side cap, not the area cap.
+        let tall = try XCTUnwrap(MermaidRasterizer.drawingSize(width: 100, height: 8000))
+        XCTAssertEqual(tall.height, 4000)
+        XCTAssertEqual(tall.width, 50)
+
+        XCTAssertNil(MermaidRasterizer.drawingSize(width: 0, height: 100))
+        XCTAssertNil(MermaidRasterizer.drawingSize(width: .infinity, height: 100))
+    }
 }

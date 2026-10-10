@@ -142,6 +142,9 @@ window.MDEditor = {
             paste(event, view) {
               if (event.target instanceof Element
                   && event.target.closest(".cm-md-table-cell")) return false
+              // Code takes the clipboard verbatim: converting rich text would
+              // wrap a <pre> in fences that close the block being pasted into.
+              if (enclosingNode(view.state, view.state.selection.main.from, ["FencedCode", "CodeBlock"])) return false
               const clipboard = event.clipboardData
               const items = Array.from(clipboard?.items || [])
               const clipboardText = typeof clipboard?.getData === "function"
