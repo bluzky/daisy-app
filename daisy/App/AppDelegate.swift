@@ -93,6 +93,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private weak var automaticAppearanceMenuItem: NSMenuItem?
     private weak var lightAppearanceMenuItem: NSMenuItem?
     private weak var darkAppearanceMenuItem: NSMenuItem?
+    private weak var narrowContentWidthMenuItem: NSMenuItem?
     private weak var normalContentWidthMenuItem: NSMenuItem?
     private weak var fullContentWidthMenuItem: NSMenuItem?
     private var keymapMenuItems: [KeymapCommand: NSMenuItem] = [:]
@@ -128,6 +129,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         installSearchForDocumentMenuItem()
         installFileExportMenuItems()
         installGoMenu()
+        installDeveloperToolsMenuItem()
         installSettingsMenuItem()
         tagKeymapMenuItems()
         NotificationCenter.default.addObserver(self,
@@ -575,6 +577,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case #selector(selectAppearanceMode(_:)):
             return ThemePreset.applied().requiredAppearance == nil
         case #selector(selectContentWidthSetting(_:)):
+            return true
+        case #selector(toggleDeveloperTools(_:)):
+            guard let webView = WebInspector.targetWebView(in: NSApp.keyWindow) else { return false }
+            menuItem.state = WebInspector.isVisible(webView) ? .on : .off
             return true
         case #selector(toggleEditModeFromMenu(_:)):
             return activeDocumentWindowController?.canToggleEditMode ?? false
@@ -1170,6 +1176,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         mainMenu.insertItem(goItem, at: insertIndex)
     }
 
+    private func installDeveloperToolsMenuItem() {
+        guard let viewMenu = topLevelSubmenu(matching: Self.viewMenuTitles) else { return }
+        let title = L("Developer Tools")
+        let item = NSMenuItem(title: title,
+                              action: #selector(toggleDeveloperTools(_:)),
+                              keyEquivalent: "i")
+        item.keyEquivalentModifierMask = [.command, .option]
+        item.target = self
+        if let image = NSImage(systemSymbolName: "hammer", accessibilityDescription: title) {
+            image.isTemplate = true
+            item.image = image
+        }
+        viewMenu.addItem(.separator())
+        viewMenu.addItem(item)
+    }
+
+    @objc private func toggleDeveloperTools(_ sender: Any?) {
+        guard let webView = WebInspector.targetWebView(in: NSApp.keyWindow) else { return }
+        WebInspector.toggle(webView)
+    }
+
     private func installViewMenuItemIcons() {
         guard let viewMenu = topLevelSubmenu(matching: Self.viewMenuTitles) else { return }
         let icons: [(titles: Set<String>, symbol: String)] = [
@@ -1250,6 +1277,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             submenu.addItem(item)
 
             switch setting {
+            case .narrow:
+                narrowContentWidthMenuItem = item
             case .normal:
                 normalContentWidthMenuItem = item
             case .fullWidth:
@@ -1288,6 +1317,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func syncContentWidthMenuState() {
         let setting = ContentWidthSetting.current
+        narrowContentWidthMenuItem?.state = setting == .narrow ? .on : .off
         normalContentWidthMenuItem?.state = setting == .normal ? .on : .off
         fullContentWidthMenuItem?.state = setting == .fullWidth ? .on : .off
     }

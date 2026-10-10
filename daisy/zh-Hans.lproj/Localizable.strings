@@ -80,6 +80,7 @@
 "Light" = "浅色";
 "Dark" = "深色";
 "Content Width" = "内容宽度";
+"Narrow" = "窄";
 "Normal" = "标准";
 "Full Width" = "全宽";
 "Toggle Sidebar" = "切换边栏";
@@ -437,3 +438,4 @@
 "Move to Trash" = "移到废纸篓";
 "Insert" = "插入";
 "Image…" = "图片…";
+"Developer Tools" = "开发者工具";

@@ -44,7 +44,9 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
         let config = WKWebViewConfiguration()
         config.setURLSchemeHandler(assetScheme, forURLScheme: MarkdownAssetScheme.scheme)
         config.userContentController.add(bridge, name: EditorBridge.name)
+        config.preferences.setValue(true, forKey: "developerExtrasEnabled")
         let webView = EditorWKWebView(frame: .zero, configuration: config)
+        webView.isInspectable = true
         webView.navigationDelegate = self
         webView.setValue(false, forKey: "drawsBackground")
         webView.underPageBackgroundColor = .clear
@@ -53,22 +55,23 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
         NotificationCenter.default.addObserver(
             self, selector: #selector(templatesDidChange),
             name: TemplateStore.didChangeNotification, object: nil)
+        // The web view gets a host view of its own, sized by autoresizing
+        // rather than constraints: the docked Web Inspector is added to the
+        // web view's superview, and WebKit then shrinks the web view's frame
+        // to make room. Constraints would reset that frame on every layout
+        // pass, covering the inspector until WebKit shrinks it again.
+        let host: NSView
         if #available(macOS 26.0, *) {
-            view = webView
+            host = NSView()
         } else {
             // The preview's white backing disappears when edit mode hides it.
             // Give the transparent editor its own document background.
-            let background = LegacyEditorBackgroundView()
-            webView.translatesAutoresizingMaskIntoConstraints = false
-            background.addSubview(webView)
-            NSLayoutConstraint.activate([
-                webView.leadingAnchor.constraint(equalTo: background.leadingAnchor),
-                webView.trailingAnchor.constraint(equalTo: background.trailingAnchor),
-                webView.topAnchor.constraint(equalTo: background.topAnchor),
-                webView.bottomAnchor.constraint(equalTo: background.bottomAnchor),
-            ])
-            view = background
+            host = LegacyEditorBackgroundView()
         }
+        webView.frame = host.bounds
+        webView.autoresizingMask = [.width, .height]
+        host.addSubview(webView)
+        view = host
         webView.appearanceDidChange = { [weak self] in
             self?.updateUnderPageBackgroundColor()
         }
@@ -582,7 +585,8 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
             mermaidJavaScript: includesMermaid ? mermaidJavaScript : nil,
             assetBaseURL: assetBaseURL,
             configuration: .init(
-                fullWidth: ContentWidthSetting.current == .fullWidth,
+                fullWidth: ContentWidthSetting.current.columnWidth == nil,
+                columnWidth: ContentWidthSetting.current.columnWidth ?? MarkdownHTML.contentColumnWidth,
                 lightPageBackground: lightPageBackground,
                 darkPageBackground: darkPageBackground,
                 themeOverrideCSS: colors.editorOverrideCSS,

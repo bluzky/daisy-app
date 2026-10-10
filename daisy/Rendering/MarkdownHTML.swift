@@ -31,16 +31,12 @@ nonisolated enum MarkdownHTML {
     ///   margins, so wide windows read like a paged document. Quick Look,
     ///   whose full-bleed panel minus the body gutters is exactly one
     ///   column.
-    /// - hostCentered: capped at `contentColumnWidth` but anchored to the
-    ///   leading gutter; the app centers the column by *positioning* the
-    ///   web view (see ContentViewController.loadView). Anchoring keeps the
-    ///   column glued to the web view's leading edge so host-driven width
-    ///   changes never re-center it asynchronously (#162), while the web
-    ///   view's trailing edge reaches the window for the native scrollbar.
+    /// - narrow: like `centered`, but capped at the shorter
+    ///   `narrowColumnWidth`.
     /// - full: span the whole window.
     enum ContentWidth {
         case centered
-        case hostCentered
+        case narrow
         case full
     }
 
@@ -151,6 +147,9 @@ nonisolated enum MarkdownHTML {
     /// body gutter on either side, so the app's centered column and the
     /// Quick Look panel wrap lines identically.
     static let contentColumnWidth = Int(preferredPageWidth) - 80
+    /// The Narrow content width's measure: a shorter centered column for
+    /// readers who prefer fewer words per line.
+    static let narrowColumnWidth = 680
 
     // Shared reading/editing design tokens. The two surfaces intentionally
     // keep different renderers, but their page geometry and base typography
@@ -397,10 +396,10 @@ nonisolated enum MarkdownHTML {
         switch contentWidth {
         case .centered:
             contentWidthOverride = ""
-        case .hostCentered:
+        case .narrow:
             contentWidthOverride = """
             <style>
-            article.markdown-body { margin-left: 0; }
+            article.markdown-body { max-width: \(narrowColumnWidth)px; }
             </style>
             """
         case .full:
