@@ -759,6 +759,47 @@ final class EditorScrollAnchorTests: XCTestCase {
         }
     }
 
+    /// WebKit's own insertion into an empty code line used to leave the
+    /// selection on the line element after the text span, which paints the
+    /// caret above the language header until the next keystroke.
+    func testFirstCharacterInEmptyCodeLineKeepsCaretInsideText() async throws {
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
+        let markdown = "Before\n\n```js\n\n```\n\nAfter"
+        let editor = WebViewLayoutHarness(
+            html: EditorHTML.render(markdown: markdown, editorJavaScript: script),
+            width: 650, isEditor: true, height: 500)
+        defer { editor.close() }
+        _ = try await editor.layout(texts: ["Before", "After"], imageCount: 0)
+        let result = try await editor.webView.callAsyncJavaScript("""
+            const frames = async () => {
+                for (let i = 0; i < 10; i++) {
+                    window.__layoutTestFrame(); await Promise.resolve();
+                    await new Promise(resolve => setTimeout(resolve, 5));
+                }
+            };
+            const caret = () => {
+                const selection = window.getSelection();
+                return { inText: selection.anchorNode && selection.anchorNode.nodeType === 3,
+                         text: selection.anchorNode && selection.anchorNode.textContent };
+            };
+            window.__mdEditor.focus();
+            window.__mdEditor.select(window.__mdEditor.getMarkdown().indexOf('```js\\n') + 6);
+            await frames();
+            document.execCommand('insertText', false, 's');
+            await frames();
+            const first = caret();
+            document.execCommand('insertText', false, 't');
+            await frames();
+            return { first, second: caret(), source: window.__mdEditor.getMarkdown() };
+            """, arguments: [:], in: nil, contentWorld: .page)
+        let values = try XCTUnwrap(result as? [String: Any])
+        let first = try XCTUnwrap(values["first"] as? [String: Any])
+        XCTAssertEqual(first["inText"] as? Bool, true)
+        XCTAssertEqual(first["text"] as? String, "s")
+        XCTAssertEqual((values["second"] as? [String: Any])?["inText"] as? Bool, true)
+        XCTAssertEqual(values["source"] as? String, "Before\n\n```js\nst\n```\n\nAfter")
+    }
+
     func testMainPageOnlyScrollsVerticallyWhileCodeAndTablesScrollHorizontally() async throws {
         let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         let columns = Array(repeating: "LongColumnName", count: 12).joined(separator: " | ")

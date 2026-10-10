@@ -936,14 +936,7 @@ final class MarkdownHTMLRenderTests: XCTestCase {
 
     @MainActor
     func testEveryEditorListDepthUsesTheSameIndentationStep() async throws {
-        var repository = URL(fileURLWithPath: #filePath)
-        for _ in 0..<5 {
-            repository.deleteLastPathComponent()
-        }
-        let bundleURL = repository
-            .appendingPathComponent("daisy/Vendor/CodeMirror/mdedit.min.js")
-        let bundle = try String(contentsOf: bundleURL, encoding: .utf8)
-            .replacingOccurrences(of: "</script>", with: "<\\/script>")
+        let bundle = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         let source = """
         - Depth 1
             - Depth 2

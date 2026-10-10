@@ -391,7 +391,6 @@
 "Math" = "Math";
 "Mermaid" = "Mermaid";
 "Colorful headings" = "Colorful headings";
-"Collapsible headings" = "Collapsible headings";
 "Slash commands" = "Slash commands";
 "Editor" = "Editor";
 "Lists" = "Lists";
@@ -436,3 +435,5 @@
 "New File" = "New File";
 "New Folder" = "New Folder";
 "Move to Trash" = "Move to Trash";
+"Insert" = "Insert";
+"Image…" = "Image…";

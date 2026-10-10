@@ -51,15 +51,6 @@ extension DocumentWindowController {
         }
     }
 
-    /// Backs File > New Tab. Deliberately NOT the NSResponder
-    /// `newWindowForTab(_:)` override: responding to that selector is what
-    /// makes AppKit show the "+" button in the tab bar, and the app hides
-    /// that button. New tabs remain file-backed, so prompt for a file and
-    /// open it as a tab — an explicit tab request, unlike ⌘O.
-    @objc func newDocumentTab(_ sender: Any?) {
-        promptForDocument(openAsTab: true)
-    }
-
     func openFolder(_ folderURL: URL) {
         let folderURL = folderURL.standardizedFileURL
         if currentFileURL == nil {

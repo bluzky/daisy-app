@@ -193,7 +193,6 @@ nonisolated extension MarkdownHTML {
     KaTeXExtension(),
     MermaidExtension(),
     ColorfulHeadersExtension(),
-    CollapsibleHeadersExtension(),
     SlashCommandsExtension()
   ])
 

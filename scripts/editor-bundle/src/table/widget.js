@@ -174,6 +174,36 @@ export class TableEditorWidget extends WidgetType {
       if (focusTarget) focusCellAfterUpdate(focusTarget.row, focusTarget.column, focusTarget.caret)
     }
 
+    // Moves the editor cursor to the line above/below the table, opening one
+    // when the table is the first/last thing in the file.
+    const exitTable = (above) => {
+      // Only rewrite the table when a cell was actually edited; otherwise
+      // leaving it must not reformat the author's source.
+      const edited = serializeTable(model) !== serializeTable(parseTableSource(this.source))
+      const source = edited ? serializeTable(model) : this.source
+      const end = this.from + this.source.length
+      const newEnd = this.from + source.length
+      const changes = []
+      if (source !== this.source) changes.push({ from: this.from, to: end, insert: source })
+      let anchor
+      if (above) {
+        if (this.from === 0) changes.push({ from: 0, insert: "\n" })
+        anchor = Math.max(0, this.from - 1)
+      } else {
+        if (end === view.state.doc.length) changes.push({ from: end, insert: "\n" })
+        anchor = newEnd + 1
+      }
+      tableFormattingTargets.delete(view)
+      view.dispatch({
+        changes,
+        selection: { anchor },
+        annotations: source !== this.source ? tableCellCommit.of(true) : [],
+        userEvent: "input",
+        scrollIntoView: true,
+      })
+      view.focus()
+    }
+
     const captureActiveValue = () => {
       if (!active || active.element.dataset.tableEditing !== 'true') return
       model.rows[active.row][active.column] = active.element.innerText || ""
@@ -425,7 +455,16 @@ export class TableEditorWidget extends WidgetType {
             const up = event.key === "ArrowUp"
             if (!caretOnEdgeLine(editor, up)) return
             const nextRow = row + (up ? -1 : 1)
-            if (nextRow < 0 || nextRow >= model.rows.length) return
+            if (nextRow < 0 || nextRow >= model.rows.length) {
+              // Past the first/last row the arrow leaves the table.
+              event.preventDefault()
+              model.rows[row][column] = editor.innerText || ""
+              active = null
+              delete editor.dataset.tableEditing
+              renderTableCell(editor, model.rows[row][column])
+              exitTable(up)
+              return
+            }
             event.preventDefault()
             model.rows[row][column] = editor.innerText || ""
             applyModel({ row: nextRow, column, caret: caretOffset(editor) })

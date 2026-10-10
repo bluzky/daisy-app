@@ -1,0 +1,45 @@
+{
+  "id": "serif",
+  "name": "Serif",
+  "global": {
+    "font": "Georgia",
+    "size": 11.5,
+    "lineHeight": 1.3,
+    "spaceAfter": 7,
+    "color": "$ink",
+    "palette": {
+      "ink": "14120B",
+      "muted": "5C574A",
+      "border": "D8D2C0",
+      "surface": "F5F1E4",
+      "accent": "A0630F"
+    }
+  },
+
+  "elements": {
+    "heading1": { "font": "Georgia", "color": "$ink" },
+    "heading2": { "font": "Georgia", "color": "$ink" },
+    "heading3": { "font": "Georgia", "color": "$ink" },
+    "heading4": { "font": "Georgia", "color": "$ink" },
+    "heading5": { "font": "Georgia", "color": "$ink" },
+    "heading6": { "font": "Georgia", "color": "$muted" },
+
+    "link": { "color": "$accent" },
+    "list": { "markerFont": "Georgia" },
+    "quote": {
+      "italic": true,
+      "color": "$muted",
+      "border": { "left": { "color": "$accent" } }
+    },
+    "rule": { "border": { "bottom": { "color": "$border" } } },
+
+    "codeBlock": {
+      "background": "$surface",
+      "border": { "all": { "style": "none" } }
+    },
+    "inlineCode": { "background": "$surface" },
+
+    "table": { "border": { "all": { "color": "$border" } } },
+    "tableHeader": { "background": "$surface" }
+  }
+}

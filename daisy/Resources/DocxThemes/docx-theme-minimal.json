@@ -1,0 +1,51 @@
+{
+  "id": "minimal",
+  "name": "Minimal",
+  "global": {
+    "color": "$ink",
+    "palette": {
+      "ink": "000000",
+      "muted": "444444",
+      "border": "999999"
+    }
+  },
+
+  "elements": {
+    "heading1": { "size": 18, "color": "$ink" },
+    "heading2": { "size": 14, "color": "$ink" },
+    "heading3": { "size": 12, "color": "$ink" },
+    "heading4": { "size": 11, "color": "$ink" },
+    "heading5": { "size": 11, "color": "$ink" },
+    "heading6": { "size": 11, "color": "$muted" },
+
+    "link": { "color": "$ink" },
+    "quote": {
+      "color": "$muted",
+      "border": { "left": { "width": 0.75, "space": 8, "color": "$border" } }
+    },
+    "rule": { "border": { "bottom": { "width": 0.5 } } },
+
+    "codeBlock": {
+      "background": "FFFFFF",
+      "border": { "all": { "width": 0.5, "color": "$border" } }
+    },
+    "inlineCode": { "background": "FFFFFF" },
+
+    "tableHeader": { "background": "FFFFFF" }
+  },
+
+  "syntax": {
+    "keyword": "000000",
+    "title": "000000",
+    "titleClass": "000000",
+    "string": "000000",
+    "number": "000000",
+    "comment": "555555",
+    "doctag": "555555",
+    "type": "000000",
+    "builtIn": "000000",
+    "property": "000000",
+    "meta": "000000",
+    "attribute": "000000"
+  }
+}

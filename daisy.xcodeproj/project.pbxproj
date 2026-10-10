@@ -14,6 +14,7 @@
 		9A33940A2FA5AF500015D9A4 /* Markdown in Frameworks */ = {isa = PBXBuildFile; productRef = 9A3394092FA5AF500015D9A4 /* Markdown */; };
 		9A33940C2FA5AF500015D9A4 /* Markdown in Frameworks */ = {isa = PBXBuildFile; productRef = 9A33940B2FA5AF500015D9A4 /* Markdown */; };
 		9AC100010000000000000001 /* bin/markdown-preview in Copy CLI Tool */ = {isa = PBXBuildFile; fileRef = 9AC100010000000000000002 /* bin/markdown-preview */; };
+		9AF00000000000000000000E /* mdedit.min.js in Resources */ = {isa = PBXBuildFile; fileRef = 9AF000000000000000000110 /* mdedit.min.js */; };
 		9AF000000000000000000003 /* mermaid.min.js in Resources */ = {isa = PBXBuildFile; fileRef = 9AF000000000000000000101 /* mermaid.min.js */; };
 		9AF000000000000000000004 /* LICENSE in Resources */ = {isa = PBXBuildFile; fileRef = 9AF000000000000000000102 /* LICENSE */; };
 		9AF000000000000000000005 /* katex.min.js in Resources */ = {isa = PBXBuildFile; fileRef = 9AF000000000000000000103 /* katex.min.js */; };
@@ -78,6 +79,7 @@
 		9AF000000000000000000107 /* highlight.min.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = highlight.min.js; path = daisy/Vendor/Highlight/highlight.min.js; sourceTree = "<group>"; };
 		9AF000000000000000000109 /* Highlight-LICENSE.txt */ = {isa = PBXFileReference; lastKnownFileType = text; name = "Highlight-LICENSE.txt"; path = "daisy/Vendor/Highlight/Highlight-LICENSE.txt"; sourceTree = "<group>"; };
 		9AF00000000000000000010A /* purify.min.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = purify.min.js; path = daisy/Vendor/DOMPurify/purify.min.js; sourceTree = "<group>"; };
+		9AF000000000000000000110 /* mdedit.min.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = mdedit.min.js; path = daisy/Vendor/CodeMirror/mdedit.min.js; sourceTree = "<group>"; };
 		9AF00000000000000000010B /* DOMPurify-LICENSE.txt */ = {isa = PBXFileReference; lastKnownFileType = text; name = "DOMPurify-LICENSE.txt"; path = "daisy/Vendor/DOMPurify/DOMPurify-LICENSE.txt"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -102,7 +104,6 @@
 				Rendering/MarkdownAssetSchemeHandler.swift,
 				Rendering/MarkdownFrontmatter.swift,
 				Rendering/MarkdownHTML.swift,
-				"Rendering/MarkdownHTML+CollapsibleHeaders.swift",
 				"Rendering/MarkdownHTML+ColorfulHeaders.swift",
 				"Rendering/MarkdownHTML+Footnotes.swift",
 				"Rendering/MarkdownHTML+Highlight.swift",
@@ -123,12 +124,20 @@
 			);
 			target = 9A02092C2FA10D4C00092060 /* quick-look */;
 		};
+		9AF0000000000000000001A1 /* Exceptions for "daisy" folder in "daisy" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Vendor/CodeMirror/mdedit.min.js,
+			);
+			target = 9A0207C02FA0ED7C00092060 /* daisy */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		9A0207C32FA0ED7C00092060 /* daisy */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
+				9AF0000000000000000001A1 /* Exceptions for "daisy" folder in "daisy" target */,
 				9A0209432FA10E6600092060 /* Exceptions for "daisy" folder in "quick-look" target */,
 			);
 			path = daisy;
@@ -172,6 +181,7 @@
 				9A0209A02FA1100100092060 /* Version.xcconfig */,
 				9A2040010000000000000004 /* Localizable.strings */,
 				9AC100010000000000000004 /* Resources */,
+				9AF000000000000000000110 /* mdedit.min.js */,
 				9AF000000000000000000101 /* mermaid.min.js */,
 				9AF000000000000000000102 /* LICENSE */,
 				9AF000000000000000000103 /* katex.min.js */,
@@ -221,6 +231,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 9A0207D02FA0ED7D00092060 /* Build configuration list for PBXNativeTarget "daisy" */;
 			buildPhases = (
+				9AF0000000000000000001A0 /* Build Editor Bundle */,
 				9A0207BD2FA0ED7C00092060 /* Sources */,
 				9A0207BE2FA0ED7C00092060 /* Frameworks */,
 				9A0207BF2FA0ED7C00092060 /* Resources */,
@@ -315,6 +326,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9AF00000000000000000000E /* mdedit.min.js in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -337,6 +349,30 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		9AF0000000000000000001A0 /* Build Editor Bundle */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Build Editor Bundle";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(SRCROOT)/daisy/Vendor/CodeMirror/mdedit.min.js",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e\n# Builds the CodeMirror editor bundle (not checked in) when it is missing or\n# older than its sources. See scripts/editor-bundle/package.json.\ncd \"$SRCROOT/scripts/editor-bundle\"\nOUT=\"$SRCROOT/daisy/Vendor/CodeMirror/mdedit.min.js\"\nif [ -f \"$OUT\" ] && [ -z \"$(find src entry-cm.js build.mjs package.json package-lock.json -newer \"$OUT\" -print -quit 2>/dev/null)\" ]; then\n  exit 0\nfi\n# Xcode runs scripts without the user's shell profile; find Node the usual ways.\nif ! command -v node >/dev/null 2>&1; then\n  export PATH=\"$(/bin/zsh -lc 'printf %s \"$PATH\"' 2>/dev/null):$HOME/.asdf/shims:$HOME/.local/share/mise/shims:$HOME/.volta/bin:/opt/homebrew/bin:/usr/local/bin:$PATH\"\nfi\nif ! command -v node >/dev/null 2>&1; then\n  echo \"error: Node.js is required to build the editor bundle (scripts/editor-bundle). Install Node, then build again.\" >&2\n  exit 1\nfi\n[ -d node_modules ] || npm ci\nnpm run build\n";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		9A0207BD2FA0ED7C00092060 /* Sources */ = {
@@ -514,6 +550,7 @@
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = P5LRK5LK5T;
 				ENABLE_APP_SANDBOX = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -553,6 +590,7 @@
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = P5LRK5LK5T;
 				ENABLE_APP_SANDBOX = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;

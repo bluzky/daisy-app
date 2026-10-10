@@ -52,7 +52,7 @@ export function fencedCodeAt(state, pos) {
       return {
         from: node.from,
         to: node.to,
-        closed: node.node.lastChild?.name === "CodeMark",
+        closed: node.node.getChildren("CodeMark").length > 1,
       }
     }
     node = node.parent

@@ -326,9 +326,14 @@ final class ContentViewController: NSViewController {
         exportSource != nil
     }
 
-    func exportDocument() {
+    func exportPDF() {
+        guard let window = view.window, hasExportableDocument else { return }
+        webView.exportPDF(from: window)
+    }
+
+    func exportHTML() {
         guard let window = view.window, let source = exportSource else { return }
-        webView.exportDocument(
+        webView.exportHTML(
             markdown: source.markdown,
             sourceURL: source.sourceURL,
             assetBaseURL: source.assetBaseURL,
@@ -336,9 +341,18 @@ final class ContentViewController: NSViewController {
         )
     }
 
-    func exportPDF() {
+    func exportPNG() {
         guard let window = view.window, let source = exportSource else { return }
-        webView.exportPDF(
+        webView.exportPNG(
+            sourceURL: source.sourceURL,
+            assetBaseURL: source.assetBaseURL,
+            from: window
+        )
+    }
+
+    func exportWord() {
+        guard let window = view.window, let source = exportSource else { return }
+        webView.exportWord(
             markdown: source.markdown,
             sourceURL: source.sourceURL,
             assetBaseURL: source.assetBaseURL,
@@ -552,11 +566,6 @@ final class ContentViewController: NSViewController {
     /// The search row sits in the content host beneath the native toolbar.
     weak var findOverlay: NSView?
 
-    /// The formatting controls. The preview is hidden while editing; legacy
-    /// rows still affect page padding during the exit hand-off, while the
-    /// macOS 26 floating controls intentionally do not.
-    weak var formattingBar: NSView?
-
     func chromeOverlaysDidChange() {
         updateObscuredContentInsets()
     }
@@ -576,9 +585,6 @@ final class ContentViewController: NSViewController {
             // then lagged one step behind the strip (missing while it was
             // shown, still covering the page after it was gone).
             inset += MainSplitViewController.nativeAccessoryHeight(findOverlay, in: window)
-            if !MainSplitViewController.usesFloatingFormattingBar {
-                inset += MainSplitViewController.nativeAccessoryHeight(formattingBar, in: window)
-            }
             return max(0, inset)
         }
         if #available(macOS 26.0, *),

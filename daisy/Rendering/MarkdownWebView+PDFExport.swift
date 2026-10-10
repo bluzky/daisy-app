@@ -15,68 +15,10 @@ import WebKit
 private let printSizeStyleElementID = "md-print-size"
 private let previewPrintStyleElementID = "daisy-print-style"
 
-private enum DocumentExportFormat: String, CaseIterable {
-    case pdf
-    case html
-    case png
-
-    private static let defaultsKey = "DocumentExportFormat"
-
-    static var selected: DocumentExportFormat {
-        get {
-            UserDefaults.standard.string(forKey: defaultsKey)
-                .flatMap(DocumentExportFormat.init(rawValue:)) ?? .pdf
-        }
-        set {
-            UserDefaults.standard.set(newValue.rawValue, forKey: defaultsKey)
-        }
-    }
-
-    var title: String {
-        switch self {
-        case .pdf:
-            return NSLocalizedString(
-                "PDF Document", comment: "Export format name")
-        case .html:
-            return NSLocalizedString(
-                "HTML Document", comment: "Export format name")
-        case .png:
-            return NSLocalizedString(
-                "PNG Image", comment: "Export format name")
-        }
-    }
-
-    var contentType: UTType {
-        switch self {
-        case .pdf: return .pdf
-        case .html: return .html
-        case .png: return .png
-        }
-    }
-
-    /// PDF is produced by the panel's own print pipeline; the others are
-    /// written by us through a save panel.
-    var usesPrintPipeline: Bool { self == .pdf }
-}
-
-/// Everything the panel needs to write the non-PDF formats itself.
-private struct FileExportSource {
-    let markdown: String
-    let sourceURL: URL?
-    let assetBaseURL: URL?
-    /// Supplied by `MarkdownWebView`, which owns the live page PNG is captured
-    /// from. Reports `nil` on success.
-    let writePNG: (URL, @escaping (Error?) -> Void) -> Void
-
-    func writeHTML(to url: URL) throws {
-        let html = MarkdownHTML.makeHTML(
-            from: markdown,
-            allowsScroll: true,
-            assetBaseHref: assetBaseURL?.absoluteString,
-            vendorLoading: .inline
-        )
-        try html.write(to: url, atomically: true, encoding: .utf8)
-    }
+private extension UTType {
+    static let wordDocument = UTType(
+        importedAs: "org.openxmlformats.wordprocessingml.document",
+        conformingTo: .data)
 }
 
 private enum AccessoryRowMetrics {
@@ -85,25 +27,33 @@ private enum AccessoryRowMetrics {
     static let horizontalInset: CGFloat = 16
 }
 
-private final class ExportFormatRowView: NSView {
-    var onChange: ((DocumentExportFormat) -> Void)?
-    private(set) var selectedFormat: DocumentExportFormat
+/// `Theme: [ GitHub ]` — the look of a Word export, shown in the Export as
+/// Word… save panel.
+private final class ExportThemeRowView: NSView {
+    var onChange: ((DocxTheme) -> Void)?
+    private(set) var selectedTheme: DocxTheme
 
-    private let formats = DocumentExportFormat.allCases
+    private let themes: [DocxTheme]
     private let popup = NSPopUpButton()
 
-    init(width: CGFloat, selectedFormat: DocumentExportFormat) {
-        self.selectedFormat = selectedFormat
+    var isEnabled: Bool {
+        get { popup.isEnabled }
+        set { popup.isEnabled = newValue }
+    }
+
+    init(width: CGFloat, themes: [DocxTheme], selectedID: String) {
+        self.themes = themes
+        selectedTheme = themes.first { $0.id == selectedID } ?? themes[0]
         super.init(frame: NSRect(x: 0, y: 0,
                                  width: width, height: AccessoryRowMetrics.height))
         autoresizingMask = [.width]
 
         let label = NSTextField(labelWithString: NSLocalizedString(
-            "Format:", comment: "Export format field label"))
-        popup.addItems(withTitles: formats.map(\.title))
-        popup.selectItem(at: formats.firstIndex(of: selectedFormat) ?? 0)
+            "Theme:", comment: "Word export theme field label"))
+        popup.addItems(withTitles: themes.map(DocxThemeStore.displayName))
+        popup.selectItem(at: themes.firstIndex { $0.id == selectedTheme.id } ?? 0)
         popup.target = self
-        popup.action = #selector(formatChanged(_:))
+        popup.action = #selector(themeChanged(_:))
 
         let spacer = NSView()
         spacer.setContentHuggingPriority(
@@ -132,12 +82,10 @@ private final class ExportFormatRowView: NSView {
 
     required init?(coder: NSCoder) { fatalError() }
 
-    @objc private func formatChanged(_ sender: NSPopUpButton) {
-        guard formats.indices.contains(sender.indexOfSelectedItem) else {
-            return
-        }
-        selectedFormat = formats[sender.indexOfSelectedItem]
-        onChange?(selectedFormat)
+    @objc private func themeChanged(_ sender: NSPopUpButton) {
+        guard themes.indices.contains(sender.indexOfSelectedItem) else { return }
+        selectedTheme = themes[sender.indexOfSelectedItem]
+        onChange?(selectedTheme)
     }
 }
 
@@ -272,7 +220,6 @@ private final class PrintSizeAccessoryController: NSViewController, NSPrintPanel
     /// Applies a size to the document, calling back once the page has actually
     /// taken the change.
     var applySize: ((Int, @escaping () -> Void) -> Void)?
-    var exportFormatDidChange: ((DocumentExportFormat) -> Void)?
 
     /// AppKit repaginates the preview when this changes. It is bumped *after*
     /// the stylesheet injection completes rather than when the field changes,
@@ -280,12 +227,8 @@ private final class PrintSizeAccessoryController: NSViewController, NSPrintPanel
     @objc private dynamic var previewRevision = 0
 
     private var pointSize = PrintSizeOptions.pointSize
-    private var exportFormat: DocumentExportFormat?
-    private let showsPrintSize: Bool
 
-    init(exportFormat: DocumentExportFormat? = nil) {
-        self.exportFormat = exportFormat
-        showsPrintSize = exportFormat == nil
+    init() {
         super.init(nibName: nil, bundle: nil)
         title = NSLocalizedString("Daisy",
                                   comment: "Print panel accessory pane title")
@@ -295,34 +238,17 @@ private final class PrintSizeAccessoryController: NSViewController, NSPrintPanel
 
     override func loadView() {
         var rows: [NSView] = []
-        if showsPrintSize {
-            let sizeRow = PrintSizeRowView(width: 620)
-            sizeRow.onChange = { [weak self] size in
-                guard let self else { return }
-                self.willChangeValue(forKey: "localizedSummaryItems")
-                self.pointSize = size
-                self.didChangeValue(forKey: "localizedSummaryItems")
-                self.applySize?(size) { [weak self] in
-                    self?.previewRevision += 1
-                }
+        let sizeRow = PrintSizeRowView(width: 620)
+        sizeRow.onChange = { [weak self] size in
+            guard let self else { return }
+            self.willChangeValue(forKey: "localizedSummaryItems")
+            self.pointSize = size
+            self.didChangeValue(forKey: "localizedSummaryItems")
+            self.applySize?(size) { [weak self] in
+                self?.previewRevision += 1
             }
-            rows.append(sizeRow)
         }
-
-        if let exportFormat {
-            let formatRow = ExportFormatRowView(
-                width: 620,
-                selectedFormat: exportFormat
-            )
-            formatRow.onChange = { [weak self] format in
-                guard let self else { return }
-                self.willChangeValue(forKey: "localizedSummaryItems")
-                self.exportFormat = format
-                self.didChangeValue(forKey: "localizedSummaryItems")
-                self.exportFormatDidChange?(format)
-            }
-            rows.insert(formatRow, at: 0)
-        }
+        rows.append(sizeRow)
 
         let stack = NSStackView(views: rows)
         stack.orientation = .vertical
@@ -354,22 +280,11 @@ private final class PrintSizeAccessoryController: NSViewController, NSPrintPanel
     // MARK: NSPrintPanelAccessorizing
 
     func localizedSummaryItems() -> [[NSPrintPanel.AccessorySummaryKey: String]] {
-        var items: [[NSPrintPanel.AccessorySummaryKey: String]] = []
-        if showsPrintSize {
-            items.append([
-                .itemName: NSLocalizedString(
-                    "Font Size", comment: "Print panel summary item name"),
-                .itemDescription: PrintSizeOptions.localizedLabel(for: pointSize),
-            ])
-        }
-        if let exportFormat {
-            items.insert([
-                .itemName: NSLocalizedString(
-                    "Format", comment: "Export format summary item name"),
-                .itemDescription: exportFormat.title,
-            ], at: 0)
-        }
-        return items
+        [[
+            .itemName: NSLocalizedString(
+                "Font Size", comment: "Print panel summary item name"),
+            .itemDescription: PrintSizeOptions.localizedLabel(for: pointSize),
+        ]]
     }
 
     func keyPathsForValuesAffectingPreview() -> Set<String> {
@@ -377,7 +292,7 @@ private final class PrintSizeAccessoryController: NSViewController, NSPrintPanel
     }
 }
 
-/// A print panel adapted for PDF and document export.
+/// A print panel adapted for PDF export.
 ///
 /// AppKit publicly supports changing the default button title, but it has no
 /// option for hiding the printer/preset section. On current macOS that section
@@ -390,39 +305,11 @@ private final class PrintSizeAccessoryController: NSViewController, NSPrintPanel
 /// action gives it the exact native save behaviour without pre-setting a save
 /// disposition (which would make `NSPrintOperation` skip this panel).
 private final class ExportPrintPanel: NSPrintPanel {
-    private let fileExportSource: FileExportSource?
-    private(set) var selectedFormat: DocumentExportFormat
-
     private weak var parentWindow: NSWindow?
     private weak var printSheetWindow: NSWindow?
     private weak var printSheetController: NSWindowController?
     private var isObservingPrintSheet = false
-    private var isShowingFileSavePanel = false
     private var didRemoveTopPocket = false
-
-    /// `initialFormat` lets Export as PDF… open on PDF while still offering the
-    /// other formats, rather than reopening on whatever was last exported.
-    init(fileExportSource: FileExportSource? = nil,
-         initialFormat: DocumentExportFormat? = nil) {
-        self.fileExportSource = fileExportSource
-        selectedFormat = fileExportSource == nil
-            ? .pdf
-            : (initialFormat ?? DocumentExportFormat.selected)
-        super.init()
-    }
-
-    var formatForAccessory: DocumentExportFormat? {
-        fileExportSource == nil ? nil : selectedFormat
-    }
-
-    func selectExportFormat(_ format: DocumentExportFormat) {
-        guard fileExportSource != nil else { return }
-        selectedFormat = format
-        DocumentExportFormat.selected = format
-        if let printSheetController {
-            configureSaveButton(on: printSheetController)
-        }
-    }
 
     override func beginSheet(
         using printInfo: NSPrintInfo,
@@ -460,7 +347,6 @@ private final class ExportPrintPanel: NSPrintPanel {
         parentWindow = nil
         printSheetWindow = nil
         printSheetController = nil
-        isShowingFileSavePanel = false
         didRemoveTopPocket = false
         isObservingPrintSheet = false
     }
@@ -535,116 +421,30 @@ private final class ExportPrintPanel: NSPrintPanel {
     }
 
     private func configureSaveButton(on controller: NSWindowController) {
-        guard !isShowingFileSavePanel else { return }
         guard let saveButton = privateObject(
             named: "printButton", on: controller) as? NSButton
         else { return }
 
         saveButton.title = NSLocalizedString(
             "Save", comment: "Export button title")
-        if fileExportSource != nil, !selectedFormat.usesPrintPipeline {
-            saveButton.target = self
-            saveButton.action = #selector(saveExportedFile(_:))
-        } else {
-            // Fail closed if a future PrintingUI version removes the private
-            // PDF service rather than leaving a stale HTML action attached.
-            saveButton.target = nil
-            saveButton.action = nil
-            saveButton.isEnabled = false
-            guard let pdfServicesController = privateObject(
-                named: "pdfServicesController", on: controller)
-            else { return }
-            let saveAction = NSSelectorFromString("doSaveAsPDF:")
-            guard pdfServicesController.responds(to: saveAction) else { return }
-
-            // Use the same private action as the panel's native “Save as PDF”
-            // item. It opens Apple's NSSavePanel, updates the print
-            // disposition/URL, and lets NSPrintOperation render the selected
-            // pages to that file.
-            saveButton.target = pdfServicesController
-            saveButton.action = saveAction
-        }
-        saveButton.isEnabled = true
-    }
-
-    @objc private func saveExportedFile(_ sender: Any?) {
-        let format = selectedFormat
-        guard !isShowingFileSavePanel,
-              !format.usesPrintPipeline,
-              let fileExportSource,
-              let printSheetWindow
+        // Fail closed if a future PrintingUI version removes the private
+        // PDF service rather than leaving a stale action attached.
+        saveButton.target = nil
+        saveButton.action = nil
+        saveButton.isEnabled = false
+        guard let pdfServicesController = privateObject(
+            named: "pdfServicesController", on: controller)
         else { return }
+        let saveAction = NSSelectorFromString("doSaveAsPDF:")
+        guard pdfServicesController.responds(to: saveAction) else { return }
 
-        isShowingFileSavePanel = true
-        let panel = NSSavePanel()
-        panel.title = NSLocalizedString(
-            "Export", comment: "Export panel title")
-        panel.prompt = NSLocalizedString(
-            "Export", comment: "Export panel confirmation button")
-        panel.canCreateDirectories = true
-        panel.isExtensionHidden = false
-        panel.allowsOtherFileTypes = false
-        panel.allowedContentTypes = [format.contentType]
-        panel.directoryURL =
-            fileExportSource.sourceURL?.deletingLastPathComponent()
-                ?? fileExportSource.assetBaseURL
-
-        let sourceName =
-            fileExportSource.sourceURL?.lastPathComponent
-                ?? parentWindow?.title
-                ?? NSLocalizedString(
-                    "Untitled", comment: "Window title when no document is open")
-        let baseName = (sourceName as NSString).deletingPathExtension
-        let fileExtension = format.contentType.preferredFilenameExtension
-            ?? format.rawValue
-        panel.nameFieldStringValue = "\(baseName).\(fileExtension)"
-
-        panel.beginSheetModal(for: printSheetWindow) { [weak self] response in
-            guard let self else { return }
-            self.isShowingFileSavePanel = false
-            // NSSavePanel may invoke its completion while it is still ordered
-            // onscreen. Detach it before restoring or ending the outer sheet.
-            panel.orderOut(nil)
-            guard response == .OK, let url = panel.url else {
-                if let printSheetController = self.printSheetController {
-                    self.configureSaveButton(on: printSheetController)
-                }
-                return
-            }
-
-            switch format {
-            case .html:
-                do {
-                    try fileExportSource.writeHTML(to: url)
-                } catch {
-                    NSAlert(error: error).beginSheetModal(for: printSheetWindow)
-                    return
-                }
-                self.dismissAfterFileExport()
-            case .png:
-                fileExportSource.writePNG(url) { [weak self] error in
-                    if let error {
-                        NSAlert(error: error).beginSheetModal(for: printSheetWindow)
-                        return
-                    }
-                    self?.dismissAfterFileExport()
-                }
-            case .pdf:
-                break
-            }
-        }
-    }
-
-    /// These formats bypass NSPrintOperation. End the outer panel as cancelled
-    /// once the nested save sheet has detached, so no print job can spool and
-    /// the document window can immediately take focus.
-    private func dismissAfterFileExport() {
-        DispatchQueue.main.async { [weak printSheetWindow] in
-            guard let printSheetWindow,
-                  let parent = printSheetWindow.sheetParent
-            else { return }
-            parent.endSheet(printSheetWindow, returnCode: .cancel)
-        }
+        // Use the same private action as the panel's native “Save as PDF”
+        // item. It opens Apple's NSSavePanel, updates the print
+        // disposition/URL, and lets NSPrintOperation render the selected
+        // pages to that file.
+        saveButton.target = pdfServicesController
+        saveButton.action = saveAction
+        saveButton.isEnabled = true
     }
 
     private func destroyTopScrollPocket(
@@ -779,15 +579,14 @@ extension MarkdownWebView {
             operation.printPanel = panel
         }
 
-        let accessory = PrintSizeAccessoryController(
-            exportFormat: panel?.formatForAccessory)
-        accessory.applySize = { [weak self] size, done in
-            self?.applyPrintPointSize(size, completion: done)
+        // Export renders the live preview, so there is no print size to pick.
+        if panel == nil {
+            let accessory = PrintSizeAccessoryController()
+            accessory.applySize = { [weak self] size, done in
+                self?.applyPrintPointSize(size, completion: done)
+            }
+            operation.printPanel.addAccessoryController(accessory)
         }
-        accessory.exportFormatDidChange = { [weak panel] format in
-            panel?.selectExportFormat(format)
-        }
-        operation.printPanel.addAccessoryController(accessory)
         operation.printPanel.options.insert(.showsPreview)
         return operation
     }
@@ -957,62 +756,131 @@ extension MarkdownWebView {
         }
     }
 
-    /// File ▸ Export… — the same native preview used by PDF export, with a
-    /// format selector in the Daisy accessory pane.
-    func exportDocument(
-        markdown: String,
-        sourceURL: URL?,
-        assetBaseURL: URL?,
-        from window: NSWindow
-    ) {
-        presentExportPanel(
-            markdown: markdown,
-            sourceURL: sourceURL,
-            assetBaseURL: assetBaseURL,
-            initialFormat: nil,
-            from: window
-        )
-    }
-
-    /// File ▸ Export as PDF… — the same panel and format list, but opening on
-    /// PDF regardless of what was exported last.
-    func exportPDF(
-        markdown: String,
-        sourceURL: URL?,
-        assetBaseURL: URL?,
-        from window: NSWindow
-    ) {
-        presentExportPanel(
-            markdown: markdown,
-            sourceURL: sourceURL,
-            assetBaseURL: assetBaseURL,
-            initialFormat: .pdf,
-            from: window
-        )
-    }
-
-    private func presentExportPanel(
-        markdown: String,
-        sourceURL: URL?,
-        assetBaseURL: URL?,
-        initialFormat: DocumentExportFormat?,
-        from window: NSWindow
-    ) {
-        let source = FileExportSource(
-            markdown: markdown,
-            sourceURL: sourceURL,
-            assetBaseURL: assetBaseURL,
-            writePNG: { [weak self] url, completion in
-                self?.writePNG(to: url, completion: completion)
-            }
-        )
-        let panel = ExportPrintPanel(
-            fileExportSource: source,
-            initialFormat: initialFormat
-        )
-        let operation = configuredPrintOperation(from: window, panel: panel)
+    /// File ▸ Export ▸ PDF… — the print panel's preview and page controls,
+    /// with its button relabelled to save straight to a PDF.
+    func exportPDF(from window: NSWindow) {
+        let operation = configuredPrintOperation(
+            from: window, panel: ExportPrintPanel())
         prepareForPanelDrivenExport(operation)
         runPrintOperation(operation, from: window, matchesPreview: true)
+    }
+
+    /// File ▸ Export ▸ HTML…
+    func exportHTML(
+        markdown: String,
+        sourceURL: URL?,
+        assetBaseURL: URL?,
+        from window: NSWindow
+    ) {
+        presentExportSavePanel(
+            title: NSLocalizedString(
+                "Export as HTML", comment: "HTML export panel title"),
+            contentType: .html, sourceURL: sourceURL,
+            assetBaseURL: assetBaseURL, accessoryView: nil, from: window
+        ) { url, done in
+            do {
+                let html = MarkdownHTML.makeHTML(
+                    from: markdown,
+                    allowsScroll: true,
+                    assetBaseHref: assetBaseURL?.absoluteString,
+                    vendorLoading: .inline
+                )
+                try html.write(to: url, atomically: true, encoding: .utf8)
+                done(nil)
+            } catch {
+                done(error)
+            }
+        }
+    }
+
+    /// File ▸ Export ▸ PNG…
+    func exportPNG(
+        sourceURL: URL?,
+        assetBaseURL: URL?,
+        from window: NSWindow
+    ) {
+        presentExportSavePanel(
+            title: NSLocalizedString(
+                "Export as PNG", comment: "PNG export panel title"),
+            contentType: .png, sourceURL: sourceURL,
+            assetBaseURL: assetBaseURL, accessoryView: nil, from: window
+        ) { [weak self] url, done in
+            self?.writePNG(to: url, completion: done)
+        }
+    }
+
+    /// File ▸ Export ▸ Word… — a save panel with a theme popup. The .docx is
+    /// built from the Markdown, not the rendered page.
+    func exportWord(
+        markdown: String,
+        sourceURL: URL?,
+        assetBaseURL: URL?,
+        from window: NSWindow
+    ) {
+        DocxThemeStore.ensureUserDirectory()
+        let themeRow = ExportThemeRowView(
+            width: 320,
+            themes: DocxThemeStore.themes(),
+            selectedID: DocxThemeStore.selectedID
+        )
+        themeRow.onChange = { DocxThemeStore.selectedID = $0.id }
+
+        presentExportSavePanel(
+            title: NSLocalizedString(
+                "Export as Word", comment: "Word export panel title"),
+            contentType: .wordDocument, sourceURL: sourceURL,
+            assetBaseURL: assetBaseURL, accessoryView: themeRow, from: window
+        ) { url, done in
+            do {
+                try DocxExporter.write(
+                    markdown: markdown, assetBaseURL: assetBaseURL,
+                    theme: themeRow.selectedTheme, to: url)
+                done(nil)
+            } catch {
+                done(error)
+            }
+        }
+    }
+
+    /// Shared save sheet for the formats we write ourselves. `write` reports
+    /// `nil` on success; a failure is shown as an alert on the document window.
+    private func presentExportSavePanel(
+        title: String,
+        contentType: UTType,
+        sourceURL: URL?,
+        assetBaseURL: URL?,
+        accessoryView: NSView?,
+        from window: NSWindow,
+        write: @escaping (URL, @escaping (Error?) -> Void) -> Void
+    ) {
+        let panel = NSSavePanel()
+        panel.title = title
+        panel.prompt = NSLocalizedString(
+            "Export", comment: "Export panel confirmation button")
+        panel.canCreateDirectories = true
+        panel.isExtensionHidden = false
+        panel.allowsOtherFileTypes = false
+        panel.allowedContentTypes = [contentType]
+        panel.accessoryView = accessoryView
+        panel.directoryURL =
+            sourceURL?.deletingLastPathComponent() ?? assetBaseURL
+
+        let sourceName = sourceURL?.lastPathComponent ?? window.title
+        let baseName = (sourceName as NSString).deletingPathExtension
+        let fileExtension = contentType.preferredFilenameExtension ?? "file"
+        panel.nameFieldStringValue = "\(baseName).\(fileExtension)"
+
+        panel.beginSheetModal(for: window) { response in
+            // NSSavePanel may invoke its completion while it is still ordered
+            // onscreen. Detach it before showing anything else.
+            panel.orderOut(nil)
+            guard response == .OK, let url = panel.url else { return }
+            write(url) { error in
+                if let error {
+                    NSAlert(error: error).beginSheetModal(for: window)
+                }
+            }
+        }
     }
 
     /// Rasterises the document to a single tall PNG. `createPDF` captures the
@@ -1074,8 +942,9 @@ extension MarkdownWebView {
             throw exportError("The image could not be allocated.")
         }
         NSGraphicsContext.current = context
+        // No extra scale here: `rep.size` is in points while the rep holds
+        // `scale`x the pixels, so AppKit already maps points to pixels.
         let cgContext = context.cgContext
-        cgContext.scaleBy(x: scale, y: scale)
         NSColor.white.setFill()
         NSRect(x: 0, y: 0, width: width, height: height).fill()
 

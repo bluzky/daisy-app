@@ -106,19 +106,10 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
             updateWindowSubtitle()
         }
     }
-    /// The formatting bar shown while editing. Not a titlebar accessory:
-    /// AppKit pins the native tab bar to the bottom of the titlebar, below
-    /// every accessory, so a bar mounted there sits above the tabs and its
-    /// mount/unmount shoves the tab bar up and down. Instead the bar is an
-    /// overlay in the content host, pinned to the window's
-    /// contentLayoutGuide — always directly below the tab bar (or the
-    /// toolbar when no tabs are shown), and the tab bar never moves.
-    weak var editBar: NSView?
     weak var copyItem: NSToolbarItem?
     var copyFeedbackWork: DispatchWorkItem?
     /// The Themes & Settings popover while it is on screen.
     var themesPopover: NSPopover?
-    var formattingPopover: NSPopover?
     /// Armed only while the themes popover is open.
     let themesPopoverEscapeMonitor = EscapeKeyMonitor()
     weak var searchField: NSSearchField?
@@ -249,9 +240,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     func applyThemeColorsSetting() {
         applyWindowBackgroundTheme()
         mainSplit?.applyThemeColors()
-        // The bars paint the page backgrounds; a theme edit changes those
+        // The find bar paints the page backgrounds; a theme edit changes those
         // colors without an appearance flip, so force a redraw.
-        editBar?.needsDisplay = true
         findBarOverlay?.needsDisplay = true
     }
 
@@ -274,7 +264,6 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
                 documentWindow.titlebarAppearsTransparent = true
             }
         }
-        (editBar as? EditAccessoryContainerView)?.updateFullscreenBackground()
         (findBarOverlay as? EditAccessoryContainerView)?.updateFullscreenBackground()
         updateFullscreenToolbarTheme()
     }
