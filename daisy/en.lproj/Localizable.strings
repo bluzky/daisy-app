@@ -80,6 +80,7 @@
 "Light" = "Light";
 "Dark" = "Dark";
 "Content Width" = "Content Width";
+"Narrow" = "Narrow";
 "Normal" = "Normal";
 "Full Width" = "Full Width";
 "Toggle Sidebar" = "Toggle Sidebar";
@@ -437,3 +438,4 @@
 "Move to Trash" = "Move to Trash";
 "Insert" = "Insert";
 "Image…" = "Image…";
+"Developer Tools" = "Developer Tools";

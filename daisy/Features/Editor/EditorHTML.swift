@@ -7,6 +7,8 @@ nonisolated enum EditorHTML {
 
     struct Configuration {
         var fullWidth = false
+        /// Column measure in CSS px when not `fullWidth`.
+        var columnWidth = MarkdownHTML.contentColumnWidth
         var lightPageBackground = "transparent"
         var darkPageBackground = "transparent"
         var themeOverrideCSS = ""
@@ -55,7 +57,7 @@ nonisolated enum EditorHTML {
                        mermaidJavaScript: String? = nil,
                        assetBaseURL: URL? = nil,
                        configuration: Configuration = Configuration()) -> String {
-        let columnMaxWidth = configuration.fullWidth ? "none" : "\(MarkdownHTML.contentColumnWidth)px"
+        let columnMaxWidth = configuration.fullWidth ? "none" : "\(configuration.columnWidth)px"
         let lightPageBackground = configuration.lightPageBackground
         let darkPageBackground = configuration.darkPageBackground
         let usesPageScrolling = configuration.usesPageScrolling

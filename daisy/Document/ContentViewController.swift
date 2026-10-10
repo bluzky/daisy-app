@@ -23,9 +23,6 @@ final class ContentViewController: NSViewController {
     private var toolbarGutterHeightConstraint: NSLayoutConstraint?
     private var webViewTopConstraint: NSLayoutConstraint?
     private var webViewChromeTopConstraint: NSLayoutConstraint?
-    private var webViewCenteredLeadingConstraint: NSLayoutConstraint?
-    private var webViewCenteredConstraints: [NSLayoutConstraint] = []
-    private var webViewFullWidthConstraints: [NSLayoutConstraint] = []
     private var pendingFlashWork: DispatchWorkItem?
     private var pendingPreviewScrollAnchor: SourceScrollAnchor?
     private var shouldApplyPendingAnchorOnHeight = false
@@ -125,8 +122,6 @@ final class ContentViewController: NSViewController {
             self?.localMarkdownLinkActivated?(url)
         }
         webView.zoomDidChange = { [weak self] zoom in
-            self?.webViewCenteredLeadingConstraint?.constant =
-                -MarkdownHTML.preferredPageWidth * zoom / 2
             self?.zoomDidChange?(zoom)
         }
         webView.scrollDidChange = { [weak self] in
@@ -148,36 +143,10 @@ final class ContentViewController: NSViewController {
         container.scrollWheelTarget = webView.webView
 
 
-        // Normal (centered) mode positions the web view in AppKit rather
-        // than letting CSS auto-margins center the column inside the web
-        // view. A sidebar/inspector reveal then *moves* the column —
-        // applied synchronously with each animation frame — instead of
-        // re-centering it, which forces the web process to re-run layout
-        // asynchronously and made the column jitter for the duration of
-        // the animation (#162). Only the leading edge is placed at the
-        // centered column's position; the trailing edge always reaches the
-        // container so WebKit's native overlay scrollbar sits at the
-        // preview edge. The rendered article is leading-anchored
-        // (ContentWidth.hostCentered), so the width the web view gains on
-        // the trailing side is inert gutter and mid-animation width
-        // changes cannot move the text. The leading constant tracks
-        // pageZoom (zoomDidChange above) so the column keeps its 820
-        // CSS-px measure at every zoom level.
-        let centeredLeading = webView.leadingAnchor.constraint(
-            equalTo: container.centerXAnchor,
-            constant: -MarkdownHTML.preferredPageWidth * webView.pageZoom / 2)
-        // Stay below the split items' holding priorities (content 250,
-        // sidebar 260) so window resizing breaks this page-width preference
-        // before AppKit changes the user's chosen sidebar width.
-        centeredLeading.priority = .init(249)
-        webViewCenteredLeadingConstraint = centeredLeading
-        webViewCenteredConstraints = [
-            centeredLeading,
-            webView.leadingAnchor.constraint(greaterThanOrEqualTo: container.leadingAnchor)
-        ]
-        webViewFullWidthConstraints = [
-            webView.leadingAnchor.constraint(equalTo: container.leadingAnchor)
-        ]
+        // The web view always spans the container; the Content Width setting
+        // is applied to the page itself (ContentWidthSetting.renderWidth), so
+        // the scrollbar, selection and page background reach the window edges.
+        let webViewLeading = webView.leadingAnchor.constraint(equalTo: container.leadingAnchor)
 
         let toolbarGutterHeight = toolbarGutterView.heightAnchor.constraint(equalToConstant: 0)
         toolbarGutterHeightConstraint = toolbarGutterHeight
@@ -200,10 +169,10 @@ final class ContentViewController: NSViewController {
         NSLayoutConstraint.activate([
 
             webViewTop,
+            webViewLeading,
             webView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
             webView.trailingAnchor.constraint(equalTo: container.trailingAnchor)
         ])
-        applyContentWidthMode()
         container.appearanceDidChange = { [weak self] in
             self?.updateUnderPageBackgroundColor()
         }
@@ -515,7 +484,6 @@ final class ContentViewController: NSViewController {
     }
 
     func reloadPreviewForSettingChange() {
-        applyContentWidthMode()
         webView.reloadPreviewForSettingChange()
     }
 
@@ -668,20 +636,6 @@ final class ContentViewController: NSViewController {
 
     func applyTextSizeSetting() {
         webView.applyPersistedZoom()
-    }
-
-    /// Swaps the web view between the AppKit-centered page column and a
-    /// full-bleed layout. See the loadView comment for why centering lives
-    /// at the constraint layer instead of CSS.
-    private func applyContentWidthMode() {
-        switch ContentWidthSetting.current {
-        case .normal:
-            NSLayoutConstraint.deactivate(webViewFullWidthConstraints)
-            NSLayoutConstraint.activate(webViewCenteredConstraints)
-        case .fullWidth:
-            NSLayoutConstraint.deactivate(webViewCenteredConstraints)
-            NSLayoutConstraint.activate(webViewFullWidthConstraints)
-        }
     }
 
     func scrollToHeading(index: Int) {

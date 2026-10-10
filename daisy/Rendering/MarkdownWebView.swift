@@ -41,6 +41,7 @@ struct SourceScrollAnchor {
 /// Lives here (not AppDelegate.swift) because this file is compiled into
 /// both targets and the setting is read at render time below.
 enum ContentWidthSetting: String, CaseIterable {
+    case narrow
     case normal
     case fullWidth
 
@@ -62,6 +63,7 @@ enum ContentWidthSetting: String, CaseIterable {
 
     var title: String {
         switch self {
+        case .narrow: return NSLocalizedString("Narrow", comment: "Content width")
         case .normal: return NSLocalizedString("Normal", comment: "Content width")
         case .fullWidth: return NSLocalizedString("Full Width", comment: "Content width")
         }
@@ -69,8 +71,18 @@ enum ContentWidthSetting: String, CaseIterable {
 
     var renderWidth: MarkdownHTML.ContentWidth {
         switch self {
-        case .normal: return .hostCentered
+        case .narrow: return .narrow
+        case .normal: return .centered
         case .fullWidth: return .full
+        }
+    }
+
+    /// The column measure in CSS px, or nil when the column spans the window.
+    var columnWidth: Int? {
+        switch self {
+        case .narrow: return MarkdownHTML.narrowColumnWidth
+        case .normal: return MarkdownHTML.contentColumnWidth
+        case .fullWidth: return nil
         }
     }
 }
@@ -143,20 +155,22 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         config.userContentController.addUserScript(Self.disableContextMenuScript)
         config.userContentController.add(messageBridge, name: HostBridge.name)
         Self.disableUserInstalledFonts(in: config.preferences)
+        config.preferences.setValue(true, forKey: "developerExtrasEnabled")
         webView = PreviewWKWebView(frame: .zero, configuration: config)
+        webView.isInspectable = true
         super.init(frame: frameRect)
 
         messageBridge.owner = self
         webView.setValue(false, forKey: "drawsBackground")
         webView.navigationDelegate = self
-        webView.translatesAutoresizingMaskIntoConstraints = false
+        // Autoresizing, not constraints: the docked Web Inspector is added as
+        // a sibling of the web view, and WebKit then shrinks the web view's
+        // frame to make room. Constraints would reset that frame on every
+        // layout pass, covering the inspector (and its resize edge) until
+        // WebKit shrinks it again on the next run loop turn.
+        webView.frame = bounds
+        webView.autoresizingMask = [.width, .height]
         addSubview(webView)
-        NSLayoutConstraint.activate([
-            webView.topAnchor.constraint(equalTo: topAnchor),
-            webView.bottomAnchor.constraint(equalTo: bottomAnchor),
-            webView.leadingAnchor.constraint(equalTo: leadingAnchor),
-            webView.trailingAnchor.constraint(equalTo: trailingAnchor),
-        ])
         DispatchQueue.main.async { [weak self] in
             self?.configureWebKitScrollView()
             self?.warmupVendors()

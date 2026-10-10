@@ -267,17 +267,16 @@ final class MarkdownHTMLRenderTests: XCTestCase {
             return (try XCTUnwrap(rect["x"]), try XCTUnwrap(rect["width"]))
         }
 
-        // The app positions the web view so the column lands centered in
-        // the window; inside the web view the column must hug the leading
-        // gutter and keep the page measure.
-        let hostCentered = try await articleRect(contentWidth: .hostCentered)
-        XCTAssertEqual(hostCentered.x, 40, accuracy: 1)
-        XCTAssertEqual(hostCentered.width, 820, accuracy: 1)
-
-        // Quick Look centers the same measure with CSS auto margins.
+        // Normal (and Quick Look) centers the page measure with CSS auto
+        // margins.
         let centered = try await articleRect(contentWidth: .centered)
         XCTAssertEqual(centered.x, (1700 - 820) / 2, accuracy: 1)
         XCTAssertEqual(centered.width, 820, accuracy: 1)
+
+        // Narrow centers its shorter measure the same way.
+        let narrow = try await articleRect(contentWidth: .narrow)
+        XCTAssertEqual(narrow.x, (1700 - 680) / 2, accuracy: 1)
+        XCTAssertEqual(narrow.width, 680, accuracy: 1)
 
         // Full width spans the viewport minus the body gutters.
         let full = try await articleRect(contentWidth: .full)
@@ -288,15 +287,12 @@ final class MarkdownHTMLRenderTests: XCTestCase {
     func testContentWidthModesEmitExpectedArticleOverrides() {
         let centered = MarkdownHTML.render(
             markdown: "# Doc", vendorLoading: .lazy, contentWidth: .centered)
-        XCTAssertFalse(centered.html.contains("article.markdown-body { margin-left: 0; }"))
         XCTAssertFalse(centered.html.contains("article.markdown-body { max-width: none; }"))
+        XCTAssertFalse(centered.html.contains("article.markdown-body { max-width: 680px; }"))
 
-        // The app centers the column by positioning the web view, so the
-        // article must stay glued to the leading gutter instead of
-        // re-centering when the web view's trailing edge tracks the window.
-        let hostCentered = MarkdownHTML.render(
-            markdown: "# Doc", vendorLoading: .lazy, contentWidth: .hostCentered)
-        XCTAssertTrue(hostCentered.html.contains("article.markdown-body { margin-left: 0; }"))
+        let narrow = MarkdownHTML.render(
+            markdown: "# Doc", vendorLoading: .lazy, contentWidth: .narrow)
+        XCTAssertTrue(narrow.html.contains("article.markdown-body { max-width: 680px; }"))
 
         let full = MarkdownHTML.render(
             markdown: "# Doc", vendorLoading: .lazy, contentWidth: .full)
