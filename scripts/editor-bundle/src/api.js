@@ -9,9 +9,10 @@ import { tags as t } from "@lezer/highlight"
 import { html } from "@codemirror/lang-html"
 import { convertClipboardToMarkdown } from "../clipboard-markdown.mjs"
 import { codeHighlight } from "./code-highlight.js"
-import { autoCloseFence } from "./commands/fence-autoclose.js"
+import { codeBackspace, codeDelete, exitCodeBlock, keepCaretOffFences, openCodeFence, pendingFence, settleCodeCaretPlugin } from "./commands/code-fence.js"
 import { applyBlockStyle, applyListStyle, editableListLines, enclosingNode, insertLink, listPrefix, orderedList, setHeading, stylingContext, toggleBlockPrefix, toggleInlineMark } from "./commands/format.js"
 import { indentMarkdownListItems } from "./commands/list-indent.js"
+import { deleteTableBackward, deleteTableForward, openLineBelowTable } from "./commands/table-edges.js"
 import { METRICS, directionLines } from "./decoration-parts.js"
 import { editorModuleEnabled, editorModuleExtensions, editorModules } from "./extensions.js"
 import { documentFind, findTheme, setFind } from "./find.js"
@@ -93,12 +94,25 @@ window.MDEditor = {
           }),
           Prec.lowest(livePreview),
           alignInactiveHeadings,
-          autoCloseFence,
+          pendingFence,
+          keepCaretOffFences,
+          settleCodeCaretPlugin,
           closeBrackets(),
           // paragraphReflow deliberately omitted: the preview renders
           // single newlines as hard breaks, so the
           // editor keeps them visible instead of joining lines.
-          Prec.highest(keymap.of([{ key: "Enter", run: continueTaskList }])),
+          Prec.highest(keymap.of([
+            { key: "Enter", run: continueTaskList },
+            { key: "Enter", run: exitCodeBlock },
+            { key: "Enter", run: openCodeFence },
+            { key: "Enter", run: openLineBelowTable },
+            { key: "ArrowDown", run: openLineBelowTable },
+            { key: "ArrowRight", run: openLineBelowTable },
+            { key: "Backspace", run: deleteTableBackward },
+            { key: "Backspace", run: codeBackspace },
+            { key: "Delete", run: deleteTableForward },
+            { key: "Delete", run: codeDelete },
+          ])),
           keymap.of([
             { key: "Mod-b", run: toggleInlineMark("**") },
             { key: "Mod-i", run: toggleInlineMark("*") },

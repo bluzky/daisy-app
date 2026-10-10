@@ -100,7 +100,8 @@ mirrors excluded from find use `data-mdp-search-exclude`.
 5. Test activation, assets, lifecycle behavior, and Quick Look mode.
 6. For editor behaviour, set `editor` to `EditorModule(moduleID:)`, register the
    module with `registerEditorExtension` (see `scripts/editor-bundle/src/`), rebuild with `npm run build`
-   there, and add a case to `smoke-test.mjs`.
+   there, and add a case to the matching section in `scripts/editor-bundle/smoke/`
+   (`smoke-test.mjs` runs the sections in order).
 
 Run:
 
