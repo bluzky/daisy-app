@@ -15,6 +15,12 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode.app
 
+      - name: Build editor bundle and run editor tests
+        working-directory: scripts/editor-bundle
+        run: |
+          npm ci
+          npm test
+
       - name: Run tests
         env:
           MDP_LAYOUT_ARTIFACTS: ${{ runner.temp }}/daisy-layout-failures

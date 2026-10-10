@@ -169,9 +169,10 @@ Use `./scripts/rollback-release.sh` to revert the appcast pointer if a release m
 Pull requests are welcome. For larger changes, please open an issue first to discuss what you'd like to change.
 
 1. Fork the repo and create your branch from `main`.
-2. Run the app and verify the change end-to-end (UI changes need a manual smoke test — there's no UI test suite yet).
-3. Keep PRs focused; one logical change per PR.
-4. Match the existing Swift style (no formatter is enforced; mirror nearby code).
+2. The editor's JavaScript bundle (`daisy/Vendor/CodeMirror/mdedit.min.js`) is built, not checked in. Install Node.js; an Xcode build runs `npm ci && npm run build` in `scripts/editor-bundle` when the bundle is missing or stale. `swift test` reads the same file, so build once in Xcode or run those two commands first. Editor behaviour is covered by `npm test` in that folder.
+3. Run the app and verify the change end-to-end (UI changes need a manual smoke test — there's no UI test suite yet).
+4. Keep PRs focused; one logical change per PR.
+5. Match the existing Swift style (no formatter is enforced; mirror nearby code).
 
 ## Acknowledgments
 - [Amore](http://amore.computer/) — MacOS release automation (signing, notarization, DMG, hosting, appcast)
