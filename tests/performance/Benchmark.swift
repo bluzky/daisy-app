@@ -226,6 +226,9 @@ private final class BenchmarkPage {
                               styleMask: [.titled], backing: .buffered, defer: false)
         window.title = "Markdown Preview performance probe"
         window.isReleasedWhenClosed = false
+        // Activation is only a request since macOS 14: launched from a terminal,
+        // the probe stays inactive and a normal window opens behind it, hidden.
+        window.level = .floating
         return window
     }()
 
@@ -274,6 +277,7 @@ private final class BenchmarkPage {
         webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 900, height: 600), configuration: configuration)
         Self.window.contentView = webView
         Self.window.makeKeyAndOrderFront(nil)
+        Self.window.orderFrontRegardless()
         NSApplication.shared.activate()
     }
 
