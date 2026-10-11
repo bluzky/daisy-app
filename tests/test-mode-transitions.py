@@ -1,4 +1,4 @@
-"""Run real transition and zoom wiring against controllable WebKit callbacks.
+"""Run real mode-transition wiring against controllable WebKit callbacks.
 
 The app controllers are not part of the helper Swift package. Extract their
 methods and callbacks (apart from access control and IBAction) so regressions exercise
@@ -48,24 +48,10 @@ struct Deadline { static func now() -> Self { Self() }; static func +(lhs: Self,
     var findOverlay: View?
     func loadViewIfNeeded() {}
     func load(markdown: String, assetBaseURL: URL?) {}
-    private(set) var pageZoom: Double = 1
-    func applyPageZoom(_ zoom: Double) { pageZoom = zoom }
+    func applyPageZoom(_ zoom: Double) {}
     func fetchScrollAnchor(_ body: @escaping (SourceScrollAnchor?) -> Void) { anchorCallback = body }
     func applyScrollProgress(_ p: Double, sourceAnchor: SourceScrollAnchor?, completion: @escaping () -> Void) { scrollCallback = completion }
     func focusEditor(appendingEntry: String? = nil) {}
-}
-// Stand in only for WebKit's zoom backend. Controller actions and both
-// callback assignments below are extracted from production, unchanged.
-@MainActor final class ZoomWebView {
-    var zoomDidChange: ((Double) -> Void)?
-    var pageZoom: Double = 1 {
-        didSet { zoomDidChange?(pageZoom) }
-    }
-    var persistedZoom: Double = 1
-    func zoomIn() { pageZoom += 0.25 }
-    func zoomOut() { pageZoom -= 0.25 }
-    func resetZoom() { pageZoom = 1 }
-    func applyPersistedZoom() { pageZoom = persistedZoom }
 }
 enum MarkdownHTML { static let preferredPageWidth: Double = 820 }
 final class Constraint { var constant: Double = 0 }
@@ -73,20 +59,13 @@ final class Constraint { var constant: Double = 0 }
     let view = View()
     var pendingAnchorRestored: (() -> Void)?
     var restoreCompletion: (() -> Void)?
-    let webView = ZoomWebView()
     var webViewCenteredLeadingConstraint: Constraint? = Constraint()
-    var zoomDidChange: ((Double) -> Void)?
+    var textScale: Double = 1
     var scrollProgress: Double = 0
     func sourceScrollAnchor(_ completion: (SourceScrollAnchor?) -> Void) { completion(nil) }
     func prepareToRestoreSourceScrollAnchor(_ anchor: SourceScrollAnchor?) {}
     func restoreSourceScrollAnchor(_ anchor: SourceScrollAnchor, completion: (() -> Void)? = nil) { restoreCompletion = completion }
-'''
-swift += '\n'.join(method(name, content_source) for name in [
-    'func zoomIn()', 'func zoomOut()', 'func resetZoom()', 'var pageZoom:',
-    'func applyTextSizeSetting()',
-])
-swift += '\n    init() {\n' + method('    webView.zoomDidChange =', content_source) + '\n    }\n}\n'
-swift += '''
+}
 @MainActor final class Controller {
     var cachedEditorViewController: EditorViewController? = EditorViewController()
     var contentViewController: Preview? = Preview()
@@ -107,38 +86,12 @@ swift += '''
     func refreshFindAfterModeChange() {}
 '''
 swift += '\n'.join(method(name) for name in [
-    '@IBAction func zoomInDocument', '@IBAction func zoomOutDocument',
-    '@IBAction func resetDocumentZoom', 'func applyTextSizeSetting()',
     'var isEditingDocument:', 'func enterEditMode',
     'private func revealEditorIfPrepared', 'func exitEditMode'
 ])
-swift += '\n    init() {\n' + method('    contentViewController?.zoomDidChange =') + '\n    }\n}\n'
+swift += '\n}\n'
 swift += '''
 @MainActor func probe() {
-    let zoomController = Controller()
-    let preview = zoomController.contentViewController!
-    preview.webView.pageZoom = 1.5
-    let editor = zoomController.enterEditMode(markdown: "Keep this editor open")
-    precondition(editor.pageZoom == 1.5, "Editor must inherit zoom on entry")
-    editor.editorDidBecomeReady?()
-    editor.scrollCallback?()
-    DispatchQueue.main.pending.forEach { $0() }
-    DispatchQueue.main.pending.removeAll()
-    DispatchQueue.main.deadlines.removeAll()
-    precondition(zoomController.isEditorVisible, "Zoom regression requires an open editor")
-    zoomController.zoomInDocument(nil)
-    precondition(editor.pageZoom == 1.75, "Zoom In must update the open editor")
-    zoomController.zoomOutDocument(nil)
-    precondition(editor.pageZoom == 1.5, "Zoom Out must update the open editor")
-    zoomController.resetDocumentZoom(nil)
-    precondition(editor.pageZoom == 1, "Reset must update the open editor")
-    preview.webView.persistedZoom = 0.9
-    zoomController.applyTextSizeSetting()
-    precondition(editor.pageZoom == 0.9, "Settings must update the open editor")
-    precondition(zoomController.editorViewController === editor,
-                 "Zoom must preserve the existing editor")
-    print("PASS: live editor zoom in, zoom out, reset, and Settings synchronization")
-
     let a = Controller()
     a.isEditorPreparing = true
     a.cachedEditorViewController!.view.alphaValue = 0
