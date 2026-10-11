@@ -440,6 +440,18 @@
 "Image…" = "图片…";
 "Developer Tools" = "开发者工具";
 
+/* Launch behavior */
+"Startup" = "启动";
+"On launch" = "启动时";
+"Show the Open dialog" = "显示“打开”对话框";
+"Create a new document" = "新建文稿";
+"Reopen last folder and file" = "重新打开上次的文件夹和文件";
+"What Daisy opens when it starts or you click its Dock icon with no window open. Opening a file from Finder always opens that file." = "Daisy 启动时，或在没有打开窗口时点按其程序坞图标时要打开的内容。从“访达”打开文件时，始终会打开该文件。";
+"Open a specific file or folder" = "打开指定的文件或文件夹";
+"File or folder" = "文件或文件夹";
+"Not found. Choose it again." = "找不到该项目，请重新选取。";
+"Choose the Markdown file or folder Daisy opens when it starts" = "选取 Daisy 启动时要打开的 Markdown 文件或文件夹";
+
 /* Empty document */
 "Press %@ to start writing" = "按 %@ 开始写作";
 "Choose View ▸ Toggle Edit Mode to start writing" = "选取“显示”▸“切换编辑模式”开始写作";
