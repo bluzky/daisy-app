@@ -46,6 +46,9 @@ final class MarkdownDocument: NSDocument {
         let snapshot = folderURL == nil
             ? DocumentSnapshotCache.shared.prefetch(fileURL: fileURL, markdown: markdown)
             : nil
+        // Read before the new window exists, while the window ⌘N was
+        // pressed in is still main.
+        let sourceController = NSApp.mainWindow?.windowController as? DocumentWindowController
         let controller = DocumentWindowController()
         controller.pendingSnapshot = snapshot
         addWindowController(controller)
@@ -55,7 +58,7 @@ final class MarkdownDocument: NSDocument {
             return
         }
         if fileURL == nil {
-            controller.prepareSidebarForUntitledDocument()
+            controller.prepareSidebarForUntitledDocument(from: sourceController)
         }
         controller.display(markdown: markdown, fileURL: fileURL)
     }

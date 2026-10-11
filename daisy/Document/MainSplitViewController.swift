@@ -123,6 +123,12 @@ final class MainSplitViewController: NSSplitViewController {
         showSidebar()
     }
 
+    /// Roots the navigator at `folderURL` without touching the sidebar's
+    /// mode or visibility.
+    func setProjectRoot(_ folderURL: URL) {
+        sidebarViewController?.openFolder(folderURL, selectedFileURL: nil)
+    }
+
     func clearContent() {
         contentViewController?.clearContent()
     }

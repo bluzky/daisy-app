@@ -203,12 +203,13 @@ final class SidebarViewController: NSViewController {
     /// Defers folder enumeration until the user is actually in the
     /// navigator (saves disk walks on every TOC-mode open). Keeps the
     /// existing root if the new file is a descendant; otherwise resets
-    /// so an unrelated File → Open updates the tree.
+    /// so an unrelated File → Open updates the tree. An untitled document
+    /// has no folder of its own, so it keeps whatever root is mounted.
     private func setOpenFileURL(_ fileURL: URL?) {
         let parent = fileURL?.deletingLastPathComponent().standardizedFileURL
         if let parent, let current = loadedFolderURL, parent.isDescendantOrSame(of: current) {
             pendingFolderURL = current
-        } else {
+        } else if let parent {
             pendingFolderURL = parent
         }
         pendingFileURL = fileURL?.standardizedFileURL
