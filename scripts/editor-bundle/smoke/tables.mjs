@@ -161,7 +161,7 @@ check("hovering a body cell shows the row and column grips",
   !gripRow.hidden && !gripColumn.hidden && gripRow.style.left === "0px"
     && gripColumn.style.top === "0px")
 hoverCell(0, 0)
-check("the header row has no row grip", gripRow.hidden && !gripColumn.hidden)
+check("the header row has a row grip", !gripRow.hidden && !gripColumn.hidden)
 hoverCell(2, 1)
 gripRow.click()
 check("clicking the row grip selects that row",
@@ -206,6 +206,47 @@ rangeKey("Delete")
 check("Delete removes every row in the selected range",
   rangeEditor.getMarkdown().split("\n").length === 3)
 rangeEditor.destroy()
+
+// Deleting the header row promotes the next row; deleting every row removes
+// the table.
+const headerCase = (markdown) => {
+  const host = dom.window.document.createElement("div")
+  dom.window.document.body.appendChild(host)
+  const editor = dom.window.MDEditor.create(host, markdown, {})
+  const root = () => host.querySelector(".cm-md-table-widget")
+  const selectRow = (row, shiftKey = false) => {
+    root().querySelector(`[data-table-row="${row}"][data-table-column="0"]`).dispatchEvent(
+      new dom.window.MouseEvent("mousemove", { bubbles: true, buttons: 0, clientX: 500, clientY: 500 }))
+    root().querySelector(".cm-md-table-grip-row").dispatchEvent(
+      new dom.window.MouseEvent("click", { bubbles: true, shiftKey }))
+  }
+  const del = () => root().dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Delete", bubbles: true }))
+  return { editor, root, selectRow, del }
+}
+let hc = headerCase("intro\n\n| A | B |\n| --- | :---: |\n| 1 | 2 |\n| 3 | 4 |\n\nafter")
+hc.selectRow(0)
+check("the header row grip selects the header row",
+  hc.root().querySelectorAll(".is-table-part-selected").length === 2
+    && hc.root().getAttribute("aria-label") === "Selected header row. Press Delete to remove it.")
+hc.del()
+check("deleting the header row makes the next row the header",
+  hc.editor.getMarkdown() === "intro\n\n| 1   | 2   |\n| --- | :---: |\n| 3   | 4   |\n\nafter")
+hc.editor.destroy()
+hc = headerCase("intro\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4 |\n\nafter")
+hc.selectRow(0); hc.selectRow(1, true); hc.del()
+check("deleting a range from the header promotes the first row after it",
+  hc.editor.getMarkdown() === "intro\n\n| 3   | 4   |\n| --- | --- |\n\nafter")
+hc.editor.destroy()
+hc = headerCase("intro\n\n| A | B |\n| --- | --- |\n\nafter")
+hc.selectRow(0); hc.del()
+check("deleting the only row removes the table",
+  hc.editor.getMarkdown() === "intro\n\n\nafter" && hc.root() == null)
+hc.editor.destroy()
+hc = headerCase("| A | B |\n| --- | --- |\n| 1 | 2 |\n\nafter")
+hc.selectRow(0); hc.selectRow(1, true); hc.del()
+check("deleting every row of a table at the top removes it and its line break",
+  hc.editor.getMarkdown() === "\nafter")
+hc.editor.destroy()
 const columnHost = dom.window.document.createElement("div")
 dom.window.document.body.appendChild(columnHost)
 const columnEditor = dom.window.MDEditor.create(columnHost,

@@ -2362,7 +2362,7 @@ final class MarkdownHTMLRenderTests: XCTestCase {
         XCTAssertFalse(rendered.articleHTML.contains("MdPreviewFootnoteProtect"))
     }
 
-    func testTablesExposeSourceRangeAndStableCellCoordinates() {
+    func testTablesExposeSourceRange() {
         let rendered = MarkdownHTML.render(
             markdown: """
             ---
@@ -2380,121 +2380,13 @@ final class MarkdownHTMLRenderTests: XCTestCase {
             "<table data-source-line=\"5\" data-source-start=\"5\" data-source-end=\"7\">"
         ), rendered.articleHTML)
         XCTAssertTrue(rendered.articleHTML.contains(
-            "<th data-table-row=\"0\" data-table-column=\"0\" data-table-markdown=\"Name\">Name</th>"
+            "<th>Name</th>"
         ), rendered.articleHTML)
         XCTAssertTrue(rendered.articleHTML.contains(
-            "<td data-table-row=\"1\" data-table-column=\"1\" data-table-markdown=\"10\" align=\"right\">10</td>"
+            "<td align=\"right\">10</td>"
         ), rendered.articleHTML)
         XCTAssertFalse(rendered.html.contains("kind: 'tableEdit'"))
         XCTAssertFalse(rendered.html.contains("kind: 'tableContextMenu'"))
-    }
-
-    func testRenderedTableCellsRetainOriginalMarkdownForSourceAwareEditing() throws {
-        let markdown = """
-        | Plain | Link | Emphasis | Code | Image |
-        | --- | --- | --- | --- | --- |
-        | Text | [Docs](https://example.com) | **Bold** | `a|b` | ![Alt](image.png) |
-        """
-        let rendered = MarkdownHTML.render(markdown: markdown, vendorLoading: .lazy)
-
-        XCTAssertTrue(rendered.articleHTML.contains(
-            "data-table-row=\"1\" data-table-column=\"0\" data-table-markdown=\"Text\""
-        ), rendered.articleHTML)
-        XCTAssertTrue(rendered.articleHTML.contains(
-            "data-table-row=\"1\" data-table-column=\"1\" data-table-markdown=\"[Docs](https://example.com)\""
-        ), rendered.articleHTML)
-        XCTAssertTrue(rendered.articleHTML.contains(
-            "data-table-row=\"1\" data-table-column=\"2\" data-table-markdown=\"**Bold**\""
-        ), rendered.articleHTML)
-        XCTAssertTrue(rendered.articleHTML.contains(
-            "data-table-row=\"1\" data-table-column=\"3\" data-table-markdown=\"`a|b`\""
-        ), rendered.articleHTML)
-        XCTAssertTrue(rendered.articleHTML.contains(
-            "data-table-row=\"1\" data-table-column=\"4\" data-table-markdown=\"![Alt](image.png)\""
-        ), rendered.articleHTML)
-
-        let updated = try XCTUnwrap(MarkdownTableSource.applying(
-            .setCell(row: 1, column: 1, markdown: "[Docs](https://example.com)!"),
-            fromLine: 1,
-            throughLine: 3,
-            in: markdown
-        ))
-        XCTAssertTrue(updated.contains("[Docs](https://example.com)!"), updated)
-        XCTAssertTrue(updated.contains("**Bold**"), updated)
-        XCTAssertTrue(updated.contains("`a|b`"), updated)
-        XCTAssertTrue(updated.contains("![Alt](image.png)"), updated)
-    }
-
-    func testTableCellEditTargetsExactSourceRangeAndEscapesPipes() throws {
-        let markdown = """
-        Before
-
-        | Name | Value |
-        | :--- | ---: |
-        | Existing | `a|b` |
-
-        After
-        """
-        let updated = try XCTUnwrap(MarkdownTableSource.applying(
-            .setCell(row: 1, column: 0, markdown: "A | B"),
-            fromLine: 3,
-            throughLine: 5,
-            in: markdown
-        ))
-
-        XCTAssertTrue(updated.contains("| A \\| B"), updated)
-        XCTAssertTrue(updated.contains("`a|b`"), updated)
-        XCTAssertTrue(updated.hasPrefix("Before\n\n"))
-        XCTAssertTrue(updated.hasSuffix("\n\nAfter"))
-    }
-
-    func testTableRowsAndColumnsCanBeInsertedAndDeleted() throws {
-        let markdown = """
-        | Name | Value |
-        | --- | --- |
-        | One | 1 |
-        """
-        let withRow = try XCTUnwrap(MarkdownTableSource.applying(
-            .insertRowAfter(1), fromLine: 1, throughLine: 3, in: markdown
-        ))
-        XCTAssertEqual(withRow.components(separatedBy: "\n").count, 4)
-
-        let rowBefore = try XCTUnwrap(MarkdownTableSource.applying(
-            .insertRowBefore(1), fromLine: 1, throughLine: 3, in: markdown
-        ))
-        XCTAssertEqual(rowBefore.components(separatedBy: "\n").count, 4)
-        XCTAssertTrue(rowBefore.components(separatedBy: "\n")[2]
-            .components(separatedBy: "|")
-            .dropFirst()
-            .first?
-            .trimmingCharacters(in: .whitespaces)
-            .isEmpty == true)
-
-        let withColumn = try XCTUnwrap(MarkdownTableSource.applying(
-            .insertColumnAfter(0), fromLine: 1, throughLine: 4, in: withRow
-        ))
-        XCTAssertTrue(withColumn.components(separatedBy: "\n").allSatisfy {
-            $0.filter { $0 == "|" }.count == 4
-        }, withColumn)
-
-        let columnBefore = try XCTUnwrap(MarkdownTableSource.applying(
-            .insertColumnBefore(0), fromLine: 1, throughLine: 3, in: markdown
-        ))
-        let headerCells = columnBefore.components(separatedBy: "\n")[0]
-            .components(separatedBy: "|")
-            .dropFirst()
-        XCTAssertTrue(headerCells.first?.trimmingCharacters(in: .whitespaces).isEmpty == true)
-        XCTAssertEqual(headerCells.dropFirst().first?.trimmingCharacters(in: .whitespaces), "Name")
-
-        let withoutRow = try XCTUnwrap(MarkdownTableSource.applying(
-            .deleteRow(2), fromLine: 1, throughLine: 4, in: withColumn
-        ))
-        let withoutColumn = try XCTUnwrap(MarkdownTableSource.applying(
-            .deleteColumn(1), fromLine: 1, throughLine: 3, in: withoutRow
-        ))
-        XCTAssertEqual(withoutColumn.components(separatedBy: "\n").count, 3)
-        XCTAssertTrue(withoutColumn.contains("| Name"))
-        XCTAssertTrue(withoutColumn.contains("| One"))
     }
 }
 

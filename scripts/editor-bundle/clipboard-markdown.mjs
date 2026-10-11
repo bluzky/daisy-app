@@ -153,6 +153,17 @@ function tableMarkdown(table) {
   return [render(rows[0]), render(Array(columns).fill("---")), ...rows.slice(1).map(render)].join("\n")
 }
 
+// The only table in `body` when nothing else in it renders any text.
+function soleTable(body) {
+  const tables = Array.from(body.querySelectorAll("table"))
+    .filter(table => !table.parentElement?.closest("table"))
+  if (tables.length !== 1) return null
+  const rest = body.cloneNode(true)
+  rest.querySelector("table").remove()
+  for (const tag of BLOCKED_TAGS) rest.querySelectorAll(tag).forEach(node => node.remove())
+  return rest.textContent.trim() ? null : tables[0]
+}
+
 function convertHTML(html, DOMParserClass) {
   if (!html || html.length > MAX_INPUT_LENGTH || typeof DOMParserClass !== "function") return null
   let document
@@ -163,9 +174,10 @@ function convertHTML(html, DOMParserClass) {
   }
   const body = document?.body
   if (!body || body.querySelectorAll("*").length > MAX_NODES) return null
-  // Tables are self-contained clipboard payloads. Prefer them over surrounding
-  // app markup and over text/tab-separated-values representations.
-  const table = body.querySelector("table")
+  // A spreadsheet copy is one table wrapped in app markup: prefer the table
+  // alone, over that markup and over text/tab-separated-values. A document
+  // that merely contains tables converts as a whole.
+  const table = soleTable(body)
   const markdown = table ? tableMarkdown(table) : normalizeMarkdown(
     Array.from(body.childNodes).map(markdownForNode).join(""))
   const resolved = markdown?.replace(/\u0000/g, "  \n")
