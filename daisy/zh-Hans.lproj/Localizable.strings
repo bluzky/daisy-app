@@ -439,3 +439,7 @@
 "Insert" = "插入";
 "Image…" = "图片…";
 "Developer Tools" = "开发者工具";
+
+/* Empty document */
+"Press %@ to start writing" = "按 %@ 开始写作";
+"Choose View ▸ Toggle Edit Mode to start writing" = "选取“显示”▸“切换编辑模式”开始写作";

@@ -342,6 +342,11 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         let textScale = textScale
         let themeOverrides = Self.currentThemeOverrides()
         let renderExtensionConfiguration = RenderExtensionPreferences.currentConfiguration
+        #if QUICK_LOOK_EXTENSION
+        let emptyDocumentHint: String? = nil
+        #else
+        let emptyDocumentHint: String? = Self.emptyDocumentHint()
+        #endif
         Task { @concurrent [weak self] in
             let rendered = Self.timedRender(label: "display",
                                             markdown: markdown,
@@ -350,7 +355,8 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
                                             textScale: textScale,
                                             themeOverrides: themeOverrides,
                                             renderExtensionConfiguration: renderExtensionConfiguration,
-                                            documentID: documentID)
+                                            documentID: documentID,
+                                            emptyDocumentHint: emptyDocumentHint)
             #if DEBUG
             let renderFinishedAt = DispatchTime.now().uptimeNanoseconds
             await self?.applyDisplayDebug(
@@ -375,7 +381,8 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
                                                 themeOverrides: MarkdownHTML.ThemeOverrides? = nil,
                                                 renderExtensionConfiguration: MarkdownHTML.RenderExtensionConfiguration,
                                                 documentID: String = "page",
-                                                warmup: Bool = false) -> MarkdownHTML.RenderedHTML {
+                                                warmup: Bool = false,
+                                                emptyDocumentHint: String? = nil) -> MarkdownHTML.RenderedHTML {
         let t0 = DispatchTime.now()
         let rendered = MarkdownHTML.render(markdown: markdown,
                                            allowsScroll: true,
@@ -387,7 +394,8 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
                                            pageTopClearance: MarkdownHTML.appPageTopClearance,
                                            textScale: textScale,
                                            documentID: documentID,
-                                           renderExtensionConfiguration: renderExtensionConfiguration)
+                                           renderExtensionConfiguration: renderExtensionConfiguration,
+                                           emptyDocumentHint: emptyDocumentHint)
         let elapsedMs = Int(
             (Double(DispatchTime.now().uptimeNanoseconds - t0.uptimeNanoseconds)
              / 1_000_000).rounded()
@@ -505,6 +513,19 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
     }
 
     #if !QUICK_LOOK_EXTENSION
+    /// What an empty document shows instead of a blank page. Names the
+    /// reader's own Toggle Edit Mode shortcut, which the keymap can change.
+    private static func emptyDocumentHint() -> String {
+        guard let shortcut = KeymapStore.shared.keymap
+            .bindings(for: .viewToggleEditMode).first?.displayString else {
+            return NSLocalizedString("Choose View ▸ Toggle Edit Mode to start writing",
+                                     comment: "Empty document placeholder without a shortcut")
+        }
+        return String(format: NSLocalizedString("Press %@ to start writing",
+                                                comment: "Empty document placeholder; %@ is a shortcut such as ⌘E"),
+                      shortcut)
+    }
+
     /// Rewrites the theme override `<style>` in the loaded page so a color
     /// edited in Settings restyles the preview live, without a reload. Fresh
     /// renders embed the same CSS via `currentThemeOverrides`.

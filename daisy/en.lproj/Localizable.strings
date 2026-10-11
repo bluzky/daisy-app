@@ -439,3 +439,7 @@
 "Insert" = "Insert";
 "Image…" = "Image…";
 "Developer Tools" = "Developer Tools";
+
+/* Empty document */
+"Press %@ to start writing" = "Press %@ to start writing";
+"Choose View ▸ Toggle Edit Mode to start writing" = "Choose View ▸ Toggle Edit Mode to start writing";

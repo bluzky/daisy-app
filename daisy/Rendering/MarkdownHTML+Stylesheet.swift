@@ -278,6 +278,15 @@ nonisolated extension MarkdownHTML {
         content: "—";
         color: var(--secondary);
     }
+    /* Stands in for an empty document's content; not part of the document,
+       so it can't be selected and never reaches paper or PDF. */
+    .\(emptyDocumentHintClass) {
+        margin: 30vh 0 0;
+        text-align: center;
+        color: var(--secondary);
+        -webkit-user-select: none;
+        user-select: none;
+    }
 
     p {
         margin: \(textScaled(paragraphSpacing)) 0 0;
@@ -824,6 +833,9 @@ nonisolated extension MarkdownHTML {
         html,
         body {
             overflow: visible;
+        }
+        .\(emptyDocumentHintClass) {
+            display: none;
         }
         :root:not(.\(previewPrintClass)),
         :root:not(.\(previewPrintClass)) body {
