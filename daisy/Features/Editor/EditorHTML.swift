@@ -59,7 +59,7 @@ nonisolated enum EditorHTML {
 
     static func render(markdown: String,
                        editorJavaScript: String,
-                       mermaidJavaScript: String? = nil,
+                       includesMermaid: Bool = false,
                        assetBaseURL: URL? = nil,
                        configuration: Configuration = Configuration()) -> String {
         // Divided by the page zoom: the preview scales its type, not its
@@ -70,8 +70,6 @@ nonisolated enum EditorHTML {
         let lightPageBackground = configuration.lightPageBackground
         let darkPageBackground = configuration.darkPageBackground
         let usesPageScrolling = configuration.usesPageScrolling
-        let includesMermaid = mermaidJavaScript != nil
-        let mermaidJavaScript = mermaidJavaScript ?? ""
         return """
         <!DOCTYPE html>
         <html data-page-scrolling="\(usesPageScrolling)">
@@ -792,16 +790,36 @@ nonisolated enum EditorHTML {
         </head>
         <body>
         <div id="editor"></div>
-        \(includesMermaid ? "<script>\(mermaidJavaScript)</script>" : "")
         \(includesMermaid ? """
         <script>
-        if (window.mermaid) {
-            window.mermaid.initialize({
-                startOnLoad: false,
-                securityLevel: "strict",
-                theme: window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "default"
-            });
-        }
+        // Mermaid is fetched after first paint, so the text shows before the
+        // bundle parses. A diagram rendered sooner waits on __mdLoadMermaid,
+        // which resolves to null if the bundle fails to load.
+        (function () {
+            let load = null;
+            window.__mdLoadMermaid = function () {
+                if (!load) {
+                    load = new Promise(function (resolve) {
+                        const script = document.createElement("script");
+                        script.onload = function () {
+                            if (window.mermaid) {
+                                window.mermaid.initialize({
+                                    startOnLoad: false,
+                                    securityLevel: "strict",
+                                    theme: window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "default"
+                                });
+                            }
+                            resolve(window.mermaid || null);
+                        };
+                        script.onerror = function () { resolve(null); };
+                        script.src = "\(MarkdownAssetScheme.vendorURL("mermaid.min.js"))";
+                        document.head.appendChild(script);
+                    });
+                }
+                return load;
+            };
+            requestAnimationFrame(function () { setTimeout(window.__mdLoadMermaid, 0); });
+        })();
         </script>
         """ : "")
         <script>\(editorJavaScript)</script>
