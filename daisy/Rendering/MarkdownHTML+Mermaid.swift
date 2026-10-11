@@ -241,9 +241,10 @@ nonisolated extension MarkdownHTML {
                 surface.style.transformOrigin = '0 0';
 
                 // Stable layout: figure claims height from the diagram's aspect ratio,
-                // capped by max-height so massive diagrams don't push the page.
+                // and its width is capped at the diagram's natural width.
                 if (vbW > 0 && vbH > 0) {
                     figure.style.setProperty('--mm-aspect', vbW + ' / ' + vbH);
+                    figure.style.setProperty('--mm-natural-width', vbW + 'px');
                 }
 
                 const alreadyWired = states.has(figure);

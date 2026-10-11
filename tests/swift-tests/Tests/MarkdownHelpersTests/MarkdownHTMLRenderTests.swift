@@ -1539,6 +1539,7 @@ final class MarkdownHTMLRenderTests: XCTestCase {
         <script>
         const figure = document.querySelector('.mermaid-figure');
         figure.style.setProperty('--mm-aspect', '1 / 4');
+        figure.style.setProperty('--mm-natural-width', '200px');
         figure.querySelector('.mermaid').innerHTML = '<svg viewBox="0 0 200 800"></svg>';
         document.querySelector('.mermaid-hud').addEventListener('click', (event) => {
             const button = event.target.closest('[data-mm-act="width"]');
@@ -1587,10 +1588,12 @@ final class MarkdownHTMLRenderTests: XCTestCase {
         XCTAssertFalse(initial.expanded)
         XCTAssertEqual(initial.buttonPressed, "false")
         // Pin the size, not just "narrower and centred": a figure collapsed to
-        // 0 x 0 satisfies both of those. The height cap is 70vh of the 600pt
-        // view, and the 1:4 aspect ratio carries it through to the width.
-        XCTAssertEqual(initial.figureHeight, 420, accuracy: 1)
-        XCTAssertEqual(initial.figureWidth, 105, accuracy: 1)
+        // 0 x 0 satisfies both of those. Only the width is capped, at the
+        // 200px natural width plus the 32px padding; the 1:4 aspect ratio sets
+        // the height inside the padding, which may exceed the 600pt view.
+        XCTAssertEqual(initial.figureWidth, 232, accuracy: 1)
+        XCTAssertEqual(initial.figureHeight, 832, accuracy: 1)
+        XCTAssertEqual(initial.svgWidth, 200, accuracy: 1)
         XCTAssertLessThan(initial.figureWidth, initial.articleWidth)
         XCTAssertEqual(
             initial.figureLeft - initial.articleLeft,
@@ -1730,7 +1733,8 @@ final class MarkdownHTMLRenderTests: XCTestCase {
         XCTAssertEqual(metrics.display, "flex")
         XCTAssertGreaterThan(metrics.articleWidth, 0)
         XCTAssertEqual(metrics.figureWidth, metrics.articleWidth, accuracy: 1)
-        XCTAssertEqual(metrics.figureHeight, metrics.articleWidth / 2, accuracy: 1)
+        // The 2:1 ratio applies inside the 16px padding on each side.
+        XCTAssertEqual(metrics.figureHeight, (metrics.articleWidth - 32) / 2 + 32, accuracy: 1)
     }
 
     @MainActor

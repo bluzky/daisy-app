@@ -55,6 +55,7 @@ export class MermaidWidget extends WidgetType {
           const box = diagram?.viewBox?.baseVal
           if (diagram && box?.width > 0 && box?.height > 0) {
             figure.style.setProperty("--mm-aspect", `${box.width} / ${box.height}`)
+            figure.style.setProperty("--mm-natural-width", `${box.width}px`)
             diagram.removeAttribute("width")
             diagram.removeAttribute("height")
             diagram.setAttribute("preserveAspectRatio", "xMidYMid meet")

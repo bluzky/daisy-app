@@ -458,20 +458,29 @@ nonisolated extension MarkdownHTML {
         /* The stage is absolutely positioned, so the figure has no width of
            its own. Left to its auto margins inside the article's flex column
            it shrinks to 0 wide, and the aspect ratio then makes it 0 tall.
-           The max-width is the height cap carried through the aspect ratio,
-           which block layout derived by itself: a tall diagram narrows and
-           stays centred rather than filling the column with empty sides. */
-        --mm-max-height: min(70vh, 720px);
+           Only the width is capped, at the diagram's natural width, so it is
+           never scaled up past the size Mermaid laid it out at. The height
+           follows from the aspect ratio: a tall diagram stays readable and
+           the page scrolls past it.
+           The padding mirrors the .mermaid padding, and the ::before sizer
+           applies the aspect ratio to what's left inside it. Applied to the
+           padded box instead, the fixed 32px eats a large share of a wide
+           diagram's short height and the SVG letterboxes to a fraction of
+           the column. (aspect-ratio with content-box sizing would say this
+           directly, but WebKit subtracts the padding twice.) */
+        padding: 16px;
         width: 100%;
-        max-width: calc(var(--mm-max-height) * (var(--mm-aspect, 4 / 3)));
-        aspect-ratio: var(--mm-aspect, 4 / 3);
-        max-height: var(--mm-max-height);
+        max-width: calc(var(--mm-natural-width, 100%) + 32px);
         contain: layout paint;
     }
+    .mermaid-figure::before {
+        content: "";
+        display: block;
+        aspect-ratio: var(--mm-aspect, 4 / 3);
+    }
+    .mermaid-figure.mermaid-error::before { content: none; }
     .mermaid-figure.mermaid-width-expanded {
-        width: 100%;
         max-width: none;
-        max-height: none;
     }
     .mermaid-figure:focus-visible {
         box-shadow: 0 0 0 3px color-mix(in srgb, AccentColor 60%, transparent);
