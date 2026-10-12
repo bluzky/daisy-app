@@ -170,6 +170,30 @@ final class SettingsModel {
         templateCount = TemplateStore.load().count
     }
 
+    var launchBehavior: LaunchBehaviorSetting {
+        didSet {
+            guard !isRestoringExternalValues, launchBehavior != oldValue else { return }
+            // Opening a chosen item is useless until there is one, so ask now
+            // and keep the previous behaviour if the reader cancels.
+            if launchBehavior == .openChosenItem, !LaunchItemStore.hasItem {
+                chooseLaunchItem()
+                guard LaunchItemStore.hasItem else {
+                    launchBehavior = oldValue
+                    return
+                }
+            }
+            LaunchBehaviorSetting.current = launchBehavior
+        }
+    }
+
+    var launchItemPath: String?
+
+    func chooseLaunchItem() {
+        if LaunchItemStore.choose() {
+            launchItemPath = LaunchItemStore.displayPath
+        }
+    }
+
     var opensDocumentsInTabs: Bool {
         didSet {
             guard !isRestoringExternalValues, opensDocumentsInTabs != oldValue else { return }
@@ -324,6 +348,8 @@ final class SettingsModel {
         strictLineBreaks = StrictLineBreaksSetting.current
         isAlwaysOnTop = AlwaysOnTopPolicy.isEnabled
         opensDocumentsInTabs = TabOpeningPolicy.isEnabled
+        launchBehavior = LaunchBehaviorSetting.current
+        launchItemPath = LaunchItemStore.displayPath
         quickCaptureEnabled = QuickCaptureController.isEnabled
         quickCaptureShortcut = QuickCaptureShortcut.current()
         quickCaptureFolderPath = QuickCaptureStore.folderDisplayPath
@@ -388,6 +414,8 @@ final class SettingsModel {
         strictLineBreaks = StrictLineBreaksSetting.current
         isAlwaysOnTop = AlwaysOnTopPolicy.isEnabled
         opensDocumentsInTabs = TabOpeningPolicy.isEnabled
+        launchBehavior = LaunchBehaviorSetting.current
+        launchItemPath = LaunchItemStore.displayPath
         quickCaptureEnabled = QuickCaptureController.isEnabled
         quickCaptureShortcut = QuickCaptureShortcut.current()
         quickCaptureFolderPath = QuickCaptureStore.folderDisplayPath

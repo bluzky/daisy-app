@@ -62,6 +62,14 @@ extension DocumentWindowController {
         documentWindow.makeKeyAndOrderFront(nil)
         NSApp.activate()
         syncSidebarToolbarState()
+        recordLastSession()
+    }
+
+    /// Remembers this window's document and file tree root for the "Reopen
+    /// last folder and file" launch behaviour. Called after the sidebar has
+    /// taken the new file, so the root is the one on screen.
+    func recordLastSession() {
+        LastSessionStore.record(fileURL: currentFileURL, folderURL: projectRootURL)
     }
 
     func contextMenuEditorItems(for fileURL: URL) -> [NSMenuItem] {
@@ -185,6 +193,7 @@ extension DocumentWindowController {
         updateEditToolbarItem()
         markdownDocument?.replaceContents(markdown: text, fileURL: fileURL)
         renderCurrentDocument(text: text, fileURL: fileURL)
+        recordLastSession()
         if pendingEditModeURL == fileURL.standardizedFileURL {
             pendingEditModeURL = nil
             let entry = pendingEditModeAppendedEntry

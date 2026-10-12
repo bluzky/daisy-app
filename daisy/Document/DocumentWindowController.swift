@@ -397,6 +397,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         if let fileURL {
             NSDocumentController.shared.noteNewRecentDocumentURL(fileURL)
             renderCurrentDocument(text: markdown, fileURL: fileURL)
+            recordLastSession()
             startWatching(fileURL)
             offerToBecomeDefaultHandlerIfNeeded()
         }

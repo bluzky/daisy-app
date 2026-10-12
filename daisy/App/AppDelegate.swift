@@ -153,7 +153,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         QuickCaptureController.shared.applyEnabledSetting()
         hasFinishedLaunching = true
         if !didReceiveOpenURLsDuringLaunch {
-            scheduleDocumentPrompt(requiresNoDocuments: true)
+            scheduleDocumentPrompt(requiresNoDocuments: true, followsLaunchBehavior: true)
         }
     }
 
@@ -186,13 +186,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func applicationOpenUntitledFile(_ sender: NSApplication) -> Bool {
-        scheduleDocumentPrompt(requiresNoDocuments: true)
+        scheduleDocumentPrompt(requiresNoDocuments: true, followsLaunchBehavior: true)
         return true
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         if !flag {
-            scheduleDocumentPrompt(requiresNoDocuments: true)
+            scheduleDocumentPrompt(requiresNoDocuments: true, followsLaunchBehavior: true)
             return false
         }
         return true
@@ -607,7 +607,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             .first
     }
 
-    private func scheduleDocumentPrompt(requiresNoDocuments: Bool = false) {
+    /// - Parameter followsLaunchBehavior: Launch and Dock reopen show what the
+    ///   reader chose in Settings; a failed open always falls back to the panel.
+    private func scheduleDocumentPrompt(requiresNoDocuments: Bool = false,
+                                        followsLaunchBehavior: Bool = false) {
         guard !isOpenPanelVisible,
               !isDocumentPromptScheduled else { return }
 
@@ -620,7 +623,63 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self.isDocumentPromptScheduled = false
             guard !requiresNoDocuments || NSDocumentController.shared.documents.isEmpty else { return }
             NSApp.activate(ignoringOtherApps: true)
+            if followsLaunchBehavior, self.performLaunchBehavior() { return }
             NSDocumentController.shared.openDocument(nil)
+        }
+    }
+
+    /// Opens what Settings ▸ General ▸ On launch asks for. Returns false when
+    /// the open panel should be shown instead.
+    private func performLaunchBehavior() -> Bool {
+        switch LaunchBehaviorSetting.current {
+        case .showOpenPanel:
+            return false
+        case .newDocument:
+            NSDocumentController.shared.newDocument(nil)
+            return true
+        case .reopenLastSession:
+            return reopenLastSession()
+        case .openChosenItem:
+            guard let url = LaunchItemStore.resolve() else { return false }
+            if url.isExistingDirectory {
+                openFolder(url)
+            } else {
+                openLaunchFile(url)
+            }
+            return true
+        }
+    }
+
+    private func reopenLastSession() -> Bool {
+        let plan = LastSessionStore.restorePlan()
+        guard !plan.isEmpty else { return false }
+
+        if let folderURL = plan.folderURL {
+            openFolder(folderURL)
+            if let fileURL = plan.fileURL, plan.opensFileInFolderWindow,
+               let controller = activeDocumentWindowController {
+                controller.present(url: fileURL)
+                return true
+            }
+        }
+        if let fileURL = plan.fileURL {
+            openLaunchFile(fileURL)
+        }
+        return true
+    }
+
+    /// Opens a file chosen by the launch behaviour; a failure falls back to
+    /// the open panel so the app isn't left windowless.
+    private func openLaunchFile(_ fileURL: URL) {
+        NSDocumentController.shared.openDocument(withContentsOf: fileURL,
+                                                 display: true) { [weak self] document, _, error in
+            if let error {
+                NSAlert(error: error).runModal()
+            }
+            self?.showWindowIfNeeded(for: document)
+            if error != nil {
+                self?.scheduleDocumentPromptIfIdle()
+            }
         }
     }
 
@@ -892,6 +951,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func keymapWindowDidBecomeKey(_ notification: Notification) {
         observeKeymapFirstResponder(in: notification.object as? NSWindow)
         applyKeymap()
+        // The front document is the one the next launch should reopen.
+        ((notification.object as? NSWindow)?.windowController as? DocumentWindowController)?
+            .recordLastSession()
     }
 
     @objc private func keymapWindowDidResignKey(_ notification: Notification) {

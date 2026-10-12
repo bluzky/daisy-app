@@ -26,6 +26,30 @@ struct GeneralSettingsView: View {
             }
 
             Section {
+                Picker(selection: $model.launchBehavior) {
+                    Text(L("Show the Open dialog")).tag(LaunchBehaviorSetting.showOpenPanel)
+                    Text(L("Create a new document")).tag(LaunchBehaviorSetting.newDocument)
+                    Text(L("Reopen last folder and file")).tag(LaunchBehaviorSetting.reopenLastSession)
+                    Text(L("Open a specific file or folder")).tag(LaunchBehaviorSetting.openChosenItem)
+                } label: {
+                    Text(L("On launch"))
+                    Text(L("What Daisy opens when it starts or you click its Dock icon with no window open. Opening a file from Finder always opens that file."))
+                }
+                .pickerStyle(.menu)
+
+                if model.launchBehavior == .openChosenItem {
+                    LabeledContent {
+                        Button(L("Choose…")) { model.chooseLaunchItem() }
+                    } label: {
+                        Text(L("File or folder"))
+                        Text(model.launchItemPath ?? L("Not found. Choose it again."))
+                    }
+                }
+            } header: {
+                Text(L("Startup"))
+            }
+
+            Section {
                 Toggle(isOn: $model.isAlwaysOnTop) {
                     Text(L("Always on Top"))
                     Text(L("Keeps every Daisy window in front of other apps, including windows you open later. A window in full screen is left alone until it comes back out."))
