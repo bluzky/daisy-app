@@ -712,11 +712,16 @@ private extension ProjectNavigatorView {
     }
 
     private func trash(_ url: URL) {
+        let closesCurrentFile = documentWindowController?.currentFileURL
+            .map { $0.standardizedFileURL.isDescendantOrSame(of: url) } ?? false
         do {
             try FileManager.default.trashItem(at: url, resultingItemURL: nil)
         } catch {
             presentFileOperationError(error)
             return
+        }
+        if closesCurrentFile {
+            documentWindowController?.documentWindow.close()
         }
         refreshTree()
     }

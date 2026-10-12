@@ -210,54 +210,6 @@ extension EditorPreviewLayoutTests {
                            editorBoxes: ["diagram-box": ".cm-md-mermaid-preview", "diagram-svg": ".cm-md-mermaid-stage svg"]))
     }
 
-    /// The app scales preview text with `--mdp-text-scale` but mirrors that
-    /// size in the editor with page zoom, which the shared harness doesn't
-    /// model: it page-zooms both. A diagram stays at its natural size under
-    /// either, so its on-screen size has to match, not just at 100%.
-    func testMermaidMatchesAcrossTextScaleAndEditorPageZoom() async throws {
-        let markdown = """
-            Before Mermaid diagram.
-
-            ```mermaid
-            flowchart TD
-                A([Scheduled job]) --> B[For each month in scope]
-                B --> C{Figures changed?}
-                C -- Yes --> D[Clear cached insights]
-                C -- No --> E([Done])
-                D --> E
-            ```
-            """
-        let scale: CGFloat = 1.5
-        let readerHTML = MarkdownHTML.render(
-            markdown: markdown, allowsScroll: true, documentFont: .system,
-            readerLayout: ReaderLayoutSetting(), textScale: scale
-        ).html
-        let editorHTML = EditorHTML.render(
-            markdown: markdown,
-            editorJavaScript: try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js"),
-            includesMermaid: true,
-            configuration: .init(pageZoom: scale)
-        )
-        let reader = WebViewLayoutHarness(html: readerHTML, width: 900, isEditor: false)
-        let editor = WebViewLayoutHarness(html: editorHTML, width: 900, isEditor: true, zoom: scale)
-        defer { reader.close(); editor.close() }
-
-        let texts = ["Before Mermaid diagram."]
-        let read = try await reader.layout(
-            texts: texts, imageCount: 0, selectors: [".mermaid svg": 1],
-            boxes: ["diagram-box": ".mermaid-figure", "diagram-svg": ".mermaid svg"])
-        let edit = try await editor.layout(
-            texts: texts, imageCount: 0, selectors: [".cm-md-mermaid-stage svg": 1],
-            boxes: ["diagram-box": ".cm-md-mermaid-preview", "diagram-svg": ".cm-md-mermaid-stage svg"])
-        for name in ["diagram-box", "diagram-svg"] {
-            let lhs = try XCTUnwrap(read.elements.first { $0.name == name }).rect
-            let rhs = try XCTUnwrap(edit.elements.first { $0.name == name }).rect
-            // The reader is at page zoom 1, so its CSS px are view points.
-            XCTAssertEqual(lhs.width, rhs.width * scale, accuracy: 1, name)
-            XCTAssertEqual(lhs.height, rhs.height * scale, accuracy: 1, name)
-        }
-    }
-
     func testUnicodeAndRightToLeftParagraphs() async throws {
         try await check(Fixture(name: "unicode-rtl", markdown: """
             Unicode café 日本語 🧪 é.

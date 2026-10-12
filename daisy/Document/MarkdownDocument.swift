@@ -49,6 +49,7 @@ final class MarkdownDocument: NSDocument {
         // Read before the new window exists, while the window ⌘N was
         // pressed in is still main.
         let sourceController = NSApp.mainWindow?.windowController as? DocumentWindowController
+        let isTabRequest = DocumentWindowController.nextWindowRequestsTab
         let controller = DocumentWindowController()
         controller.pendingSnapshot = snapshot
         addWindowController(controller)
@@ -59,6 +60,8 @@ final class MarkdownDocument: NSDocument {
         }
         if fileURL == nil {
             controller.prepareSidebarForUntitledDocument(from: sourceController)
+        } else if isTabRequest, let fileURL {
+            controller.inheritProject(from: sourceController, containing: fileURL)
         }
         controller.display(markdown: markdown, fileURL: fileURL)
     }
