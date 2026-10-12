@@ -41,7 +41,7 @@
 "The app the Open button in the document toolbar uses first. Its menu still offers every other installed app." = "The app the Open button in the document toolbar uses first. Its menu still offers every other installed app.";
 "Command line tools" = "Command line tools";
 "Install…" = "Install…";
-"Adds mdp, daisy, and markdown-preview to your PATH. Run it again after updating the app to refresh the commands." = "Adds mdp, daisy, and markdown-preview to your PATH. Run it again after updating the app to refresh the commands.";
+"Adds the daisy command to your PATH. Run it again after updating the app to refresh it." = "Adds the daisy command to your PATH. Run it again after updating the app to refresh it.";
 "Daisy" = "Daisy";
 "Version %@ (%@)" = "Version %@ (%@)";
 "Check for Updates" = "Check for Updates";

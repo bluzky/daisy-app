@@ -74,7 +74,7 @@ Or grab the latest signed and notarized DMG from the [Releases](https://github.c
 
 
 
-- **Command line and URL scheme** — `mdp .` from a shell, or `daisy://file/<absolute path>` from a browser link. `md-preview://` links still work.
+- **Command line and URL scheme** — `daisy .` from a shell, or `daisy://file/<absolute path>` from a browser link. `md-preview://` links still work.
 
 
 ### Templates
