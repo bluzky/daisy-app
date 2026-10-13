@@ -17,17 +17,9 @@ final class ExternalOpenSchemeTests: XCTestCase {
 
         let cursor = URL(string: "cursor://file/Users/me/a.md")!
         XCTAssertEqual(ExternalOpenScheme.resolvedURL(opening: cursor), cursor)
-    }
 
-    // MARK: - Legacy scheme
-
-    func testStillResolvesTheSchemeUsedBeforeTheRename() {
-        let url = URL(string: "md-preview://file/Users/me/project/README.md")!
-        XCTAssertEqual(
-            ExternalOpenScheme.resolvedURL(opening: url)?.path,
-            "/Users/me/project/README.md"
-        )
-        XCTAssertNil(ExternalOpenScheme.resolvedURL(opening: URL(string: "md-preview://other/Users/me/a.md")!))
+        let legacy = URL(string: "md-preview://file/Users/me/a.md")!
+        XCTAssertEqual(ExternalOpenScheme.resolvedURL(opening: legacy), legacy)
     }
 
     // MARK: - Accepted forms
@@ -46,7 +38,7 @@ final class ExternalOpenSchemeTests: XCTestCase {
     }
 
     func testSchemeAndHostAreCaseInsensitive() {
-        let url = URL(string: "MD-PREVIEW://FILE/Users/me/a.md")!
+        let url = URL(string: "DAISY://FILE/Users/me/a.md")!
         XCTAssertEqual(ExternalOpenScheme.resolvedURL(opening: url)?.path,
                        "/Users/me/a.md")
     }

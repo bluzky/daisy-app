@@ -16,7 +16,6 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>daisy</string>
-				<string>md-preview</string>
 			</array>
 		</dict>
 	</array>
