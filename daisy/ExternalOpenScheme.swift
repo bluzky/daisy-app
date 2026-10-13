@@ -14,10 +14,6 @@ nonisolated enum ExternalOpenScheme {
 
     static let scheme = "daisy"
 
-    /// The scheme the app registered before it was renamed. Existing links
-    /// keep working; new ones should use `scheme`.
-    static let legacySchemes = ["md-preview"]
-
     /// Translates an incoming open request into the URL to actually open.
     /// URLs of other schemes (file URLs, mostly) pass through untouched.
     /// The app's own scheme accepts
@@ -31,9 +27,7 @@ nonisolated enum ExternalOpenScheme {
     /// can tell one apart from a URL it can open.
     static func resolvedURL(opening url: URL) -> URL? {
         guard let urlScheme = url.scheme,
-              ([scheme] + legacySchemes).contains(where: {
-                  urlScheme.caseInsensitiveCompare($0) == .orderedSame
-              })
+              urlScheme.caseInsensitiveCompare(scheme) == .orderedSame
         else {
             return url
         }
