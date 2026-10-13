@@ -117,38 +117,12 @@ nonisolated enum CommandLineToolInstaller {
           is_markdown_preview_launcher "$path"
         }
 
-        can_replace_alias() {
-          alias_path="$1"
-          if [ ! -e "$alias_path" ] && [ ! -L "$alias_path" ]; then
-            return 0
-          fi
-          [ -L "$alias_path" ] || return 1
-          alias_target=$(readlink "$alias_path" || true)
-          [ "$alias_target" = "daisy" ] ||
-            [ "$alias_target" = "$primary" ] ||
-            [ "$alias_target" = "$install_dir/daisy" ] ||
-            [ "$alias_target" = "md-preview" ] ||
-            [ "$alias_target" = "$install_dir/md-preview" ]
-        }
-
-        # Before the rename the primary command was md-preview, a launcher
-        # script. Turn it into an alias so existing habits keep working, but
-        # only if it is ours.
-        can_replace_legacy_name() {
-          path="$1"
-          can_replace_alias "$path" || is_markdown_preview_launcher "$path"
-        }
-
         refuse_existing_command() {
           echo "Refusing to replace existing command that was not installed by Daisy: $1" >&2
           exit 1
         }
 
         can_replace_primary "$primary" || refuse_existing_command "$primary"
-        for alias in mdp markdown-preview; do
-          can_replace_alias "$install_dir/$alias" || refuse_existing_command "$install_dir/$alias"
-        done
-        can_replace_legacy_name "$install_dir/md-preview" || refuse_existing_command "$install_dir/md-preview"
 
         run_install() {
           if [ "$needs_sudo" = "true" ]; then
@@ -175,22 +149,10 @@ nonisolated enum CommandLineToolInstaller {
         run_install rm -rf "$resources_dir"
         run_install mv "$resources_tmp" "$resources_dir"
 
-        for alias in mdp markdown-preview md-preview; do
-          alias_path="$install_dir/$alias"
-          if [ "$needs_sudo" = "true" ]; then
-            sudo ln -sfn "daisy" "$alias_path"
-          else
-            ln -sfn "daisy" "$alias_path"
-          fi
-        done
-
         echo
         echo "Daisy CLI is ready."
         echo
-        echo "Use Daisy from any of these commands:"
-        echo "  daisy"
-        echo "  mdp                  Compatibility alias"
-        echo "  markdown-preview     Compatibility alias"
+        echo "Use the daisy command:"
         echo
         echo "Examples:"
         echo "  daisy README.md      Open a Markdown file"

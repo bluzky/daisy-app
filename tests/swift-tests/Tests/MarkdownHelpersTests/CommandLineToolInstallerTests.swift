@@ -23,7 +23,7 @@ final class CommandLineToolInstallerTests: XCTestCase {
         return process
     }
 
-    func testInstallerCopiesPayloadAndReplacesStaleResources() throws {
+    func testInstallerCopiesPayloadWithoutCreatingAliasesAndReplacesStaleResources() throws {
         let directory = try temporaryDirectory()
         let source = directory.appendingPathComponent("source", isDirectory: true)
         let home = directory.appendingPathComponent("home", isDirectory: true)
@@ -55,8 +55,9 @@ final class CommandLineToolInstallerTests: XCTestCase {
         XCTAssertEqual(try String(contentsOf: installDirectory.appendingPathComponent(".daisy-export"), encoding: .utf8), "exporter")
         XCTAssertEqual(try String(contentsOf: installedResources.appendingPathComponent("theme.json"), encoding: .utf8), "theme")
         XCTAssertEqual(try String(contentsOf: installedResources.appendingPathComponent("diagram\nrenderer.js"), encoding: .utf8), "diagram")
-        XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(
-            atPath: installDirectory.appendingPathComponent("mdp").path), "daisy")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: installDirectory.appendingPathComponent("mdp").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: installDirectory.appendingPathComponent("markdown-preview").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: installDirectory.appendingPathComponent("md-preview").path))
 
         let stale = installedResources.appendingPathComponent("removed.json")
         try "stale".write(to: stale, atomically: true, encoding: .utf8)

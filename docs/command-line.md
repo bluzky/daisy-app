@@ -2,8 +2,6 @@
 
 In Daisy, choose **Settings → General → Install…** under **Command line tools**. This installs `daisy` in a directory on your `PATH`.
 
-`mdp`, `markdown-preview`, and `md-preview` remain compatibility aliases. Use `daisy` in scripts and documentation.
-
 ## Open files and folders
 
 ```sh
