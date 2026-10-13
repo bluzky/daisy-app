@@ -378,6 +378,9 @@ window.MDEditor = {
       replaceAll: (replacement, query, options = null) => {
         // Not the capped list the highlights use: a limit must never leave
         // matches behind.
+        // Bring the highlights and the reported counts to this query first,
+        // as replaceCurrent does, so they never describe a stale one.
+        if (!syncSearch(query, options)) return { ...searchResult(view.state.field(documentFind)), replaced: 0 }
         const { matches, error } = collectMatches(view.state.doc, query, options)
         if (error || !matches.length) return { ...searchResult(view.state.field(documentFind)), replaced: 0 }
         const text = String(replacement ?? "")

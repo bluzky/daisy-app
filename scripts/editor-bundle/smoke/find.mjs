@@ -145,3 +145,17 @@ for (const item of parity) {
       JSON.stringify(found) === JSON.stringify(item.matches) && !!result.error === !!item.error)
   })
 }
+
+{
+  // replaceAll before the bar's find has landed: the result and highlights
+  // must describe the query being replaced, not the previous one.
+  const host = dom.window.document.createElement("div")
+  dom.window.document.body.appendChild(host)
+  const editor = dom.window.MDEditor.create(host, "alpha alpha\n\nbeta beta beta\n", {})
+  editor.find("alpha")
+  const result = editor.replaceAll("X", "beta")
+  check("replaceAll replaces the query it is given", editor.getMarkdown() === "alpha alpha\n\nX X X\n" && result.replaced === 3)
+  check("replaceAll reports the query it replaced, not the previous find", result.total === 0)
+  editor.destroy()
+  host.remove()
+}
