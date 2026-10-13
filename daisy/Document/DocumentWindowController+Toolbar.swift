@@ -14,7 +14,6 @@ extension NSToolbarItem.Identifier {
     static let openInLLM = NSToolbarItem.Identifier("OpenInLLM")
     static let inspector = NSToolbarItem.Identifier("Inspector")
     static let share = NSToolbarItem.Identifier("Share")
-    static let search = NSToolbarItem.Identifier("Search")
     static let searchForDocument = NSToolbarItem.Identifier("SearchForDocument")
     /// The sidebar show/hide toggle. The raw value predates the mode picker
     /// and is kept so saved toolbar layouts still resolve.
@@ -63,8 +62,7 @@ extension DocumentWindowController {
             .space,
             .inspector,
             .share,
-            .editDocument,
-            .search
+            .editDocument
         ]
         if #unavailable(macOS 26.0) {
             return identifiers.filter { $0 != .space }
@@ -102,7 +100,6 @@ extension DocumentWindowController {
             .editDocument,
             .inspector,
             .share,
-            .search,
             .searchForDocument,
             .printDocument,
             .exportPDF,
@@ -197,7 +194,6 @@ extension DocumentWindowController {
         case .inspector: return makeInspectorItem(willBeInsertedIntoToolbar: flag)
         case .alwaysOnTop: return makeAlwaysOnTopItem(willBeInsertedIntoToolbar: flag)
         case .share: return makeShareItem()
-        case .search: return makeSearchItem()
         case .searchForDocument: return makeSearchForDocumentItem()
         case .printDocument: return makePrintItem()
         case .exportPDF: return makeExportPDFItem()

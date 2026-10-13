@@ -252,13 +252,13 @@ final class ContentViewController: NSViewController {
 
     func find(_ query: String,
               backwards: Bool = false,
-              mode: SearchMode = .contains,
+              options: SearchOptions = SearchOptions(),
               completion: ((FindResult) -> Void)? = nil) {
         let pasteboard = NSPasteboard(name: .find)
         pasteboard.declareTypes([.string], owner: nil)
         pasteboard.setString(query, forType: .string)
         pendingFlashWork?.cancel()
-        webView.find(query, backwards: backwards, mode: mode) { [weak self] result in
+        webView.find(query, backwards: backwards, options: options) { [weak self] result in
             guard let self else {
                 completion?(result)
                 return
@@ -277,6 +277,10 @@ final class ContentViewController: NSViewController {
             }
             completion?(result)
         }
+    }
+
+    func fetchSelectedText(_ completion: @escaping (String?) -> Void) {
+        webView.fetchSelectedText(completion)
     }
 
     private func isMatchVisible(top: CGFloat, bottom: CGFloat) -> Bool {

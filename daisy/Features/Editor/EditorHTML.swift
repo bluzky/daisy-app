@@ -841,7 +841,7 @@ nonisolated enum EditorHTML {
                             post({ kind: "formattingState", heading: state.heading, commands: state.commands });
                         },
                         onSearchChange: function (result) {
-                            post({ kind: "findResult", index: result.index, total: result.total });
+                            post({ kind: "findResult", index: result.index, total: result.total, capped: result.capped, error: result.error });
                         },
                         onPasteImage: function (from, to) {
                             post({ kind: "pasteImage", from: from, to: to });
@@ -864,8 +864,14 @@ nonisolated enum EditorHTML {
                 );
                 editor.setSlashTemplates(slashTemplates);
                 window.__mdEditor = {
-                    find: function (query, backwards, beginsWith) {
-                        return editor.find(query, backwards, beginsWith);
+                    find: function (query, backwards, options) {
+                        return editor.find(query, backwards, options);
+                    },
+                    replaceCurrent: function (replacement, query, options) {
+                        return editor.replaceCurrent(replacement, query, options);
+                    },
+                    replaceAll: function (replacement, query, options) {
+                        return editor.replaceAll(replacement, query, options);
                     },
                     getMarkdown: function () { return editor.getMarkdown(); },
                     getHeadingLevel: function () { return editor.getHeadingLevel(); },

@@ -12,11 +12,6 @@ extension Logger {
     nonisolated static let perf = Logger(subsystem: subsystem, category: "perf")
 }
 
-enum SearchMode {
-    case contains
-    case beginsWith
-}
-
 struct SourceScrollAnchor {
     /// Fractional one-based source line at the top of the viewport.
     let sourcePosition: CGFloat
@@ -96,15 +91,6 @@ enum ContentWidthSetting: String, CaseIterable {
         case .fullWidth: return nil
         }
     }
-}
-
-struct FindResult {
-    let top: CGFloat?
-    let bottom: CGFloat?
-    let index: Int
-    let total: Int
-
-    static let none = FindResult(top: nil, bottom: nil, index: 0, total: 0)
 }
 
 final class MarkdownWebView: NSView, WKNavigationDelegate {
@@ -608,9 +594,16 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
 
     func find(_ query: String,
               backwards: Bool = false,
-              mode: SearchMode = .contains,
+              options: SearchOptions = SearchOptions(),
               completion: ((FindResult) -> Void)? = nil) {
-        highlightMatches(for: query, backwards: backwards, mode: mode, completion: completion)
+        highlightMatches(for: query, backwards: backwards, options: options, completion: completion)
+    }
+
+    /// The page's current text selection, for pre-filling the find bar.
+    func fetchSelectedText(_ completion: @escaping (String?) -> Void) {
+        webView.evaluateJavaScript("window.getSelection().toString()") { value, _ in
+            completion(value as? String)
+        }
     }
 
     /// Flashes the macOS-style "burst" animation over the current match —
@@ -979,17 +972,18 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
 
     private func highlightMatches(for query: String,
                                   backwards: Bool,
-                                  mode: SearchMode,
+                                  options: SearchOptions,
                                   completion: ((FindResult) -> Void)?) {
-        let beginsWith = mode == .beginsWith
         let script = """
         (() => {
+            \(SearchPatternScript.javaScript)
             const root = document.querySelector('.markdown-body') || document.body;
-            const previousQuery = window.__mdPreviewSearchQuery || '';
-            const previousBeginsWith = window.__mdPreviewSearchBeginsWith === true;
-            const beginsWith = \(beginsWith ? "true" : "false");
-            const sameQuery = previousQuery === \(javaScriptStringLiteral(query))
-                && previousBeginsWith === beginsWith;
+            const query = \(javaScriptStringLiteral(query));
+            const mode = '\(options.mode.rawValue)';
+            const caseSensitive = \(options.caseSensitive ? "true" : "false");
+            const key = JSON.stringify([query, mode, caseSensitive]);
+            const sameQuery = window.__mdPreviewSearchKey === key;
+            const limit = \(Self.searchMatchLimit);
 
             // Tear down prior highlights, but only normalize() the parents we
             // actually touched — root.normalize() is O(N) over the entire
@@ -1005,16 +999,21 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
                 dirty.forEach((parent) => parent.normalize());
             }
 
-            const query = \(javaScriptStringLiteral(query));
-            window.__mdPreviewSearchQuery = query;
-            window.__mdPreviewSearchBeginsWith = beginsWith;
-            if (!query) {
+            window.__mdPreviewSearchKey = key;
+            const empty = (error) => {
                 window.__mdPreviewSearchIndex = -1;
-                return { top: null, bottom: null, index: 0, total: 0 };
+                return { top: null, bottom: null, index: 0, total: 0, error: error };
+            };
+            if (!query) return empty(false);
+            let pattern;
+            try {
+                pattern = window.__mdSearchPattern(query, mode, caseSensitive);
+            } catch (e) {
+                return empty(true);
             }
-            const isWordChar = (ch) => /[A-Za-z0-9_]/.test(ch);
 
-            const needle = query.toLocaleLowerCase();
+            // Matches are found one text node at a time, so a match cannot
+            // span inline formatting and ^ / $ anchor to the node.
             const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
                 acceptNode(node) {
                     const parent = node.parentElement;
@@ -1023,9 +1022,6 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
                     )) {
                         return NodeFilter.FILTER_REJECT;
                     }
-                    // Don't double-lowercase here; the inner loop already does
-                    // one .toLocaleLowerCase() per node and an .indexOf, which
-                    // short-circuits cheaply on non-matching text.
                     return NodeFilter.FILTER_ACCEPT;
                 }
             });
@@ -1034,36 +1030,30 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
             while (walker.nextNode()) { nodes.push(walker.currentNode); }
 
             const marks = [];
+            let capped = false;
             for (const node of nodes) {
+                if (capped) break;
                 const text = node.nodeValue;
-                const lower = text.toLocaleLowerCase();
                 const fragment = document.createDocumentFragment();
                 let offset = 0;
-                let searchFrom = 0;
-                let matchIndex = lower.indexOf(needle, searchFrom);
                 let nodeHasMatch = false;
+                let match;
+                pattern.lastIndex = 0;
 
-                while (matchIndex !== -1) {
-                    const prevChar = matchIndex === 0 ? '' : text[matchIndex - 1];
-                    const isBoundary = matchIndex === 0 || !isWordChar(prevChar);
-
-                    if (!beginsWith || isBoundary) {
-                        fragment.append(document.createTextNode(text.slice(offset, matchIndex)));
-
-                        const mark = document.createElement('mark');
-                        mark.className = 'md-search-highlight';
-                        mark.textContent = text.slice(matchIndex, matchIndex + query.length);
-                        fragment.append(mark);
-                        marks.push(mark);
-
-                        offset = matchIndex + query.length;
-                        searchFrom = offset;
-                        nodeHasMatch = true;
-                    } else {
-                        // Skip this match, but keep scanning the same text node.
-                        searchFrom = matchIndex + 1;
+                while ((match = pattern.exec(text)) !== null) {
+                    if (!match[0]) {
+                        pattern.lastIndex = match.index + (text.codePointAt(match.index) > 0xFFFF ? 2 : 1);
+                        continue;
                     }
-                    matchIndex = lower.indexOf(needle, searchFrom);
+                    if (marks.length >= limit) { capped = true; break; }
+                    fragment.append(document.createTextNode(text.slice(offset, match.index)));
+                    const mark = document.createElement('mark');
+                    mark.className = 'md-search-highlight';
+                    mark.textContent = match[0];
+                    fragment.append(mark);
+                    marks.push(mark);
+                    offset = match.index + match[0].length;
+                    nodeHasMatch = true;
                 }
 
                 if (nodeHasMatch) {
@@ -1072,10 +1062,7 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
                 }
             }
 
-            if (marks.length === 0) {
-                window.__mdPreviewSearchIndex = -1;
-                return { top: null, bottom: null, index: 0, total: 0 };
-            }
+            if (marks.length === 0) return empty(false);
 
             const previousIndex = Number.isInteger(window.__mdPreviewSearchIndex)
                 ? window.__mdPreviewSearchIndex
@@ -1104,7 +1091,9 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
                 top: rect.top + scrollY,
                 bottom: rect.bottom + scrollY,
                 index: index + 1,
-                total: marks.length
+                total: marks.length,
+                capped: capped,
+                error: false
             };
         })();
         """
@@ -1115,9 +1104,14 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
             let bottom = (dict?["bottom"] as? NSNumber).map { self.scaledDocumentOffset(CGFloat(truncating: $0)) }
             let index = (dict?["index"] as? NSNumber)?.intValue ?? 0
             let total = (dict?["total"] as? NSNumber)?.intValue ?? 0
-            completion(FindResult(top: top, bottom: bottom, index: index, total: total))
+            completion(FindResult(top: top, bottom: bottom, index: index, total: total,
+                                  error: dict?["error"] as? Bool ?? false,
+                                  capped: dict?["capped"] as? Bool ?? false))
         }
     }
+
+    /// Same cap as the source editor's highlights.
+    static let searchMatchLimit = 10000
 
     private func scaledDocumentOffset(_ cssOffset: CGFloat) -> CGFloat {
         cssOffset * webView.pageZoom

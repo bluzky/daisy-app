@@ -1,0 +1,16 @@
+[
+  {"query": "needle", "mode": "substring", "caseSensitive": false, "text": "Needle needle pinneedle NEEDLE", "matches": ["Needle", "needle", "needle", "NEEDLE"]},
+  {"query": "needle", "mode": "substring", "caseSensitive": true, "text": "Needle needle pinneedle NEEDLE", "matches": ["needle", "needle"]},
+  {"query": "needle", "mode": "word", "caseSensitive": false, "text": "Needle needle pinneedle needles NEEDLE", "matches": ["Needle", "needle", "NEEDLE"]},
+  {"query": "needle", "mode": "word", "caseSensitive": true, "text": "Needle needle pinneedle _needle needle_", "matches": ["needle"]},
+  {"query": "café", "mode": "word", "caseSensitive": false, "text": "café cafés Café", "matches": ["café", "Café"]},
+  {"query": "日本", "mode": "word", "caseSensitive": false, "text": "日本 日本語 日本", "matches": ["日本", "日本"]},
+  {"query": "a.b [x]", "mode": "substring", "caseSensitive": false, "text": "a.b [x] aXb [x]", "matches": ["a.b [x]"]},
+  {"query": "a.b", "mode": "regex", "caseSensitive": false, "text": "a.b aXb a b", "matches": ["a.b", "aXb", "a b"]},
+  {"query": "^\\w+", "mode": "regex", "caseSensitive": false, "text": "start middle", "matches": ["start"]},
+  {"query": "\\bfoo", "mode": "regex", "caseSensitive": false, "text": "foo xfoo foobar", "matches": ["foo", "foo"]},
+  {"query": "FOO", "mode": "regex", "caseSensitive": true, "text": "foo FOO", "matches": ["FOO"]},
+  {"query": "x*", "mode": "regex", "caseSensitive": false, "text": "abc xx", "matches": ["xx"]},
+  {"query": "(", "mode": "regex", "caseSensitive": false, "text": "(", "matches": [], "error": true},
+  {"query": "", "mode": "substring", "caseSensitive": false, "text": "anything", "matches": []}
+]

@@ -112,7 +112,6 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     var themesPopover: NSPopover?
     /// Armed only while the themes popover is open.
     let themesPopoverEscapeMonitor = EscapeKeyMonitor()
-    weak var searchField: NSSearchField?
     /// The Table of Contents / Project Navigator picker in the toolbar.
     var sidebarModeItem: NSToolbarItemGroup?
     /// The original position and spacer while sidebar-only items are removed.
@@ -127,7 +126,6 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     /// titlebar accessory — so showing it never pushes the tab bar down.
     /// Mounted once at setup and toggled via isHidden.
     weak var findBarOverlay: NSView?
-    var searchMode: SearchMode = .contains
     var pendingFindWork: DispatchWorkItem?
     static let findDebounceDelay: TimeInterval = 0.10
 

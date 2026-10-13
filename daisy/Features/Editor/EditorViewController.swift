@@ -311,18 +311,47 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
 
     func find(_ query: String,
               backwards: Bool = false,
-              mode: SearchMode = .contains,
+              options: SearchOptions = SearchOptions(),
               completion: ((FindResult) -> Void)? = nil) {
         findCompletion = completion
-        let script = "window.__mdEditor?.find(\(EditorHTML.jsStringLiteral(query)), \(backwards), \(mode == .beginsWith))"
+        let script = "window.__mdEditor?.find(\(EditorHTML.jsStringLiteral(query)), \(backwards), \(options.javaScriptLiteral))"
         webView.evaluateJavaScript(script) { result, _ in
-            guard let result = result as? [String: Any],
-                  let index = result["index"] as? Int,
-                  let total = result["total"] as? Int else {
-                completion?(.none)
-                return
-            }
-            completion?(FindResult(top: nil, bottom: nil, index: index, total: total))
+            completion?(FindResult(scriptResult: result) ?? .none)
+        }
+    }
+
+    func fetchSelectedText(_ completion: @escaping (String?) -> Void) {
+        webView.evaluateJavaScript("window.getSelection().toString()") { value, _ in
+            completion(value as? String)
+        }
+    }
+
+    /// Replaces the current match, then moves to the next. The completion gets
+    /// the search state after the edit and how many matches were replaced.
+    func replaceCurrent(_ replacement: String,
+                        query: String,
+                        options: SearchOptions,
+                        completion: ((FindResult, Int) -> Void)? = nil) {
+        runReplace("replaceCurrent", replacement, query: query, options: options, completion: completion)
+    }
+
+    /// Replaces every match in one undoable edit.
+    func replaceAll(_ replacement: String,
+                    query: String,
+                    options: SearchOptions,
+                    completion: ((FindResult, Int) -> Void)? = nil) {
+        runReplace("replaceAll", replacement, query: query, options: options, completion: completion)
+    }
+
+    private func runReplace(_ function: String,
+                            _ replacement: String,
+                            query: String,
+                            options: SearchOptions,
+                            completion: ((FindResult, Int) -> Void)?) {
+        let script = "window.__mdEditor?.\(function)(\(EditorHTML.jsStringLiteral(replacement)), \(EditorHTML.jsStringLiteral(query)), \(options.javaScriptLiteral))"
+        webView.evaluateJavaScript(script) { result, _ in
+            let replaced = ((result as? [String: Any])?["replaced"] as? NSNumber)?.intValue ?? 0
+            completion?(FindResult(scriptResult: result) ?? .none, replaced)
         }
     }
 
@@ -520,9 +549,8 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
                   let commands = payload["commands"] as? [String] else { return }
             formattingDidChange?(heading, Set(commands))
         case "findResult":
-            guard let index = payload["index"] as? Int,
-                  let total = payload["total"] as? Int else { return }
-            findCompletion?(FindResult(top: nil, bottom: nil, index: index, total: total))
+            guard let result = FindResult(scriptResult: payload) else { return }
+            findCompletion?(result)
         case "pasteImage":
             guard let from = payload["from"] as? NSNumber,
                   let to = payload["to"] as? NSNumber else { return }
