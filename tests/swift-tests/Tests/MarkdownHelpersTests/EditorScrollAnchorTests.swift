@@ -159,11 +159,11 @@ final class EditorScrollAnchorTests: XCTestCase {
                 await settle();
                 window.__mdEditor.insertTextAt('Before\\n\\n', 0, 0);
                 await settle();
-                const preserved = wrapped() === 'true';
+                const preserved = wrapped() === 'false';
                 window.__mdEditor.insertTextAt('', 0, window.__mdEditor.getMarkdown().length);
                 window.__mdEditor.insertTextAt(source, 0, 0);
                 await settle();
-                return preserved && wrapped() === 'false';
+                return preserved && wrapped() === 'true';
                 """, arguments: ["source": source], in: nil, contentWorld: .page) as? Bool
             XCTAssertEqual(result, true)
             editor.close()
@@ -236,6 +236,8 @@ final class EditorScrollAnchorTests: XCTestCase {
             defer { harness.close() }
             _ = try await harness.layout(texts: [], imageCount: 0)
             let result = try await harness.webView.callAsyncJavaScript("""
+                // Code blocks start wrapped; start from a scrolling one.
+                document.querySelectorAll('.cm-md-code-toggle-wrap, .md-code-toggle-wrap').forEach(t => { if (t.getAttribute('aria-pressed') === 'true') t.click(); }); for (let i = 0; i < 8; i++) window.__layoutTestFrame();
                 const settle = async () => { for (let i = 0; i < 8; i++) {
                     window.__layoutTestFrame(); await new Promise(r => setTimeout(r, 15));
                 }};
@@ -304,6 +306,8 @@ final class EditorScrollAnchorTests: XCTestCase {
             defer { editor.close() }
             _ = try await editor.layout(texts: [], imageCount: 0)
             let result = try await editor.webView.callAsyncJavaScript("""
+                // Code blocks start wrapped; this test is about scrolling ones.
+                document.querySelectorAll('.cm-md-code-toggle-wrap, .md-code-toggle-wrap').forEach(t => { if (t.getAttribute('aria-pressed') === 'true') t.click(); }); for (let i = 0; i < 8; i++) window.__layoutTestFrame();
                 const settle = async () => { for (let i = 0; i < 8; i++) {
                     window.__layoutTestFrame(); await new Promise(r => setTimeout(r, 15));
                 }};
@@ -355,6 +359,7 @@ final class EditorScrollAnchorTests: XCTestCase {
             _ = try await editor.layout(texts: [], imageCount: 0)
             let result = try await editor.webView.evaluateJavaScript("""
                 (() => {
+                    document.querySelectorAll('.cm-md-code-toggle-wrap, .md-code-toggle-wrap').forEach(t => { if (t.getAttribute('aria-pressed') === 'true') t.click(); }); for (let i = 0; i < 8; i++) window.__layoutTestFrame();
                     // Exercise space-consuming scrollbars as on the macOS 15 CI runner.
                     const style = document.createElement('style');
                     style.textContent = '.cm-md-code-card::-webkit-scrollbar { width: 15px; height: 15px; }';
@@ -722,7 +727,7 @@ final class EditorScrollAnchorTests: XCTestCase {
         defer { editor.close() }
         _ = try await editor.layout(texts: ["Before", "After"], imageCount: 0)
         let result = try await editor.webView.callAsyncJavaScript("""
-            for (let i = 0; i < 8; i++) window.__layoutTestFrame();
+            document.querySelectorAll('.cm-md-code-toggle-wrap, .md-code-toggle-wrap').forEach(t => { if (t.getAttribute('aria-pressed') === 'true') t.click(); }); for (let i = 0; i < 8; i++) window.__layoutTestFrame();
             const lines = [...document.querySelectorAll('[data-code-scroll-group]')];
             const first = lines[0], last = lines.at(-1);
             const text = first.querySelector('.cm-md-code-scroll-text');
@@ -819,6 +824,7 @@ final class EditorScrollAnchorTests: XCTestCase {
             _ = try await harness.layout(texts: [], imageCount: 0)
             let result = try await harness.webView.evaluateJavaScript("""
                 (() => {
+                    document.querySelectorAll('.cm-md-code-toggle-wrap, .md-code-toggle-wrap').forEach(t => { if (t.getAttribute('aria-pressed') === 'true') t.click(); }); for (let i = 0; i < 8; i++) window.__layoutTestFrame();
                     const page = \(pageScrolling ? "document.scrollingElement" : "document.querySelector('.cm-scroller')");
                     const style = getComputedStyle(page);
                     const nested = [...document.querySelectorAll('\(isEditor ? ".cm-md-code-card, .cm-md-table-scroll" : ".md-code-wrap pre, table")')];

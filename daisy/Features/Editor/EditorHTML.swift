@@ -449,7 +449,6 @@ nonisolated enum EditorHTML {
         }
         #editor .cm-md-code-card {
             position: relative;
-            container-type: inline-size;
             display: grid;
             grid-template-columns: max-content;
             /* Classic horizontal scrollbars must not stretch the code rows
@@ -469,7 +468,7 @@ nonisolated enum EditorHTML {
             position: relative;
             padding: 0;
             white-space: pre;
-            min-width: 100cqw;
+            min-width: var(--code-card-width, 100%);
         }
         #editor .cm-md-code-scroll-text {
             display: inline-block;
@@ -500,7 +499,7 @@ nonisolated enum EditorHTML {
             margin-inline: 9px 10px;
             margin-top: calc(-8px - \(codeLanguageHeaderHeight)px);
             margin-bottom: 8px;
-            width: calc(100cqw - 19px);
+            width: calc(var(--code-card-width, 100%) - 19px);
             height: 28px;
             display: flex;
             align-items: center;

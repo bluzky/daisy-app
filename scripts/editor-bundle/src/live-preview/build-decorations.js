@@ -10,7 +10,7 @@ import { pendingCoversFence, previewTree } from "../commands/code-fence.js"
 import { activeCodeBlock, pointerPreview } from "../pointer.js"
 import { TaskCheckboxWidget } from "../task-list.js"
 import { ImageWidget } from "../widgets/basic.js"
-import { CodeLanguageWidget, wrappedCodeBlocks } from "../widgets/code.js"
+import { CodeLanguageWidget, unwrappedCodeBlocks } from "../widgets/code.js"
 
 function detectedCodeHighlights(details, cache) {
   const cached = cache.get(details.sourceFrom)
@@ -628,7 +628,7 @@ export function buildDecorations(view, detectedCodeCache) {
             }
             ranges.push(Decoration.widget({
               widget: new CodeLanguageWidget({
-                wrapped: state.field(wrappedCodeBlocks).has(first.from),
+                wrapped: !state.field(unwrappedCodeBlocks).has(first.from),
                 fenceFrom: node.from,
                 language: details.language,
                 detectedLanguage: details.detectedLanguage,
@@ -641,7 +641,7 @@ export function buildDecorations(view, detectedCodeCache) {
           } else {
             ranges.push(Decoration.widget({
               widget: new CodeLanguageWidget({ fenceFrom: first.from, language: 'text',
-                rawInfo: '', plain: true, wrapped: state.field(wrappedCodeBlocks).has(first.from) }),
+                rawInfo: '', plain: true, wrapped: !state.field(unwrappedCodeBlocks).has(first.from) }),
               side: -1,
             }).range(widgetLine.from))
           }
@@ -678,7 +678,7 @@ export function buildDecorations(view, detectedCodeCache) {
               if (!isFirst && !isLast) lineOnce(line.from, codeLine)
               ranges.push(Decoration.line({ attributes: {
                 'data-code-scroll-group': String(first.from),
-                class: state.field(wrappedCodeBlocks).has(first.from) ? 'cm-md-code-wrapped' : '',
+                class: !state.field(unwrappedCodeBlocks).has(first.from) ? 'cm-md-code-wrapped' : '',
               } }).range(line.from))
               if (line.length) ranges.push(codeScrollText.range(line.from, line.to))
             }

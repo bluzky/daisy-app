@@ -20,13 +20,14 @@ import { formattingState } from "./formatting-state.js"
 import { codeLanguages } from "./languages.js"
 import { alignInactiveHeadings, livePreview } from "./live-preview/plugins.js"
 import { obsidianHighlight } from "./obsidian-highlight.js"
+import { codeCardWidth } from "./code-card-width.js"
 import { activeCodeBlock, anchoredPointerSelection, pointerPreview, stablePointerPreview } from "./pointer.js"
 import { slashTemplatesChanged } from "./slash.js"
 import { tableEditors } from "./table/editors.js"
 import { escapedTableCell } from "./table/model.js"
 import { captureTableSelection, prepareTableFormatting, restoreTableFormatting, tableCellSourceRange, tableFormattingCallbacks, tableFormattingSelection, tableFormattingTargets, tableInlineCommands } from "./table/selection.js"
 import { continueTaskList } from "./task-list.js"
-import { codeCopyHandlers, wrappedCodeBlocks } from "./widgets/code.js"
+import { codeCopyHandlers, unwrappedCodeBlocks } from "./widgets/code.js"
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -79,9 +80,10 @@ window.MDEditor = {
             }),
           }),
           activeCodeBlock,
-          wrappedCodeBlocks,
+          unwrappedCodeBlocks,
           pointerPreview,
           stablePointerPreview,
+          codeCardWidth,
           anchoredPointerSelection,
           ...moduleExtensions,
           tableEditors,
@@ -376,11 +378,11 @@ window.MDEditor = {
         return { ...searchResult(result), replaced: 1 }
       },
       replaceAll: (replacement, query, options = null) => {
-        // Not the capped list the highlights use: a limit must never leave
-        // matches behind.
         // Bring the highlights and the reported counts to this query first,
         // as replaceCurrent does, so they never describe a stale one.
         if (!syncSearch(query, options)) return { ...searchResult(view.state.field(documentFind)), replaced: 0 }
+        // Not the capped list the highlights use: a limit must never leave
+        // matches behind.
         const { matches, error } = collectMatches(view.state.doc, query, options)
         if (error || !matches.length) return { ...searchResult(view.state.field(documentFind)), replaced: 0 }
         const text = String(replacement ?? "")
