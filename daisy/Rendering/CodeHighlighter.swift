@@ -153,9 +153,15 @@ nonisolated enum CodeHighlighter {
             lock.lock()
             defer { lock.unlock() }
             if let engine = storage { return engine }
+            #if QUICK_LOOK_EXTENSION
             let bundled = MarkdownHTML.bundledVendorResource(
                 "highlight.min", ext: "js", subdir: "Vendor/Highlight"
             )
+            #else
+            let bundled = VendorResource.string(
+                "highlight.min", ext: "js", subdir: "Vendor/Highlight"
+            )
+            #endif
             let engine = bundled.flatMap(Engine.init(source:))
             storage = .some(engine)
             return engine

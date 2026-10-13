@@ -1,6 +1,7 @@
-import { EditorSelection, EditorState, StateField } from "@codemirror/state"
+import { EditorSelection, EditorState, StateField, Text } from "@codemirror/state"
 import { ViewPlugin } from "@codemirror/view"
-import { syntaxTree } from "@codemirror/language"
+import { language, syntaxTree } from "@codemirror/language"
+import { TreeFragment } from "@lezer/common"
 import { fencedCodeAt } from "../fenced-code.js"
 
 // Fence lines of a rendered code block are boundaries, not text: the cursor
@@ -81,7 +82,8 @@ function canCloseOuter(marker, block) {
 // A fence the user has just typed, before Enter has given it a partner. While
 // it is pending the parser may pair it with a fence further down; the editor
 // shows it as plain text and Enter inserts its own closing fence regardless.
-// `insideClose` is set when it was typed inside an existing block.
+// `insideOpen` and `insideClose` are set when it was typed inside an existing
+// block.
 export const pendingFence = StateField.define({
   create: () => null,
   update(value, tr) {
@@ -92,6 +94,7 @@ export const pendingFence = StateField.define({
       if (selection.empty && line.from === from && openerOf(tr.state, line)) {
         return {
           from,
+          insideOpen: value.insideOpen == null ? null : tr.changes.mapPos(value.insideOpen, -1),
           insideClose: value.insideClose == null ? null : tr.changes.mapPos(value.insideClose, 1),
         }
       }
@@ -108,30 +111,94 @@ export const pendingFence = StateField.define({
     if (multiline) return null
     const before = tr.startState
     const beforeHead = before.selection.main.head
-    if (openerOf(before, before.doc.lineAt(beforeHead))) return null
+    const beforeLine = before.doc.lineAt(beforeHead)
+    if (openerOf(before, beforeLine)) return null
+    // Inside a block that has no closing fence yet, the typed fence is either
+    // that closing fence or just code.
+    const unclosed = fencedCodeAt(before, beforeHead)
+    if (unclosed && !unclosed.closed
+        && before.doc.lineAt(unclosed.from).number < beforeLine.number) return null
+    let insideOpen = null
     let insideClose = null
     const fence = closedFenceAt(before, beforeHead)
     if (fence) {
       const block = blockLines(before, fence)
-      const beforeLine = before.doc.lineAt(beforeHead)
       if (block.hasContent && beforeLine.number > block.open.number
           && beforeLine.number < block.close.number) {
         // Inside a block, only a fence that could close it is special; anything
         // else is just code.
         if (!canCloseOuter(typed[2], block)) return null
+        insideOpen = tr.changes.mapPos(block.open.from, -1)
         insideClose = tr.changes.mapPos(block.close.from, 1)
       }
     }
-    return { from: line.from, insideClose }
+    return { from: line.from, insideOpen, insideClose }
   },
 })
 
-// True while `node` (a FencedCode) is only a product of the pending fence.
+// The document parsed as if the pending fence line were plain text: the blocks
+// as they were before it was typed. Its own line keeps the container prefix
+// and the same length, so positions match the real document. Reparsing reuses
+// the real tree everywhere but that line.
+let parsedWithoutPending = null
+const CONTAINERS = new Set(["Document", "Blockquote", "BulletList", "OrderedList", "ListItem"])
+function withoutPending(state, pending) {
+  const tree = syntaxTree(state)
+  if (parsedWithoutPending?.tree === tree && parsedWithoutPending.from === pending.from) {
+    return parsedWithoutPending.result
+  }
+  const line = state.doc.lineAt(pending.from)
+  const from = line.from + FENCE_LOOKING.exec(line.text)[1].length
+  const doc = state.doc.replace(from, line.to, Text.of(["x".repeat(line.to - from)]))
+  const input = {
+    length: doc.length,
+    lineChunks: false,
+    chunk: (pos) => doc.sliceString(pos, Math.min(doc.length, pos + 4096)),
+    read: (a, b) => doc.sliceString(a, b),
+  }
+  const fragments = TreeFragment.applyChanges(TreeFragment.addTree(tree),
+    [{ fromA: from, toA: line.to, fromB: from, toB: line.to }])
+  // Parse no further than the editor has: past the viewport it parses lazily.
+  const parse = state.facet(language).parser.startParse(input, fragments)
+  parse.stopAt(Math.max(tree.length, line.to))
+  let plain = null
+  while (!plain) plain = parse.advance()
+  // Fences are blocks: walk containers, never the inline content.
+  const fences = new Set()
+  plain.iterate({
+    from: pending.from,
+    enter: (node) => {
+      if (node.name === "FencedCode") fences.add(`${node.from}:${node.to}`)
+      return CONTAINERS.has(node.name)
+    },
+  })
+  // A pending fence that nothing below closes swallows the rest of the
+  // document; previewing the plain parse leaves the blocks below as they were.
+  const own = fencedCodeAt(state, from + 1)
+  const swallows = own != null && own.from === from && !own.closed
+  const result = { tree: swallows ? plain : tree, fences }
+  parsedWithoutPending = { tree, from: pending.from, result }
+  return result
+}
+
+// The tree the live preview decorates from.
+export function previewTree(state) {
+  const pending = state.field(pendingFence, false)
+  if (!pending || pending.insideClose != null) return syntaxTree(state)
+  return withoutPending(state, pending).tree
+}
+
+// True while `node` (a FencedCode) is only a product of the pending fence:
+// the block it starts, and every block below that it pairs differently.
 export function pendingCoversFence(state, node) {
   const pending = state.field(pendingFence, false)
   if (!pending) return false
-  const nodeLine = state.doc.lineAt(node.from).from
-  return nodeLine <= (pending.insideClose ?? pending.from) && node.to >= pending.from
+  if (pending.insideClose != null) {
+    return state.doc.lineAt(node.from).from <= pending.insideClose && node.to >= pending.from
+  }
+  const { tree, fences } = withoutPending(state, pending)
+  if (tree !== syntaxTree(state)) return false
+  return node.to >= pending.from && !fences.has(`${node.from}:${node.to}`)
 }
 
 // Navigation never leaves the caret on a rendered fence line.
@@ -162,17 +229,18 @@ export const keepCaretOffFences = EditorState.transactionFilter.of((tr) => {
   return [tr, { selection: EditorSelection.cursor(target), scrollIntoView: true, sequential: true }]
 })
 
-// Enter on the last, empty line of a block leaves it: that line is dropped and
-// the caret lands on a blank line below the closing fence.
-function leaveBlock(view, closingLine, dropFrom, dropTo) {
+// Enter on the last, empty line of a block leaves it: that line is dropped (or
+// replaced by `keep`) and the caret lands on a blank line below the closing
+// fence.
+function leaveBlock(view, closingLine, dropFrom, dropTo, keep = "") {
   const { state } = view
   const hasBlankBelow = closingLine.to < state.doc.length
     && state.doc.line(closingLine.number + 1).text.trim() === ""
-  const changes = [{ from: dropFrom, to: dropTo }]
+  const changes = [{ from: dropFrom, to: dropTo, insert: keep }]
   if (!hasBlankBelow) changes.push({ from: closingLine.to, insert: "\n" })
   view.dispatch({
     changes,
-    selection: { anchor: closingLine.to - (dropTo - dropFrom) + 1 },
+    selection: { anchor: closingLine.to - (dropTo - dropFrom) + keep.length + 1 },
     userEvent: "input",
     scrollIntoView: true,
   })
@@ -195,17 +263,21 @@ export function exitCodeBlock(view) {
 }
 
 // A fence typed inside an existing block, then Enter: on the block's last
-// line it leaves the block; elsewhere it splits the block in two.
+// line it leaves the block (an only code line stays, emptied); elsewhere it
+// splits the block in two.
 function resolveTypedFence(view, line, opener, pending) {
   const { state } = view
-  const closing = state.doc.lineAt(pending.insideClose)
-  if (closing.number === line.number + 1) {
-    const previous = state.doc.line(line.number - 1)
-    return leaveBlock(view, closing, previous.to, line.to)
-  }
   const [, prefix, marker, info] = opener
   const cont = continuation(prefix)
   const blank = cont.trimEnd()
+  const closing = state.doc.lineAt(pending.insideClose)
+  if (closing.number === line.number + 1) {
+    if (state.doc.lineAt(pending.insideOpen).number === line.number - 1) {
+      return leaveBlock(view, closing, line.from, line.to, blank)
+    }
+    const previous = state.doc.line(line.number - 1)
+    return leaveBlock(view, closing, previous.to, line.to)
+  }
   view.dispatch({
     changes: { from: line.from, to: line.to, insert: `${cont}${marker}\n${blank}\n${cont}${marker}${info}` },
     selection: { anchor: line.from + cont.length + marker.length + 1 + blank.length },
@@ -335,7 +407,7 @@ export function codeDelete(view) {
         const removed = line.to + 1 - line.from
         const anchor = line.number > 1
           ? line.from - 1
-          : (next.first ?? next.close).from - removed
+          : (next.first ? contentStart(next.first, blockPrefix(next)) : next.close.from) - removed
         view.dispatch({
           changes: { from: line.from, to: line.to + 1 },
           selection: { anchor },

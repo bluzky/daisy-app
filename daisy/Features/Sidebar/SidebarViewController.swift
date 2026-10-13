@@ -5,6 +5,82 @@
 
 import Cocoa
 
+/// Session-only project state shared by navigators rooted at one folder.
+/// Views retain their own selection; only workspace-wide expansion changes
+/// are published.
+@MainActor
+final class SidebarWorkspace {
+    static let expansionStateDidChange = Notification.Name("SidebarWorkspace.expansionStateDidChange")
+    static let expansionStateSourceKey = "SidebarWorkspace.expansionStateSource"
+
+    let rootURL: URL
+    private(set) var expandedFolderURLs: Set<URL>
+
+    init(rootURL: URL) {
+        self.rootURL = Self.canonicalURL(rootURL)
+        self.expandedFolderURLs = [self.rootURL]
+    }
+
+    static func canonicalURL(_ url: URL) -> URL {
+        url.resolvingSymlinksInPath().standardizedFileURL
+    }
+
+    func setExpandedFolderURLs(_ urls: Set<URL>, source: AnyObject? = nil) {
+        let canonicalURLs = Set(urls.map(Self.canonicalURL).filter {
+            $0.isDescendantOrSame(of: rootURL)
+        })
+        guard canonicalURLs != expandedFolderURLs else { return }
+        expandedFolderURLs = canonicalURLs
+        let userInfo = source.map { [Self.expansionStateSourceKey: $0] }
+        NotificationCenter.default.post(
+            name: Self.expansionStateDidChange,
+            object: self,
+            userInfo: userInfo
+        )
+    }
+}
+
+private final class WeakSidebarWorkspace {
+    weak var workspace: SidebarWorkspace?
+
+    init(_ workspace: SidebarWorkspace) {
+        self.workspace = workspace
+    }
+}
+
+@MainActor
+private enum SidebarWorkspaceRegistry {
+    /// Weak entries make workspaces session-scoped: closing their last window
+    /// discards root and expansion state instead of affecting later opens.
+    private static var workspaces: [URL: WeakSidebarWorkspace] = [:]
+
+    static func workspace(forExplicitFolder url: URL) -> SidebarWorkspace {
+        workspace(rootedAt: SidebarWorkspace.canonicalURL(url))
+    }
+
+    static func workspace(forFile url: URL) -> SidebarWorkspace {
+        let fileURL = SidebarWorkspace.canonicalURL(url)
+        discardReleasedWorkspaces()
+        let containingRoots = workspaces.keys.filter { fileURL.isDescendantOrSame(of: $0) }
+        if let root = containingRoots.max(by: { $0.pathComponents.count < $1.pathComponents.count }) {
+            return workspace(rootedAt: root)
+        }
+        return workspace(rootedAt: fileURL.deletingLastPathComponent())
+    }
+
+    private static func workspace(rootedAt rootURL: URL) -> SidebarWorkspace {
+        discardReleasedWorkspaces()
+        if let workspace = workspaces[rootURL]?.workspace { return workspace }
+        let workspace = SidebarWorkspace(rootURL: rootURL)
+        workspaces[rootURL] = WeakSidebarWorkspace(workspace)
+        return workspace
+    }
+
+    private static func discardReleasedWorkspaces() {
+        workspaces = workspaces.filter { $0.value.workspace != nil }
+    }
+}
+
 final class SidebarViewController: NSViewController {
 
     enum Mode: Int {
@@ -24,8 +100,8 @@ final class SidebarViewController: NSViewController {
     private var titleItem: TitleItem?
     private var lastRenderedMarkdown: String?
     private var lastRenderedFileName: String?
-    private var loadedFolderURL: URL?
-    private var pendingFolderURL: URL?
+    private var mountedWorkspace: SidebarWorkspace?
+    private var pendingWorkspace: SidebarWorkspace?
     private var pendingFileURL: URL?
 
     private static let modeDefaultsKey = "Sidebar.Mode"
@@ -116,9 +192,9 @@ final class SidebarViewController: NSViewController {
     }
 
     private func refreshNavigatorIfNeeded() {
-        if pendingFolderURL != loadedFolderURL {
-            loadedFolderURL = pendingFolderURL
-            projectNavigator.setRoot(pendingFolderURL)
+        if pendingWorkspace !== mountedWorkspace {
+            mountedWorkspace = pendingWorkspace
+            projectNavigator.setWorkspace(pendingWorkspace)
         }
         projectNavigator.setCurrentFile(pendingFileURL)
     }
@@ -157,11 +233,9 @@ final class SidebarViewController: NSViewController {
         setOpenFileURL(newURL)
     }
 
-    /// The folder the Project Navigator is rooted at — the closest thing the
-    /// app has to "the current project". Read from `pendingFolderURL` rather
-    /// than `loadedFolderURL` so it is right even in TOC mode, where the tree
-    /// has not been enumerated yet.
-    var projectRootURL: URL? { pendingFolderURL }
+    /// Current session workspace root. Read from pending state so it is right
+    /// in TOC mode too, before navigator mounts its deferred workspace.
+    var projectRootURL: URL? { pendingWorkspace?.rootURL }
 
     func canPerform(_ command: ProjectFileCommand) -> Bool {
         isViewLoaded && currentMode == .files && projectNavigator.canPerform(command)
@@ -184,14 +258,17 @@ final class SidebarViewController: NSViewController {
         projectNavigator.perform(command)
     }
 
-    /// Mounts an explicitly chosen folder as the Project Navigator root.
-    /// If the current document is inside that folder, keep it selected.
+    /// Opens an explicit folder workspace. If current document is inside it,
+    /// keep that navigator's selection.
     func openFolder(_ folderURL: URL, selectedFileURL: URL?) {
         loadViewIfNeeded()
-        let root = folderURL.standardizedFileURL
-        pendingFolderURL = root
-        if let selectedFileURL, selectedFileURL.isDescendantOrSame(of: root) {
-            pendingFileURL = selectedFileURL.standardizedFileURL
+        let workspace = SidebarWorkspaceRegistry.workspace(forExplicitFolder: folderURL)
+        pendingWorkspace = workspace
+        if let selectedFileURL {
+            let selectedFileURL = SidebarWorkspace.canonicalURL(selectedFileURL)
+            pendingFileURL = selectedFileURL.isDescendantOrSame(of: workspace.rootURL)
+                ? selectedFileURL
+                : nil
         } else {
             pendingFileURL = nil
         }
@@ -200,18 +277,18 @@ final class SidebarViewController: NSViewController {
         }
     }
 
-    /// Defers folder enumeration until the user is actually in the
-    /// navigator (saves disk walks on every TOC-mode open). Keeps the
-    /// existing root if the new file is a descendant; otherwise resets
-    /// so an unrelated File → Open updates the tree.
+    /// Defers navigator mounting until Files mode (avoids disk walks for TOC).
+    /// A direct file joins its deepest existing containing workspace, or
+    /// creates a workspace rooted at its parent. Untitled documents retain
+    /// their deferred workspace.
     private func setOpenFileURL(_ fileURL: URL?) {
-        let parent = fileURL?.deletingLastPathComponent().standardizedFileURL
-        if let parent, let current = loadedFolderURL, parent.isDescendantOrSame(of: current) {
-            pendingFolderURL = current
+        if let fileURL {
+            let fileURL = SidebarWorkspace.canonicalURL(fileURL)
+            pendingWorkspace = SidebarWorkspaceRegistry.workspace(forFile: fileURL)
+            pendingFileURL = fileURL
         } else {
-            pendingFolderURL = parent
+            pendingFileURL = nil
         }
-        pendingFileURL = fileURL?.standardizedFileURL
         if currentMode == .files {
             refreshNavigatorIfNeeded()
         }

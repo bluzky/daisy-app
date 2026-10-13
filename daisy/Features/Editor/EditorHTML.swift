@@ -59,7 +59,7 @@ nonisolated enum EditorHTML {
 
     static func render(markdown: String,
                        editorJavaScript: String,
-                       mermaidJavaScript: String? = nil,
+                       includesMermaid: Bool = false,
                        assetBaseURL: URL? = nil,
                        configuration: Configuration = Configuration()) -> String {
         // Divided by the page zoom: the preview scales its type, not its
@@ -70,8 +70,6 @@ nonisolated enum EditorHTML {
         let lightPageBackground = configuration.lightPageBackground
         let darkPageBackground = configuration.darkPageBackground
         let usesPageScrolling = configuration.usesPageScrolling
-        let includesMermaid = mermaidJavaScript != nil
-        let mermaidJavaScript = mermaidJavaScript ?? ""
         return """
         <!DOCTYPE html>
         <html data-page-scrolling="\(usesPageScrolling)">
@@ -584,21 +582,32 @@ nonisolated enum EditorHTML {
                the preview's .mermaid-figure margin. */
             position: relative;
             margin: 0 auto;
+            /* Sized like the preview's .mermaid-figure: only the width is
+               capped, at the diagram's natural width, and the ::before sizer
+               applies the aspect ratio inside padding that mirrors the
+               stage's, so a wide diagram doesn't letterbox. The preview's
+               text size leaves diagrams at their natural size, but the editor
+               mirrors it with page zoom, so the natural width, padding and
+               corners divide the zoom back out. */
+            --mm-padding: calc(16px / var(--mdp-page-zoom, 1));
+            padding: var(--mm-padding);
             width: 100%;
-            --mm-max-height: min(70vh, 720px);
-            max-width: calc(var(--mm-max-height) * (var(--mm-aspect, 4 / 3)));
-            aspect-ratio: var(--mm-aspect, 4 / 3);
-            max-height: var(--mm-max-height);
+            max-width: calc(var(--mm-natural-width, 100%) / var(--mdp-page-zoom, 1) + 2 * var(--mm-padding));
             overflow: hidden;
-            border-radius: 15px;
+            border-radius: calc(15px / var(--mdp-page-zoom, 1));
             background: var(--code-bg);
             cursor: text;
             box-sizing: border-box;
         }
+        .cm-md-mermaid-preview::before {
+            content: "";
+            display: block;
+            aspect-ratio: var(--mm-aspect, 4 / 3);
+        }
         .cm-md-mermaid-stage {
             position: absolute;
             inset: 0;
-            padding: 16px;
+            padding: var(--mm-padding, 16px);
             box-sizing: border-box;
             display: flex;
             align-items: center;
@@ -792,16 +801,36 @@ nonisolated enum EditorHTML {
         </head>
         <body>
         <div id="editor"></div>
-        \(includesMermaid ? "<script>\(mermaidJavaScript)</script>" : "")
         \(includesMermaid ? """
         <script>
-        if (window.mermaid) {
-            window.mermaid.initialize({
-                startOnLoad: false,
-                securityLevel: "strict",
-                theme: window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "default"
-            });
-        }
+        // Mermaid is fetched after first paint, so the text shows before the
+        // bundle parses. A diagram rendered sooner waits on __mdLoadMermaid,
+        // which resolves to null if the bundle fails to load.
+        (function () {
+            let load = null;
+            window.__mdLoadMermaid = function () {
+                if (!load) {
+                    load = new Promise(function (resolve) {
+                        const script = document.createElement("script");
+                        script.onload = function () {
+                            if (window.mermaid) {
+                                window.mermaid.initialize({
+                                    startOnLoad: false,
+                                    securityLevel: "strict",
+                                    theme: window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "default"
+                                });
+                            }
+                            resolve(window.mermaid || null);
+                        };
+                        script.onerror = function () { resolve(null); };
+                        script.src = "\(MarkdownAssetScheme.vendorURL("mermaid.min.js"))";
+                        document.head.appendChild(script);
+                    });
+                }
+                return load;
+            };
+            requestAnimationFrame(function () { setTimeout(window.__mdLoadMermaid, 0); });
+        })();
         </script>
         """ : "")
         <script>\(editorJavaScript)</script>

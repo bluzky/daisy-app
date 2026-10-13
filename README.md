@@ -59,6 +59,7 @@ Or grab the latest signed and notarized DMG from the [Releases](https://github.c
 ## Features
 
 - **Read Mode** — native `WKWebView` rendering with a document outline, file navigator and inspector panel. Task checkboxes save straight to the file.
+- **Workspaces** — open a folder to make it a workspace. Files inside it share Files sidebar root and folder expansion across open windows and tabs; opening a Markdown file directly uses its parent folder unless an open workspace already contains it.
 - **Bookmarks** — right-click a file or folder in the file navigator and choose **Bookmark** to pin it in a Bookmarks section at the top of the Files tab. Click a bookmarked file to open it, or a folder to make it the project root; remove one from its right-click menu.
 - **Edit Mode** — edit in place with Format and Insert menus (image, code block, table), Markdown syntax that previews as you type, inline table editing, and safe rich-text paste conversion. Pasting web content preserves common Markdown formatting, including absolute http(s) images; HTML tables and spreadsheet TSV become GFM tables. Image pastes still use Daisy's native asset flow (<kbd>⌘E</kbd> to toggle, <kbd>⌘S</kbd> to save).
 - **Slash commands** — type `/` at the start of a line or after a space to turn it into a heading, list, quote, divider, code block, table, image, Mermaid diagram, math block, or callout.
@@ -73,7 +74,7 @@ Or grab the latest signed and notarized DMG from the [Releases](https://github.c
 
 
 
-- **Command line and URL scheme** — `mdp .` from a shell, or `daisy://file/<absolute path>` from a browser link. `md-preview://` links still work.
+- **Command line and URL scheme** — `daisy .` opens from a shell; `daisy export report.md --format docx --output report.docx` writes a Word document. [CLI docs](docs/command-line.md) cover export. Browser links use `daisy://file/<absolute path>`.
 
 
 ### Templates
