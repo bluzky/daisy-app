@@ -10,6 +10,8 @@ private enum CommandLineToolInstallError: LocalizedError {
     case terminalAutomationFailed(String?)
     case installerScriptWriteFailed(String)
     case bundledToolMissing
+    case bundledExporterMissing
+    case bundledResourceMissing(String)
 
     var errorDescription: String? {
         switch self {
@@ -36,6 +38,19 @@ private enum CommandLineToolInstallError: LocalizedError {
             return NSLocalizedString(
                 "The bundled Daisy CLI could not be found.",
                 comment: "CLI installer error"
+            )
+        case .bundledExporterMissing:
+            return NSLocalizedString(
+                "The bundled Daisy exporter could not be found.",
+                comment: "CLI installer error"
+            )
+        case .bundledResourceMissing(let name):
+            return String(
+                format: NSLocalizedString(
+                    "A bundled Daisy exporter resource is missing: %@",
+                    comment: "CLI installer error"
+                ),
+                name
             )
         }
     }
@@ -473,10 +488,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func installCommandLineTools(_ sender: Any?) {
         do {
-            let commandLineToolURL = try bundledCommandLineToolURL()
-            let installerScriptURL = try writeCommandLineToolInstallerScript(
-                commandLineToolURL: commandLineToolURL
-            )
+            let tools = try bundledCommandLineTools()
+            let installerScriptURL = try writeCommandLineToolInstallerScript(tools: tools)
             let installCommand = makeCommandLineToolInstallCommand(scriptURL: installerScriptURL)
             try runInstallCommandInTerminal(installCommand)
         } catch {
@@ -712,202 +725,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSApp.windows.contains { $0 is NSOpenPanel && $0.isVisible }
     }
 
-    private func makeCommandLineToolInstallerScript(commandLineToolURL: URL) -> String {
-        """
-        #!/bin/sh
-        set -eu
-        installer_path=$0
-        trap 'rm -f "$installer_path"' EXIT
-        bundled_cli=\(commandLineToolURL.path.shellQuotedString)
-
-        path_contains() {
-          case ":$PATH:" in
-            *":$1:"*) return 0 ;;
-            *) return 1 ;;
-          esac
-        }
-
-        can_install_without_sudo() {
-          dir="$1"
-          if [ -d "$dir" ]; then
-            [ -w "$dir" ] && [ -x "$dir" ]
-            return
-          fi
-
-          parent="${dir%/*}"
-          [ "$parent" != "$dir" ] || parent="."
-          [ -d "$parent" ] && [ -w "$parent" ] && [ -x "$parent" ]
-        }
-
-        is_safe_path_dir() {
-          case "$1" in
-            ""|.|/bin|/sbin|/usr/bin|/usr/sbin|/System/*) return 1 ;;
-            /*) return 0 ;;
-            *) return 1 ;;
-          esac
-        }
-
-        choose_install_dir() {
-          for dir in "$HOME/.local/bin" "$HOME/bin"; do
-            if path_contains "$dir" && can_install_without_sudo "$dir"; then
-              printf '%s\t%s\n' "$dir" "false"
-              return 0
-            fi
-          done
-
-          old_ifs=$IFS
-          IFS=:
-          set -- $PATH
-          IFS=$old_ifs
-
-          for dir in /usr/local/bin /opt/homebrew/bin; do
-            if path_contains "$dir"; then
-              if can_install_without_sudo "$dir"; then
-                printf '%s\t%s\n' "$dir" "false"
-              else
-                printf '%s\t%s\n' "$dir" "true"
-              fi
-              return 0
-            fi
-          done
-
-          for dir do
-            if is_safe_path_dir "$dir" && can_install_without_sudo "$dir"; then
-              printf '%s\t%s\n' "$dir" "false"
-              return 0
-            fi
-          done
-
-          for dir do
-            if is_safe_path_dir "$dir"; then
-              printf '%s\t%s\n' "$dir" "true"
-              return 0
-            fi
-          done
-
-          return 1
-        }
-
-        choice=$(choose_install_dir) || {
-          echo "Could not find a usable PATH directory for Daisy command line tools." >&2
-          exit 1
-        }
-
-        install_dir=${choice%	*}
-        needs_sudo=${choice#*	}
-        primary="$install_dir/daisy"
-
-        is_markdown_preview_launcher() {
-          path="$1"
-          [ -f "$path" ] && [ ! -L "$path" ] || return 1
-          if grep -q '^# Managed by Markdown Preview CLI$' "$path"; then
-            return 0
-          fi
-          grep -q 'exec open -b "doc.daisy"' "$path" ||
-            grep -q 'exec open -b "doc.md-preview"' "$path"
-        }
-
-        can_replace_primary() {
-          path="$1"
-          if [ ! -e "$path" ] && [ ! -L "$path" ]; then
-            return 0
-          fi
-          is_markdown_preview_launcher "$path"
-        }
-
-        can_replace_alias() {
-          alias_path="$1"
-          if [ ! -e "$alias_path" ] && [ ! -L "$alias_path" ]; then
-            return 0
-          fi
-          [ -L "$alias_path" ] || return 1
-          alias_target=$(readlink "$alias_path" || true)
-          [ "$alias_target" = "daisy" ] ||
-            [ "$alias_target" = "$primary" ] ||
-            [ "$alias_target" = "$install_dir/daisy" ] ||
-            [ "$alias_target" = "md-preview" ] ||
-            [ "$alias_target" = "$install_dir/md-preview" ]
-        }
-
-        # Before the rename the primary command was md-preview, a launcher
-        # script. Turn it into an alias so existing habits keep working, but
-        # only if it is ours.
-        can_replace_legacy_name() {
-          path="$1"
-          can_replace_alias "$path" || is_markdown_preview_launcher "$path"
-        }
-
-        refuse_existing_command() {
-          echo "Refusing to replace existing command that was not installed by Daisy: $1" >&2
-          exit 1
-        }
-
-        can_replace_primary "$primary" || refuse_existing_command "$primary"
-        for alias in mdp markdown-preview; do
-          can_replace_alias "$install_dir/$alias" || refuse_existing_command "$install_dir/$alias"
-        done
-        can_replace_legacy_name "$install_dir/md-preview" || refuse_existing_command "$install_dir/md-preview"
-
-        if [ "$needs_sudo" = "true" ]; then
-          echo "Installing Daisy command line tools to $install_dir requires your password."
-          sudo mkdir -p "$install_dir"
-          sudo install -m 755 "$bundled_cli" "$primary"
-        else
-          mkdir -p "$install_dir"
-          install -m 755 "$bundled_cli" "$primary"
-        fi
-
-        for alias in mdp markdown-preview md-preview; do
-          alias_path="$install_dir/$alias"
-          if [ "$needs_sudo" = "true" ]; then
-            sudo ln -sfn "daisy" "$alias_path"
-          else
-            ln -sfn "daisy" "$alias_path"
-          fi
-        done
-
-        echo
-        echo "Daisy CLI is ready."
-        echo
-        echo "Use any of these commands:"
-        echo "  mdp"
-        echo "  daisy"
-        echo "  markdown-preview"
-        echo
-        echo "Examples:"
-        echo "  mdp README.md        Open a Markdown file"
-        echo "  mdp .                Open the current folder"
-        echo "  mdp docs             Browse a folder in Daisy"
-        echo
-        echo "Tips:"
-        echo "  Use mdp for the shortest command."
-        echo "  Re-run Install CLI... after updating the app to refresh these commands."
-        echo "  Installed in: $install_dir"
-        echo
-
-        if command -v mdp >/dev/null 2>&1; then
-          echo "Try it now: mdp ."
-        else
-          echo "Open a new terminal window, then try: mdp ."
-        fi
-        """
-    }
-
-    private func bundledCommandLineToolURL() throws -> URL {
-        guard let url = Bundle.main.url(forResource: "markdown-preview",
-                                        withExtension: nil,
-                                        subdirectory: "bin") else {
+    private func bundledCommandLineTools() throws -> CommandLineTools {
+        guard let launcher = Bundle.main.url(forResource: "daisy",
+                                             withExtension: nil,
+                                             subdirectory: "bin") else {
             throw CommandLineToolInstallError.bundledToolMissing
         }
-        return url
+        guard let exporter = Bundle.main.url(forResource: "daisy-export",
+                                             withExtension: nil,
+                                             subdirectory: "bin") else {
+            throw CommandLineToolInstallError.bundledExporterMissing
+        }
+        let resourceNames = [
+            "highlight.min.js", "mermaid.min.js", "docx-theme-document.json",
+            "docx-theme-github.json", "docx-theme-minimal.json", "docx-theme-serif.json",
+        ]
+        let resources = try resourceNames.map { name -> URL in
+            let parts = name.split(separator: ".", maxSplits: 1).map(String.init)
+            guard let url = Bundle.main.url(forResource: parts[0],
+                                            withExtension: parts.count == 2 ? parts[1] : nil)
+            else { throw CommandLineToolInstallError.bundledResourceMissing(name) }
+            return url
+        }
+        return CommandLineTools(launcher: launcher, exporter: exporter, resources: resources)
     }
 
-    private func writeCommandLineToolInstallerScript(commandLineToolURL: URL) throws -> URL {
+    private func writeCommandLineToolInstallerScript(tools: CommandLineTools) throws -> URL {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("install-markdown-preview-cli-\(UUID().uuidString).sh")
 
         do {
-            try makeCommandLineToolInstallerScript(commandLineToolURL: commandLineToolURL)
+            try CommandLineToolInstaller.script(tools: tools)
                 .write(to: url, atomically: true, encoding: .utf8)
             try FileManager.default.setAttributes([.posixPermissions: 0o700],
                                                   ofItemAtPath: url.path)

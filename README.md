@@ -73,7 +73,7 @@ Or grab the latest signed and notarized DMG from the [Releases](https://github.c
 
 
 
-- **Command line and URL scheme** — `mdp .` from a shell, or `daisy://file/<absolute path>` from a browser link. `md-preview://` links still work.
+- **Command line and URL scheme** — `daisy .` opens from a shell; `daisy export report.md --format docx --output report.docx` writes a Word document. [CLI docs](docs/command-line.md) cover export; `mdp` and `markdown-preview` remain compatibility aliases. Browser links use `daisy://file/<absolute path>`; `md-preview://` links still work.
 
 
 ### Templates

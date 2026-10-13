@@ -41,7 +41,7 @@
 "The app the Open button in the document toolbar uses first. Its menu still offers every other installed app." = "文稿工具栏中的“打开”按钮会优先使用此 App。菜单仍会列出所有其他已安装的 App。";
 "Command line tools" = "命令行工具";
 "Install…" = "安装…";
-"Adds mdp, daisy, and markdown-preview to your PATH. Run it again after updating the app to refresh the commands." = "将 mdp、daisy 和 markdown-preview 添加到 PATH。更新 App 后请再次运行，以刷新这些命令。";
+"Adds daisy to your PATH; mdp and markdown-preview remain compatibility aliases. Run it again after updating the app to refresh the commands." = "将 daisy 添加到 PATH；mdp 和 markdown-preview 仍为兼容别名。更新 App 后请再次运行，以刷新这些命令。";
 "Daisy" = "Daisy";
 "Version %@ (%@)" = "版本 %@（%@）";
 "Check for Updates" = "检查更新";
@@ -290,6 +290,8 @@
 "Terminal automation failed." = "终端自动化失败。";
 "Failed to write CLI installer script: %@" = "无法写入 CLI 安装脚本：%@";
 "The bundled Daisy CLI could not be found." = "找不到随附的 Daisy CLI。";
+"The bundled Daisy exporter could not be found." = "找不到随附的 Daisy 导出工具。";
+"A bundled Daisy exporter resource is missing: %@" = "缺少随附的 Daisy 导出工具资源：%@";
 
 /* Settings — Reading */
 "Reading" = "阅读";

@@ -52,7 +52,7 @@ final class MermaidRasterizer: NSObject, WKNavigationDelegate {
     static func render(_ sources: [String]) async -> [String: DocxImage] {
         let unique = Array(Set(sources))
         guard !unique.isEmpty,
-              let vendor = MarkdownHTML.bundledVendorResource(
+              let vendor = VendorResource.string(
                 "mermaid.min", ext: "js", subdir: "Vendor/Mermaid")
         else { return [:] }
         let rasterizer = MermaidRasterizer()

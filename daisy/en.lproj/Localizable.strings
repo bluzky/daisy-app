@@ -41,7 +41,7 @@
 "The app the Open button in the document toolbar uses first. Its menu still offers every other installed app." = "The app the Open button in the document toolbar uses first. Its menu still offers every other installed app.";
 "Command line tools" = "Command line tools";
 "Install…" = "Install…";
-"Adds mdp, daisy, and markdown-preview to your PATH. Run it again after updating the app to refresh the commands." = "Adds mdp, daisy, and markdown-preview to your PATH. Run it again after updating the app to refresh the commands.";
+"Adds daisy to your PATH; mdp and markdown-preview remain compatibility aliases. Run it again after updating the app to refresh the commands." = "Adds daisy to your PATH; mdp and markdown-preview remain compatibility aliases. Run it again after updating the app to refresh the commands.";
 "Daisy" = "Daisy";
 "Version %@ (%@)" = "Version %@ (%@)";
 "Check for Updates" = "Check for Updates";
@@ -290,6 +290,8 @@
 "Terminal automation failed." = "Terminal automation failed.";
 "Failed to write CLI installer script: %@" = "Failed to write CLI installer script: %@";
 "The bundled Daisy CLI could not be found." = "The bundled Daisy CLI could not be found.";
+"The bundled Daisy exporter could not be found." = "The bundled Daisy exporter could not be found.";
+"A bundled Daisy exporter resource is missing: %@" = "A bundled Daisy exporter resource is missing: %@";
 
 /* Settings — Reading */
 "Reading" = "Reading";

@@ -171,7 +171,7 @@ struct GeneralSettingsView: View {
                 Text(L("External apps & tools"))
             } footer: {
                 Text(L("The app the Open button in the document toolbar uses first. Its menu still offers every other installed app."))
-                Text(L("Adds mdp, daisy, and markdown-preview to your PATH. Run it again after updating the app to refresh the commands."))
+                Text(L("Adds daisy to your PATH; mdp and markdown-preview remain compatibility aliases. Run it again after updating the app to refresh the commands."))
             }
 
             Section {
