@@ -286,6 +286,9 @@ nonisolated enum MarkdownHTML {
                renderExtensionConfiguration: renderExtensionConfiguration).html
     }
 
+    /// Class of the placeholder an empty document shows instead of a blank page.
+    static let emptyDocumentHintClass = "mdp-empty-hint"
+
     static func render(markdown: String,
                        allowsScroll: Bool = false,
                        assetBaseHref: String? = nil,
@@ -302,7 +305,8 @@ nonisolated enum MarkdownHTML {
                        textScale: CGFloat = 1,
                        highlightsCode: Bool = true,
                        documentID: String = "page",
-                       renderExtensionConfiguration: RenderExtensionConfiguration = .allEnabled) -> RenderedHTML {
+                       renderExtensionConfiguration: RenderExtensionConfiguration = .allEnabled,
+                       emptyDocumentHint: String? = nil) -> RenderedHTML {
         let frontmatter = MarkdownFrontmatter.split(markdown)
         let body = frontmatter.body
         let sourceLineOffset: Int
@@ -372,7 +376,14 @@ nonisolated enum MarkdownHTML {
             markdown: body,
             configuration: renderExtensionConfiguration
         )
-        let bodyHTML = extensionRun.html
+        // An empty document otherwise renders a blank page that reads as a
+        // failed load. The hint travels as article HTML so live updates add
+        // and remove it as the file gains or loses content.
+        let bodyHTML = emptyDocumentHint.flatMap { hint in
+            markdown.allSatisfy(\.isWhitespace)
+                ? "<p class=\"\(emptyDocumentHintClass)\">\(htmlEscape(hint))</p>"
+                : nil
+        } ?? extensionRun.html
         let activeExtensions = extensionRun.active
         let extensionAssets = activeExtensions.map { $0.assets(mode: vendorLoading) }
         // Every page shell carries enabled extension CSS. A later fast-path

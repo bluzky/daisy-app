@@ -150,8 +150,7 @@ final class EditorPreviewLayoutTests: XCTestCase {
                        file: StaticString = #filePath, line: UInt = #line) async throws {
         let editorScript = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         TestVendor.installHighlighterGrammar()
-        let mermaid = fixture.markdown.contains("```mermaid")
-            ? try TestVendor.script("daisy/Vendor/Mermaid/mermaid.min.js") : nil
+        let includesMermaid = fixture.markdown.contains("```mermaid")
         let zoom = try XCTUnwrap(Double(ProcessInfo.processInfo.environment["MDP_LAYOUT_ZOOM"] ?? "1"))
         guard zoom > 0 else { throw WebViewLayoutHarness.Failure("Page zoom must be positive") }
         for (width, fullWidth, pageScrolling) in [
@@ -167,7 +166,7 @@ final class EditorPreviewLayoutTests: XCTestCase {
             ).html
             let editorHTML = EditorHTML.render(
                 markdown: (initial ?? fixture).markdown, editorJavaScript: editorScript,
-                mermaidJavaScript: mermaid,
+                includesMermaid: includesMermaid,
                 configuration: .init(fullWidth: fullWidth, usesPageScrolling: pageScrolling)
             )
             let reader = WebViewLayoutHarness(html: readerHTML, width: width, isEditor: false, zoom: zoom, height: fixture.height)

@@ -198,12 +198,28 @@ function tsvMarkdown(text, explicit) {
   return [render(cells[0]), render(Array(columns).fill("---")), ...cells.slice(1).map(render)].join("\n")
 }
 
+// Plain text that already holds a closed fenced code block is Markdown source
+// (copied from an editor or chat); its HTML is only a styled rendering of
+// those lines, and converting it would split the block into inline code.
+function containsFencedCode(text) {
+  const lines = String(text || "").replace(/\r\n?/g, "\n").split("\n")
+  for (let index = 0; index < lines.length; index++) {
+    const opening = lines[index].match(/^ {0,3}(`{3,}|~{3,})/)
+    if (!opening || (opening[1][0] === "`" && lines[index].slice(opening[0].length).includes("`"))) continue
+    const marker = opening[1]
+    const closing = new RegExp(`^ {0,3}${marker[0] === "`" ? "`" : "~"}{${marker.length},}[ \\t]*$`)
+    if (lines.slice(index + 1).some(line => closing.test(line))) return true
+  }
+  return false
+}
+
 /**
  * Return Markdown only when rich HTML or safe tabular data deserves handling.
  * Returning null intentionally leaves CodeMirror's plain-text paste untouched.
  */
 export function convertClipboardToMarkdown({ html = "", text = "", types = [] } = {}, options = {}) {
   const DOMParserClass = options.DOMParser || globalThis.DOMParser
+  if (containsFencedCode(text)) return null
   const fromHTML = convertHTML(String(html || ""), DOMParserClass)
   if (fromHTML) return fromHTML
   const explicitTSV = Array.from(types || []).some(type =>

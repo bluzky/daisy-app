@@ -433,8 +433,10 @@ final class MarkdownHTMLRenderTests: XCTestCase {
         XCTAssertFalse(stylesheet.contains("::-webkit-selection"))
         XCTAssertFalse(stylesheet.contains("::-moz-selection"))
         // Code UI is not document text. The generated language label and
-        // card header may opt out, but the Markdown content must not.
-        let allowedSelectors = ["pre[data-code-language]::before", ".md-code-header"]
+        // card header may opt out, as may the empty-document placeholder,
+        // but the Markdown content must not.
+        let allowedSelectors = ["pre[data-code-language]::before", ".md-code-header",
+                                ".\(MarkdownHTML.emptyDocumentHintClass)"]
         XCTAssertEqual(nonSelectableRules.count, allowedSelectors.count)
         for selector in allowedSelectors {
             XCTAssertTrue(nonSelectableRules.contains { $0.contains(selector) }, selector)
@@ -1539,6 +1541,7 @@ final class MarkdownHTMLRenderTests: XCTestCase {
         <script>
         const figure = document.querySelector('.mermaid-figure');
         figure.style.setProperty('--mm-aspect', '1 / 4');
+        figure.style.setProperty('--mm-natural-width', '200px');
         figure.querySelector('.mermaid').innerHTML = '<svg viewBox="0 0 200 800"></svg>';
         document.querySelector('.mermaid-hud').addEventListener('click', (event) => {
             const button = event.target.closest('[data-mm-act="width"]');
@@ -1587,10 +1590,12 @@ final class MarkdownHTMLRenderTests: XCTestCase {
         XCTAssertFalse(initial.expanded)
         XCTAssertEqual(initial.buttonPressed, "false")
         // Pin the size, not just "narrower and centred": a figure collapsed to
-        // 0 x 0 satisfies both of those. The height cap is 70vh of the 600pt
-        // view, and the 1:4 aspect ratio carries it through to the width.
-        XCTAssertEqual(initial.figureHeight, 420, accuracy: 1)
-        XCTAssertEqual(initial.figureWidth, 105, accuracy: 1)
+        // 0 x 0 satisfies both of those. Only the width is capped, at the
+        // 200px natural width plus the 32px padding; the 1:4 aspect ratio sets
+        // the height inside the padding, which may exceed the 600pt view.
+        XCTAssertEqual(initial.figureWidth, 232, accuracy: 1)
+        XCTAssertEqual(initial.figureHeight, 832, accuracy: 1)
+        XCTAssertEqual(initial.svgWidth, 200, accuracy: 1)
         XCTAssertLessThan(initial.figureWidth, initial.articleWidth)
         XCTAssertEqual(
             initial.figureLeft - initial.articleLeft,
@@ -1730,7 +1735,70 @@ final class MarkdownHTMLRenderTests: XCTestCase {
         XCTAssertEqual(metrics.display, "flex")
         XCTAssertGreaterThan(metrics.articleWidth, 0)
         XCTAssertEqual(metrics.figureWidth, metrics.articleWidth, accuracy: 1)
-        XCTAssertEqual(metrics.figureHeight, metrics.articleWidth / 2, accuracy: 1)
+        // The 2:1 ratio applies inside the 16px padding on each side.
+        XCTAssertEqual(metrics.figureHeight, (metrics.articleWidth - 32) / 2 + 32, accuracy: 1)
+    }
+
+    @MainActor
+    func testMermaidRenderFailureKeepsSourceInFigureFlow() async throws {
+        let rendered = MarkdownHTML.render(markdown: "```mermaid\nsource\n```", vendorLoading: .lazy)
+        let stylesheet = try XCTUnwrap(
+            rendered.html
+                .components(separatedBy: "<style>")
+                .dropFirst()
+                .first?
+                .components(separatedBy: "</style>")
+                .first
+        )
+        let html = """
+        <!DOCTYPE html>
+        <html><head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>\(stylesheet)</style>
+        </head><body><article class="markdown-body">
+        <figure class="mermaid-figure mermaid-error">
+        <div class="mermaid-stage"><div class="mermaid">Invalid Mermaid source\n\nnot valid Mermaid</div></div>
+        </figure>
+        </article></body></html>
+        """
+        let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 900, height: 600))
+        webView.loadHTMLString(html, baseURL: nil)
+        while webView.isLoading {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+
+        let result = try await webView.evaluateJavaScript("""
+        (() => {
+            const figure = document.querySelector('.mermaid-figure').getBoundingClientRect();
+            const source = document.querySelector('.mermaid').getBoundingClientRect();
+            const stage = document.querySelector('.mermaid-stage');
+            return JSON.stringify({
+                figureTop: figure.top,
+                figureBottom: figure.bottom,
+                figureHeight: figure.height,
+                sourceTop: source.top,
+                sourceBottom: source.bottom,
+                stagePosition: getComputedStyle(stage).position,
+            });
+        })()
+        """)
+        struct ErrorLayout: Decodable {
+            let figureTop: Double
+            let figureBottom: Double
+            let figureHeight: Double
+            let sourceTop: Double
+            let sourceBottom: Double
+            let stagePosition: String
+        }
+        let layout = try JSONDecoder().decode(
+            ErrorLayout.self,
+            from: Data(try XCTUnwrap(result as? String).utf8)
+        )
+
+        XCTAssertEqual(layout.stagePosition, "static")
+        XCTAssertGreaterThan(layout.figureHeight, 50)
+        XCTAssertGreaterThanOrEqual(layout.sourceTop, layout.figureTop)
+        XCTAssertLessThanOrEqual(layout.sourceBottom, layout.figureBottom)
     }
 
     @MainActor

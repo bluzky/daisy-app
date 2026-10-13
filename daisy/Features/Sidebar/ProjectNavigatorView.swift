@@ -79,6 +79,8 @@ final class ProjectNavigatorView: NSView {
     private let scrollView = NSScrollView()
     private let outlineView = NSOutlineView()
     private var rootNode: FileNode?
+    private var workspace: SidebarWorkspace?
+    private var isApplyingWorkspaceState = false
     private let bookmarksGroup = BookmarksGroupNode()
     private let filesHeader = FilesHeaderNode()
     private var bookmarkNodes: [BookmarkNode] = []
@@ -152,17 +154,46 @@ final class ProjectNavigatorView: NSView {
         ])
     }
 
-    func setRoot(_ url: URL?) {
+    /// Mounts workspace model, not another navigator view. Each navigator
+    /// keeps its own selection while folder expansion stays shared.
+    func setWorkspace(_ workspace: SidebarWorkspace?) {
+        guard self.workspace !== workspace else { return }
+        removeWorkspaceObserver()
+        self.workspace = workspace
+        if let workspace {
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(workspaceExpansionStateDidChange),
+                name: SidebarWorkspace.expansionStateDidChange,
+                object: workspace
+            )
+        }
+        mountRoot(workspace?.rootURL)
+    }
+
+    private func removeWorkspaceObserver() {
+        NotificationCenter.default.removeObserver(
+            self,
+            name: SidebarWorkspace.expansionStateDidChange,
+            object: workspace
+        )
+    }
+
+    @objc private func workspaceExpansionStateDidChange(_ notification: Notification) {
+        guard !isApplyingWorkspaceState,
+              (notification.userInfo?[SidebarWorkspace.expansionStateSourceKey]
+                  as? ProjectNavigatorView) !== self else { return }
+        restoreWorkspaceExpansionState()
+    }
+
+    private func mountRoot(_ url: URL?) {
         cancelAllWatchers()
         rootNode = url.map { FileNode(url: $0.standardizedFileURL, isDirectory: true) }
         updateSecurityScopedAccess()
         reloadBookmarkNodes()
         outlineView.reloadData()
         expandBookmarksGroupIfNeeded()
-        if let rootNode {
-            outlineView.expandItem(rootNode)
-            syncWatchers()
-        }
+        restoreWorkspaceExpansionState()
     }
 
     // MARK: - Bookmarks
@@ -249,16 +280,46 @@ final class ProjectNavigatorView: NSView {
     /// Reloads the outline from disk while preserving expansion state.
     /// Selection is left to the caller.
     private func refreshTree() {
-        let expandedURLs = collectExpandedURLs()
+        let expandedURLs = workspace?.expandedFolderURLs ?? collectExpandedURLs()
         if let rootNode { invalidateCaches(rootNode) }
         reloadBookmarkNodes()
         outlineView.reloadData()
         expandBookmarksGroupIfNeeded()
         if let rootNode {
-            outlineView.expandItem(rootNode)
-            reExpand(rootNode, expanded: expandedURLs)
+            if workspace == nil {
+                outlineView.expandItem(rootNode)
+                reExpand(rootNode, expanded: expandedURLs)
+            } else {
+                restoreWorkspaceExpansionState()
+            }
         }
         syncWatchers()
+    }
+
+    private func restoreWorkspaceExpansionState() {
+        guard let rootNode else { return }
+        isApplyingWorkspaceState = true
+        defer { isApplyingWorkspaceState = false }
+        guard let workspace else {
+            outlineView.expandItem(rootNode)
+            syncWatchers()
+            return
+        }
+        applyExpansionState(to: rootNode, expanded: workspace.expandedFolderURLs)
+        syncWatchers()
+    }
+
+    private func applyExpansionState(to node: FileNode, expanded: Set<URL>) {
+        guard node.isDirectory else { return }
+        let url = SidebarWorkspace.canonicalURL(node.url)
+        guard expanded.contains(url) else {
+            outlineView.collapseItem(node, collapseChildren: true)
+            return
+        }
+        outlineView.expandItem(node)
+        for child in node.children() where child.isDirectory {
+            applyExpansionState(to: child, expanded: expanded)
+        }
     }
 
     private func invalidateCaches(_ node: FileNode) {
@@ -276,7 +337,7 @@ final class ProjectNavigatorView: NSView {
             for index in 0..<count {
                 let child = outlineView.child(index, ofItem: item)
                 if let node = child as? FileNode, outlineView.isItemExpanded(node) {
-                    result.insert(node.url.standardizedFileURL)
+                    result.insert(SidebarWorkspace.canonicalURL(node.url))
                     walk(child)
                 }
             }
@@ -302,6 +363,11 @@ final class ProjectNavigatorView: NSView {
         }
     }
 
+    private func publishWorkspaceExpansionState() {
+        guard !isApplyingWorkspaceState else { return }
+        workspace?.setExpandedFolderURLs(collectExpandedURLs(), source: self)
+    }
+
     func setCurrentFile(_ url: URL?) {
         currentFileURL = url?.standardizedFileURL
         guard let url, let rootNode else {
@@ -324,6 +390,7 @@ final class ProjectNavigatorView: NSView {
         for ancestor in path.dropLast() {
             outlineView.expandItem(ancestor)
         }
+        publishWorkspaceExpansionState()
         if let leaf = path.last {
             let row = outlineView.row(forItem: leaf)
             if row >= 0 {
@@ -645,11 +712,16 @@ private extension ProjectNavigatorView {
     }
 
     private func trash(_ url: URL) {
+        let closesCurrentFile = documentWindowController?.currentFileURL
+            .map { $0.standardizedFileURL.isDescendantOrSame(of: url) } ?? false
         do {
             try FileManager.default.trashItem(at: url, resultingItemURL: nil)
         } catch {
             presentFileOperationError(error)
             return
+        }
+        if closesCurrentFile {
+            documentWindowController?.documentWindow.close()
         }
         refreshTree()
     }
@@ -768,6 +840,7 @@ private extension ProjectNavigatorView {
         for ancestor in path.dropLast() {
             outlineView.expandItem(ancestor)
         }
+        publishWorkspaceExpansionState()
         if let node = path.last {
             let row = outlineView.row(forItem: node)
             if row >= 0 {
@@ -1260,12 +1333,17 @@ extension ProjectNavigatorView: NSOutlineViewDelegate {
         }
         // Newly-loaded subtree needs its own watcher.
         syncWatchers()
+        guard !isApplyingWorkspaceState else { return }
+        publishWorkspaceExpansionState()
     }
 
     func outlineViewItemDidCollapse(_ notification: Notification) {
         if notification.userInfo?["NSObject"] is BookmarksGroupNode {
             UserDefaults.standard.set(false, forKey: Self.bookmarksExpandedKey)
+            return
         }
+        guard !isApplyingWorkspaceState else { return }
+        publishWorkspaceExpansionState()
     }
 }
 

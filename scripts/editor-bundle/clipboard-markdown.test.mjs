@@ -66,6 +66,15 @@ check("snake_case stays unescaped in table cells", convert({
 check("TSV makes GFM table", convert({ text: "Name\tScore\nAda\t10" }),
   "| Name | Score |\n| --- | --- |\n| Ada | 10 |")
 check("single tabbed plain-text row stays plain text", convert({ text: "const x\t= 1" }), null)
+const fencedSource = "```mermaid\nflowchart TD\n    A --> B{\"Done?\"}\n    B -- No --> C[\"a<br/>b\"]\n```"
+check("Markdown source with a fenced block pastes as plain text, not inline code", convert({
+  html: fencedSource.split("\n").map(line => `<div><code>${line.replace(/</g, "&lt;")}</code></div>`).join(""),
+  text: fencedSource,
+}), null)
+check("an unclosed fence does not suppress HTML conversion", convert({
+  html: "<p><strong>bold</strong></p>",
+  text: "```js\nbold",
+}), "**bold**")
 check("ordinary plain text stays CodeMirror-owned", convert({ text: "paste me" }), null)
 
 const unsafe = convert({ html: [

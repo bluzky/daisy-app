@@ -220,9 +220,39 @@ extension DocumentWindowController {
         return (sidebarVisible, mode)
     }
 
-    func prepareSidebarForUntitledDocument() {
-        mainSplit?.hideSidebar()
+    /// An untitled document has no folder of its own. When it is created from
+    /// a window with a project, it stays in that project with the same sidebar
+    /// layout; otherwise it starts with the sidebar hidden.
+    func prepareSidebarForUntitledDocument(from source: DocumentWindowController?) {
+        guard let split = mainSplit else { return }
+        if let source, let root = source.projectRootURL {
+            adoptProject(root, from: source)
+        } else {
+            split.hideSidebar()
+        }
         syncSidebarToolbarState()
+    }
+
+    /// A tab opened for a file inside the source window's project keeps that
+    /// project and sidebar layout, rather than re-rooting the tree at the
+    /// file's own folder.
+    func inheritProject(from source: DocumentWindowController?, containing fileURL: URL) {
+        guard let source, let root = source.projectRootURL,
+              fileURL.standardizedFileURL.isDescendantOrSame(of: root) else { return }
+        adoptProject(root, from: source)
+        syncSidebarToolbarState()
+    }
+
+    private func adoptProject(_ root: URL, from source: DocumentWindowController) {
+        guard let split = mainSplit else { return }
+        split.setProjectRoot(root)
+        let state = source.sidebarMenuState
+        split.setSidebarMode(state.mode)
+        if state.sidebarVisible {
+            split.showSidebar()
+        } else {
+            split.hideSidebar()
+        }
     }
 
     private func sidebarSymbolImage(_ name: String, description: String) -> NSImage {

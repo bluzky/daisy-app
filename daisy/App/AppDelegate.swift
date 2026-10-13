@@ -153,7 +153,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         QuickCaptureController.shared.applyEnabledSetting()
         hasFinishedLaunching = true
         if !didReceiveOpenURLsDuringLaunch {
-            scheduleDocumentPrompt(requiresNoDocuments: true)
+            scheduleDocumentPrompt(requiresNoDocuments: true, followsLaunchBehavior: true)
         }
     }
 
@@ -186,13 +186,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func applicationOpenUntitledFile(_ sender: NSApplication) -> Bool {
-        scheduleDocumentPrompt(requiresNoDocuments: true)
+        scheduleDocumentPrompt(requiresNoDocuments: true, followsLaunchBehavior: true)
         return true
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         if !flag {
-            scheduleDocumentPrompt(requiresNoDocuments: true)
+            scheduleDocumentPrompt(requiresNoDocuments: true, followsLaunchBehavior: true)
             return false
         }
         return true
@@ -607,7 +607,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             .first
     }
 
-    private func scheduleDocumentPrompt(requiresNoDocuments: Bool = false) {
+    /// - Parameter followsLaunchBehavior: Launch and Dock reopen show what the
+    ///   reader chose in Settings; a failed open always falls back to the panel.
+    private func scheduleDocumentPrompt(requiresNoDocuments: Bool = false,
+                                        followsLaunchBehavior: Bool = false) {
         guard !isOpenPanelVisible,
               !isDocumentPromptScheduled else { return }
 
@@ -620,7 +623,63 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self.isDocumentPromptScheduled = false
             guard !requiresNoDocuments || NSDocumentController.shared.documents.isEmpty else { return }
             NSApp.activate(ignoringOtherApps: true)
+            if followsLaunchBehavior, self.performLaunchBehavior() { return }
             NSDocumentController.shared.openDocument(nil)
+        }
+    }
+
+    /// Opens what Settings ▸ General ▸ On launch asks for. Returns false when
+    /// the open panel should be shown instead.
+    private func performLaunchBehavior() -> Bool {
+        switch LaunchBehaviorSetting.current {
+        case .showOpenPanel:
+            return false
+        case .newDocument:
+            NSDocumentController.shared.newDocument(nil)
+            return true
+        case .reopenLastSession:
+            return reopenLastSession()
+        case .openChosenItem:
+            guard let url = LaunchItemStore.resolve() else { return false }
+            if url.isExistingDirectory {
+                openFolder(url)
+            } else {
+                openLaunchFile(url)
+            }
+            return true
+        }
+    }
+
+    private func reopenLastSession() -> Bool {
+        let plan = LastSessionStore.restorePlan()
+        guard !plan.isEmpty else { return false }
+
+        if let folderURL = plan.folderURL {
+            openFolder(folderURL)
+            if let fileURL = plan.fileURL, plan.opensFileInFolderWindow,
+               let controller = activeDocumentWindowController {
+                controller.present(url: fileURL)
+                return true
+            }
+        }
+        if let fileURL = plan.fileURL {
+            openLaunchFile(fileURL)
+        }
+        return true
+    }
+
+    /// Opens a file chosen by the launch behaviour; a failure falls back to
+    /// the open panel so the app isn't left windowless.
+    private func openLaunchFile(_ fileURL: URL) {
+        NSDocumentController.shared.openDocument(withContentsOf: fileURL,
+                                                 display: true) { [weak self] document, _, error in
+            if let error {
+                NSAlert(error: error).runModal()
+            }
+            self?.showWindowIfNeeded(for: document)
+            if error != nil {
+                self?.scheduleDocumentPromptIfIdle()
+            }
         }
     }
 
@@ -756,38 +815,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
           is_markdown_preview_launcher "$path"
         }
 
-        can_replace_alias() {
-          alias_path="$1"
-          if [ ! -e "$alias_path" ] && [ ! -L "$alias_path" ]; then
-            return 0
-          fi
-          [ -L "$alias_path" ] || return 1
-          alias_target=$(readlink "$alias_path" || true)
-          [ "$alias_target" = "daisy" ] ||
-            [ "$alias_target" = "$primary" ] ||
-            [ "$alias_target" = "$install_dir/daisy" ] ||
-            [ "$alias_target" = "md-preview" ] ||
-            [ "$alias_target" = "$install_dir/md-preview" ]
-        }
-
-        # Before the rename the primary command was md-preview, a launcher
-        # script. Turn it into an alias so existing habits keep working, but
-        # only if it is ours.
-        can_replace_legacy_name() {
-          path="$1"
-          can_replace_alias "$path" || is_markdown_preview_launcher "$path"
-        }
-
         refuse_existing_command() {
           echo "Refusing to replace existing command that was not installed by Daisy: $1" >&2
           exit 1
         }
 
         can_replace_primary "$primary" || refuse_existing_command "$primary"
-        for alias in mdp markdown-preview; do
-          can_replace_alias "$install_dir/$alias" || refuse_existing_command "$install_dir/$alias"
-        done
-        can_replace_legacy_name "$install_dir/md-preview" || refuse_existing_command "$install_dir/md-preview"
 
         if [ "$needs_sudo" = "true" ]; then
           echo "Installing Daisy command line tools to $install_dir requires your password."
@@ -798,38 +831,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
           install -m 755 "$bundled_cli" "$primary"
         fi
 
-        for alias in mdp markdown-preview md-preview; do
-          alias_path="$install_dir/$alias"
-          if [ "$needs_sudo" = "true" ]; then
-            sudo ln -sfn "daisy" "$alias_path"
-          else
-            ln -sfn "daisy" "$alias_path"
-          fi
-        done
-
         echo
         echo "Daisy CLI is ready."
         echo
-        echo "Use any of these commands:"
-        echo "  mdp"
-        echo "  daisy"
-        echo "  markdown-preview"
-        echo
-        echo "Examples:"
-        echo "  mdp README.md        Open a Markdown file"
-        echo "  mdp .                Open the current folder"
-        echo "  mdp docs             Browse a folder in Daisy"
+        echo "Use the daisy command:"
+        echo "  daisy README.md      Open a Markdown file"
+        echo "  daisy .              Open the current folder"
+        echo "  daisy docs           Browse a folder in Daisy"
         echo
         echo "Tips:"
-        echo "  Use mdp for the shortest command."
         echo "  Re-run Install CLI... after updating the app to refresh these commands."
         echo "  Installed in: $install_dir"
         echo
 
-        if command -v mdp >/dev/null 2>&1; then
-          echo "Try it now: mdp ."
+        if command -v daisy >/dev/null 2>&1; then
+          echo "Try it now: daisy ."
         else
-          echo "Open a new terminal window, then try: mdp ."
+          echo "Open a new terminal window, then try: daisy ."
         fi
         """
     }
@@ -892,6 +910,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func keymapWindowDidBecomeKey(_ notification: Notification) {
         observeKeymapFirstResponder(in: notification.object as? NSWindow)
         applyKeymap()
+        // The front document is the one the next launch should reopen.
+        ((notification.object as? NSWindow)?.windowController as? DocumentWindowController)?
+            .recordLastSession()
     }
 
     @objc private func keymapWindowDidResignKey(_ notification: Notification) {

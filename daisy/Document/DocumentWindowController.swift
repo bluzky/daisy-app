@@ -197,7 +197,15 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         Self.nextWindowRequestsTab = false
         let split = MainSplitViewController()
         split.onSelectFile = { [weak self] url in
-            self?.present(url: url)
+            // Tree selections open in a new tab so the current document (and
+            // any unsaved edits) stays put. A window with no file open yet
+            // takes the file itself rather than leaving an empty tab behind.
+            guard let self else { return }
+            if self.currentFileURL == nil {
+                self.present(url: url)
+            } else {
+                self.openInNewTab(url)
+            }
         }
         split.onOpenMarkdownLink = { [weak self] url in
             if SettingsModel.shared.opensMarkdownLinksInNewWindows {
@@ -397,6 +405,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         if let fileURL {
             NSDocumentController.shared.noteNewRecentDocumentURL(fileURL)
             renderCurrentDocument(text: markdown, fileURL: fileURL)
+            recordLastSession()
             startWatching(fileURL)
             offerToBecomeDefaultHandlerIfNeeded()
         }
@@ -545,6 +554,12 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     /// re-rendering the WebView, since the markdown content didn't change.
     func handleRename(to newURL: URL) {
         guard currentFileURL != nil else { return }
+        // A file moved to the Trash is effectively deleted: close it rather
+        // than follow it into `.Trash`.
+        if newURL.pathComponents.contains(".Trash") {
+            documentWindow.close()
+            return
+        }
         currentFileURL = newURL
         markdownDocument?.replaceFileURL(newURL)
         documentWindow.title = newURL.lastPathComponent

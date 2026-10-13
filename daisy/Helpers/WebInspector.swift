@@ -35,9 +35,20 @@ enum WebInspector {
 
     static func toggle(_ webView: WKWebView) {
         guard let inspector = inspector(of: webView) else { return }
-        let selector = Selector(isVisible(webView) ? "close" : "show")
+        let opening = !isVisible(webView)
+        let selector = Selector(opening ? "show" : "close")
         guard inspector.responds(to: selector) else { return }
+        if opening && !loadFrontendBundle() { return }
         _ = inspector.perform(selector)
+    }
+
+    /// The inspector's own pages are served from the WebInspectorUI framework,
+    /// and WebKit traps (`RELEASE_ASSERT`) if that bundle isn't loaded when the
+    /// first one is requested. Load it ourselves, and don't open the inspector
+    /// if that fails.
+    private static func loadFrontendBundle() -> Bool {
+        if Bundle(identifier: "com.apple.WebInspectorUI") != nil { return true }
+        return Bundle(path: "/System/Library/PrivateFrameworks/WebInspectorUI.framework")?.load() ?? false
     }
 
     private static func isInspectorWindow(_ window: NSWindow) -> Bool {

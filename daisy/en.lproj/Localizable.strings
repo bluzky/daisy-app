@@ -41,7 +41,7 @@
 "The app the Open button in the document toolbar uses first. Its menu still offers every other installed app." = "The app the Open button in the document toolbar uses first. Its menu still offers every other installed app.";
 "Command line tools" = "Command line tools";
 "Install…" = "Install…";
-"Adds mdp, daisy, and markdown-preview to your PATH. Run it again after updating the app to refresh the commands." = "Adds mdp, daisy, and markdown-preview to your PATH. Run it again after updating the app to refresh the commands.";
+"Adds the daisy command to your PATH. Run it again after updating the app to refresh it." = "Adds the daisy command to your PATH. Run it again after updating the app to refresh it.";
 "Daisy" = "Daisy";
 "Version %@ (%@)" = "Version %@ (%@)";
 "Check for Updates" = "Check for Updates";
@@ -439,3 +439,19 @@
 "Insert" = "Insert";
 "Image…" = "Image…";
 "Developer Tools" = "Developer Tools";
+
+/* Launch behavior */
+"Startup" = "Startup";
+"On launch" = "On launch";
+"Show the Open dialog" = "Show the Open dialog";
+"Create a new document" = "Create a new document";
+"Reopen last folder and file" = "Reopen last folder and file";
+"What Daisy opens when it starts or you click its Dock icon with no window open. Opening a file from Finder always opens that file." = "What Daisy opens when it starts or you click its Dock icon with no window open. Opening a file from Finder always opens that file.";
+"Open a specific file or folder" = "Open a specific file or folder";
+"File or folder" = "File or folder";
+"Not found. Choose it again." = "Not found. Choose it again.";
+"Choose the Markdown file or folder Daisy opens when it starts" = "Choose the Markdown file or folder Daisy opens when it starts";
+
+/* Empty document */
+"Press %@ to start writing" = "Press %@ to start writing";
+"Choose View ▸ Toggle Edit Mode to start writing" = "Choose View ▸ Toggle Edit Mode to start writing";

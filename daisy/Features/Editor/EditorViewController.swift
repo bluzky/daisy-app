@@ -82,7 +82,9 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
         hasChanges = false
         currentAssetBaseURL = assetBaseURL?.standardizedFileURL
         assetScheme.setBaseURL(currentAssetBaseURL)
-        let needsMermaid = Self.containsMermaidFence(in: markdown)
+        // Loaded whenever the extension is on, not only when the document
+        // already has a diagram, so one added while editing renders too.
+        let needsMermaid = RenderExtensionPreferences.currentConfiguration.isEnabled("mermaid")
         if hasLoadedEditorPage, pageSupportsMermaid || !needsMermaid {
             let baseHref = currentAssetBaseURL.map(MarkdownAssetResolution.baseHref(forFolder:)) ?? ""
             let script = "window.__mdLoadEditor && window.__mdLoadEditor(\(EditorHTML.jsStringLiteral(markdown)), \(EditorHTML.jsStringLiteral(baseHref)))"
@@ -554,15 +556,6 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
 
     private static let editorJavaScript =
         vendorResource("mdedit.min", ext: "js", subdir: "Vendor/CodeMirror") ?? ""
-    private static let mermaidJavaScript =
-        vendorResource("mermaid.min", ext: "js", subdir: "Vendor/Mermaid") ?? ""
-
-    private static func containsMermaidFence(in markdown: String) -> Bool {
-        markdown.range(
-            of: #"(?im)^[ \t]{0,3}(?:`{3,}|~{3,})[ \t]*mermaid(?:[ \t]|$)"#,
-            options: .regularExpression
-        ) != nil
-    }
 
     private static func editorHTML(markdown: String,
                                    includesMermaid: Bool,
@@ -590,7 +583,7 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
         return EditorHTML.render(
             markdown: markdown,
             editorJavaScript: editorJavaScript,
-            mermaidJavaScript: includesMermaid ? mermaidJavaScript : nil,
+            includesMermaid: includesMermaid,
             assetBaseURL: assetBaseURL,
             configuration: .init(
                 fullWidth: ContentWidthSetting.current.columnWidth == nil,
