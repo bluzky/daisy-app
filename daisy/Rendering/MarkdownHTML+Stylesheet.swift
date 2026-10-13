@@ -488,6 +488,20 @@ nonisolated extension MarkdownHTML {
         aspect-ratio: var(--mm-aspect, 4 / 3);
     }
     .mermaid-figure.mermaid-error::before { content: none; }
+    /* A render failure leaves Mermaid source in the stage. Return it to normal
+       flow so the source gives the figure its height instead of escaping its
+       now-unsized absolute stage. */
+    .mermaid-figure.mermaid-error .mermaid-stage {
+        position: static;
+        overflow: visible;
+        contain: none;
+    }
+    .mermaid-figure.mermaid-error .mermaid {
+        position: static;
+        display: block;
+        padding: 0;
+    }
+    .mermaid-figure.mermaid-error .mermaid-hud { display: none; }
     .mermaid-figure.mermaid-width-expanded {
         max-width: none;
     }

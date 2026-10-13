@@ -1740,6 +1740,68 @@ final class MarkdownHTMLRenderTests: XCTestCase {
     }
 
     @MainActor
+    func testMermaidRenderFailureKeepsSourceInFigureFlow() async throws {
+        let rendered = MarkdownHTML.render(markdown: "```mermaid\nsource\n```", vendorLoading: .lazy)
+        let stylesheet = try XCTUnwrap(
+            rendered.html
+                .components(separatedBy: "<style>")
+                .dropFirst()
+                .first?
+                .components(separatedBy: "</style>")
+                .first
+        )
+        let html = """
+        <!DOCTYPE html>
+        <html><head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>\(stylesheet)</style>
+        </head><body><article class="markdown-body">
+        <figure class="mermaid-figure mermaid-error">
+        <div class="mermaid-stage"><div class="mermaid">Invalid Mermaid source\n\nnot valid Mermaid</div></div>
+        </figure>
+        </article></body></html>
+        """
+        let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 900, height: 600))
+        webView.loadHTMLString(html, baseURL: nil)
+        while webView.isLoading {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+
+        let result = try await webView.evaluateJavaScript("""
+        (() => {
+            const figure = document.querySelector('.mermaid-figure').getBoundingClientRect();
+            const source = document.querySelector('.mermaid').getBoundingClientRect();
+            const stage = document.querySelector('.mermaid-stage');
+            return JSON.stringify({
+                figureTop: figure.top,
+                figureBottom: figure.bottom,
+                figureHeight: figure.height,
+                sourceTop: source.top,
+                sourceBottom: source.bottom,
+                stagePosition: getComputedStyle(stage).position,
+            });
+        })()
+        """)
+        struct ErrorLayout: Decodable {
+            let figureTop: Double
+            let figureBottom: Double
+            let figureHeight: Double
+            let sourceTop: Double
+            let sourceBottom: Double
+            let stagePosition: String
+        }
+        let layout = try JSONDecoder().decode(
+            ErrorLayout.self,
+            from: Data(try XCTUnwrap(result as? String).utf8)
+        )
+
+        XCTAssertEqual(layout.stagePosition, "static")
+        XCTAssertGreaterThan(layout.figureHeight, 50)
+        XCTAssertGreaterThanOrEqual(layout.sourceTop, layout.figureTop)
+        XCTAssertLessThanOrEqual(layout.sourceBottom, layout.figureBottom)
+    }
+
+    @MainActor
     func testMermaidHUDWrapsInsideNarrowDiagram() async throws {
         let rendered = MarkdownHTML.render(
             markdown: """
