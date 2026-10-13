@@ -198,11 +198,14 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
             // Tree selections open in a new tab so the current document (and
             // any unsaved edits) stays put. A window with no file open yet
             // takes the file itself rather than leaving an empty tab behind.
+            // Picking a file in the tree means the reader is there to work on
+            // it, so it opens in the editor; files from the CLI or Finder
+            // still open in preview.
             guard let self else { return }
             if self.currentFileURL == nil {
-                self.present(url: url)
+                self.present(url: url, preservingEditMode: true, intent: .normal, fragment: nil)
             } else {
-                self.openInNewTab(url)
+                self.openInNewTab(url, startEditing: true)
             }
         }
         split.onOpenMarkdownLink = { [weak self] url in
