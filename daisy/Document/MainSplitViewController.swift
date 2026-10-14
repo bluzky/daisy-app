@@ -84,7 +84,7 @@ final class MainSplitViewController: NSSplitViewController {
 
         // Wired after addSplitViewItem so the accessors are non-nil.
         contentViewController?.zoomDidChange = { [weak self] zoom in
-            self?.cachedEditorViewController?.applyPageZoom(zoom)
+            self?.cachedEditorViewController?.applyTextScale(zoom)
         }
         contentViewController?.activeHeadingDidChange = { [weak self] headingID in
             self?.sidebarViewController?.setActiveHeading(headingID)
@@ -499,7 +499,7 @@ final class MainSplitViewController: NSSplitViewController {
             self.isEditorDOMReady = true
             self.revealEditorIfPrepared(editorVC)
         }
-        editorVC.applyPageZoom(previewZoom)
+        editorVC.applyTextScale(previewZoom)
         editorVC.load(markdown: markdown, assetBaseURL: assetBaseURL, codeLanguage: codeLanguage)
         if isCodeFile {
             // No preview to take a scroll anchor from: reveal as soon as the

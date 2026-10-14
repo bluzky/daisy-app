@@ -9,11 +9,11 @@ nonisolated enum EditorHTML {
         var fullWidth = false
         /// Column measure in CSS px when not `fullWidth`.
         var columnWidth = MarkdownHTML.contentColumnWidth
-        /// The page zoom the host applies to mirror the preview's text size.
-        /// Seeds `--mdp-page-zoom`, which the column and gutters divide out
-        /// so they keep the preview's on-screen measure; the host updates
-        /// the property live when the text size changes.
-        var pageZoom: CGFloat = 1
+        /// The reader's text size, mirroring the preview. Seeds
+        /// `--mdp-text-scale`, which scales type and text spacing only, so
+        /// the column and gutters keep their measure; the host updates the
+        /// property live when the text size changes.
+        var textScale: CGFloat = 1
         var lightPageBackground = "transparent"
         var darkPageBackground = "transparent"
         var themeOverrideCSS = ""
@@ -65,11 +65,9 @@ nonisolated enum EditorHTML {
                        includesMermaid: Bool = false,
                        assetBaseURL: URL? = nil,
                        configuration: Configuration = Configuration()) -> String {
-        // Divided by the page zoom: the preview scales its type, not its
-        // column, so the editor's zoom must leave the measure where it was.
         let columnMaxWidth = configuration.fullWidth
             ? "none"
-            : "calc(\(configuration.columnWidth)px / var(--mdp-page-zoom, 1))"
+            : "\(configuration.columnWidth)px"
         let lightPageBackground = configuration.lightPageBackground
         let darkPageBackground = configuration.darkPageBackground
         let usesPageScrolling = configuration.usesPageScrolling
@@ -95,7 +93,7 @@ nonisolated enum EditorHTML {
             --code-border: #f0f0f0;
             /* Same code palette as the preview stylesheet. */
             \(MarkdownHTML.lightCodePaletteCSS)
-            --mdp-page-zoom: \(configuration.pageZoom);
+            --mdp-text-scale: \(configuration.textScale);
         }
         @media (prefers-color-scheme: dark) {
             :root {
@@ -118,7 +116,7 @@ nonisolated enum EditorHTML {
         }
         body {
             font-family: var(--mdp-doc-font, \(MarkdownHTML.bodyFontFamily));
-            font-size: \(MarkdownHTML.bodyFontSize)px;
+            font-size: \(MarkdownHTML.textScaled(MarkdownHTML.bodyFontSize));
             font-weight: var(--mdp-body-weight, 400);
             line-height: var(--mdp-line-height, \(MarkdownHTML.bodyLineHeight));
             letter-spacing: var(--mdp-letter-spacing, normal);
@@ -140,14 +138,14 @@ nonisolated enum EditorHTML {
             overflow-y: auto;
             overscroll-behavior-x: none;
             /* Keep page gutters outside the editable content column. */
-            padding-inline: calc(var(--mdp-page-padding, \(MarkdownHTML.pagePaddingHorizontal)px) / var(--mdp-page-zoom, 1));
+            padding-inline: var(--mdp-page-padding, \(MarkdownHTML.pagePaddingHorizontal)px);
             /* Document clearance is outside contenteditable and scrolls
                away naturally; it must not be a fixed interaction shield. */
             padding-top: calc(\(MarkdownHTML.pagePaddingTop + (usesPageScrolling ? MarkdownHTML.appPageTopClearance : 0))px / var(--mdp-chrome-zoom, 1));
             cursor: default;
             box-sizing: border-box;
             font-family: var(--mdp-doc-font, \(MarkdownHTML.bodyFontFamily)) !important;
-            font-size: \(MarkdownHTML.bodyFontSize)px;
+            font-size: \(MarkdownHTML.textScaled(MarkdownHTML.bodyFontSize));
             font-weight: var(--mdp-body-weight, 400);
             line-height: var(--mdp-line-height, \(MarkdownHTML.bodyLineHeight));
             letter-spacing: var(--mdp-letter-spacing, normal);
@@ -159,7 +157,7 @@ nonisolated enum EditorHTML {
             min-height: 100%;
             margin: 0 auto;
             /* Reader margins: symmetric inset inside the column, as in the preview. */
-            padding: 0 calc(var(--mdp-page-inset, 0px) / var(--mdp-page-zoom, 1)) calc(\(MarkdownHTML.pagePaddingBottom)px / var(--mdp-page-zoom, 1));
+            padding: 0 var(--mdp-page-inset, 0px) \(MarkdownHTML.pagePaddingBottom)px;
             box-sizing: border-box;
             caret-color: var(--text);
             cursor: text;
@@ -185,7 +183,7 @@ nonisolated enum EditorHTML {
         html[data-code-mode] #editor .cm-content {
             max-width: none;
             margin: 0;
-            padding: 0 16px calc(\(MarkdownHTML.pagePaddingBottom)px / var(--mdp-page-zoom, 1)) 8px;
+            padding: 0 16px \(MarkdownHTML.pagePaddingBottom)px 8px;
         }
         html[data-code-mode] #editor .cm-gutters {
             background: transparent;
@@ -207,7 +205,7 @@ nonisolated enum EditorHTML {
         #editor .cm-md-h4, #editor .cm-md-h5, #editor .cm-md-h6 {
             font-weight: 600;
             line-height: 1.25;
-            padding-top: calc(0.6rem + 0.5em);
+            padding-top: calc(0.6rem * var(--mdp-text-scale, 1) + 0.5em);
         }
         #editor .cm-md-h1 { font-size: 2em; }
         /* Mirror the preview's first-child margin reset so the document
@@ -226,7 +224,7 @@ nonisolated enum EditorHTML {
         #editor .cm-md-h4.cm-md-heading-after-blank,
         #editor .cm-md-h5.cm-md-heading-after-blank,
         #editor .cm-md-h6.cm-md-heading-after-blank {
-            padding-top: 4px;
+            padding-top: \(MarkdownHTML.textScaled(MarkdownHTML.blankLineGap));
         }
         /* A source line whose height another element owns collapses to
            nothing: inactive code fence lines (the card transfers their
@@ -271,7 +269,7 @@ nonisolated enum EditorHTML {
             position: absolute;
             inset-inline-start: 0;
             top: 0;
-            font-size: \(MarkdownHTML.bodyFontSize)px;
+            font-size: \(MarkdownHTML.textScaled(MarkdownHTML.bodyFontSize));
             line-height: \(MarkdownHTML.bodyLineHeight);
             color: var(--secondary);
             white-space: pre;
@@ -456,7 +454,7 @@ nonisolated enum EditorHTML {
         }
         /* Preview list items after the first carry a margin-top. */
         #editor .cm-md-list-item-gap {
-            padding-top: \(MarkdownHTML.listItemSpacing)px;
+            padding-top: \(MarkdownHTML.textScaled(MarkdownHTML.listItemSpacing));
         }
         #editor .cm-md-rule-line {
             height: 1px;
@@ -606,16 +604,14 @@ nonisolated enum EditorHTML {
             /* Sized like the preview's .mermaid-figure: only the width is
                capped, at the diagram's natural width, and the ::before sizer
                applies the aspect ratio inside padding that mirrors the
-               stage's, so a wide diagram doesn't letterbox. The preview's
-               text size leaves diagrams at their natural size, but the editor
-               mirrors it with page zoom, so the natural width, padding and
-               corners divide the zoom back out. */
-            --mm-padding: calc(16px / var(--mdp-page-zoom, 1));
+               stage's, so a wide diagram doesn't letterbox. Text size leaves
+               diagrams at their natural size. */
+            --mm-padding: 16px;
             padding: var(--mm-padding);
             width: 100%;
-            max-width: calc(var(--mm-natural-width, 100%) / var(--mdp-page-zoom, 1) + 2 * var(--mm-padding));
+            max-width: calc(var(--mm-natural-width, 100%) + 2 * var(--mm-padding));
             overflow: hidden;
-            border-radius: calc(15px / var(--mdp-page-zoom, 1));
+            border-radius: 15px;
             background: var(--code-bg);
             cursor: text;
             box-sizing: border-box;
@@ -659,7 +655,7 @@ nonisolated enum EditorHTML {
             /* The widget sits inside .cm-md-table's monospace line, so it
                restates the document type settings. */
             font-family: var(--mdp-doc-font, \(MarkdownHTML.bodyFontFamily));
-            font-size: \(MarkdownHTML.bodyFontSize)px;
+            font-size: \(MarkdownHTML.textScaled(MarkdownHTML.bodyFontSize));
             font-weight: var(--mdp-body-weight, 400);
             line-height: var(--mdp-line-height, \(MarkdownHTML.bodyLineHeight));
             letter-spacing: var(--mdp-letter-spacing, normal);
@@ -702,7 +698,7 @@ nonisolated enum EditorHTML {
             user-select: text;
         }
         .cm-md-table-cell {
-            min-height: calc(\(MarkdownHTML.bodyFontSize)px * \(MarkdownHTML.bodyLineHeight));
+            min-height: calc(\(MarkdownHTML.textScaled(MarkdownHTML.bodyFontSize)) * \(MarkdownHTML.bodyLineHeight));
             padding: 8px 12px;
             outline: none;
             white-space: pre-wrap;

@@ -55,6 +55,10 @@ export const SEPARATOR_BLOCKS = new Set([
   "Paragraph", "FencedCode", "CodeBlock", "Blockquote",
   "BulletList", "OrderedList", "Table", "HorizontalRule", "HTMLBlock",
 ])
+// The preview scales its block spacing with the reader's text size through
+// --mdp-text-scale (MarkdownHTML.textScaled); mirror that, so the separator
+// lines keep matching it at every size.
+const scaled = (px) => `calc(${px}px * var(--mdp-text-scale, 1))`
 const separatorLineCache = new Map()
 export const blockSeparatorLine = (height) => {
   let deco = separatorLineCache.get(height)
@@ -62,7 +66,7 @@ export const blockSeparatorLine = (height) => {
     deco = Decoration.line({
       class: "cm-md-block-separator",
       attributes: {
-        style: `height:${height}px;min-height:0;line-height:${height}px;overflow:hidden;`,
+        style: `height:${scaled(height)};min-height:0;line-height:${scaled(height)};overflow:hidden;`,
       },
     })
     separatorLineCache.set(height, deco)
@@ -80,7 +84,7 @@ export const blockGapLine = (height) => {
   if (!deco) {
     deco = Decoration.line({
       class: "cm-md-block-gap",
-      attributes: { style: `padding-bottom:${height}px;--cm-md-block-gap:${height}px;` },
+      attributes: { style: `padding-bottom:${scaled(height)};--cm-md-block-gap:${scaled(height)};` },
     })
     blockGapLineCache.set(height, deco)
   }
@@ -105,7 +109,7 @@ export const quoteLine = (depth, starts, ends, gap) => {
       class: "cm-md-quote",
       attributes: {
         style: `padding-inline-start:${depth * 1.5}em;`
-          + `--cm-md-quote-top:calc(${starts * 0.4}em + ${gap}px);--cm-md-quote-bottom:${ends * 0.4}em;`
+          + `--cm-md-quote-top:calc(${starts * 0.4}em + ${scaled(gap)});--cm-md-quote-bottom:${ends * 0.4}em;`
           + `background-image:${images.join(",")};`
           + `background-position:${positions.join(",")};`,
       },

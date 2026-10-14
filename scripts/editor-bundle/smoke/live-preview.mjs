@@ -1,5 +1,5 @@
 // Editor smoke tests: live-preview styling: spacing, headings, images, markers.
-import { dom, check } from "./harness.mjs"
+import { dom, check, scaledPx } from "./harness.mjs"
 
 const largeHost = dom.window.document.createElement("div")
 dom.window.document.body.appendChild(largeHost)
@@ -102,7 +102,7 @@ const headingFollowEditor = dom.window.MDEditor.create(
 // (headless defaults: 4 + 12).
 check("separator after heading is the blank gap plus the paragraph margin",
   Math.abs(
-    parseFloat(headingFollowHost.querySelector(".cm-md-block-separator")?.style.height)
+    scaledPx(headingFollowHost.querySelector(".cm-md-block-separator"), "height")
       - 16
   ) < 0.01)
 headingFollowEditor.destroy()
@@ -113,7 +113,7 @@ const paragraphGapEditor = dom.window.MDEditor.create(
   paragraphGapHost, "First paragraph.\n\nSecond paragraph.\n\n\nThird paragraph.", {})
 check("blank paragraph separators are the blank gap plus the paragraph margin",
   Array.from(paragraphGapHost.querySelectorAll(".cm-md-block-separator"))
-    .every((line) => Math.abs(parseFloat(line.style.height) - 16) < 0.01))
+    .every((line) => Math.abs(scaledPx(line, "height") - 16) < 0.01))
 paragraphGapEditor.destroy()
 
 // A block right under a heading (no blank line) gets the preview's margin as
@@ -123,7 +123,7 @@ dom.window.document.body.appendChild(adjacentHost)
 const adjacentEditor = dom.window.MDEditor.create(
   adjacentHost, "## Heading\nParagraph right under it", {})
 check("adjacent block adds the paragraph margin below the heading line",
-  adjacentHost.querySelector(".cm-md-block-gap")?.style.paddingBottom === "12px")
+  scaledPx(adjacentHost.querySelector(".cm-md-block-gap"), "padding-bottom") === 12)
 adjacentEditor.destroy()
 
 // Ordered markers share the bullet's hanging box; continuation lines drop the
@@ -219,7 +219,7 @@ for (const imageSource of [
   for (const text of ["After image", "Final paragraph"]) {
     const line = lines.find((line) => line.textContent === text)
     check(`paragraph spacing survives ${imageSource.split("\n")[0]} before ${text}`,
-      parseFloat(line?.previousElementSibling?.style.height) === 16)
+      scaledPx(line?.previousElementSibling, "height") === 16)
   }
   instance.destroy()
 }
