@@ -59,14 +59,15 @@ Or grab the latest signed and notarized DMG from the [Releases](https://github.c
 ## Features
 
 - **Read Mode** — native `WKWebView` rendering with a document outline, file navigator and inspector panel. Task checkboxes save straight to the file.
-- **Workspaces** — open a folder to make it a workspace. Files inside it share Files sidebar root and folder expansion across open windows and tabs; opening a Markdown file directly uses its parent folder unless an open workspace already contains it.
+- **Workspaces** — open a folder to make it a workspace. Files inside it share Files sidebar root and folder expansion across open windows and tabs; opening a Markdown file directly uses its parent folder unless an open workspace already contains it. The Files sidebar lists every file in the folder: Markdown and source or text files open in Daisy, any other file opens in its default app, and files that can't be read are dimmed.
 - **Bookmarks** — right-click a file or folder in the file navigator and choose **Bookmark** to pin it in a Bookmarks section at the top of the Files tab. Click a bookmarked file to open it, or a folder to make it the project root; remove one from its right-click menu.
 - **Edit Mode** — Markdown files open straight into it, whether chosen from Files sidebar, Finder, or command line. Edit in place with Format and Insert menus (image, code block, table), Markdown syntax that previews as you type, inline table editing, and safe rich-text paste conversion. Pasting web content preserves common Markdown formatting, including absolute http(s) images; HTML tables and spreadsheet TSV become GFM tables. Image pastes still use Daisy's native asset flow (<kbd>⌘E</kbd> to toggle, <kbd>⌘S</kbd> to save).
 - **Slash commands** — type `/` at the start of a line or after a space to turn it into a heading, list, quote, divider, code block, table, image, Mermaid diagram, math block, or callout.
+- **Code and text files** — source and text files (`.txt`, `.json`, `.swift`, `.py`, `Makefile` and more) open straight into a code editor: syntax highlighting, line numbers, find and replace, and no preview or Markdown formatting. Add your own extensions or file names in **Settings → General → Code and text files**. Files over 5 MB, or not valid UTF-8, open in their default app instead.
 - **Templates** — insert your own Markdown snippets from the slash menu. Choose a template file in **Settings → General → Templates**; see [Templates](#templates) below.
-- **Extensions** — code highlighting, callouts, KaTeX math, Mermaid diagrams, and colorful headings, each switchable in **Settings → Extensions**. Mermaid, colorful headings and slash commands also apply in Edit Mode.
+- **Extensions** — code highlighting, callouts, KaTeX math, Mermaid diagrams, and colorful headings, each switchable in **Settings → Extensions**. Mermaid, colorful headings and slash commands also apply in Edit Mode for Markdown files; the code editor for source and text files uses none of them.
 - **Quick Look** — system-wide `.md` previews from Finder, Spotlight, and Mail.
-- **Search** — in-document search (<kbd>⌘F</kbd>) and OmniSearch (<kbd>⌘K</kbd>), one box for recent files, files by name, text inside files and menu commands. Type `>` first to list commands only. Type a name that matches no file and the top result offers to create it (`notes/roadmap` makes `notes/roadmap.md`) and opens it for editing.
+- **Search** — in-document search (<kbd>⌘F</kbd>) and OmniSearch (<kbd>⌘K</kbd>), one box for recent files, files by name (any file type; non-Markdown files open in their default app), text inside Markdown and text files and menu commands. Type `>` first to list commands only. Type a name that matches no file and the top result offers to create it (`notes/roadmap` makes `notes/roadmap.md`; type a Markdown, source or text extension, such as `notes/todo.txt` or `src/main.swift`, to get that file instead) and opens it for editing.
 - **Quick Capture** — turn on the shortcut in Settings, then press it from any app (<kbd>⌃⌥Space</kbd> by default, changeable there) to open `Inbox.md` from your capture folder in the editor. Each time adds a new `## yyyy-MM-dd HH:mm` heading at the end and puts the cursor under it.
 - **Custom shortcuts** — rebind Daisy commands in **Settings → Shortcuts**. Daisy reads and writes `~/.config/daisy/keymap.json`; bindings apply only in their Global, Reading, Editing, or Search context. Project Navigator file commands (New File <kbd>⌥⌘N</kbd>, New Folder <kbd>⇧⌘N</kbd>, Rename, Move to Trash) are in the File menu and act on the selected sidebar item; Rename and Move to Trash have no default shortcut.
 - **Reading settings** — text size and zoom, content width, text alignment, strict line breaks, and themes with font, spacing, and color customization.
@@ -114,8 +115,12 @@ Write `\{{` for a literal `{{`. An unknown name is left as typed.
 
 ## Supported file types
 
-`.md`, `.markdown`, `.mdown`, `.mdx`, `.txt`
+Rendered as Markdown: `.md`, `.markdown`, `.mdown`, `.mkd`, `.mdwn`, `.mdx`, `.mkdn`
 UTI: `net.daringfireball.markdown`
+
+Edited as code, with no preview: `.txt` and common source, config and text files (see **Settings → General → Code and text files** for the list and to add more).
+
+Anything else opens in its default app.
 
 ## Requirements
 

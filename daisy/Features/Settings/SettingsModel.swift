@@ -156,6 +156,15 @@ final class SettingsModel {
     var templateFilePath: String?
     var templateCount = 0
 
+    /// Extra extensions and file names Daisy edits as code, comma separated.
+    /// Typing only changes this text; `applyTextFileEntries` makes it current.
+    var textFileEntries = TextFileSettings.customText
+
+    func applyTextFileEntries() {
+        TextFileSettings.setCustomText(textFileEntries)
+        textFileEntries = TextFileSettings.customText
+    }
+
     func chooseTemplateFile() {
         if TemplateStore.chooseFile() { refreshTemplates() }
     }

@@ -11,18 +11,14 @@ import Foundation
 
 actor ProjectFileIndex {
 
-    /// The extensions a project surfaces. This is the one list — the project
-    /// navigator filters its rows with it too, so the two agree on which
-    /// *kinds* of file belong to a project.
+    /// The Markdown extensions. `FileKind` classifies by this list; the index
+    /// and the project navigator list every file and ask `FileKind` what to
+    /// do with each.
     ///
-    /// They do not agree on which *folders* to look in. The walk below prunes
-    /// dependency and build directories, package contents, and anything past
-    /// `maximumDepth`, none of which the navigator hides. README.md lists
+    /// The two do not agree on which *folders* to look in. The walk below
+    /// prunes dependency and build directories, package contents, and anything
+    /// past `maximumDepth`, none of which the navigator hides. README.md lists
     /// these exclusions; keep it in step when changing them.
-    ///
-    /// Note this is deliberately *not* the list the open panel accepts, which
-    /// also takes `.txt` and does not take `.mkd` or `.mdwn`. Reconciling the
-    /// two is a user-visible change and belongs in its own PR.
     nonisolated static let markdownExtensions: Set<String> = [
         "md", "markdown", "mdown", "mkd", "mdwn", "mdx"
     ]
@@ -101,7 +97,7 @@ actor ProjectFileIndex {
         let rootComponents = root.standardizedFileURL.pathComponents
         guard let enumerator = FileManager.default.enumerator(
             at: root,
-            includingPropertiesForKeys: [.isDirectoryKey],
+            includingPropertiesForKeys: [.isDirectoryKey, .isReadableKey, .isSymbolicLinkKey],
             // `skipsPackageDescendants` keeps the walk out of `.app`, `.rtfd`
             // and friends, which are directories but are not folders a reader
             // is browsing.
@@ -112,9 +108,11 @@ actor ProjectFileIndex {
 
         var candidates: [FileSearchMatcher.Candidate] = []
         var isTruncated = false
+        let externalFileLimit = maximumFileCount * 3 / 4
 
         for case let url as URL in enumerator {
-            let isDirectory = (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
+            let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .isReadableKey, .isSymbolicLinkKey])
+            let isDirectory = values?.isDirectory ?? false
 
             if isDirectory {
                 if enumerator.level >= maximumDepth || prunedDirectoryNames.contains(url.lastPathComponent) {
@@ -123,11 +121,24 @@ actor ProjectFileIndex {
                 continue
             }
 
-            guard markdownExtensions.contains(url.pathExtension.lowercased()) else { continue }
+            // The navigator dims unreadable files and cannot open them, so a
+            // result for one would be a dead end. `isReadable` is true for a
+            // symlink whose target is gone; `fileExists` follows the link, so
+            // it tells the two apart.
+            let isBrokenLink = (values?.isSymbolicLink ?? false) && !FileManager.default.fileExists(atPath: url.path)
+            guard (values?.isReadable ?? true) && !isBrokenLink else { continue }
 
-            guard candidates.count < maximumFileCount else {
+            // Files Daisy only hands to another app share the cap with the
+            // ones it opens, but stop short of it. Without that a folder of
+            // images walked first would use up the list before the first note.
+            if FileKind.classify(url).opensInDaisy {
+                guard candidates.count < maximumFileCount else {
+                    isTruncated = true
+                    break
+                }
+            } else if candidates.count >= externalFileLimit {
                 isTruncated = true
-                break
+                continue
             }
 
             let components = url.standardizedFileURL.pathComponents

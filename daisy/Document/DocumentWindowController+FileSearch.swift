@@ -84,6 +84,7 @@ extension DocumentWindowController {
     }
 
     func openSearchResult(_ url: URL, in target: FileSearchPanelController.OpenTarget) {
+        guard !openExternallyIfNeeded(url) else { return }
         switch target {
         case .currentTab:
             // An alias of the edited document is still the current file.

@@ -21,7 +21,8 @@ final class ProjectItemNameTests: XCTestCase {
     func testNamesTheIndexCouldNeverFindAreRefused() {
         XCTAssertNil(ProjectItemName.newFileRelativePath(from: ""))
         XCTAssertNil(ProjectItemName.newFileRelativePath(from: "   "))
-        XCTAssertNil(ProjectItemName.newFileRelativePath(from: "foo.txt"))
+        XCTAssertNil(ProjectItemName.newFileRelativePath(from: "foo.png"))
+        XCTAssertNil(ProjectItemName.newFileRelativePath(from: "v1.2"))
         XCTAssertNil(ProjectItemName.newFileRelativePath(from: ".hidden"))
         XCTAssertNil(ProjectItemName.newFileRelativePath(from: ".config/notes"))
         XCTAssertNil(ProjectItemName.newFileRelativePath(from: "notes/"))
@@ -31,12 +32,32 @@ final class ProjectItemNameTests: XCTestCase {
         XCTAssertNil(ProjectItemName.newFileRelativePath(from: "back\\slash"))
     }
 
+    func testSourceAndTextExtensionsAreKept() {
+        XCTAssertEqual(ProjectItemName.newFileRelativePath(from: "notes.txt"), "notes.txt")
+        XCTAssertEqual(ProjectItemName.newFileRelativePath(from: "src/main.swift"), "src/main.swift")
+        XCTAssertEqual(ProjectItemName.newFileRelativePath(from: "Script.PY"), "Script.PY")
+    }
+
+    func testKnownTextFileNamesGetNoExtension() {
+        XCTAssertEqual(ProjectItemName.newFileName(from: "Makefile"), "Makefile")
+        XCTAssertEqual(ProjectItemName.newFileName(from: "Dockerfile"), "Dockerfile")
+    }
+
+    func testAnExtensionAddedInSettingsIsAccepted() {
+        let saved = TextFileSettings.customText
+        defer { TextFileSettings.setCustomText(saved) }
+        XCTAssertNil(ProjectItemName.newFileName(from: "init.lua"))
+        TextFileSettings.setCustomText("lua, Justfile")
+        XCTAssertEqual(ProjectItemName.newFileName(from: "init.lua"), "init.lua")
+        XCTAssertEqual(ProjectItemName.newFileName(from: "Justfile"), "Justfile")
+    }
+
     func testSidebarRulesAreTheSameFunctions() {
         XCTAssertEqual(ProjectItemName.validated("  New Folder "), "New Folder")
         XCTAssertNil(ProjectItemName.validated("a/b"))
-        XCTAssertEqual(ProjectItemName.markdownFileName(from: "Untitled"), "Untitled.md")
-        XCTAssertEqual(ProjectItemName.markdownFileName(from: "x", defaultExtension: "markdown"), "x.markdown")
-        XCTAssertNil(ProjectItemName.markdownFileName(from: "x.png"))
+        XCTAssertEqual(ProjectItemName.newFileName(from: "Untitled"), "Untitled.md")
+        XCTAssertEqual(ProjectItemName.newFileName(from: "x", defaultExtension: "markdown"), "x.markdown")
+        XCTAssertNil(ProjectItemName.newFileName(from: "x.png"))
     }
 
     func testPrunedFoldersAndPathsPastTheIndexDepthAreRefused() {

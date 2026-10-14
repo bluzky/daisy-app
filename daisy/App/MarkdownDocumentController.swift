@@ -4,7 +4,6 @@
 //
 
 import Cocoa
-import UniformTypeIdentifiers
 
 final class MarkdownDocumentController: NSDocumentController {
     static let recentDocumentsDidClear = Notification.Name("MarkdownDocumentController.recentDocumentsDidClear")
@@ -14,8 +13,6 @@ final class MarkdownDocumentController: NSDocumentController {
         NotificationCenter.default.post(name: Self.recentDocumentsDidClear, object: self)
     }
 
-    private static let markdownFileExtensions = ["md", "markdown", "mdown", "mdx", "txt"]
-
     override func beginOpenPanel(
         _ openPanel: NSOpenPanel,
         forTypes inTypes: [String]?
@@ -24,11 +21,11 @@ final class MarkdownDocumentController: NSDocumentController {
         openPanel.canChooseDirectories = true
         openPanel.canChooseFiles = true
         openPanel.message = NSLocalizedString(
-            "Choose a Markdown file or folder",
+            "Choose a file or folder",
             comment: "Open panel prompt"
         )
-        openPanel.allowedContentTypes = Self.markdownFileExtensions
-            .compactMap { UTType(filenameExtension: $0) }
+        // Any file: the ones Daisy does not edit open in their default app.
+        openPanel.allowedContentTypes = []
         return await super.beginOpenPanel(openPanel, forTypes: inTypes)
     }
 
@@ -44,11 +41,26 @@ final class MarkdownDocumentController: NSDocumentController {
             return
         }
 
+        let kind = FileKind.classify(url)
+        if kind == .external || (kind == .text && !CodeDocument.isEditable(at: url)) {
+            NSWorkspace.shared.open(url)
+            completionHandler(nil, false, nil)
+            return
+        }
+
         super.openDocument(
             withContentsOf: url,
             display: displayDocument,
             completionHandler: completionHandler
         )
+    }
+
+    /// Source and text files have no document type of their own: they open as
+    /// the one document class, so the type cannot depend on whether the system
+    /// knows the extension (`Makefile`, `.env` and added entries do not).
+    override func typeForContents(of url: URL) throws -> String {
+        if FileKind.classify(url) == .text, let type = defaultType { return type }
+        return try super.typeForContents(of: url)
     }
 
     override func openUntitledDocumentAndDisplay(_ displayDocument: Bool) throws -> NSDocument {

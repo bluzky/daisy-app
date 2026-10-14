@@ -198,7 +198,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
             // Tree selections open in a new tab so the current document (and
             // any unsaved edits) stays put. A window with no file open yet
             // takes the file itself rather than leaving an empty tab behind.
-            guard let self else { return }
+            guard let self, !self.openExternallyIfNeeded(url) else { return }
             if self.currentFileURL == nil {
                 self.present(url: url, preservingEditMode: true, intent: .normal, fragment: nil)
             } else {

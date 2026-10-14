@@ -21,6 +21,9 @@ nonisolated enum EditorHTML {
         /// element a live settings change rewrites (see `readerStyleCSS`).
         var readerStyleCSS = ""
         var usesPageScrolling = false
+        /// A fence name or alias to edit the file as code, "" for plain text,
+        /// nil for the Markdown editor. Source and text files take this path.
+        var codeLanguage: String?
         var bridgeName = "mdEditorHost"
         /// Enabled flag per editor module id; see `MarkdownHTML.editorExtensionState`.
         var extensionState: [String: Bool] = [:]
@@ -72,7 +75,7 @@ nonisolated enum EditorHTML {
         let usesPageScrolling = configuration.usesPageScrolling
         return """
         <!DOCTYPE html>
-        <html data-page-scrolling="\(usesPageScrolling)">
+        <html data-page-scrolling="\(usesPageScrolling)"\(configuration.codeLanguage == nil ? "" : " data-code-mode")>
         <head>
         <meta charset="UTF-8">
         \(assetBaseURL.map { "<base href=\"\(htmlAttributeLiteral(MarkdownAssetResolution.baseHref(forFolder: $0)))\">" } ?? "")
@@ -171,6 +174,25 @@ nonisolated enum EditorHTML {
         #editor .cm-line {
             padding: 0;
         }
+        /* Code files: a full-width monospace buffer with a line-number
+           gutter, not the reader column. */
+        html[data-code-mode] #editor .cm-scroller {
+            font-family: ui-monospace, "SF Mono", Menlo, monospace !important;
+            font-size: 0.9em;
+            line-height: 1.5;
+            padding-inline: 0;
+        }
+        html[data-code-mode] #editor .cm-content {
+            max-width: none;
+            margin: 0;
+            padding: 0 16px calc(\(MarkdownHTML.pagePaddingBottom)px / var(--mdp-page-zoom, 1)) 8px;
+        }
+        html[data-code-mode] #editor .cm-gutters {
+            background: transparent;
+            border: none;
+            color: var(--secondary);
+        }
+        html[data-code-mode] #editor .cm-activeLine { background: rgba(128, 128, 128, 0.1); }
         /* Hanging trailing spaces must not push the last word onto a new
            line. Match read-mode wrapping while preserving editable spaces. */
         #editor .cm-content.cm-lineWrapping { white-space: pre-wrap; }
@@ -844,7 +866,9 @@ nonisolated enum EditorHTML {
             window.onerror = function (message) { post("error: " + message); };
             let editor = null;
             let slashTemplates = [];
-            window.__mdLoadEditor = function (markdown, baseHref) {
+            window.__mdLoadEditor = function (markdown, baseHref, codeLanguage) {
+                const isCode = typeof codeLanguage === "string";
+                document.documentElement.toggleAttribute("data-code-mode", isCode);
                 let base = document.querySelector("head > base");
                 if (baseHref) {
                     if (!base) {
@@ -861,6 +885,7 @@ nonisolated enum EditorHTML {
                     markdown,
                     {
                         pageScrolling: \(usesPageScrolling),
+                        codeLanguage: isCode ? codeLanguage : undefined,
                         extensionState: \(extensionStateLiteral(configuration.extensionState)),
                         extensionOptions: \(jsonObjectLiteral(configuration.extensionOptions)),
                         onDirty: function () { post("dirty"); },
@@ -936,7 +961,7 @@ nonisolated enum EditorHTML {
             document.addEventListener("keydown", function (e) {
                 if (e.key === "Escape" && !e.defaultPrevented) post("cancel");
             });
-            window.__mdLoadEditor(\(jsStringLiteral(markdown)), \(jsStringLiteral(assetBaseURL.map { MarkdownAssetResolution.baseHref(forFolder: $0) } ?? "")));
+            window.__mdLoadEditor(\(jsStringLiteral(markdown)), \(jsStringLiteral(assetBaseURL.map { MarkdownAssetResolution.baseHref(forFolder: $0) } ?? "")), \(configuration.codeLanguage.map(jsStringLiteral) ?? "undefined"));
         })();
         </script>
         </body>

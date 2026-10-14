@@ -22,10 +22,13 @@ extension DocumentWindowController {
             markdown: markdown,
             assetBaseURL: currentFileURL?.deletingLastPathComponent(),
             autofocus: autofocus,
-            appendingEntry: appendingEntry
+            appendingEntry: appendingEntry,
+            codeLanguage: isCodeFile ? CodeDocument.language(forFileName: currentFileURL?.lastPathComponent ?? "") : nil
         )
         editor.cancelRequested = { [weak self] in
-            self?.previewPendingEdits()
+            // A code file has no preview to return to.
+            guard let self, !self.isCodeFile else { return }
+            self.previewPendingEdits()
         }
         editor.contentDidChange = { [weak self] in
             self?.editorChangeRevision += 1

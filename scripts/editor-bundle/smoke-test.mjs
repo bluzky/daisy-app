@@ -3,7 +3,7 @@
 // jsdom window and run strictly in order. Run with `node smoke-test.mjs`.
 import { results } from "./smoke/harness.mjs"
 
-for (const section of ["editor-basics", "tables", "extension-modules", "slash-commands", "inline-formatting", "lists-and-brackets", "live-preview", "code-blocks", "table-widget", "find", "block-exits", "code-fences"]) {
+for (const section of ["editor-basics", "tables", "extension-modules", "slash-commands", "inline-formatting", "lists-and-brackets", "live-preview", "code-blocks", "table-widget", "find", "block-exits", "code-fences", "code-mode"]) {
   await import(`./smoke/${section}.mjs`)
 }
 

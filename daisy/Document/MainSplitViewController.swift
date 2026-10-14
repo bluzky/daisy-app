@@ -93,18 +93,23 @@ final class MainSplitViewController: NSSplitViewController {
         contentViewController?.showSnapshot(prefetch)
     }
 
+    /// `showsPreview` is false for a code file, which is not Markdown: its
+    /// preview and outline get an empty document, so `# comment` lines do not
+    /// become headings. The inspector still counts the real text.
     func display(markdown: String,
+                 showsPreview: Bool = true,
                  fileName: String,
                  url: URL?,
                  assetBaseURL: URL?,
                  documentID: String) {
+        let previewMarkdown = showsPreview ? markdown : ""
         contentViewController?.display(
-            markdown: markdown,
+            markdown: previewMarkdown,
             sourceURL: url,
             assetBaseURL: assetBaseURL,
             documentID: documentID
         )
-        sidebarViewController?.display(markdown: markdown, fileName: fileName, fileURL: url)
+        sidebarViewController?.display(markdown: previewMarkdown, fileName: fileName, fileURL: url)
         inspectorViewController?.display(metadata: DocumentMetadata.make(url: url, markdown: markdown))
     }
 
@@ -424,11 +429,12 @@ final class MainSplitViewController: NSSplitViewController {
     func enterEditMode(markdown: String,
                        assetBaseURL: URL? = nil,
                        autofocus: Bool = false,
-                       appendingEntry: String? = nil) -> EditorViewController {
+                       appendingEntry: String? = nil,
+                       codeLanguage: String? = nil) -> EditorViewController {
         // Do not invalidate an exit that still owes its caller a completion.
         if isEditorExiting, let editor = cachedEditorViewController { return editor }
         if let editor = editorViewController {
-            editor.load(markdown: markdown, assetBaseURL: assetBaseURL)
+            editor.load(markdown: markdown, assetBaseURL: assetBaseURL, codeLanguage: codeLanguage)
             if autofocus {
                 editor.focusEditor(appendingEntry: appendingEntry)
             }
@@ -469,8 +475,11 @@ final class MainSplitViewController: NSSplitViewController {
         contentViewController?.prepareToRestoreSourceScrollAnchor(nil)
         contentViewController?.pendingAnchorRestored = nil
         // Ensure preview is visible during the prepare phase — a rapid mode
-        // toggle could leave it hidden from a previous edit session.
-        contentViewController?.view.isHidden = false
+        // toggle could leave it hidden from a previous edit session. A code
+        // file stays hidden instead: it has no preview, so showing the empty
+        // page first would only be a blank flash before the editor.
+        let isCodeFile = codeLanguage != nil
+        contentViewController?.view.isHidden = isCodeFile
         editorVC.view.alphaValue = 0
         editorVC.view.isHidden = false
         editorVC.editorDidBecomeReady = { [weak self, weak editorVC] in
@@ -481,7 +490,13 @@ final class MainSplitViewController: NSSplitViewController {
             self.revealEditorIfPrepared(editorVC)
         }
         editorVC.applyPageZoom(previewZoom)
-        editorVC.load(markdown: markdown, assetBaseURL: assetBaseURL)
+        editorVC.load(markdown: markdown, assetBaseURL: assetBaseURL, codeLanguage: codeLanguage)
+        if isCodeFile {
+            // No preview to take a scroll anchor from: reveal as soon as the
+            // editor page is ready.
+            isSourceScrollAnchorResolved = true
+            return editorVC
+        }
         contentViewController?.sourceScrollAnchor { [weak self, weak editorVC] anchor in
             guard let self, let editorVC, self.editModeGeneration == generation,
                   self.isEditorPreparing else { return }

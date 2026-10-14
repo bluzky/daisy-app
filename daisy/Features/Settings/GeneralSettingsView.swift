@@ -129,6 +129,23 @@ struct GeneralSettingsView: View {
 
             Section {
                 LabeledContent {
+                    TextField("", text: $model.textFileEntries, prompt: Text("lua, php, Justfile"))
+                        .labelsHidden()
+                        .multilineTextAlignment(.trailing)
+                        .onSubmit { model.applyTextFileEntries() }
+                } label: {
+                    Text(L("Also edit as code"))
+                    Text(L("Extensions or file names, separated by commas."))
+                }
+            } header: {
+                Text(L("Code and text files"))
+            } footer: {
+                Text(L("Daisy edits common source and text files without a preview, and opens other files in their default app. Files over 5 MB, or not UTF-8, always open in the default app."))
+            }
+            .onDisappear { model.applyTextFileEntries() }
+
+            Section {
+                LabeledContent {
                     Picker("", selection: $model.autoSaveIntervalMinutes) {
                         Text(L("Never")).tag(AutoSaveSetting.disabledMinutes)
                         Text(L("30 seconds")).tag(AutoSaveSetting.thirtySeconds)

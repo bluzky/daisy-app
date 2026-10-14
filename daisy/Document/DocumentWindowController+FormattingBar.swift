@@ -12,7 +12,7 @@ extension DocumentWindowController {
 
     /// Insert > Image: asks for a file and inserts it at the editor selection.
     func insertImageFromMenu() {
-        guard isEditing, let editor = mainSplit?.editorViewController else { return }
+        guard canFormatMarkdown, let editor = mainSplit?.editorViewController else { return }
         editor.fetchLinkSelection { [weak self] selection in
             guard let selection else { return }
             self?.pickImage(at: selection.from, replacing: selection.to)
@@ -21,13 +21,13 @@ extension DocumentWindowController {
 
     /// Insert > Code Block: wraps the current block in an empty fenced block.
     func insertCodeBlockFromMenu() {
-        guard isEditing else { return }
+        guard canFormatMarkdown else { return }
         mainSplit?.editorViewController?.setBlockStyle("fenced", language: "")
     }
 
     /// Insert > Table: turns the current block into a table.
     func insertTableFromMenu() {
-        guard isEditing else { return }
+        guard canFormatMarkdown else { return }
         mainSplit?.editorViewController?.setBlockStyle("table", language: "")
     }
 

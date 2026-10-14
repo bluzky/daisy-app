@@ -8,11 +8,16 @@ import Cocoa
 private final class FileNode {
     let url: URL
     let isDirectory: Bool
+    /// False for a file that cannot be read, or a symlink whose target is
+    /// gone, so there is nothing to preview. The row stays in the tree,
+    /// dimmed, with nothing to open.
+    let isPreviewable: Bool
     private var loadedChildren: [FileNode]?
 
-    init(url: URL, isDirectory: Bool) {
+    init(url: URL, isDirectory: Bool, isPreviewable: Bool = true) {
         self.url = url
         self.isDirectory = isDirectory
+        self.isPreviewable = isPreviewable
     }
 
     var displayName: String { url.lastPathComponent }
@@ -30,13 +35,17 @@ private final class FileNode {
         }
         let entries = (try? FileManager.default.contentsOfDirectory(
             at: url,
-            includingPropertiesForKeys: [.isDirectoryKey],
+            includingPropertiesForKeys: [.isDirectoryKey, .isReadableKey, .isSymbolicLinkKey],
             options: [.skipsHiddenFiles])) ?? []
-        let nodes: [FileNode] = entries.compactMap { entry in
-            let isDir = (try? entry.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
-            if isDir { return FileNode(url: entry, isDirectory: true) }
-            guard ProjectFileIndex.markdownExtensions.contains(entry.pathExtension.lowercased()) else { return nil }
-            return FileNode(url: entry, isDirectory: false)
+        let nodes: [FileNode] = entries.map { entry in
+            let values = try? entry.resourceValues(forKeys: [.isDirectoryKey, .isReadableKey, .isSymbolicLinkKey])
+            if values?.isDirectory ?? false { return FileNode(url: entry, isDirectory: true) }
+            // A symlink whose target is missing reports as a non-directory
+            // and unreadable; `fileExists` follows links, so it catches it.
+            let isBroken = (values?.isSymbolicLink ?? false)
+                && !FileManager.default.fileExists(atPath: entry.path)
+            let isPreviewable = (values?.isReadable ?? true) && !isBroken
+            return FileNode(url: entry, isDirectory: false, isPreviewable: isPreviewable)
         }
         let sorted = nodes.sorted { lhs, rhs in
             if lhs.isDirectory != rhs.isDirectory { return lhs.isDirectory }
@@ -437,6 +446,7 @@ final class ProjectNavigatorView: NSView {
                 outlineView.expandItem(node)
             }
         } else {
+            guard node.isPreviewable else { return }
             let requestedURL = node.url.standardizedFileURL
             guard requestedURL != currentFileURL else { return }
             // `shouldSelectItem` keeps the highlight on the committed file,
@@ -624,7 +634,7 @@ private extension ProjectNavigatorView {
     }
 
     private func createMarkdownFile(named name: String, in directory: URL) {
-        guard let fileName = markdownFileName(from: name) else {
+        guard let fileName = newFileName(from: name) else {
             presentInvalidNameAlert()
             return
         }
@@ -728,9 +738,16 @@ private extension ProjectNavigatorView {
 
     private func rename(_ source: URL, to name: String) {
         let source = source.standardizedFileURL
+        // Only Markdown files are held to Markdown names. Any other file
+        // keeps its own kind, so renaming a PNG is not refused.
+        let isMarkdown = FileKind.classify(source) == .markdown
         guard let fileName = source.isExistingDirectory
             ? validItemName(name)
-            : markdownFileName(from: name, defaultExtension: source.pathExtension) else {
+            : (isMarkdown ? newFileName(from: name, defaultExtension: source.pathExtension)
+                : validItemName(name).map { name in
+                    (name as NSString).pathExtension.isEmpty && !source.pathExtension.isEmpty
+                        ? name + "." + source.pathExtension : name
+                }) else {
             presentInvalidNameAlert()
             return
         }
@@ -755,8 +772,8 @@ private extension ProjectNavigatorView {
         ProjectItemName.validated(name)
     }
 
-    private func markdownFileName(from name: String, defaultExtension: String = "md") -> String? {
-        ProjectItemName.markdownFileName(from: name, defaultExtension: defaultExtension)
+    private func newFileName(from name: String, defaultExtension: String = "md") -> String? {
+        ProjectItemName.newFileName(from: name, defaultExtension: defaultExtension)
     }
 
     private func presentNameAlert(title: String,
@@ -1011,7 +1028,9 @@ extension ProjectNavigatorView: NSMenuDelegate {
         menu.addItem(.separator())
         addCreationItems(to: menu, for: url)
 
-        if !node.isDirectory {
+        // A dimmed file has nothing to open or copy; Show in Finder, creating
+        // items, Copy Path, Rename and Trash stay so it can still be dealt with.
+        if !node.isDirectory && node.isPreviewable {
             menu.addItem(.separator())
             menu.addItem(makeMenuItem(
                 title: NSLocalizedString("Open in New Tab", comment: "Project navigator context menu"),
@@ -1269,8 +1288,12 @@ extension ProjectNavigatorView: NSOutlineViewDelegate {
         let icon = NSWorkspace.shared.icon(forFile: iconPath)
         icon.size = NSSize(width: 16, height: 16)
         cell.imageView?.image = icon
-        let isMissing = (item as? BookmarkNode).map { $0.url == nil } ?? false
+        let isNotPreviewable = (item as? FileNode).map { !$0.isPreviewable } ?? false
+        let isMissing = ((item as? BookmarkNode).map { $0.url == nil } ?? false) || isNotPreviewable
         cell.imageView?.alphaValue = isMissing ? 0.4 : 1
+        cell.toolTip = isNotPreviewable
+            ? NSLocalizedString("This file can't be read.", comment: "Project navigator tooltip for an unreadable file")
+            : nil
         cell.textField?.textColor = isSelectedRow
             ? (themeAccent ?? .controlAccentColor)
             : (isMissing ? .tertiaryLabelColor : .labelColor)
