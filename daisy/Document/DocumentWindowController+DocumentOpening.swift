@@ -38,8 +38,11 @@ extension DocumentWindowController {
         NSDocumentController.shared.openDocument(withContentsOf: Self.fileURLWithoutFragment(fileURL),
                                                  display: true) { [weak self] document, _, error in
             completion?()
-            if startEditing, let controller = document?.windowControllers.first as? DocumentWindowController {
-                controller.pendingEditModeURL = fileURL.standardizedFileURL
+            if startEditing, let controller = document?.windowControllers.first as? DocumentWindowController,
+               !controller.isEditing {
+                // Completion runs after initial display. Enter now; setting
+                // pendingEditModeURL here would miss its post-load check.
+                controller.enterEditMode()
             }
             if let fragment,
                let controller = document?.windowControllers.first as? DocumentWindowController,

@@ -198,9 +198,6 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
             // Tree selections open in a new tab so the current document (and
             // any unsaved edits) stays put. A window with no file open yet
             // takes the file itself rather than leaving an empty tab behind.
-            // Picking a file in the tree means the reader is there to work on
-            // it, so it opens in the editor; files from the CLI or Finder
-            // still open in preview.
             guard let self else { return }
             if self.currentFileURL == nil {
                 self.present(url: url, preservingEditMode: true, intent: .normal, fragment: nil)
@@ -409,6 +406,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
             recordLastSession()
             startWatching(fileURL)
             offerToBecomeDefaultHandlerIfNeeded()
+            enterEditMode()
         }
     }
 
@@ -420,7 +418,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         searchOpenRequestID = nil
         let fragment = url.fragment?.removingPercentEncoding
         let url = Self.fileURLWithoutFragment(url)
-        let preserveEditMode = isEditing || pendingEditModeURL != nil
+        let preserveEditMode = true
         if isEditing || hasPendingEditorChanges {
             requestEndEditing(keepAccessoryMounted: true) { [weak self] success in
                 guard success else { return }
