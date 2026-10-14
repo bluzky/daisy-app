@@ -244,3 +244,18 @@ check("first Backspace removes the empty list marker",
 backspace()
 check("second Backspace removes the line break",
   emptyItemEditor.getMarkdown() === "- One")
+
+// Cmd-Down / Cmd-Up are handled by the editor (caret to the document edge,
+// then scroll to the real edge) rather than falling through to the default.
+const edgeHost = dom.window.document.createElement("div")
+dom.window.document.body.appendChild(edgeHost)
+const edgeEditor = dom.window.MDEditor.create(edgeHost, "one\n\ntwo\n\nthree", {})
+edgeHost.querySelector(".cm-content").focus()
+edgeEditor.select(5)
+const edgeKey = (key) => {
+  const event = new dom.window.KeyboardEvent("keydown", { key, ctrlKey: true, bubbles: true, cancelable: true })
+  edgeHost.querySelector(".cm-content").dispatchEvent(event)
+  return event.defaultPrevented
+}
+check("Cmd-Down is handled by the editor", edgeKey("ArrowDown"))
+check("Cmd-Up is handled by the editor", edgeKey("ArrowUp"))
