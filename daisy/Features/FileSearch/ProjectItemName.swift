@@ -17,21 +17,23 @@ nonisolated enum ProjectItemName {
         return trimmed
     }
 
-    /// A valid Markdown file name. A name with no extension gets
-    /// `defaultExtension`; one whose extension is not Markdown is refused.
-    static func markdownFileName(from name: String, defaultExtension: String = "md") -> String? {
+    /// A valid name for a file Daisy opens: Markdown, or a source or text file
+    /// (the built-in list plus the extensions added in Settings). A name with
+    /// no extension gets `defaultExtension`, unless it is itself a known text
+    /// file name such as `Makefile`. Any other extension is refused, so a
+    /// typed `v1.2` is not quietly created as a file with extension `2`.
+    static func newFileName(from name: String, defaultExtension: String = "md") -> String? {
         guard var fileName = validated(name) else { return nil }
-        if URL(fileURLWithPath: fileName).pathExtension.isEmpty {
+        if URL(fileURLWithPath: fileName).pathExtension.isEmpty,
+           !TextFileSettings.isText(fileName: fileName) {
             fileName += ".\(defaultExtension)"
         }
-        guard ProjectFileIndex.markdownExtensions.contains(
-            URL(fileURLWithPath: fileName).pathExtension.lowercased()
-        ) else { return nil }
+        guard FileKind.classify(fileName: fileName).opensInDaisy else { return nil }
         return fileName
     }
 
     /// The project-relative path OmniSearch would create for what was typed,
-    /// or nil when the text cannot name a Markdown file the index would find.
+    /// or nil when the text cannot name a file Daisy opens and the index would find.
     ///
     /// `notes/roadmap` becomes `notes/roadmap.md`. A leading `/` means the
     /// project root. Hidden components are refused because the index skips
@@ -44,7 +46,7 @@ nonisolated enum ProjectItemName {
         guard !text.isEmpty else { return nil }
 
         let parts = text.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
-        guard let last = parts.last, let fileName = markdownFileName(from: last) else { return nil }
+        guard let last = parts.last, let fileName = newFileName(from: last) else { return nil }
         var components: [String] = []
         for part in parts.dropLast() {
             guard let component = validated(part) else { return nil }

@@ -226,6 +226,12 @@ final class SidebarViewController: NSViewController {
         outlineView.deselectAll(nil)
     }
 
+    /// Rebuilds the outline from live editor text, keeping the file title.
+    func updateOutline(markdown: String) {
+        guard let name = lastRenderedFileName else { return }
+        display(markdown: markdown, fileName: name, fileURL: nil)
+    }
+
     /// Update the tracked file URL after a rename — keeps the navigator
     /// selection on the open file without rebuilding the TOC.
     func openFileURLDidChange(_ newURL: URL) {

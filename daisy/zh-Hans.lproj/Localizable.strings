@@ -133,7 +133,7 @@
 "Block Quote" = "引用";
 
 /* Open panel */
-"Choose a Markdown file or folder" = "选择 Markdown 文件或文件夹";
+"Choose a file or folder" = "选择文件或文件夹";
 
 /* Search toolbar */
 "Search" = "搜索";
@@ -462,3 +462,7 @@
 /* Empty document */
 "Press %@ to start writing" = "按 %@ 开始写作";
 "Choose View ▸ Toggle Edit Mode to start writing" = "选取“显示”▸“切换编辑模式”开始写作";
+"Also edit as code" = "另外作为代码编辑";
+"Extensions or file names, separated by commas." = "扩展名或文件名，以逗号分隔。";
+"Code and text files" = "代码和文本文件";
+"Daisy edits common source and text files without a preview, and opens other files in their default app. Files over 5 MB, or not UTF-8, always open in the default app." = "Daisy 会直接编辑常见的源代码和文本文件（不带预览），其他文件用默认应用打开。超过 5 MB 或非 UTF-8 的文件始终用默认应用打开。";

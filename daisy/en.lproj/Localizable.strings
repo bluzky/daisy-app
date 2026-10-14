@@ -133,7 +133,7 @@
 "Block Quote" = "Block Quote";
 
 /* Open panel */
-"Choose a Markdown file or folder" = "Choose a Markdown file or folder";
+"Choose a file or folder" = "Choose a file or folder";
 
 /* Search toolbar */
 "Search" = "Search";
@@ -462,3 +462,7 @@
 /* Empty document */
 "Press %@ to start writing" = "Press %@ to start writing";
 "Choose View ▸ Toggle Edit Mode to start writing" = "Choose View ▸ Toggle Edit Mode to start writing";
+"Also edit as code" = "Also edit as code";
+"Extensions or file names, separated by commas." = "Extensions or file names, separated by commas.";
+"Code and text files" = "Code and text files";
+"Daisy edits common source and text files without a preview, and opens other files in their default app. Files over 5 MB, or not UTF-8, always open in the default app." = "Daisy edits common source and text files without a preview, and opens other files in their default app. Files over 5 MB, or not UTF-8, always open in the default app.";

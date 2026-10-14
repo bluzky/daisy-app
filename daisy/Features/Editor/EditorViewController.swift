@@ -78,16 +78,24 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
         updateUnderPageBackgroundColor()
     }
 
-    func load(markdown: String, assetBaseURL: URL? = nil) {
+    /// A fence name or alias for a source or text file, "" for plain text;
+    /// nil edits Markdown. Set by `load`, so a reused page switches mode too.
+    private var codeLanguage: String?
+
+    func load(markdown: String, assetBaseURL: URL? = nil, codeLanguage: String? = nil) {
+        self.codeLanguage = codeLanguage
         hasChanges = false
         currentAssetBaseURL = assetBaseURL?.standardizedFileURL
         assetScheme.setBaseURL(currentAssetBaseURL)
         // Loaded whenever the extension is on, not only when the document
         // already has a diagram, so one added while editing renders too.
-        let needsMermaid = RenderExtensionPreferences.currentConfiguration.isEnabled("mermaid")
+        // Code files edit as plain code; no extension applies, so no Mermaid.
+        let needsMermaid = codeLanguage == nil
+            && RenderExtensionPreferences.currentConfiguration.isEnabled("mermaid")
         if hasLoadedEditorPage, pageSupportsMermaid || !needsMermaid {
             let baseHref = currentAssetBaseURL.map(MarkdownAssetResolution.baseHref(forFolder:)) ?? ""
-            let script = "window.__mdLoadEditor && window.__mdLoadEditor(\(EditorHTML.jsStringLiteral(markdown)), \(EditorHTML.jsStringLiteral(baseHref)))"
+            let language = codeLanguage.map(EditorHTML.jsStringLiteral) ?? "undefined"
+            let script = "window.__mdLoadEditor && window.__mdLoadEditor(\(EditorHTML.jsStringLiteral(markdown)), \(EditorHTML.jsStringLiteral(baseHref)), \(language))"
             webView.evaluateJavaScript(script) { [weak self] _, error in
                 guard let self, error != nil else { return }
                 self.loadEditorPage(markdown: markdown,
@@ -110,7 +118,8 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
             Self.editorHTML(markdown: markdown,
                             includesMermaid: includesMermaid,
                             assetBaseURL: assetBaseURL,
-                            pageZoom: webView.pageZoom),
+                            pageZoom: webView.pageZoom,
+                            codeLanguage: codeLanguage),
             baseURL: nil
         )
     }
@@ -423,6 +432,18 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
         }
     }
 
+    /// Scrolls the source to the `index`th heading, as numbered by the outline.
+    func scrollToHeading(index: Int) {
+        fetchMarkdown { [weak self] markdown in
+            guard let self, let markdown,
+                  let line = MarkdownTOC.headingSourceLine(index, in: markdown) else { return }
+            self.applyScrollProgress(
+                0,
+                sourceAnchor: SourceScrollAnchor(sourcePosition: CGFloat(line), topGap: 0)
+            ) {}
+        }
+    }
+
     func fetchScrollAnchor(_ completion: @escaping (SourceScrollAnchor?) -> Void) {
         webView.evaluateJavaScript(
             "window.__mdEditor && window.__mdEditor.getScrollAnchor()"
@@ -588,7 +609,8 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
     private static func editorHTML(markdown: String,
                                    includesMermaid: Bool,
                                    assetBaseURL: URL?,
-                                   pageZoom: CGFloat) -> String {
+                                   pageZoom: CGFloat,
+                                   codeLanguage: String?) -> String {
         // Baked into the base stylesheet, not only the override element:
         // WebKit derives the obscured-inset fill from the base stylesheet's
         // html/body background, so a theme color only present in the later
@@ -622,6 +644,7 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
                 themeOverrideCSS: colors.editorOverrideCSS,
                 readerStyleCSS: readerStyleCSS(),
                 usesPageScrolling: usesPageScrolling,
+                codeLanguage: codeLanguage,
                 bridgeName: EditorBridge.name,
                 extensionState: MarkdownHTML.editorExtensionState(
                     configuration: RenderExtensionPreferences.currentConfiguration

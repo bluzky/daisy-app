@@ -18,14 +18,19 @@ extension DocumentWindowController {
         mainSplit?.isEditingDocument ?? false
     }
 
-    var canToggleEditMode: Bool {
-        isEditing || currentMarkdown != nil
+    /// A source or text file: edited as code, with no preview to switch to.
+    var isCodeFile: Bool {
+        currentFileURL.map(FileKind.classify) == .text
     }
 
-    var canFormatMarkdown: Bool { isEditing }
+    var canToggleEditMode: Bool {
+        !isCodeFile && (isEditing || currentMarkdown != nil)
+    }
+
+    var canFormatMarkdown: Bool { isEditing && !isCodeFile }
 
     func formatMarkdown(_ command: String) {
-        guard isEditing else { return }
+        guard canFormatMarkdown else { return }
         mainSplit?.editorViewController?.exec(command)
     }
 
@@ -71,7 +76,7 @@ extension DocumentWindowController {
         button.toolTip = editing
             ? NSLocalizedString("Stop editing and return to preview", comment: "Edit toolbar item tooltip while editing")
             : NSLocalizedString("Edit document", comment: "Edit toolbar item tooltip")
-        button.isEnabled = editing || currentMarkdown != nil
+        button.isEnabled = canToggleEditMode
     }
 
     @objc private func toggleEditAction(_ sender: Any?) {
@@ -79,6 +84,7 @@ extension DocumentWindowController {
     }
 
     func toggleEditMode() {
+        guard !isCodeFile else { return }
         if isEditing {
             previewPendingEdits()
         } else {

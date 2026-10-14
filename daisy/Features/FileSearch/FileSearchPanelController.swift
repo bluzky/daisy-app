@@ -282,8 +282,7 @@ final class FileSearchPanelController: NSViewController {
         (view.window as? FileSearchPanel)?.queryField = queryField
         view.window?.makeFirstResponder(queryField)
         recentURLs = NSDocumentController.shared.recentDocumentURLs.filter {
-            $0.isFileURL && (ProjectFileIndex.markdownExtensions.contains($0.pathExtension.lowercased())
-                            || $0.pathExtension.lowercased() == "txt")
+            $0.isFileURL && FileKind.classify($0).opensInDaisy
         }
         refreshResults()
         loadIndex()

@@ -70,13 +70,34 @@ final class ProjectFileIndexTests: XCTestCase {
 
     // MARK: - What gets skipped
 
-    func testNonMarkdownFilesAreExcluded() throws {
+    func testEveryKindOfFileIsIndexed() throws {
         try write("README.md")
         try write("notes.txt")
         try write("diagram.png")
         try write("Makefile")
 
+        XCTAssertEqual(paths(), ["Makefile", "README.md", "diagram.png", "notes.txt"])
+    }
+
+    func testUnreadableFilesAreSkipped() throws {
+        try write("README.md")
+        try write("locked.png")
+        let locked = root.appending(path: "locked.png")
+        try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: locked.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: locked.path) }
+
         XCTAssertEqual(paths(), ["README.md"])
+    }
+
+    func testBrokenSymlinksAreSkipped() throws {
+        try write("README.md")
+        try FileManager.default.createSymbolicLink(atPath: root.appending(path: "dead.md").path,
+                                                   withDestinationPath: "/nonexistent/target.md")
+        try write("real.md")
+        try FileManager.default.createSymbolicLink(atPath: root.appending(path: "alias.md").path,
+                                                   withDestinationPath: root.appending(path: "real.md").path)
+
+        XCTAssertEqual(paths(), ["README.md", "alias.md", "real.md"])
     }
 
     func testHiddenFilesAndDirectoriesAreSkipped() throws {
@@ -125,6 +146,20 @@ final class ProjectFileIndexTests: XCTestCase {
         let capped = ProjectFileIndex.build(root: root, maximumFileCount: 3)
         XCTAssertEqual(capped.candidates.count, 3)
         XCTAssertTrue(capped.isTruncated)
+    }
+
+    func testFilesTheAppOnlyHandsOffCannotCrowdOutMarkdown() throws {
+        for index in 0..<8 {
+            try write("image-\(index).png")
+        }
+        try write("note.md")
+
+        // Whatever order the file system enumerates in, externals stop at
+        // three quarters of the cap, so the note always finds a place.
+        let capped = ProjectFileIndex.build(root: root, maximumFileCount: 4)
+        XCTAssertTrue(capped.isTruncated)
+        XCTAssertTrue(capped.candidates.contains { $0.fileName == "note.md" })
+        XCTAssertLessThanOrEqual(capped.candidates.filter { $0.fileName.hasSuffix(".png") }.count, 3)
     }
 
     func testAWalkThatReachesTheEndIsNotTruncated() throws {

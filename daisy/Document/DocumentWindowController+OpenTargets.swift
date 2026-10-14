@@ -472,8 +472,6 @@ extension DocumentWindowController {
 
     // MARK: - Open With
 
-    static let markdownFileExtensions = ["md", "markdown", "mdown", "mdx", "txt"]
-
     func makeOpenWithItem() -> NSToolbarItem {
         let item = NSMenuToolbarItem(itemIdentifier: .openWith)
         let openWith = NSLocalizedString("Open With", comment: "Open With toolbar item label")
