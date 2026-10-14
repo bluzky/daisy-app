@@ -82,9 +82,7 @@ extension DocumentWindowController {
             documentWindow.subtitle = NSLocalizedString(
                 "Auto-save failed", comment: "Window subtitle after an automatic save failure")
         case .none:
-            documentWindow.subtitle = hasUnsavedEditorChanges
-                ? NSLocalizedString("Edited", comment: "Window subtitle for unsaved changes")
-                : ""
+            documentWindow.subtitle = ""
         }
     }
 }

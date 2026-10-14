@@ -432,6 +432,18 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
         }
     }
 
+    /// Scrolls the source to the `index`th heading, as numbered by the outline.
+    func scrollToHeading(index: Int) {
+        fetchMarkdown { [weak self] markdown in
+            guard let self, let markdown,
+                  let line = MarkdownTOC.headingSourceLine(index, in: markdown) else { return }
+            self.applyScrollProgress(
+                0,
+                sourceAnchor: SourceScrollAnchor(sourcePosition: CGFloat(line), topGap: 0)
+            ) {}
+        }
+    }
+
     func fetchScrollAnchor(_ completion: @escaping (SourceScrollAnchor?) -> Void) {
         webView.evaluateJavaScript(
             "window.__mdEditor && window.__mdEditor.getScrollAnchor()"

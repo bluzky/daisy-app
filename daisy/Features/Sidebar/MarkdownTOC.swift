@@ -20,6 +20,29 @@ enum MarkdownTOC {
         return buildTree(headings)
     }
 
+    /// One-based line of the `index`th heading in the full source (frontmatter
+    /// included), for scrolling the source editor. Headings are counted in the
+    /// same order as `parse`, so `index` is a `TOCItem.id`.
+    static func headingSourceLine(_ index: Int, in markdown: String) -> Int? {
+        let body = MarkdownFrontmatter.split(markdown).body
+        var collector = HeadingLineCollector()
+        collector.visit(Document(parsing: body))
+        guard index >= 0, index < collector.lines.count else { return nil }
+        var total = 0
+        markdown.enumerateLines { _, _ in total += 1 }
+        var bodyLines = 0
+        body.enumerateLines { _, _ in bodyLines += 1 }
+        return collector.lines[index] + max(total - bodyLines, 0)
+    }
+
+    private struct HeadingLineCollector: MarkupWalker {
+        var lines: [Int] = []
+
+        mutating func visitHeading(_ heading: Heading) {
+            lines.append(heading.range?.lowerBound.line ?? 1)
+        }
+    }
+
     private struct RawHeading {
         let level: Int
         let title: String

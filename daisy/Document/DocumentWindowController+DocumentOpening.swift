@@ -22,9 +22,9 @@ extension DocumentWindowController {
         }
     }
 
-    func openInNewWindow(_ fileURL: URL) {
+    func openInNewWindow(_ fileURL: URL, startEditing: Bool = false) {
         Self.markNextWindowAsSeparate()
-        openDocumentWindow(for: fileURL) {
+        openDocumentWindow(for: fileURL, startEditing: startEditing) {
             // If the document was already open, no window was created and
             // the override wasn't consumed — don't let it leak to the next one.
             Self.nextWindowDeclinesTabbing = false
@@ -78,6 +78,7 @@ extension DocumentWindowController {
         let folderURL = folderURL.standardizedFileURL
         if currentFileURL == nil {
             documentWindow.title = folderURL.lastPathComponent
+            updateTabEditedIndicator()
             updateWindowSubtitle()
         }
         (documentWindow.contentViewController as? MainSplitViewController)?

@@ -90,6 +90,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     var autoSaveTimerID: UUID?
     var isPerformingAutomaticSave = false
     var autoSaveFeedbackResetWork: DispatchWorkItem?
+    var outlineRefreshWork: DispatchWorkItem?
     var autoSaveFeedback = AutoSaveFeedback.none {
         didSet { updateWindowSubtitle() }
     }
@@ -104,8 +105,40 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
                 stopAutoSaveTimer()
             }
             updateWindowSubtitle()
+            // The native dot in the tab's close button (and window close
+            // button). MarkdownDocument.isDocumentEdited stays false, so
+            // set it on the window directly.
+            setDocumentEdited(hasUnsavedEditorChanges)
+            updateTabEditedIndicator()
         }
     }
+
+    /// The tab bar ignores the window's edited flag, so mark the tab header
+    /// itself with an orange dot and title while the editor holds unsaved
+    /// changes.
+    private static let tabTitleFont = NSFont.systemFont(ofSize: 12, weight: .regular)
+
+    func updateTabEditedIndicator() {
+        let tab = documentWindow.tab
+        guard hasUnsavedEditorChanges else {
+            tab.accessoryView = nil
+            tab.attributedTitle = NSAttributedString(string: documentWindow.title,
+                                                     attributes: [.font: Self.tabTitleFont])
+            return
+        }
+        let image = NSImage(systemSymbolName: "circle.fill",
+                            accessibilityDescription: NSLocalizedString(
+                                "Unsaved changes", comment: "Tab indicator for unsaved edits"))
+        let dot = NSImageView(image: image ?? NSImage())
+        dot.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 7, weight: .regular)
+        dot.contentTintColor = .systemOrange
+        tab.accessoryView = dot
+        tab.attributedTitle = NSAttributedString(
+            string: documentWindow.title,
+            attributes: [.foregroundColor: NSColor.systemOrange,
+                         .font: Self.tabTitleFont])
+    }
+
     weak var copyItem: NSToolbarItem?
     var copyFeedbackWork: DispatchWorkItem?
     /// The Themes & Settings popover while it is on screen.
@@ -375,6 +408,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         }
         documentWindow.title = fileURL?.lastPathComponent
             ?? NSLocalizedString("Untitled", comment: "Window title when no document is open")
+        updateTabEditedIndicator()
         updateWindowSubtitle()
         attachToExistingTabGroupIfNeeded()
         if let pendingSnapshot {
@@ -454,6 +488,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         pendingEditModeURL = preservingEditMode ? url.standardizedFileURL : nil
         markdownDocument?.replaceFileURL(url)
         documentWindow.title = url.lastPathComponent
+        updateTabEditedIndicator()
         resetAutoSaveFeedback()
         updateWindowSubtitle()
         if isFileSwitch {
@@ -533,13 +568,17 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     func startWatching(_ url: URL) {
         fileWatcher?.cancel()
         let watcher = FileWatcher(url: url) { [weak self] in
-            // While editing, disk changes (including our own ⌘S writes)
-            // must not re-render or clobber the in-progress session. Every
-            // commit revalidates the disk contents before writing, so an
-            // external edit is either reloaded or resolved explicitly.
+            // While editing with unsaved changes, disk changes must not
+            // clobber the session; every commit revalidates the disk
+            // contents before writing, so an external edit is resolved
+            // explicitly then. A clean editor can safely follow the disk.
             guard let self, self.currentFileURL == url,
-                  !self.isEditing, !self.hasPendingEditorChanges else { return }
-            self.loadFile(at: url, silentOnFailure: true)
+                  !self.hasPendingEditorChanges else { return }
+            if self.isEditing {
+                self.reloadCleanEditorFromDisk()
+            } else {
+                self.loadFile(at: url, silentOnFailure: true)
+            }
         }
         watcher.onRename = { [weak self] newURL in
             self?.handleRename(to: newURL)
@@ -562,6 +601,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         currentFileURL = newURL
         markdownDocument?.replaceFileURL(newURL)
         documentWindow.title = newURL.lastPathComponent
+        updateTabEditedIndicator()
         updateWindowSubtitle()
         NSDocumentController.shared.noteNewRecentDocumentURL(newURL)
         refreshOpenWithItem()

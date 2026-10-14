@@ -103,9 +103,9 @@ extension DocumentWindowController {
                 readSearchResult(url, requestID: requestID, preserveEditMode: preserveEditMode)
             }
         case .newTab:
-            openInNewTab(url)
+            openInNewTab(url, startEditing: true)
         case .newWindow:
-            openInNewWindow(url)
+            openInNewWindow(url, startEditing: true)
         }
     }
 
@@ -135,7 +135,9 @@ extension DocumentWindowController {
         searchOpenRequestID = nil
         switch result {
         case .success(let markdown):
-            present(url: url, preservingEditMode: preserveEditMode,
+            // A file picked in search opens in the editor, like one picked in
+            // the Files sidebar.
+            present(url: url, preservingEditMode: true,
                     intent: .normal, fragment: nil, loadedMarkdown: markdown)
         case .failure(let error):
             if preserveEditMode { enterEditMode() }

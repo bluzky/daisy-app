@@ -46,7 +46,12 @@ final class MainSplitViewController: NSSplitViewController {
         sidebarVC.onSelectHeading = { [weak self] index in
             // Pin before scrolling so a no-op scroll still confirms the click.
             self?.contentViewController?.markHeadingActiveFromClick(index)
-            self?.contentViewController?.scrollToHeading(index: index)
+            // The preview is hidden while editing; scroll the source instead.
+            if let editor = self?.editorViewController {
+                editor.scrollToHeading(index: index)
+            } else {
+                self?.contentViewController?.scrollToHeading(index: index)
+            }
         }
         sidebarVC.onSelectFile = { [weak self] url in
             self?.onSelectFile?(url)
@@ -91,6 +96,11 @@ final class MainSplitViewController: NSSplitViewController {
 
     func showSnapshot(_ prefetch: DocumentSnapshotCache.Prefetch) {
         contentViewController?.showSnapshot(prefetch)
+    }
+
+    /// Keeps the outline in step with unsaved editor text.
+    func refreshOutline(markdown: String) {
+        sidebarViewController?.updateOutline(markdown: markdown)
     }
 
     /// `showsPreview` is false for a code file, which is not Markdown: its
