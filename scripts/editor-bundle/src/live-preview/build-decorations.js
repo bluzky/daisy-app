@@ -496,20 +496,21 @@ export function buildDecorations(view, detectedCodeCache) {
           // list starts at its first item, so "first" is a position check.
           const isFirstItem = node.from === listStack[listStack.length - 1]
           const isNested = listStack.length > 1
-          // Keep the separator while editing any line of an item so moving
-          // to a continuation cannot pull the caret upward. Inactive loose lists use
-          // the same compact item spacing as Read Mode.
+          // Inactive loose lists use the same compact item spacing as Read
+          // Mode, so blank lines between items collapse. Only the blank line
+          // holding the caret stays visible; keeping every blank line before
+          // the active item open stacked them into a huge gap, and collapsing
+          // the caret's own line made the caret disappear.
           const itemLine = state.doc.lineAt(node.from)
-          const preserveBlankBefore = touches(itemLine.from, node.to) && itemLine.number > 1
-            && state.doc.line(itemLine.number - 1).text.trim() === ""
-          if (!isFirstItem && !preserveBlankBefore) {
+          if (!isFirstItem) {
             let number = itemLine.number - 1
             while (number > 0 && state.doc.line(number).text.trim() === "") {
-              lineOnce(state.doc.line(number).from, blockSeparatorLine(0))
+              const blank = state.doc.line(number)
+              if (!touches(blank.from, blank.to)) lineOnce(blank.from, blockSeparatorLine(0))
               number--
             }
           }
-          if ((!isFirstItem || isNested) && !preserveBlankBefore) lineOnce(node.from, listItemGapLine)
+          if (!isFirstItem || isNested) lineOnce(node.from, listItemGapLine)
           eachLine(node.from, node.to, listItemLine)
           if (/^[ \t]*[-+*][ \t]+\[[xX]\](?:[ \t]|$)/.test(state.doc.sliceString(node.from, itemLine.to))) {
             // Nested lists own their completion state. Keep the parent's

@@ -212,3 +212,35 @@ for (const [label, source] of [
     listEditor.getMarkdown() === source)
   listEditor.destroy()
 }
+
+// Blank lines between list items collapse like the preview, except the one
+// holding the caret, which must stay visible so the caret does not vanish.
+const blankHost = dom.window.document.createElement("div")
+dom.window.document.body.appendChild(blankHost)
+const blankEditor = dom.window.MDEditor.create(blankHost, "- One\n\n\n- Two", {})
+blankHost.querySelector(".cm-content").focus()
+blankEditor.select(7)
+const blankLines = [...blankHost.querySelectorAll(".cm-line")]
+check("caret's blank line between list items stays visible",
+  !blankLines[2].classList.contains("cm-md-block-separator"))
+check("other blank lines between list items stay collapsed",
+  blankLines[1].classList.contains("cm-md-block-separator"))
+blankEditor.select(0)
+check("blank lines between list items collapse when the caret is elsewhere",
+  [...blankHost.querySelectorAll(".cm-md-block-separator")].length === 2)
+
+// Backspace on an empty list item: first press removes the marker, second
+// removes the line break.
+const emptyItemHost = dom.window.document.createElement("div")
+dom.window.document.body.appendChild(emptyItemHost)
+const emptyItemEditor = dom.window.MDEditor.create(emptyItemHost, "- One\n- ", {})
+emptyItemHost.querySelector(".cm-content").focus()
+emptyItemEditor.select(8)
+const backspace = () => emptyItemHost.querySelector(".cm-content").dispatchEvent(
+  new dom.window.KeyboardEvent("keydown", { key: "Backspace", bubbles: true, cancelable: true }))
+backspace()
+check("first Backspace removes the empty list marker",
+  emptyItemEditor.getMarkdown() === "- One\n")
+backspace()
+check("second Backspace removes the line break",
+  emptyItemEditor.getMarkdown() === "- One")

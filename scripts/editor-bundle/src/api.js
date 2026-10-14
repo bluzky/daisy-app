@@ -12,7 +12,7 @@ import { codeHighlight } from "./code-highlight.js"
 import { codeModeExtensions } from "./code-mode.js"
 import { codeBackspace, codeDelete, exitCodeBlock, keepCaretOffFences, openCodeFence, pendingFence, settleCodeCaretPlugin } from "./commands/code-fence.js"
 import { applyBlockStyle, applyListStyle, editableListLines, enclosingNode, insertLink, listPrefix, orderedList, setHeading, stylingContext, toggleBlockPrefix, toggleInlineMark } from "./commands/format.js"
-import { indentMarkdownListItems } from "./commands/list-indent.js"
+import { deleteEmptyListMarker, indentMarkdownListItems } from "./commands/list-indent.js"
 import { deleteTableBackward, deleteTableForward, openLineBelowTable } from "./commands/table-edges.js"
 import { METRICS, directionLines } from "./decoration-parts.js"
 import { editorModuleEnabled, editorModuleExtensions, editorModules } from "./extensions.js"
@@ -126,6 +126,7 @@ window.MDEditor = {
             { key: "ArrowRight", run: openLineBelowTable },
             { key: "Backspace", run: deleteTableBackward },
             { key: "Backspace", run: codeBackspace },
+            { key: "Backspace", run: deleteEmptyListMarker },
             { key: "Delete", run: deleteTableForward },
             { key: "Delete", run: codeDelete },
           ])),
