@@ -150,35 +150,70 @@ final class MainSplitViewController: NSSplitViewController {
     }
 
     private var activeFindQuery = ""
-    private var activeFindMode: SearchMode = .contains
+    private var activeFindOptions = SearchOptions()
     private var activeFindCompletion: ((FindResult) -> Void)?
 
     func find(_ query: String,
               backwards: Bool = false,
-              mode: SearchMode = .contains,
+              options: SearchOptions = SearchOptions(),
               completion: ((FindResult) -> Void)? = nil) {
         activeFindQuery = query
-        activeFindMode = mode
+        activeFindOptions = options
         activeFindCompletion = completion
         let pasteboard = NSPasteboard(name: .find)
         pasteboard.clearContents()
         pasteboard.setString(query, forType: .string)
         if isEditorPreparing { return } // Replay once the editor and scroll position are ready.
         if let editor = editorViewController {
-            editor.find(query, backwards: backwards, mode: mode, completion: completion)
+            editor.find(query, backwards: backwards, options: options, completion: completion)
         } else {
-            contentViewController?.find(query, backwards: backwards, mode: mode, completion: completion)
+            contentViewController?.find(query, backwards: backwards, options: options, completion: completion)
         }
     }
 
+    /// The visible document's text selection, whichever view is showing.
+    func fetchSelectedText(_ completion: @escaping (String?) -> Void) {
+        if let editor = editorViewController {
+            editor.fetchSelectedText(completion)
+        } else if let content = contentViewController {
+            content.fetchSelectedText(completion)
+        } else {
+            completion(nil)
+        }
+    }
+
+    /// Called when the visible view switches between preview and editor, so
+    /// the find bar can show or hide its replace row.
+    var findContextDidChange: (() -> Void)?
+
+    /// Whether Replace can run: only the source editor is editable.
+    var canReplace: Bool { editorViewController != nil && !isEditorPreparing }
+
+    func replaceCurrent(_ replacement: String,
+                        query: String,
+                        options: SearchOptions,
+                        completion: ((FindResult, Int) -> Void)? = nil) {
+        guard canReplace, let editor = editorViewController else { return }
+        editor.replaceCurrent(replacement, query: query, options: options, completion: completion)
+    }
+
+    func replaceAll(_ replacement: String,
+                    query: String,
+                    options: SearchOptions,
+                    completion: ((FindResult, Int) -> Void)? = nil) {
+        guard canReplace, let editor = editorViewController else { return }
+        editor.replaceAll(replacement, query: query, options: options, completion: completion)
+    }
+
     private func refreshFindAfterModeChange() {
+        findContextDidChange?()
         guard !activeFindQuery.isEmpty else { return }
         if let editor = editorViewController {
-            editor.find(activeFindQuery, mode: activeFindMode, completion: activeFindCompletion)
+            editor.find(activeFindQuery, options: activeFindOptions, completion: activeFindCompletion)
         } else {
             contentViewController?.find("") { [weak self] _ in
                 guard let self, !self.isEditingDocument else { return }
-                self.contentViewController?.find(self.activeFindQuery, mode: self.activeFindMode,
+                self.contentViewController?.find(self.activeFindQuery, options: self.activeFindOptions,
                                                  completion: self.activeFindCompletion)
             }
         }

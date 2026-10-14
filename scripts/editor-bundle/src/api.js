@@ -15,18 +15,19 @@ import { indentMarkdownListItems } from "./commands/list-indent.js"
 import { deleteTableBackward, deleteTableForward, openLineBelowTable } from "./commands/table-edges.js"
 import { METRICS, directionLines } from "./decoration-parts.js"
 import { editorModuleEnabled, editorModuleExtensions, editorModules } from "./extensions.js"
-import { documentFind, findTheme, setFind } from "./find.js"
+import { collectMatches, documentFind, expandReplacement, findTheme, sameSearch, setFind } from "./find.js"
 import { formattingState } from "./formatting-state.js"
 import { codeLanguages } from "./languages.js"
 import { alignInactiveHeadings, livePreview } from "./live-preview/plugins.js"
 import { obsidianHighlight } from "./obsidian-highlight.js"
+import { codeCardWidth } from "./code-card-width.js"
 import { activeCodeBlock, anchoredPointerSelection, pointerPreview, stablePointerPreview } from "./pointer.js"
 import { slashTemplatesChanged } from "./slash.js"
 import { tableEditors } from "./table/editors.js"
 import { escapedTableCell } from "./table/model.js"
 import { captureTableSelection, prepareTableFormatting, restoreTableFormatting, tableCellSourceRange, tableFormattingCallbacks, tableFormattingSelection, tableFormattingTargets, tableInlineCommands } from "./table/selection.js"
 import { continueTaskList } from "./task-list.js"
-import { codeCopyHandlers, wrappedCodeBlocks } from "./widgets/code.js"
+import { codeCopyHandlers, unwrappedCodeBlocks } from "./widgets/code.js"
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -79,9 +80,10 @@ window.MDEditor = {
             }),
           }),
           activeCodeBlock,
-          wrappedCodeBlocks,
+          unwrappedCodeBlocks,
           pointerPreview,
           stablePointerPreview,
+          codeCardWidth,
           anchoredPointerSelection,
           ...moduleExtensions,
           tableEditors,
@@ -131,7 +133,7 @@ window.MDEditor = {
             }
             if (update.docChanged && callbacks?.onSearchChange) {
               const search = update.state.field(documentFind)
-              callbacks.onSearchChange({ index: search.index + 1, total: search.matches.length })
+              callbacks.onSearchChange(searchResult(search))
             }
             if (update.docChanged && onDirty
                 && !update.transactions.some((transaction) => transaction.isUserEvent("rename"))) {
@@ -193,6 +195,34 @@ window.MDEditor = {
     const scroller = pageScrolling ? document.scrollingElement : view.scrollDOM
     const scrollEvents = pageScrolling ? window : scroller
     let preservedSourcePosition = null
+    const searchResult = (search) => ({
+      index: search.index + 1,
+      total: search.matches.length,
+      capped: search.capped,
+      error: search.error,
+    })
+    // Brings the highlighted search state in line with the bar's query and
+    // options without moving the current match when nothing changed.
+    const syncSearch = (query, options) => {
+      if (!query) return false
+      if (!sameSearch(view.state.field(documentFind), query, options)) {
+        view.dispatch({ effects: setFind.of({ query, options, index: 0 }) })
+      }
+      return true
+    }
+    const revealCurrentMatch = (search) => {
+      const match = search.matches[search.index]
+      if (!match) return
+      preservedSourcePosition = null
+      didUserScroll = true
+      view.dispatch({ effects: EditorView.scrollIntoView(match.from, { y: "center" }) })
+      // A jump far from the mounted lines can leave the new viewport blank
+      // until the next scroll event; setScrollPosition nudges it the same way.
+      requestAnimationFrame(() => {
+        scrollEvents.dispatchEvent(new Event("scroll"))
+        view.requestMeasure()
+      })
+    }
     let preservedSourceGap = 0
     let preservedScrollTop = null
     // CodeMirror block heights start at the first line, after content padding.
@@ -311,24 +341,60 @@ window.MDEditor = {
         }
         return 0
       },
-      find: (query, backwards = false, beginsWith = false) => {
+      find: (query, backwards = false, options = null) => {
         const previous = view.state.field(documentFind)
-        const same = previous.query === query && previous.beginsWith === beginsWith
+        const same = sameSearch(previous, query, options)
         let index = 0
         if (same && previous.matches.length) {
           index = (previous.index + (backwards ? -1 : 1) + previous.matches.length) % previous.matches.length
         } else if (backwards) {
           index = Number.MAX_SAFE_INTEGER
         }
-        view.dispatch({ effects: setFind.of({ query, beginsWith, index }) })
+        view.dispatch({ effects: setFind.of({ query, options, index }) })
         const search = view.state.field(documentFind)
-        const match = search.matches[search.index]
-        if (match) {
-          preservedSourcePosition = null
-          didUserScroll = true
-          view.dispatch({ effects: EditorView.scrollIntoView(match.from, { y: "center" }) })
-        }
-        return { index: search.index + 1, total: search.matches.length }
+        revealCurrentMatch(search)
+        return searchResult(search)
+      },
+      replaceCurrent: (replacement, query, options = null) => {
+        if (!syncSearch(query, options)) return searchResult(view.state.field(documentFind))
+        const search = view.state.field(documentFind)
+        const entry = search.matches[search.index]
+        if (!entry) return searchResult(search)
+        const insert = expandReplacement(String(replacement ?? ""), entry, options)
+        view.dispatch({
+          changes: { from: entry.from, to: entry.to, insert },
+          selection: { anchor: entry.from + insert.length },
+          userEvent: "input.replace",
+        })
+        // Advance by position, so a replacement that contains the query does
+        // not land on its own output.
+        const after = view.state.field(documentFind)
+        const resume = entry.from + insert.length
+        let next = after.matches.findIndex((match) => match.from >= resume)
+        if (next < 0) next = 0
+        view.dispatch({ effects: setFind.of({ query, options, index: next }) })
+        const result = view.state.field(documentFind)
+        revealCurrentMatch(result)
+        return { ...searchResult(result), replaced: 1 }
+      },
+      replaceAll: (replacement, query, options = null) => {
+        // Bring the highlights and the reported counts to this query first,
+        // as replaceCurrent does, so they never describe a stale one.
+        if (!syncSearch(query, options)) return { ...searchResult(view.state.field(documentFind)), replaced: 0 }
+        // Not the capped list the highlights use: a limit must never leave
+        // matches behind.
+        const { matches, error } = collectMatches(view.state.doc, query, options)
+        if (error || !matches.length) return { ...searchResult(view.state.field(documentFind)), replaced: 0 }
+        const text = String(replacement ?? "")
+        view.dispatch({
+          changes: matches.map((entry) => ({
+            from: entry.from,
+            to: entry.to,
+            insert: expandReplacement(text, entry, options),
+          })),
+          userEvent: "input.replace",
+        })
+        return { ...searchResult(view.state.field(documentFind)), replaced: matches.length }
       },
       isSyntaxReady: () => syntaxTreeAvailable(view.state, view.state.doc.length),
       replaceMarkdown: (markdown) => {

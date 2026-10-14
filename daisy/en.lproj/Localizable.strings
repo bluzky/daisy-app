@@ -137,7 +137,6 @@
 
 /* Search toolbar */
 "Search" = "Search";
-"Search in Document" = "Search in Document";
 
 /* Main toolbar */
 "Navigation" = "Navigation";
@@ -178,12 +177,20 @@
 "Heading %d" = "Heading %d";
 
 /* Find bar */
-"Match:" = "Match:";
-"Contains" = "Contains";
-"Begins With" = "Begins With";
+"Find" = "Find";
+"Replace" = "Replace";
+"Replace All" = "Replace All";
+"Toggle Replace" = "Toggle Replace";
+"Match Case" = "Match Case";
+"Word" = "Word";
+"Regex" = "Regex";
+"Close" = "Close";
 "Done" = "Done";
 "Not found" = "Not found";
+"Invalid pattern" = "Invalid pattern";
+"%d replaced" = "%d replaced";
 "%d of %d" = "%d of %d";
+"%d of %d+" = "%d of %d+";
 "Previous match" = "Previous match";
 "Next match" = "Next match";
 

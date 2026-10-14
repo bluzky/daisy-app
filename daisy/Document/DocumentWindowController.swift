@@ -112,7 +112,6 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     var themesPopover: NSPopover?
     /// Armed only while the themes popover is open.
     let themesPopoverEscapeMonitor = EscapeKeyMonitor()
-    weak var searchField: NSSearchField?
     /// The Table of Contents / Project Navigator picker in the toolbar.
     var sidebarModeItem: NSToolbarItemGroup?
     /// The original position and spacer while sidebar-only items are removed.
@@ -127,7 +126,6 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     /// titlebar accessory — so showing it never pushes the tab bar down.
     /// Mounted once at setup and toggled via isHidden.
     weak var findBarOverlay: NSView?
-    var searchMode: SearchMode = .contains
     var pendingFindWork: DispatchWorkItem?
     static let findDebounceDelay: TimeInterval = 0.10
 
@@ -200,11 +198,14 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
             // Tree selections open in a new tab so the current document (and
             // any unsaved edits) stays put. A window with no file open yet
             // takes the file itself rather than leaving an empty tab behind.
+            // Picking a file in the tree means the reader is there to work on
+            // it, so it opens in the editor; files from the CLI or Finder
+            // still open in preview.
             guard let self else { return }
             if self.currentFileURL == nil {
-                self.present(url: url)
+                self.present(url: url, preservingEditMode: true, intent: .normal, fragment: nil)
             } else {
-                self.openInNewTab(url)
+                self.openInNewTab(url, startEditing: true)
             }
         }
         split.onOpenMarkdownLink = { [weak self] url in

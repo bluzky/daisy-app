@@ -449,7 +449,6 @@ nonisolated enum EditorHTML {
         }
         #editor .cm-md-code-card {
             position: relative;
-            container-type: inline-size;
             display: grid;
             grid-template-columns: max-content;
             /* Classic horizontal scrollbars must not stretch the code rows
@@ -469,7 +468,7 @@ nonisolated enum EditorHTML {
             position: relative;
             padding: 0;
             white-space: pre;
-            min-width: 100cqw;
+            min-width: var(--code-card-width, 100%);
         }
         #editor .cm-md-code-scroll-text {
             display: inline-block;
@@ -500,7 +499,7 @@ nonisolated enum EditorHTML {
             margin-inline: 9px 10px;
             margin-top: calc(-8px - \(codeLanguageHeaderHeight)px);
             margin-bottom: 8px;
-            width: calc(100cqw - 19px);
+            width: calc(var(--code-card-width, 100%) - 19px);
             height: 28px;
             display: flex;
             align-items: center;
@@ -870,7 +869,7 @@ nonisolated enum EditorHTML {
                             post({ kind: "formattingState", heading: state.heading, commands: state.commands });
                         },
                         onSearchChange: function (result) {
-                            post({ kind: "findResult", index: result.index, total: result.total });
+                            post({ kind: "findResult", index: result.index, total: result.total, capped: result.capped, error: result.error });
                         },
                         onPasteImage: function (from, to) {
                             post({ kind: "pasteImage", from: from, to: to });
@@ -893,8 +892,14 @@ nonisolated enum EditorHTML {
                 );
                 editor.setSlashTemplates(slashTemplates);
                 window.__mdEditor = {
-                    find: function (query, backwards, beginsWith) {
-                        return editor.find(query, backwards, beginsWith);
+                    find: function (query, backwards, options) {
+                        return editor.find(query, backwards, options);
+                    },
+                    replaceCurrent: function (replacement, query, options) {
+                        return editor.replaceCurrent(replacement, query, options);
+                    },
+                    replaceAll: function (replacement, query, options) {
+                        return editor.replaceAll(replacement, query, options);
                     },
                     getMarkdown: function () { return editor.getMarkdown(); },
                     getHeadingLevel: function () { return editor.getHeadingLevel(); },
