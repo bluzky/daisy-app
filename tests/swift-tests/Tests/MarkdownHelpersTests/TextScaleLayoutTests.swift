@@ -82,6 +82,40 @@ final class TextScaleLayoutTests: XCTestCase {
         }
     }
 
+    /// Tables always span the full content column, in the preview and the
+    /// editor, however little their cells hold.
+    func testTablesSpanTheFullColumnInBothModes() async throws {
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
+        let markdown = "| A | B |\n| --- | --- |\n| 1 | 2 |"
+        let probe = """
+            const column = document.querySelector(columnSelector).getBoundingClientRect();
+            const table = document.querySelector(tableSelector).getBoundingClientRect();
+            return [table.width, column.width];
+            """
+        let previewHTML = MarkdownHTML.render(markdown: markdown, allowsScroll: true, documentFont: .system,
+                                              readerLayout: ReaderLayoutSetting()).html
+        let preview = WebViewLayoutHarness(html: previewHTML, width: 1600, isEditor: false, height: 600)
+        defer { preview.close() }
+        _ = try await preview.layout(texts: [], imageCount: 0)
+        let previewResult = try await preview.webView.callAsyncJavaScript(
+            probe, arguments: ["columnSelector": "article.markdown-body", "tableSelector": "article table"],
+            in: nil, contentWorld: .page)
+        let previewWidths = try XCTUnwrap(previewResult as? [Double])
+        XCTAssertEqual(previewWidths[0], previewWidths[1], accuracy: 1, "preview table width")
+
+        let editorHTML = EditorHTML.render(markdown: markdown, editorJavaScript: script)
+        let editor = WebViewLayoutHarness(html: editorHTML, width: 1600, isEditor: true, height: 600)
+        defer { editor.close() }
+        _ = try await editor.layout(texts: [], imageCount: 0)
+        let editorResult = try await editor.webView.callAsyncJavaScript(
+            probe, arguments: ["columnSelector": ".cm-md-table-widget", "tableSelector": ".cm-md-table-grid"],
+            in: nil, contentWorld: .page)
+        let editorWidths = try XCTUnwrap(editorResult as? [Double])
+        XCTAssertEqual(editorWidths[0], editorWidths[1], accuracy: 1, "editor table width")
+        XCTAssertEqual(editorWidths[0], Double(MarkdownHTML.contentColumnWidth) - 12, accuracy: 24,
+                       "editor table fills the content column")
+    }
+
     /// A table cell is the same size in both modes at every text size: the
     /// editor scales type through `--mdp-text-scale` like the preview, so the
     /// cell's fixed padding and borders must not grow with it.
