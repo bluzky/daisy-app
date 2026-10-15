@@ -235,10 +235,13 @@ nonisolated struct ThemePreset: Identifiable, Equatable, Sendable {
                     palette: Palette(pageBackground: "#FFFCF5", codeBackground: "#F5F1E4",
                                      text: "#14120B", accent: "#A0630F"),
                     font: .newYork),
-        // Bear "Dark Graphite"
-        ThemePreset(name: "Graphite", flavor: .dark,
-                    palette: Palette(pageBackground: "#1D1E1F", codeBackground: "#2E2F30",
-                                     text: "#E0E1E0", accent: "#42A2E6")),
+        // Warm near-black with cream ink and an amber accent, in a book
+        // serif: the dark counterpart to the serif light themes. Text reads
+        // at ~13:1 and the accent at ~7.8:1 on the page.
+        ThemePreset(name: "Ember", flavor: .dark,
+                    palette: Palette(pageBackground: "#1F1B16", codeBackground: "#2A251E",
+                                     text: "#E8DFCF", accent: "#E0A458"),
+                    font: .iowan),
         // Bear "Solarized Dark", with the body text lifted from Bear's own
         // #9BA7A4: that reads at about 4.8:1 on this page, the one theme
         // here below 7:1. #C3CFCC keeps the Solarized cast at ~7.9:1.
