@@ -10,7 +10,7 @@
 
 > **Note:** Daisy is an opinionated build of [Markdown Preview](https://github.com/pluk-inc/markdown-preview) by pluk-inc. It follows its own direction and has more features in some areas and fewer in others, so it is not a drop-in replacement. For the original app, use the [upstream repository](https://github.com/pluk-inc/markdown-preview).
 
-<p align="center"><img alt="Platform" src="https://img.shields.io/badge/platform-macOS%2015%2B-blue" />&nbsp;<img alt="Swift" src="https://img.shields.io/badge/swift-6.0-orange" />&nbsp;<img alt="License" src="https://img.shields.io/badge/license-MIT-green" />&nbsp;<img alt="Latest release" src="https://img.shields.io/github/v/release/bluzky/daisy-app" />&nbsp;<img alt="Homebrew cask" src="https://img.shields.io/homebrew/cask/v/markdown-preview" /></p>
+<p align="center"><img alt="Platform" src="https://img.shields.io/badge/platform-macOS%2015%2B-blue" />&nbsp;<img alt="Swift" src="https://img.shields.io/badge/swift-6.0-orange" />&nbsp;<img alt="License" src="https://img.shields.io/badge/license-MIT-green" />&nbsp;<img alt="Latest release" src="https://img.shields.io/github/v/release/bluzky/daisy-app" /></p>
 
 ---
 
@@ -18,42 +18,24 @@
 
 ## Installation
 
-Daisy is available through the [Homebrew cask repository](https://formulae.brew.sh/cask/markdown-preview) (the cask is still published as `markdown-preview` while it is renamed):
-
-```sh
-brew install --cask markdown-preview
-```
-
-Or grab the latest signed and notarized DMG from the [Releases](https://github.com/bluzky/daisy-app/releases) page.
+Grab the latest signed and notarized DMG from the [Releases](https://github.com/bluzky/daisy-app/releases) page.
 
 ## Screenshots
 
 <p align="center">
-  <img src="docs/screenshot-main.png" width="820" alt="Main window with document outline sidebar" />
+  <em>Read long Markdown documents with a sidebar outline:</em>
 </p>
 
 <p align="center">
-  <em>Edit Markdown directly with the Format and Insert menus:</em>
+  <img src="docs/screenshot-main.png" width="820" alt="Read Mode showing a Markdown document and sidebar outline" />
 </p>
 
 <p align="center">
-  <img src="docs/screenshot-edit-mode.png" width="820" alt="Edit Mode with document outline" />
+  <em>Edit Markdown in place, with source syntax visible as you type:</em>
 </p>
 
 <p align="center">
-  <em>Quick Look preview — spacebar a <code>.md</code> in Finder:</em>
-</p>
-
-<p align="center">
-  <img src="docs/screenshot-quicklook.png" width="640" alt="Quick Look preview from Finder" />
-</p>
-
-<p align="center">
-  <em>Customize the toolbar — drag in Print, Copy, Zoom and the rest from <em>View → Customize Toolbar…</em></em>
-</p>
-
-<p align="center">
-  <img src="docs/screenshot-toolbar-customize.png" width="820" alt="Native macOS toolbar customization sheet showing draggable items" />
+  <img src="docs/screenshot-edit-mode.png" width="820" alt="Edit Mode showing Markdown source and sidebar outline" />
 </p>
 
 ## Features

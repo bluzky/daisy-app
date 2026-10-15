@@ -3,7 +3,7 @@ Sample Markdown Cheat Sheet
 
 This is a sample markdown file to help you write Markdown quickly :)
 
-If you use the fabulous [Sublime Text 2/3 editor][ST] along with the [Markdown Preview plugin][MarkdownPreview], open your ST2 Palette with `CMD+⇧+P` then choose `Markdown Preview in browser` to see the result in your browser.
+Daisy opens Markdown files in Edit Mode. Choose *View → Toggle Edit Mode* to switch between editing and reading preview.
 
 ## Text basics
 this is *italic* and this is **bold** .  another _italic_ and another __bold__
@@ -89,9 +89,9 @@ $$F(\omega) = \frac{1}{\sqrt{2\pi}} \int_{-\infty}^{\infty} f(t) \, e^{ - i \ome
 
 If you use the Github parser, you can use some of [Github Flavored Markdown][gfm] syntax :
 
- * User/Project@SHA: revolunet/sublimetext-markdown-preview@7da61badeda468b5019869d11000307e07e07401
- * User/Project#Issue: revolunet/sublimetext-markdown-preview#1
- * User : @revolunet
+ * User/Project@SHA: bluzky/daisy-app@7da61badeda468b5019869d11000307e07e07401
+ * User/Project#Issue: bluzky/daisy-app#1
+ * User : @bluzky
 
 Some Python code :
 
@@ -131,7 +131,7 @@ The Github Markdown also brings some [nice Emoji support][emoji] : :+1: :heart: 
 
 ## Parsers and Extensions
 
-Markdown Preview comes with **Python-Markdown** preloaded.
+Daisy supports configurable rendering extensions for Markdown documents.
 
 ### *Python-Markdown*
 
@@ -212,7 +212,7 @@ Some included ones are:
 
 There are also a number of others available:
 
-Just fork this repo and add your extensions inside the `.../Packages/Markdown Preview/markdown/extensions/` folder.
+Configure Daisy's built-in rendering extensions in *Settings → Extensions*.
 
 Check out the list of [3rd Party extensions](
 https://github.com/waylan/Python-Markdown/wiki/Third-Party-Extensions).
@@ -279,14 +279,11 @@ Orange
 
 ## About
 
-This plugin and this sample file is proudly brought to you by the [revolunet team][revolunet]
+This sample file demonstrates Markdown syntax rendered by Daisy.
 
  [ref1]: http://revolunet.com
  [ref2]: http://revolunet.com "rich web apps"
  [MarkdownREF]: http://daringfireball.net/projects/markdown/basics
- [MarkdownPreview]: https://github.com/revolunet/sublimetext-markdown-preview
- [ST]: http://sublimetext.com
- [revolunet]: http://revolunet.com
  [revolunet-logo]: http://www.revolunet.com/static/parisjs8/img/logo-revolunet-carre.jpg "revolunet logo"
  [gfm]: https://help.github.com/articles/github-flavored-markdown/
  [emoji]: http://www.emoji-cheat-sheet.com/

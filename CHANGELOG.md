@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.9.1] – 2026-10-15
+
+Daisy introduces Ember, a warm dark serif theme, and makes Markdown tables smoother to edit and read.
+
+### Added
+
+- **Select table ranges with Shift-click.** Extend a table selection from the last clicked cell, then press Delete to clear cells or remove complete rows.
+
+### Changed
+
+- **Ember replaces Graphite.** The new dark serif theme pairs a warm near-black page with cream text and amber accents.
+- **Tables fill the reading column.** Wide tables still scroll horizontally in Read and Edit modes.
+- **Default text is easier to read.** Daisy now uses a 16-point body text size.
+
+### Fixed
+
+- **Editing keeps its place and state.** Reloading a changed document preserves editor scroll position, and the mode control shows its correct edit or preview icon ([#29](https://github.com/bluzky/daisy-app/pull/29)).
+
+
 ## [0.9.0] – 2026-10-15
 
 Daisy becomes an independent Markdown workspace with full editing, file navigation, flexible export, and GitHub-hosted updates.
