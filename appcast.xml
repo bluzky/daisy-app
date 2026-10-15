@@ -1,0 +1,37 @@
+<?xml version='1.0' encoding='utf-8'?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>Daisy</title>
+        <link>https://github.com/bluzky/daisy-app</link>
+        <description>Most recent changes to Daisy</description>
+        <language>en</language>
+        <item>
+            <title>Version 0.9.0</title>
+            <pubDate>Thu, 15 Oct 2026 14:43:07 GMT</pubDate>
+            <sparkle:version>69</sparkle:version>
+            <sparkle:shortVersionString>0.9.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <description>&lt;p&gt;Daisy becomes an independent Markdown workspace with full editing, file navigation, flexible export, and GitHub-hosted updates.&lt;/p&gt;
+&lt;h4&gt;Added&lt;/h4&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Edit Markdown and code files in place.&lt;/strong&gt; Markdown files open directly in Edit Mode, while source and text files receive syntax highlighting, line numbers, and find-and-replace. Choose additional code and text extensions in *Settings → General → Code and text files*.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Manage projects from the Files sidebar.&lt;/strong&gt; Create, rename, and move files or folders; bookmark frequent locations; and open any file with its default app when Daisy cannot edit it.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Search and replace while editing.&lt;/strong&gt; Match case, restrict matches to whole words, and replace one match or every match from the editor find bar.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Capture notes and reuse templates.&lt;/strong&gt; Quick Capture opens a timestamped Inbox from a global shortcut. Slash-menu templates insert reusable Markdown from a file you choose.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Export Word documents and automate exports.&lt;/strong&gt; *File → Export → Word…* creates themed &lt;code&gt;.docx&lt;/code&gt; files, including Mermaid diagrams as images. &lt;code&gt;daisy export&lt;/code&gt; offers the same formats from Terminal.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Customize editor tables.&lt;/strong&gt; Add, remove, move, and copy rows and columns; paste a grid selection; and extend a selected cell range with Shift-click.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h4&gt;Changed&lt;/h4&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Daisy has a refined reading and editing experience.&lt;/strong&gt; Text size scales content instead of browser zoom, tables use available column width, code blocks wrap by default, and the Ember dark serif theme replaces Graphite.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Updates now publish through GitHub.&lt;/strong&gt; Release DMGs attach to GitHub Releases; Sparkle appcasts are served from GitHub Pages.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h4&gt;Fixed&lt;/h4&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;External changes refresh open documents safely.&lt;/strong&gt; Daisy reloads changed files while preserving editor state and shows unsaved changes in the tab.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;List editing preserves Markdown structure.&lt;/strong&gt; Brackets, task lists, blank lines, and code fences remain stable while typing and pasting.&lt;/li&gt;
+&lt;/ul&gt;</description>
+            <enclosure url="https://github.com/bluzky/daisy-app/releases/download/v0.9.0/Daisy-0.9.0.dmg" length="14066435" type="application/octet-stream" sparkle:edSignature="AeAJI82xT4u4k81RLkrpTlrxLlpx7hFWZ7Ls74spWOEWSZ0u5+nyAiQddV2K8gCqq/kR6W70pOD58OwKQcxFDQ==" />
+        </item>
+    </channel>
+</rss>
