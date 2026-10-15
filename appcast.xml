@@ -6,6 +6,29 @@
         <description>Most recent changes to Daisy</description>
         <language>en</language>
         <item>
+            <title>Version 0.9.1</title>
+            <pubDate>Thu, 15 Oct 2026 15:22:25 GMT</pubDate>
+            <sparkle:version>70</sparkle:version>
+            <sparkle:shortVersionString>0.9.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <description>&lt;p&gt;Daisy introduces Ember, a warm dark serif theme, and makes Markdown tables smoother to edit and read.&lt;/p&gt;
+&lt;h4&gt;Added&lt;/h4&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Select table ranges with Shift-click.&lt;/strong&gt; Extend a table selection from the last clicked cell, then press Delete to clear cells or remove complete rows.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h4&gt;Changed&lt;/h4&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Ember replaces Graphite.&lt;/strong&gt; The new dark serif theme pairs a warm near-black page with cream text and amber accents.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Tables fill the reading column.&lt;/strong&gt; Wide tables still scroll horizontally in Read and Edit modes.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Default text is easier to read.&lt;/strong&gt; Daisy now uses a 16-point body text size.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h4&gt;Fixed&lt;/h4&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Editing keeps its place and state.&lt;/strong&gt; Reloading a changed document preserves editor scroll position, and the mode control shows its correct edit or preview icon ([#29](https://github.com/bluzky/daisy-app/pull/29)).&lt;/li&gt;
+&lt;/ul&gt;</description>
+            <enclosure url="https://github.com/bluzky/daisy-app/releases/download/v0.9.1/Daisy-0.9.1.dmg" length="14066441" type="application/octet-stream" sparkle:edSignature="P44+xtTIWAbR6CTXKX0NByJPuj42Q+qhY1mPWeHyniH2hJT1Rky7AvK2TzXDeKyMR6Pd+rYdudrQ0Ipe4ktODw==" />
+        </item>
+        <item>
             <title>Version 0.9.0</title>
             <pubDate>Thu, 15 Oct 2026 14:43:07 GMT</pubDate>
             <sparkle:version>69</sparkle:version>
