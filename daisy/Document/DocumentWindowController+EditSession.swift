@@ -398,8 +398,7 @@ extension DocumentWindowController {
             markdownDocument?.replaceContents(markdown: externalMarkdown, fileURL: url)
             renderCurrentDocument(text: externalMarkdown, fileURL: url)
         }
-        editor.load(markdown: externalMarkdown,
-                    assetBaseURL: currentFileURL?.deletingLastPathComponent())
+        editor.replaceMarkdown(externalMarkdown)
     }
 
     func adoptExternalMarkdown(_ markdown: String,
@@ -417,10 +416,7 @@ extension DocumentWindowController {
             }
         }
         if !exitAfter {
-            editor?.load(
-                markdown: markdown,
-                assetBaseURL: currentFileURL?.deletingLastPathComponent()
-            )
+            editor?.replaceMarkdown(markdown)
         }
         completeSuccessfulEditorCommit(exitAfter: exitAfter, rerender: true)
     }

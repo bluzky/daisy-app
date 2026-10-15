@@ -101,6 +101,8 @@ export class TableEditorWidget extends WidgetType {
     }
 
     let active = null
+    // Where a shift-click range starts; outlives the cell's focus.
+    let selectionAnchor = null
     let selectedPart = null
     let cellDrag = null
     let suppressNextTableClick = false
@@ -262,6 +264,7 @@ export class TableEditorWidget extends WidgetType {
       )
       window.getSelection()?.removeAllRanges()
       selectedPart = { kind, row: anchor.row, column: anchor.column, bounds }
+      selectionAnchor = { row: anchor.row, column: anchor.column }
       tableFormattingTargets.delete(view)
       root.tabIndex = 0
       if (kind === "range") {
@@ -369,6 +372,7 @@ export class TableEditorWidget extends WidgetType {
           editor.dataset.tableEditing = 'true'
           tableFormattingTargets.set(view, { tableFrom: this.from, row, column, element: editor, anchor: 0, head: 0 })
           active = { row, column, element: editor }
+          selectionAnchor = { row, column }
         })
         // Pasted tabular text (Excel, Sheets, several lines) fills cells from
         // this one, adding rows and columns as needed.
@@ -522,6 +526,13 @@ export class TableEditorWidget extends WidgetType {
       const row = Number(cell.dataset.tableRow)
       const column = Number(cell.dataset.tableColumn)
       if (!Number.isInteger(row) || row < 0 || !Number.isInteger(column)) return
+      // Shift-click selects the rectangle from the last clicked cell.
+      if (event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey && selectionAnchor) {
+        event.preventDefault()
+        event.stopPropagation()
+        selectTableRange(selectionAnchor.row, selectionAnchor.column, row, column)
+        return
+      }
       // Anchor a plain click in rendered text before revealing its Markdown,
       // just like anchoredPointerSelection does for ordinary editor text.
       event.stopPropagation()
@@ -649,13 +660,22 @@ export class TableEditorWidget extends WidgetType {
         return
       }
       if (event.key !== "Backspace" && event.key !== "Delete") return
-      if (selectedPart.kind === "range") {
-        event.preventDefault()
+      event.preventDefault()
+      const { row, column, bounds } = selectedPart
+      let { kind } = selectedPart
+      // A drag spanning every column is a row selection, like the grip's.
+      if (kind === "range" && bounds.left === 0 && bounds.right === model.alignments.length - 1) {
+        kind = "row"
+      }
+      clearPartSelection()
+      if (kind === "range") {
+        captureActiveValue()
+        for (let r = bounds.top; r <= bounds.bottom; r++) {
+          for (let c = bounds.left; c <= bounds.right; c++) model.rows[r][c] = ""
+        }
+        applyModel({ row, column })
         return
       }
-      event.preventDefault()
-      const { kind, row, column, bounds } = selectedPart
-      clearPartSelection()
       if (kind === "row") {
         deleteRows(bounds.top, bounds.bottom, column)
       } else if (kind === "column" && bounds.right > bounds.left) {

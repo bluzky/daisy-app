@@ -117,7 +117,7 @@ final class TextAlignmentTests: XCTestCase {
 
     @MainActor
     func testJustificationFillsLinesButNotLastLineAtBothWidths() async throws {
-        let source = Array(repeating: "A paragraph with varied words makes alignment measurable in the rendered preview.", count: 9).joined(separator: " ")
+        let source = Array(repeating: "A paragraph with varied words makes alignment measurable in the rendered preview.", count: 9).joined(separator: " ") + " The end."
         for width in [420.0, 1000.0] {
             let web = WKWebView(frame: CGRect(x: 0, y: 0, width: width, height: 800))
             web.loadHTMLString(MarkdownHTML.render(markdown: source, allowsScroll: true,

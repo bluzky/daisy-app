@@ -646,7 +646,7 @@ nonisolated enum EditorHTML {
         }
         .cm-md-table-widget {
             position: relative;
-            width: fit-content;
+            width: 100%;
             /* Outer spacing comes from the block separator lines, matching
                the preview's table margin. */
             margin: 0;
@@ -665,7 +665,7 @@ nonisolated enum EditorHTML {
             outline: none;
         }
         .cm-md-table-scroll {
-            width: fit-content;
+            width: 100%;
             max-width: 100%;
             overflow-x: auto;
         }

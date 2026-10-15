@@ -1271,11 +1271,11 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
     }
 
     mutating func visitTable(_ table: Table) {
-        result += "<table\(sourceLineAttribute(table))>\n"
+        result += "<div class=\"md-table-scroll\">\n<table\(sourceLineAttribute(table))>\n"
         tableColumnAlignments = table.columnAlignments
         descendInto(table)
         tableColumnAlignments = nil
-        result += "</table>\n"
+        result += "</table>\n</div>\n"
     }
 
     mutating func visitTableHead(_ tableHead: Table.Head) {

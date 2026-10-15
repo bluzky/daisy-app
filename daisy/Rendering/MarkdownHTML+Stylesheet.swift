@@ -754,12 +754,18 @@ nonisolated extension MarkdownHTML {
         background-size: 100% 100%;
     }
 
-    table {
+    /* Tables always span the full column, however little their cells hold.
+       The wrapper owns the margin and the horizontal scroll: a table box
+       cannot scroll itself and still stretch to the column. */
+    .md-table-scroll {
         margin: \(textScaled(largeBlockSpacing)) 0 0;
-        border-collapse: collapse;
-        display: block;
         overflow-x: auto;
         max-width: 100%;
+    }
+    .md-table-scroll > table {
+        border-collapse: collapse;
+        display: table;
+        width: 100%;
     }
     th, td {
         padding: 8px 12px;
@@ -886,7 +892,7 @@ nonisolated extension MarkdownHTML {
         /* Splitting these across a page break loses the reading order. */
         :root:not(.\(previewPrintClass)) pre,
         :root:not(.\(previewPrintClass)) blockquote,
-        :root:not(.\(previewPrintClass)) table,
+        :root:not(.\(previewPrintClass)) .md-table-scroll,
         :root:not(.\(previewPrintClass)) figure,
         :root:not(.\(previewPrintClass)) .md-frontmatter,
         :root:not(.\(previewPrintClass)) .markdown-alert {
@@ -907,7 +913,7 @@ nonisolated extension MarkdownHTML {
         /* Inner scrollers can't scroll on paper — let them wrap instead of
            clipping their overflow. */
         :root:not(.\(previewPrintClass)) .md-code-wrap,
-        :root:not(.\(previewPrintClass)) table,
+        :root:not(.\(previewPrintClass)) .md-table-scroll,
         :root:not(.\(previewPrintClass)) pre {
             overflow: visible !important;
         }
