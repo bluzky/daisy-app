@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.9.0] – 2026-10-15
+
+Daisy becomes an independent Markdown workspace with full editing, file navigation, flexible export, and GitHub-hosted updates.
+
+### Added
+
+- **Edit Markdown and code files in place.** Markdown files open directly in Edit Mode, while source and text files receive syntax highlighting, line numbers, and find-and-replace. Choose additional code and text extensions in *Settings → General → Code and text files*.
+- **Manage projects from the Files sidebar.** Create, rename, and move files or folders; bookmark frequent locations; and open any file with its default app when Daisy cannot edit it.
+- **Search and replace while editing.** Match case, restrict matches to whole words, and replace one match or every match from the editor find bar.
+- **Capture notes and reuse templates.** Quick Capture opens a timestamped Inbox from a global shortcut. Slash-menu templates insert reusable Markdown from a file you choose.
+- **Export Word documents and automate exports.** *File → Export → Word…* creates themed `.docx` files, including Mermaid diagrams as images. `daisy export` offers the same formats from Terminal.
+- **Customize editor tables.** Add, remove, move, and copy rows and columns; paste a grid selection; and extend a selected cell range with Shift-click.
+
+### Changed
+
+- **Daisy has a refined reading and editing experience.** Text size scales content instead of browser zoom, tables use available column width, code blocks wrap by default, and the Ember dark serif theme replaces Graphite.
+- **Updates now publish through GitHub.** Release DMGs attach to GitHub Releases; Sparkle appcasts are served from GitHub Pages.
+
+### Fixed
+
+- **External changes refresh open documents safely.** Daisy reloads changed files while preserving editor state and shows unsaved changes in the tab.
+- **List editing preserves Markdown structure.** Brackets, task lists, blank lines, and code fences remain stable while typing and pasting.
+
 ## [0.0.64] – 2026-09-30
 
 This release adds recent files to document search, restores task checkbox toggles in Read Mode, and reduces idle memory usage.

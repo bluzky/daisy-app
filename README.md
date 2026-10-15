@@ -157,11 +157,11 @@ appcast.xml         Sparkle update feed
 
 ## Releasing
 
-Releases are driven by [Amore](http://amore.computer/) — it handles building, code signing, notarization, DMG creation, S3 upload, and Sparkle appcast publishing in one shot.
+Releases are published to GitHub: `scripts/release.sh` builds, signs and notarizes a DMG, attaches it to a GitHub release, and publishes the Sparkle appcast on the `gh-pages` branch (served by GitHub Pages).
 
 To prepare a release PR, start from latest `main`, update both `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` in `Version.xcconfig`, and add the matching `CHANGELOG.md` entry with contributor credits. Submit these together in a ready PR; see the [release-process skill](.agents/skills/release-process/SKILL.md) for naming and validation.
 
-When ready to publish the prepared release, run the following from a clean working tree. This builds, notarizes, uploads, tags, and publishes the release:
+When ready to publish the prepared release, run the following from a clean working tree. This builds, notarizes, tags, and publishes the release to GitHub:
 
 ```sh
 ./scripts/release.sh
@@ -181,7 +181,6 @@ Pull requests are welcome. For larger changes, please open an issue first to dis
 5. Match the existing Swift style (no formatter is enforced; mirror nearby code).
 
 ## Acknowledgments
-- [Amore](http://amore.computer/) — MacOS release automation (signing, notarization, DMG, hosting, appcast)
 - [swift-markdown](https://github.com/swiftlang/swift-markdown) — Markdown parser (Apple, cmark-gfm-backed)
 - [Mermaid](https://mermaid.js.org/) — Bundled diagram renderer for `mermaid` fenced code blocks
 - [KaTeX](https://katex.org/) — Bundled math typesetter for inline `$…$`, display `$$…$$`, and ` ```math ` blocks
