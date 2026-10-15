@@ -688,6 +688,28 @@ final class EditorScrollAnchorTests: XCTestCase {
         XCTAssertEqual(result as? Bool, true)
     }
 
+    func testReplacingMarkdownPreservesEditorScrollOffset() async throws {
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
+        let markdown = String(repeating: "Paragraph for scroll preservation.\n\n", count: 150)
+        let editor = WebViewLayoutHarness(
+            html: EditorHTML.render(markdown: markdown, editorJavaScript: script),
+            width: 650, isEditor: true, height: 400)
+        defer { editor.close() }
+        _ = try await editor.layout(texts: [], imageCount: 0)
+        let result = try await editor.webView.callAsyncJavaScript("""
+            const scroller = document.querySelector('#editor .cm-scroller');
+            scroller.scrollTop = 300;
+            const before = scroller.scrollTop;
+            window.__mdEditor.replaceMarkdown(markdown + '\\nChanged on disk.');
+            window.__layoutTestFrame();
+            window.__layoutTestFrame();
+            return { before, after: scroller.scrollTop };
+            """, arguments: ["markdown": markdown], in: nil, contentWorld: .page)
+        let values = try XCTUnwrap(result as? [String: Double])
+        XCTAssertEqual(try XCTUnwrap(values["after"]),
+                       try XCTUnwrap(values["before"]), accuracy: 1)
+    }
+
     func testTableAnchorUsesItsWholeSourceRange() async throws {
         let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         let markdown = "Before\n\n| Key | Value |\n| --- | --- |\n"
