@@ -65,7 +65,7 @@
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
 	<key>SUFeedURL</key>
-	<string>https://release.md-preview.app/v1/apps/doc.md-preview/appcast.xml</string>
+	<string>https://bluzky.github.io/daisy-app/appcast.xml</string>
 	<key>SUPublicEDKey</key>
 	<string>gIQjgqfjkIR+egQ4S1oBLxE/NCDxpXXGdZXSpn04VAY=</string>
 	<key>UTExportedTypeDeclarations</key>
