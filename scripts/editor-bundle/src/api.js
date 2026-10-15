@@ -1,6 +1,6 @@
 import { EditorView, keymap, dropCursor } from "@codemirror/view"
 import { Compartment, EditorState, Prec, Transaction } from "@codemirror/state"
-import { defaultKeymap, history, historyKeymap, indentLess } from "@codemirror/commands"
+import { cursorDocEnd, cursorDocStart, defaultKeymap, history, historyKeymap, indentLess, selectDocEnd, selectDocStart } from "@codemirror/commands"
 import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete"
 import { markdown, markdownKeymap, markdownLanguage } from "@codemirror/lang-markdown"
 import { yamlFrontmatter } from "@codemirror/lang-yaml"
@@ -36,6 +36,7 @@ import { codeCopyHandlers, unwrappedCodeBlocks } from "./widgets/code.js"
 
 window.MDEditor = {
   create(parent, doc, callbacks) {
+    let jumpToDocEdge = () => false
     const onDirty = callbacks && callbacks.onDirty
     const onPasteImage = callbacks && callbacks.onPasteImage
     // Live preview spacing tokens from the host stylesheet (MarkdownHTML
@@ -127,6 +128,8 @@ window.MDEditor = {
             { key: "Backspace", run: deleteTableBackward },
             { key: "Backspace", run: codeBackspace },
             { key: "Backspace", run: deleteEmptyListMarker },
+            { key: "Mod-ArrowUp", run: (v) => jumpToDocEdge(v, cursorDocStart, false), shift: (v) => jumpToDocEdge(v, selectDocStart, false) },
+            { key: "Mod-ArrowDown", run: (v) => jumpToDocEdge(v, cursorDocEnd, true), shift: (v) => jumpToDocEdge(v, selectDocEnd, true) },
             { key: "Delete", run: deleteTableForward },
             { key: "Delete", run: codeDelete },
           ])),
@@ -209,6 +212,21 @@ window.MDEditor = {
     const pageScrolling = !!(callbacks && callbacks.pageScrolling)
     const scroller = pageScrolling ? document.scrollingElement : view.scrollDOM
     const scrollEvents = pageScrolling ? window : scroller
+    // CodeMirror estimates the height of lines it has not drawn, so a single
+    // scrollIntoView toward the document end stops short. After moving the
+    // caret, keep scrolling to the real edge until the scroll height settles.
+    jumpToDocEdge = (v, move, toEnd) => {
+      move(v)
+      let lastHeight = -1, stableFrames = 0, frames = 0
+      const settle = () => {
+        scroller.scrollTop = toEnd ? scroller.scrollHeight : 0
+        stableFrames = scroller.scrollHeight === lastHeight ? stableFrames + 1 : 0
+        lastHeight = scroller.scrollHeight
+        if (stableFrames < 4 && ++frames < 60) requestAnimationFrame(settle)
+      }
+      requestAnimationFrame(settle)
+      return true
+    }
     let preservedSourcePosition = null
     const searchResult = (search) => ({
       index: search.index + 1,
