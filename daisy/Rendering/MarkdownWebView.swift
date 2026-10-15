@@ -34,12 +34,6 @@ struct SourceScrollAnchor {
         sourcePosition = CGFloat(truncating: position)
         topGap = (raw["gap"] as? NSNumber).map { CGFloat(truncating: $0) } ?? 0
     }
-
-    /// The same anchor with `topGap` in CSS px of a page zoomed `factor`
-    /// times as far as this one's.
-    func convertingGap(by factor: CGFloat) -> SourceScrollAnchor {
-        SourceScrollAnchor(sourcePosition: sourcePosition, topGap: topGap * factor)
-    }
 }
 
 /// User-selectable article layout, persisted across launches. Quick Look

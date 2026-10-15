@@ -65,3 +65,11 @@ export const keyHost = () => {
   dom.window.document.body.appendChild(host)
   return host
 }
+
+// Separator and gap lines size themselves as `calc(Npx * var(--mdp-text-scale, 1))`,
+// like the preview's text-scaled margins. Returns N from the raw style attribute.
+export const scaledPx = (element, property) => {
+  const match = (element?.getAttribute("style") ?? "").match(
+    new RegExp(`(?:^|;)\\s*${property}:\\s*calc\\(([\\d.]+)px \\* var\\(--mdp-text-scale, 1\\)\\)`))
+  return match ? parseFloat(match[1]) : NaN
+}

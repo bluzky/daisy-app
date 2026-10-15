@@ -118,20 +118,20 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
             Self.editorHTML(markdown: markdown,
                             includesMermaid: includesMermaid,
                             assetBaseURL: assetBaseURL,
-                            pageZoom: webView.pageZoom,
+                            textScale: textScale,
                             codeLanguage: codeLanguage),
             baseURL: nil
         )
     }
 
-    /// Mirror the preview's text size so the type doesn't jump when
-    /// toggling edit mode. The editor's spacing lives in its bundle as CSS
-    /// px, so it scales by page zoom rather than the preview's
-    /// `--mdp-text-scale`; `--mdp-page-zoom` then divides the zoom back out
-    /// of the column and gutters, which the preview leaves unscaled.
-    func applyPageZoom(_ zoom: CGFloat) {
-        webView.pageZoom = zoom
-        webView.evaluateJavaScript("document.documentElement.style.setProperty('--mdp-page-zoom', '\(max(zoom, 0.001))')", completionHandler: nil)
+    /// The reader's text size, mirroring the preview: `--mdp-text-scale`
+    /// scales type and text spacing, and the page itself is never zoomed, so
+    /// the column, gutters and chrome keep their on-screen size.
+    private(set) var textScale: CGFloat = 1
+
+    func applyTextScale(_ scale: CGFloat) {
+        textScale = scale
+        webView.evaluateJavaScript("document.documentElement.style.setProperty('\(MarkdownHTML.textScaleProperty)', '\(max(scale, 0.001))')", completionHandler: nil)
         updateChromeZoom()
     }
 
@@ -416,8 +416,7 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
         let arguments: [String: Any] = [
             "progress": Double(clamped),
             "sourcePosition": sourceAnchor.map { Double($0.sourcePosition) } ?? NSNull(),
-            // The preview measures the gap at page zoom 1; this page is zoomed.
-            "sourceGap": sourceAnchor.map { Double($0.topGap / max(webView.pageZoom, 0.001)) } ?? 0,
+            "sourceGap": sourceAnchor.map { Double($0.topGap) } ?? 0,
         ]
         webView.callAsyncJavaScript(
             """
@@ -448,9 +447,7 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
         webView.evaluateJavaScript(
             "window.__mdEditor && window.__mdEditor.getScrollAnchor()"
         ) { [weak self] result, _ in
-            // Hand the gap back in the preview's CSS px (page zoom 1).
-            let zoom = self?.webView.pageZoom ?? 1
-            completion(SourceScrollAnchor(scriptResult: result)?.convertingGap(by: zoom))
+            completion(SourceScrollAnchor(scriptResult: result))
         }
     }
 
@@ -609,7 +606,7 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
     private static func editorHTML(markdown: String,
                                    includesMermaid: Bool,
                                    assetBaseURL: URL?,
-                                   pageZoom: CGFloat,
+                                   textScale: CGFloat,
                                    codeLanguage: String?) -> String {
         // Baked into the base stylesheet, not only the override element:
         // WebKit derives the obscured-inset fill from the base stylesheet's
@@ -638,7 +635,7 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
             configuration: .init(
                 fullWidth: ContentWidthSetting.current.columnWidth == nil,
                 columnWidth: ContentWidthSetting.current.columnWidth ?? MarkdownHTML.contentColumnWidth,
-                pageZoom: pageZoom,
+                textScale: textScale,
                 lightPageBackground: lightPageBackground,
                 darkPageBackground: darkPageBackground,
                 themeOverrideCSS: colors.editorOverrideCSS,

@@ -213,8 +213,9 @@ for (const [label, source] of [
   listEditor.destroy()
 }
 
-// Blank lines between list items collapse like the preview, except the one
-// holding the caret, which must stay visible so the caret does not vanish.
+// Blank lines between list items collapse like the preview. While the caret is
+// in the item below, only the blank directly above it stays open (so typing a
+// new item does not jump), and the caret's own blank line is never collapsed.
 const blankHost = dom.window.document.createElement("div")
 dom.window.document.body.appendChild(blankHost)
 const blankEditor = dom.window.MDEditor.create(blankHost, "- One\n\n\n- Two", {})
@@ -223,8 +224,14 @@ blankEditor.select(7)
 const blankLines = [...blankHost.querySelectorAll(".cm-line")]
 check("caret's blank line between list items stays visible",
   !blankLines[2].classList.contains("cm-md-block-separator"))
-check("other blank lines between list items stay collapsed",
+check("earlier blank lines between list items stay collapsed",
   blankLines[1].classList.contains("cm-md-block-separator"))
+blankEditor.select(11)
+const itemBlankLines = [...blankHost.querySelectorAll(".cm-line")]
+check("the blank directly above the active item stays open",
+  !itemBlankLines[2].classList.contains("cm-md-block-separator"))
+check("earlier blanks above the active item stay collapsed",
+  itemBlankLines[1].classList.contains("cm-md-block-separator"))
 blankEditor.select(0)
 check("blank lines between list items collapse when the caret is elsewhere",
   [...blankHost.querySelectorAll(".cm-md-block-separator")].length === 2)

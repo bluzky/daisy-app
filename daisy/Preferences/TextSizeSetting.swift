@@ -10,11 +10,10 @@
 //  rendered size; instead Settings offers three named stops on the scale the
 //  document window already uses, and reads back whatever the window last set.
 //
-//  The preview applies it as `--mdp-text-scale` (type and text spacing only),
-//  not WebKit page zoom, so the Content Width column keeps its on-screen
-//  measure. The editor mirrors it with page zoom and divides that back out of
-//  its column; see `EditorViewController.applyPageZoom`. The defaults key
-//  keeps its old name so existing users keep their size.
+//  The preview and the editor both apply it as `--mdp-text-scale` (type and
+//  text spacing only), not WebKit page zoom, so the Content Width column keeps
+//  its on-screen measure; see `EditorViewController.applyTextScale`. The
+//  defaults key keeps its old name so existing users keep their size.
 //
 
 import CoreGraphics

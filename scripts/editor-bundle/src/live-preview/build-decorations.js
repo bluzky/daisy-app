@@ -497,20 +497,25 @@ export function buildDecorations(view, detectedCodeCache) {
           const isFirstItem = node.from === listStack[listStack.length - 1]
           const isNested = listStack.length > 1
           // Inactive loose lists use the same compact item spacing as Read
-          // Mode, so blank lines between items collapse. Only the blank line
-          // holding the caret stays visible; keeping every blank line before
-          // the active item open stacked them into a huge gap, and collapsing
-          // the caret's own line made the caret disappear.
+          // Mode, so blank lines between items collapse. While the caret is in
+          // an item, the one blank line right above it stays open so typing a
+          // new item does not pull its text upward, and the caret's own blank
+          // line is never collapsed (it would hide the caret). Any earlier
+          // blanks still collapse; keeping them all open stacked into a huge gap.
           const itemLine = state.doc.lineAt(node.from)
+          const preserveBlankBefore = touches(itemLine.from, node.to) && itemLine.number > 1
+            && state.doc.line(itemLine.number - 1).text.trim() === ""
           if (!isFirstItem) {
             let number = itemLine.number - 1
             while (number > 0 && state.doc.line(number).text.trim() === "") {
               const blank = state.doc.line(number)
-              if (!touches(blank.from, blank.to)) lineOnce(blank.from, blockSeparatorLine(0))
+              const keepOpen = touches(blank.from, blank.to)
+                || (preserveBlankBefore && number === itemLine.number - 1)
+              if (!keepOpen) lineOnce(blank.from, blockSeparatorLine(0))
               number--
             }
           }
-          if (!isFirstItem || isNested) lineOnce(node.from, listItemGapLine)
+          if ((!isFirstItem || isNested) && !preserveBlankBefore) lineOnce(node.from, listItemGapLine)
           eachLine(node.from, node.to, listItemLine)
           if (/^[ \t]*[-+*][ \t]+\[[xX]\](?:[ \t]|$)/.test(state.doc.sliceString(node.from, itemLine.to))) {
             // Nested lists own their completion state. Keep the parent's
