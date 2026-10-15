@@ -111,21 +111,33 @@
                                     <action selector="saveDocumentAs:" target="-1" id="mDf-zr-I0C"/>
                                 </connections>
                             </menuItem>
-                            <menuItem title="Revert to Saved" keyEquivalent="r" id="KaW-ft-85H">
-                                <connections>
-                                    <action selector="revertDocumentToSaved:" target="-1" id="iJ3-Pv-kwq"/>
-                                </connections>
-                            </menuItem>
                             <menuItem isSeparatorItem="YES" id="aJh-i4-bef"/>
-                            <menuItem title="Export…" id="Ex0-fm-F00">
-                                <connections>
-                                    <action selector="exportMarkdownDocument:" target="-1" id="Ex0-fm-A00"/>
-                                </connections>
-                            </menuItem>
-                            <menuItem title="Export as PDF…" id="Ex1-pd-F01">
-                                <connections>
-                                    <action selector="exportMarkdownAsPDF:" target="-1" id="Ex2-pd-F02"/>
-                                </connections>
+                            <menuItem title="Export" id="Ex0-fm-F00">
+                                <modifierMask key="keyEquivalentModifierMask"/>
+                                <menu key="submenu" title="Export" id="Ex0-sm-M00">
+                                    <items>
+                                        <menuItem title="PDF…" id="Ex1-pd-F01">
+                                            <connections>
+                                                <action selector="exportMarkdownAsPDF:" target="-1" id="Ex2-pd-F02"/>
+                                            </connections>
+                                        </menuItem>
+                                        <menuItem title="HTML…" id="Ex1-ht-F01">
+                                            <connections>
+                                                <action selector="exportMarkdownAsHTML:" target="-1" id="Ex2-ht-F02"/>
+                                            </connections>
+                                        </menuItem>
+                                        <menuItem title="PNG…" id="Ex1-pn-F01">
+                                            <connections>
+                                                <action selector="exportMarkdownAsPNG:" target="-1" id="Ex2-pn-F02"/>
+                                            </connections>
+                                        </menuItem>
+                                        <menuItem title="Word…" id="Ex1-wd-F01">
+                                            <connections>
+                                                <action selector="exportMarkdownAsWord:" target="-1" id="Ex2-wd-F02"/>
+                                            </connections>
+                                        </menuItem>
+                                    </items>
+                                </menu>
                             </menuItem>
                             <menuItem isSeparatorItem="YES" id="Ex3-pd-F03"/>
                             <menuItem title="Print…" keyEquivalent="p" id="aTl-1u-JFS">

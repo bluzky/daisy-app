@@ -2,90 +2,13 @@
 //  DocumentWindowController+Find.swift
 //  daisy
 //
-//  The search toolbar item and the find bar.
+//  The find and replace bar. It appears on demand (⌘F, ⌥⌘F) as a content
+//  overlay and owns the query field itself — there is no toolbar search item.
 //
 
 import Cocoa
 
 extension DocumentWindowController {
-    func makeSearchItem() -> NSToolbarItem {
-        let item = NSSearchToolbarItem(itemIdentifier: .search)
-        let searchInDocument = NSLocalizedString(
-            "Search in Document",
-            comment: "Toolbar search field tooltip and placeholder"
-        )
-        item.label = NSLocalizedString("Search", comment: "Toolbar search item label")
-        item.toolTip = searchInDocument
-        item.preferredWidthForSearchField = 320
-        item.searchField.placeholderString = searchInDocument
-        item.searchField.sendsSearchStringImmediately = true
-        item.searchField.target = self
-        item.searchField.action = #selector(searchFieldDidChange(_:))
-        item.searchField.delegate = self
-        searchField = item.searchField
-        return item
-    }
-
-    @objc private func searchFieldDidChange(_ sender: NSSearchField) {
-        // Coalesce per-keystroke finds — running the full DOM rewrite + JS
-        // round-trip on every char is the dominant stall source on big docs.
-        // Empty queries (e.g. user cleared the field) bypass the debounce so
-        // the highlight teardown happens immediately.
-        let query = sender.stringValue
-        pendingFindWork?.cancel()
-        if query.isEmpty {
-            pendingFindWork = nil
-            runFind(query: query)
-            return
-        }
-        let work = DispatchWorkItem { [weak self] in
-            self?.runFind(query: query)
-        }
-        pendingFindWork = work
-        DispatchQueue.main.asyncAfter(
-            deadline: .now() + Self.findDebounceDelay, execute: work
-        )
-    }
-
-    private func runFind(query: String, backwards: Bool = false) {
-        // Explicit nav (Enter / prev / next / mode change) flushes any pending
-        // debounce so the user navigates the freshest results.
-        pendingFindWork?.cancel()
-        pendingFindWork = nil
-        (documentWindow.contentViewController as? MainSplitViewController)?
-            .find(query, backwards: backwards, mode: searchMode) { [weak self] result in
-                self?.applyFindResult(result, query: query)
-            }
-    }
-
-    func control(_ control: NSControl,
-                 textView: NSTextView,
-                 doCommandBy commandSelector: Selector) -> Bool {
-        guard control === searchField,
-              commandSelector == #selector(NSResponder.insertNewline(_:)) else {
-            return false
-        }
-        let backwards = NSEvent.modifierFlags.contains(.shift)
-        findFromToolbar(backwards: backwards)
-        return true
-    }
-
-    private func applyFindResult(_ result: FindResult, query: String) {
-        if query.isEmpty {
-            setFindBarVisible(false)
-            return
-        }
-        findBar?.update(matchCount: result.total, currentIndex: result.index)
-        setFindBarVisible(true)
-    }
-
-    private func setFindBarVisible(_ visible: Bool) {
-        guard let overlay = findBarOverlay, overlay.isHidden == visible else { return }
-        overlay.isHidden = !visible
-        // The editor pads its page below every visible overlay.
-        mainSplit?.findOverlayVisibilityChanged()
-    }
-
     /// A content overlay like the formatting bar, not a titlebar accessory:
     /// AppKit pins the native tab bar below every accessory, so an
     /// accessory find bar sat above the tabs and shoved them down on every
@@ -93,12 +16,15 @@ extension DocumentWindowController {
     /// DocumentWindowController.editBar.
     func installFindBar() {
         let bar = FindBar(
-            frame: NSRect(x: 0, y: 0, width: 600, height: FindBar.preferredHeight)
+            frame: NSRect(x: 0, y: 0, width: 600, height: FindBar.rowHeight)
         )
-        bar.onPrevious = { [weak self] in self?.findFromToolbar(backwards: true) }
-        bar.onNext = { [weak self] in self?.findFromToolbar(backwards: false) }
-        bar.onDone = { [weak self] in self?.dismissFindBar() }
-        bar.onModeChanged = { [weak self] mode in self?.searchModeDidChange(mode) }
+        bar.onQueryChanged = { [weak self] query in self?.findQueryDidChange(query) }
+        bar.onNavigate = { [weak self] backwards in self?.findFromBar(backwards: backwards) }
+        bar.onOptionsChanged = { [weak self] in self?.findOptionsDidChange() }
+        bar.onReplace = { [weak self] in self?.replaceCurrentMatch() }
+        bar.onReplaceAll = { [weak self] in self?.replaceAllMatches() }
+        bar.onClose = { [weak self] in self?.dismissFindBar() }
+        bar.onHeightChanged = { [weak self] in self?.mainSplit?.findOverlayVisibilityChanged() }
         self.findBar = bar
 
         let container = EditAccessoryContainerView()
@@ -111,7 +37,6 @@ extension DocumentWindowController {
             bar.trailingAnchor.constraint(equalTo: container.trailingAnchor),
             bar.topAnchor.constraint(equalTo: container.topAnchor),
             bar.bottomAnchor.constraint(equalTo: container.bottomAnchor),
-            bar.heightAnchor.constraint(equalToConstant: FindBar.preferredHeight),
         ])
         // macOS 27 supplies the native header edge in both read and edit modes.
         if #unavailable(macOS 27.0) {
@@ -127,17 +52,12 @@ extension DocumentWindowController {
         }
         container.isHidden = true
         mainSplit?.installFindOverlay(container)
+        mainSplit?.findContextDidChange = { [weak self] in self?.syncFindBarWithMode() }
         findBarOverlay = container
+        syncFindBarWithMode()
     }
 
-    private func dismissFindBar() {
-        searchField?.stringValue = ""
-        if let editor = searchField?.currentEditor(),
-           documentWindow.firstResponder === editor {
-            documentWindow.makeFirstResponder(nil)
-        }
-        runFind(query: "")
-    }
+    // MARK: - Showing and hiding
 
     @IBAction func performFindPanelAction(_ sender: Any?) {
         handleFindAction(sender)
@@ -148,39 +68,158 @@ extension DocumentWindowController {
     }
 
     func handleFindAction(_ sender: Any?) {
-        let tag = (sender as? NSValidatedUserInterfaceItem)?.tag ?? 1
+        let tag = (sender as? NSValidatedUserInterfaceItem)?.tag ?? NSTextFinder.Action.showFindInterface.rawValue
         switch tag {
         case NSTextFinder.Action.nextMatch.rawValue:
-            findFromToolbar(backwards: false)
+            findFromBar(backwards: false)
         case NSTextFinder.Action.previousMatch.rawValue:
-            findFromToolbar(backwards: true)
+            findFromBar(backwards: true)
+        case NSTextFinder.Action.showReplaceInterface.rawValue:
+            showFindBar(expandingReplace: true)
         default:
-            focusToolbarSearch()
+            showFindBar(expandingReplace: false)
         }
     }
 
-    private func findFromToolbar(backwards: Bool) {
-        let query = searchField?.stringValue
-            ?? NSPasteboard(name: .find).string(forType: .string)
-            ?? ""
-        guard !query.isEmpty else {
-            focusToolbarSearch()
+    /// Opens the bar and focuses the query field. The query starts as the
+    /// current selection, else the shared find pasteboard string.
+    private func showFindBar(expandingReplace: Bool, focusing: Bool = true) {
+        guard let bar = findBar else { return }
+        syncFindBarWithMode()
+        if expandingReplace { bar.setReplaceExpanded(true) }
+        let wasHidden = findBarOverlay?.isHidden ?? true
+        setFindBarVisible(true)
+        guard focusing else { return }
+
+        func focus() {
+            if expandingReplace && bar.isReplaceExpanded && !bar.query.isEmpty {
+                bar.focusReplacement()
+            } else {
+                bar.focusQuery()
+            }
+        }
+        mainSplit?.fetchSelectedText { [weak self] selection in
+            guard let self else { return }
+            let text = Self.findQuery(fromSelection: selection)
+            let fallback = wasHidden
+                ? NSPasteboard(name: .find).string(forType: .string) ?? ""
+                : bar.query
+            let query = text ?? fallback
+            if query != bar.query {
+                bar.query = query
+                bar.clearReplacedNote()
+                self.runFind(query: query)
+            }
+            focus()
+        }
+    }
+
+    /// A selection is a usable query when it is one short line.
+    static func findQuery(fromSelection selection: String?) -> String? {
+        guard let selection, !selection.isEmpty, selection.count <= 200,
+              !selection.contains(where: \.isNewline) else { return nil }
+        return selection
+    }
+
+    private func setFindBarVisible(_ visible: Bool) {
+        guard let overlay = findBarOverlay, overlay.isHidden == visible else { return }
+        overlay.isHidden = !visible
+        // The editor pads its page below every visible overlay.
+        mainSplit?.findOverlayVisibilityChanged()
+    }
+
+    private func dismissFindBar() {
+        guard let bar = findBar else { return }
+        let hadFocus = bar.contains(firstResponder: documentWindow.firstResponder)
+        bar.query = ""
+        bar.clearReplacedNote()
+        runFind(query: "")
+        setFindBarVisible(false)
+        guard hadFocus else { return }
+        if isEditing {
+            mainSplit?.editorViewController?.focusEditor()
+        } else {
+            documentWindow.makeFirstResponder(nil)
+        }
+    }
+
+    /// Replace only exists while the source is editable.
+    func syncFindBarWithMode() {
+        guard let bar = findBar else { return }
+        bar.isReplaceAvailable = isEditing
+    }
+
+    // MARK: - Searching
+
+    private func findQueryDidChange(_ query: String) {
+        // Coalesce per-keystroke finds — running the full DOM rewrite + JS
+        // round-trip on every char is the dominant stall source on big docs.
+        // Empty queries (e.g. user cleared the field) bypass the debounce so
+        // the highlight teardown happens immediately.
+        pendingFindWork?.cancel()
+        if query.isEmpty {
+            pendingFindWork = nil
+            runFind(query: query)
             return
         }
-        runFind(query: query, backwards: backwards)
+        let work = DispatchWorkItem { [weak self] in
+            self?.runFind(query: query)
+        }
+        pendingFindWork = work
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + Self.findDebounceDelay, execute: work
+        )
     }
 
-    private func searchModeDidChange(_ mode: SearchMode) {
-        guard mode != searchMode else { return }
-        searchMode = mode
-        guard findBarOverlay?.isHidden == false,
-              let query = searchField?.stringValue, !query.isEmpty else { return }
-        runFind(query: query)
+    private func findOptionsDidChange() {
+        guard let bar = findBar, !bar.query.isEmpty else { return }
+        runFind(query: bar.query)
     }
 
-    private func focusToolbarSearch() {
-        guard let searchField else { return }
-        documentWindow.makeFirstResponder(searchField)
-        searchField.selectText(nil)
+    private func runFind(query: String, backwards: Bool = false) {
+        // Explicit nav (Enter / prev / next / option change) flushes any pending
+        // debounce so the user navigates the freshest results.
+        pendingFindWork?.cancel()
+        pendingFindWork = nil
+        let options = findBar?.options ?? SearchOptions()
+        mainSplit?.find(query, backwards: backwards, options: options) { [weak self] result in
+            self?.findBar?.update(result)
+        }
+    }
+
+    /// ⌘G / ⇧⌘G and the bar's chevrons. With the bar closed, they search for
+    /// whatever the find pasteboard holds without taking focus.
+    private func findFromBar(backwards: Bool) {
+        guard let bar = findBar else { return }
+        if bar.query.isEmpty {
+            let shared = NSPasteboard(name: .find).string(forType: .string) ?? ""
+            guard !shared.isEmpty else {
+                showFindBar(expandingReplace: false)
+                return
+            }
+            bar.query = shared
+        }
+        if findBarOverlay?.isHidden ?? true {
+            showFindBar(expandingReplace: false, focusing: false)
+        }
+        runFind(query: bar.query, backwards: backwards)
+    }
+
+    // MARK: - Replacing
+
+    private func replaceCurrentMatch() {
+        guard let bar = findBar, !bar.query.isEmpty, let split = mainSplit, split.canReplace else { return }
+        bar.clearReplacedNote()
+        split.replaceCurrent(bar.replacement, query: bar.query, options: bar.options) { [weak bar] result, _ in
+            bar?.update(result)
+        }
+    }
+
+    private func replaceAllMatches() {
+        guard let bar = findBar, !bar.query.isEmpty, let split = mainSplit, split.canReplace else { return }
+        split.replaceAll(bar.replacement, query: bar.query, options: bar.options) { [weak bar] result, replaced in
+            bar?.noteReplaced(replaced)
+            bar?.update(result)
+        }
     }
 }

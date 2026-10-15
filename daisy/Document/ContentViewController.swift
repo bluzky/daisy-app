@@ -23,9 +23,6 @@ final class ContentViewController: NSViewController {
     private var toolbarGutterHeightConstraint: NSLayoutConstraint?
     private var webViewTopConstraint: NSLayoutConstraint?
     private var webViewChromeTopConstraint: NSLayoutConstraint?
-    private var webViewCenteredLeadingConstraint: NSLayoutConstraint?
-    private var webViewCenteredConstraints: [NSLayoutConstraint] = []
-    private var webViewFullWidthConstraints: [NSLayoutConstraint] = []
     private var pendingFlashWork: DispatchWorkItem?
     private var pendingPreviewScrollAnchor: SourceScrollAnchor?
     private var shouldApplyPendingAnchorOnHeight = false
@@ -125,8 +122,6 @@ final class ContentViewController: NSViewController {
             self?.localMarkdownLinkActivated?(url)
         }
         webView.zoomDidChange = { [weak self] zoom in
-            self?.webViewCenteredLeadingConstraint?.constant =
-                -MarkdownHTML.preferredPageWidth * zoom / 2
             self?.zoomDidChange?(zoom)
         }
         webView.scrollDidChange = { [weak self] in
@@ -148,36 +143,10 @@ final class ContentViewController: NSViewController {
         container.scrollWheelTarget = webView.webView
 
 
-        // Normal (centered) mode positions the web view in AppKit rather
-        // than letting CSS auto-margins center the column inside the web
-        // view. A sidebar/inspector reveal then *moves* the column —
-        // applied synchronously with each animation frame — instead of
-        // re-centering it, which forces the web process to re-run layout
-        // asynchronously and made the column jitter for the duration of
-        // the animation (#162). Only the leading edge is placed at the
-        // centered column's position; the trailing edge always reaches the
-        // container so WebKit's native overlay scrollbar sits at the
-        // preview edge. The rendered article is leading-anchored
-        // (ContentWidth.hostCentered), so the width the web view gains on
-        // the trailing side is inert gutter and mid-animation width
-        // changes cannot move the text. The leading constant tracks
-        // pageZoom (zoomDidChange above) so the column keeps its 820
-        // CSS-px measure at every zoom level.
-        let centeredLeading = webView.leadingAnchor.constraint(
-            equalTo: container.centerXAnchor,
-            constant: -MarkdownHTML.preferredPageWidth * webView.pageZoom / 2)
-        // Stay below the split items' holding priorities (content 250,
-        // sidebar 260) so window resizing breaks this page-width preference
-        // before AppKit changes the user's chosen sidebar width.
-        centeredLeading.priority = .init(249)
-        webViewCenteredLeadingConstraint = centeredLeading
-        webViewCenteredConstraints = [
-            centeredLeading,
-            webView.leadingAnchor.constraint(greaterThanOrEqualTo: container.leadingAnchor)
-        ]
-        webViewFullWidthConstraints = [
-            webView.leadingAnchor.constraint(equalTo: container.leadingAnchor)
-        ]
+        // The web view always spans the container; the Content Width setting
+        // is applied to the page itself (ContentWidthSetting.renderWidth), so
+        // the scrollbar, selection and page background reach the window edges.
+        let webViewLeading = webView.leadingAnchor.constraint(equalTo: container.leadingAnchor)
 
         let toolbarGutterHeight = toolbarGutterView.heightAnchor.constraint(equalToConstant: 0)
         toolbarGutterHeightConstraint = toolbarGutterHeight
@@ -200,10 +169,10 @@ final class ContentViewController: NSViewController {
         NSLayoutConstraint.activate([
 
             webViewTop,
+            webViewLeading,
             webView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
             webView.trailingAnchor.constraint(equalTo: container.trailingAnchor)
         ])
-        applyContentWidthMode()
         container.appearanceDidChange = { [weak self] in
             self?.updateUnderPageBackgroundColor()
         }
@@ -283,13 +252,13 @@ final class ContentViewController: NSViewController {
 
     func find(_ query: String,
               backwards: Bool = false,
-              mode: SearchMode = .contains,
+              options: SearchOptions = SearchOptions(),
               completion: ((FindResult) -> Void)? = nil) {
         let pasteboard = NSPasteboard(name: .find)
         pasteboard.declareTypes([.string], owner: nil)
         pasteboard.setString(query, forType: .string)
         pendingFlashWork?.cancel()
-        webView.find(query, backwards: backwards, mode: mode) { [weak self] result in
+        webView.find(query, backwards: backwards, options: options) { [weak self] result in
             guard let self else {
                 completion?(result)
                 return
@@ -310,6 +279,10 @@ final class ContentViewController: NSViewController {
         }
     }
 
+    func fetchSelectedText(_ completion: @escaping (String?) -> Void) {
+        webView.fetchSelectedText(completion)
+    }
+
     private func isMatchVisible(top: CGFloat, bottom: CGFloat) -> Bool {
         let metrics = webView.scrollMetrics
         let visibleTop = metrics.position
@@ -326,9 +299,14 @@ final class ContentViewController: NSViewController {
         exportSource != nil
     }
 
-    func exportDocument() {
+    func exportPDF() {
+        guard let window = view.window, hasExportableDocument else { return }
+        webView.exportPDF(from: window)
+    }
+
+    func exportHTML() {
         guard let window = view.window, let source = exportSource else { return }
-        webView.exportDocument(
+        webView.exportHTML(
             markdown: source.markdown,
             sourceURL: source.sourceURL,
             assetBaseURL: source.assetBaseURL,
@@ -336,9 +314,18 @@ final class ContentViewController: NSViewController {
         )
     }
 
-    func exportPDF() {
+    func exportPNG() {
         guard let window = view.window, let source = exportSource else { return }
-        webView.exportPDF(
+        webView.exportPNG(
+            sourceURL: source.sourceURL,
+            assetBaseURL: source.assetBaseURL,
+            from: window
+        )
+    }
+
+    func exportWord() {
+        guard let window = view.window, let source = exportSource else { return }
+        webView.exportWord(
             markdown: source.markdown,
             sourceURL: source.sourceURL,
             assetBaseURL: source.assetBaseURL,
@@ -349,7 +336,7 @@ final class ContentViewController: NSViewController {
     func zoomIn() { webView.zoomIn() }
     func zoomOut() { webView.zoomOut() }
     func resetZoom() { webView.resetZoom() }
-    var pageZoom: CGFloat { webView.pageZoom }
+    var textScale: CGFloat { webView.textScale }
 
     /// Normalized top-of-viewport position used when handing the document to
     /// the editor, whose content height differs slightly from the preview.
@@ -451,7 +438,7 @@ final class ContentViewController: NSViewController {
             pixelHeight: Int((size.height * scale).rounded()),
             isDark: isDark,
             settings: ReaderRenderSettings.current.fingerprint,
-            zoom: Double(webView.pageZoom),
+            zoom: Double(webView.textScale),
             topInset: Double(snapshotTopInset)
         )
     }
@@ -501,7 +488,6 @@ final class ContentViewController: NSViewController {
     }
 
     func reloadPreviewForSettingChange() {
-        applyContentWidthMode()
         webView.reloadPreviewForSettingChange()
     }
 
@@ -552,11 +538,6 @@ final class ContentViewController: NSViewController {
     /// The search row sits in the content host beneath the native toolbar.
     weak var findOverlay: NSView?
 
-    /// The formatting controls. The preview is hidden while editing; legacy
-    /// rows still affect page padding during the exit hand-off, while the
-    /// macOS 26 floating controls intentionally do not.
-    weak var formattingBar: NSView?
-
     func chromeOverlaysDidChange() {
         updateObscuredContentInsets()
     }
@@ -576,9 +557,6 @@ final class ContentViewController: NSViewController {
             // then lagged one step behind the strip (missing while it was
             // shown, still covering the page after it was gone).
             inset += MainSplitViewController.nativeAccessoryHeight(findOverlay, in: window)
-            if !MainSplitViewController.usesFloatingFormattingBar {
-                inset += MainSplitViewController.nativeAccessoryHeight(formattingBar, in: window)
-            }
             return max(0, inset)
         }
         if #available(macOS 26.0, *),
@@ -662,20 +640,6 @@ final class ContentViewController: NSViewController {
 
     func applyTextSizeSetting() {
         webView.applyPersistedZoom()
-    }
-
-    /// Swaps the web view between the AppKit-centered page column and a
-    /// full-bleed layout. See the loadView comment for why centering lives
-    /// at the constraint layer instead of CSS.
-    private func applyContentWidthMode() {
-        switch ContentWidthSetting.current {
-        case .normal:
-            NSLayoutConstraint.deactivate(webViewFullWidthConstraints)
-            NSLayoutConstraint.activate(webViewCenteredConstraints)
-        case .fullWidth:
-            NSLayoutConstraint.deactivate(webViewCenteredConstraints)
-            NSLayoutConstraint.activate(webViewFullWidthConstraints)
-        }
     }
 
     func scrollToHeading(index: Int) {

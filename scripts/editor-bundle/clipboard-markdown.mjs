@@ -153,6 +153,17 @@ function tableMarkdown(table) {
   return [render(rows[0]), render(Array(columns).fill("---")), ...rows.slice(1).map(render)].join("\n")
 }
 
+// The only table in `body` when nothing else in it renders any text.
+function soleTable(body) {
+  const tables = Array.from(body.querySelectorAll("table"))
+    .filter(table => !table.parentElement?.closest("table"))
+  if (tables.length !== 1) return null
+  const rest = body.cloneNode(true)
+  rest.querySelector("table").remove()
+  for (const tag of BLOCKED_TAGS) rest.querySelectorAll(tag).forEach(node => node.remove())
+  return rest.textContent.trim() ? null : tables[0]
+}
+
 function convertHTML(html, DOMParserClass) {
   if (!html || html.length > MAX_INPUT_LENGTH || typeof DOMParserClass !== "function") return null
   let document
@@ -163,9 +174,10 @@ function convertHTML(html, DOMParserClass) {
   }
   const body = document?.body
   if (!body || body.querySelectorAll("*").length > MAX_NODES) return null
-  // Tables are self-contained clipboard payloads. Prefer them over surrounding
-  // app markup and over text/tab-separated-values representations.
-  const table = body.querySelector("table")
+  // A spreadsheet copy is one table wrapped in app markup: prefer the table
+  // alone, over that markup and over text/tab-separated-values. A document
+  // that merely contains tables converts as a whole.
+  const table = soleTable(body)
   const markdown = table ? tableMarkdown(table) : normalizeMarkdown(
     Array.from(body.childNodes).map(markdownForNode).join(""))
   const resolved = markdown?.replace(/\u0000/g, "  \n")
@@ -186,12 +198,28 @@ function tsvMarkdown(text, explicit) {
   return [render(cells[0]), render(Array(columns).fill("---")), ...cells.slice(1).map(render)].join("\n")
 }
 
+// Plain text that already holds a closed fenced code block is Markdown source
+// (copied from an editor or chat); its HTML is only a styled rendering of
+// those lines, and converting it would split the block into inline code.
+function containsFencedCode(text) {
+  const lines = String(text || "").replace(/\r\n?/g, "\n").split("\n")
+  for (let index = 0; index < lines.length; index++) {
+    const opening = lines[index].match(/^ {0,3}(`{3,}|~{3,})/)
+    if (!opening || (opening[1][0] === "`" && lines[index].slice(opening[0].length).includes("`"))) continue
+    const marker = opening[1]
+    const closing = new RegExp(`^ {0,3}${marker[0] === "`" ? "`" : "~"}{${marker.length},}[ \\t]*$`)
+    if (lines.slice(index + 1).some(line => closing.test(line))) return true
+  }
+  return false
+}
+
 /**
  * Return Markdown only when rich HTML or safe tabular data deserves handling.
  * Returning null intentionally leaves CodeMirror's plain-text paste untouched.
  */
 export function convertClipboardToMarkdown({ html = "", text = "", types = [] } = {}, options = {}) {
   const DOMParserClass = options.DOMParser || globalThis.DOMParser
+  if (containsFencedCode(text)) return null
   const fromHTML = convertHTML(String(html || ""), DOMParserClass)
   if (fromHTML) return fromHTML
   const explicitTSV = Array.from(types || []).some(type =>

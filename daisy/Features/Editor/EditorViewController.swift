@@ -44,7 +44,9 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
         let config = WKWebViewConfiguration()
         config.setURLSchemeHandler(assetScheme, forURLScheme: MarkdownAssetScheme.scheme)
         config.userContentController.add(bridge, name: EditorBridge.name)
+        config.preferences.setValue(true, forKey: "developerExtrasEnabled")
         let webView = EditorWKWebView(frame: .zero, configuration: config)
+        webView.isInspectable = true
         webView.navigationDelegate = self
         webView.setValue(false, forKey: "drawsBackground")
         webView.underPageBackgroundColor = .clear
@@ -53,36 +55,47 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
         NotificationCenter.default.addObserver(
             self, selector: #selector(templatesDidChange),
             name: TemplateStore.didChangeNotification, object: nil)
+        // The web view gets a host view of its own, sized by autoresizing
+        // rather than constraints: the docked Web Inspector is added to the
+        // web view's superview, and WebKit then shrinks the web view's frame
+        // to make room. Constraints would reset that frame on every layout
+        // pass, covering the inspector until WebKit shrinks it again.
+        let host: NSView
         if #available(macOS 26.0, *) {
-            view = webView
+            host = NSView()
         } else {
             // The preview's white backing disappears when edit mode hides it.
             // Give the transparent editor its own document background.
-            let background = LegacyEditorBackgroundView()
-            webView.translatesAutoresizingMaskIntoConstraints = false
-            background.addSubview(webView)
-            NSLayoutConstraint.activate([
-                webView.leadingAnchor.constraint(equalTo: background.leadingAnchor),
-                webView.trailingAnchor.constraint(equalTo: background.trailingAnchor),
-                webView.topAnchor.constraint(equalTo: background.topAnchor),
-                webView.bottomAnchor.constraint(equalTo: background.bottomAnchor),
-            ])
-            view = background
+            host = LegacyEditorBackgroundView()
         }
+        webView.frame = host.bounds
+        webView.autoresizingMask = [.width, .height]
+        host.addSubview(webView)
+        view = host
         webView.appearanceDidChange = { [weak self] in
             self?.updateUnderPageBackgroundColor()
         }
         updateUnderPageBackgroundColor()
     }
 
-    func load(markdown: String, assetBaseURL: URL? = nil) {
+    /// A fence name or alias for a source or text file, "" for plain text;
+    /// nil edits Markdown. Set by `load`, so a reused page switches mode too.
+    private var codeLanguage: String?
+
+    func load(markdown: String, assetBaseURL: URL? = nil, codeLanguage: String? = nil) {
+        self.codeLanguage = codeLanguage
         hasChanges = false
         currentAssetBaseURL = assetBaseURL?.standardizedFileURL
         assetScheme.setBaseURL(currentAssetBaseURL)
-        let needsMermaid = Self.containsMermaidFence(in: markdown)
+        // Loaded whenever the extension is on, not only when the document
+        // already has a diagram, so one added while editing renders too.
+        // Code files edit as plain code; no extension applies, so no Mermaid.
+        let needsMermaid = codeLanguage == nil
+            && RenderExtensionPreferences.currentConfiguration.isEnabled("mermaid")
         if hasLoadedEditorPage, pageSupportsMermaid || !needsMermaid {
             let baseHref = currentAssetBaseURL.map(MarkdownAssetResolution.baseHref(forFolder:)) ?? ""
-            let script = "window.__mdLoadEditor && window.__mdLoadEditor(\(EditorHTML.jsStringLiteral(markdown)), \(EditorHTML.jsStringLiteral(baseHref)))"
+            let language = codeLanguage.map(EditorHTML.jsStringLiteral) ?? "undefined"
+            let script = "window.__mdLoadEditor && window.__mdLoadEditor(\(EditorHTML.jsStringLiteral(markdown)), \(EditorHTML.jsStringLiteral(baseHref)), \(language))"
             webView.evaluateJavaScript(script) { [weak self] _, error in
                 guard let self, error != nil else { return }
                 self.loadEditorPage(markdown: markdown,
@@ -104,16 +117,21 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
         webView.loadHTMLString(
             Self.editorHTML(markdown: markdown,
                             includesMermaid: includesMermaid,
-                            assetBaseURL: assetBaseURL),
+                            assetBaseURL: assetBaseURL,
+                            textScale: textScale,
+                            codeLanguage: codeLanguage),
             baseURL: nil
         )
     }
 
-    /// Mirror the preview's page zoom so the type size and measure don't
-    /// jump when toggling edit mode. CSS pixels scale with pageZoom, so
-    /// the 900px column and the body gutters track the preview exactly.
-    func applyPageZoom(_ zoom: CGFloat) {
-        webView.pageZoom = zoom
+    /// The reader's text size, mirroring the preview: `--mdp-text-scale`
+    /// scales type and text spacing, and the page itself is never zoomed, so
+    /// the column, gutters and chrome keep their on-screen size.
+    private(set) var textScale: CGFloat = 1
+
+    func applyTextScale(_ scale: CGFloat) {
+        textScale = scale
+        webView.evaluateJavaScript("document.documentElement.style.setProperty('\(MarkdownHTML.textScaleProperty)', '\(max(scale, 0.001))')", completionHandler: nil)
         updateChromeZoom()
     }
 
@@ -187,18 +205,8 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
         observeWindowChrome()
     }
 
-    /// The formatting bar overlaying this editor (a content-view sibling,
-    /// not a titlebar accessory — see DocumentWindowController.editBar).
-    /// The page padding must clear it like any other chrome.
-    weak var formattingBar: NSView? {
-        didSet {
-            guard formattingBar !== oldValue else { return }
-            updateObscuredContentInsets()
-        }
-    }
-
     /// The find bar overlay (permanent, toggled by isHidden) — like the
-    /// formatting bar, it hangs below the titlebar over this editor.
+    /// it hangs below the titlebar over this editor.
     weak var findOverlay: NSView?
 
     /// Reapplies the page padding; the window controller calls this when
@@ -248,9 +256,6 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
             // See ContentViewController.fullChromeTopInset: the safe area
             // lags accessory changes by a layout pass, so measure the bars.
             gap += MainSplitViewController.nativeAccessoryHeight(findOverlay, in: window)
-            if !MainSplitViewController.usesFloatingFormattingBar {
-                gap += MainSplitViewController.nativeAccessoryHeight(formattingBar, in: window)
-            }
             return max(0, gap)
         }
         for accessory in window.titlebarAccessoryViewControllers
@@ -268,10 +273,6 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
         // (MainSplitViewController.formattingBarTabBarOverlap), so that
         // amount comes back off once.
         var overlays: CGFloat = 0
-        if !MainSplitViewController.usesFloatingFormattingBar,
-           let bar = formattingBar, bar.window === window, !bar.isHidden {
-            overlays += bar.fittingSize.height
-        }
         if let find = findOverlay, find.window === window, !find.isHidden {
             overlays += find.fittingSize.height
         }
@@ -321,18 +322,47 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
 
     func find(_ query: String,
               backwards: Bool = false,
-              mode: SearchMode = .contains,
+              options: SearchOptions = SearchOptions(),
               completion: ((FindResult) -> Void)? = nil) {
         findCompletion = completion
-        let script = "window.__mdEditor?.find(\(EditorHTML.jsStringLiteral(query)), \(backwards), \(mode == .beginsWith))"
+        let script = "window.__mdEditor?.find(\(EditorHTML.jsStringLiteral(query)), \(backwards), \(options.javaScriptLiteral))"
         webView.evaluateJavaScript(script) { result, _ in
-            guard let result = result as? [String: Any],
-                  let index = result["index"] as? Int,
-                  let total = result["total"] as? Int else {
-                completion?(.none)
-                return
-            }
-            completion?(FindResult(top: nil, bottom: nil, index: index, total: total))
+            completion?(FindResult(scriptResult: result) ?? .none)
+        }
+    }
+
+    func fetchSelectedText(_ completion: @escaping (String?) -> Void) {
+        webView.evaluateJavaScript("window.getSelection().toString()") { value, _ in
+            completion(value as? String)
+        }
+    }
+
+    /// Replaces the current match, then moves to the next. The completion gets
+    /// the search state after the edit and how many matches were replaced.
+    func replaceCurrent(_ replacement: String,
+                        query: String,
+                        options: SearchOptions,
+                        completion: ((FindResult, Int) -> Void)? = nil) {
+        runReplace("replaceCurrent", replacement, query: query, options: options, completion: completion)
+    }
+
+    /// Replaces every match in one undoable edit.
+    func replaceAll(_ replacement: String,
+                    query: String,
+                    options: SearchOptions,
+                    completion: ((FindResult, Int) -> Void)? = nil) {
+        runReplace("replaceAll", replacement, query: query, options: options, completion: completion)
+    }
+
+    private func runReplace(_ function: String,
+                            _ replacement: String,
+                            query: String,
+                            options: SearchOptions,
+                            completion: ((FindResult, Int) -> Void)?) {
+        let script = "window.__mdEditor?.\(function)(\(EditorHTML.jsStringLiteral(replacement)), \(EditorHTML.jsStringLiteral(query)), \(options.javaScriptLiteral))"
+        webView.evaluateJavaScript(script) { result, _ in
+            let replaced = ((result as? [String: Any])?["replaced"] as? NSNumber)?.intValue ?? 0
+            completion?(FindResult(scriptResult: result) ?? .none, replaced)
         }
     }
 
@@ -401,10 +431,22 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
         }
     }
 
+    /// Scrolls the source to the `index`th heading, as numbered by the outline.
+    func scrollToHeading(index: Int) {
+        fetchMarkdown { [weak self] markdown in
+            guard let self, let markdown,
+                  let line = MarkdownTOC.headingSourceLine(index, in: markdown) else { return }
+            self.applyScrollProgress(
+                0,
+                sourceAnchor: SourceScrollAnchor(sourcePosition: CGFloat(line), topGap: 0)
+            ) {}
+        }
+    }
+
     func fetchScrollAnchor(_ completion: @escaping (SourceScrollAnchor?) -> Void) {
         webView.evaluateJavaScript(
             "window.__mdEditor && window.__mdEditor.getScrollAnchor()"
-        ) { result, _ in
+        ) { [weak self] result, _ in
             completion(SourceScrollAnchor(scriptResult: result))
         }
     }
@@ -527,9 +569,8 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
                   let commands = payload["commands"] as? [String] else { return }
             formattingDidChange?(heading, Set(commands))
         case "findResult":
-            guard let index = payload["index"] as? Int,
-                  let total = payload["total"] as? Int else { return }
-            findCompletion?(FindResult(top: nil, bottom: nil, index: index, total: total))
+            guard let result = FindResult(scriptResult: payload) else { return }
+            findCompletion?(result)
         case "pasteImage":
             guard let from = payload["from"] as? NSNumber,
                   let to = payload["to"] as? NSNumber else { return }
@@ -561,19 +602,12 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
 
     private static let editorJavaScript =
         vendorResource("mdedit.min", ext: "js", subdir: "Vendor/CodeMirror") ?? ""
-    private static let mermaidJavaScript =
-        vendorResource("mermaid.min", ext: "js", subdir: "Vendor/Mermaid") ?? ""
-
-    private static func containsMermaidFence(in markdown: String) -> Bool {
-        markdown.range(
-            of: #"(?im)^[ \t]{0,3}(?:`{3,}|~{3,})[ \t]*mermaid(?:[ \t]|$)"#,
-            options: .regularExpression
-        ) != nil
-    }
 
     private static func editorHTML(markdown: String,
                                    includesMermaid: Bool,
-                                   assetBaseURL: URL?) -> String {
+                                   assetBaseURL: URL?,
+                                   textScale: CGFloat,
+                                   codeLanguage: String?) -> String {
         // Baked into the base stylesheet, not only the override element:
         // WebKit derives the obscured-inset fill from the base stylesheet's
         // html/body background, so a theme color only present in the later
@@ -596,15 +630,18 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
         return EditorHTML.render(
             markdown: markdown,
             editorJavaScript: editorJavaScript,
-            mermaidJavaScript: includesMermaid ? mermaidJavaScript : nil,
+            includesMermaid: includesMermaid,
             assetBaseURL: assetBaseURL,
             configuration: .init(
-                fullWidth: ContentWidthSetting.current == .fullWidth,
+                fullWidth: ContentWidthSetting.current.columnWidth == nil,
+                columnWidth: ContentWidthSetting.current.columnWidth ?? MarkdownHTML.contentColumnWidth,
+                textScale: textScale,
                 lightPageBackground: lightPageBackground,
                 darkPageBackground: darkPageBackground,
                 themeOverrideCSS: colors.editorOverrideCSS,
                 readerStyleCSS: readerStyleCSS(),
                 usesPageScrolling: usesPageScrolling,
+                codeLanguage: codeLanguage,
                 bridgeName: EditorBridge.name,
                 extensionState: MarkdownHTML.editorExtensionState(
                     configuration: RenderExtensionPreferences.currentConfiguration

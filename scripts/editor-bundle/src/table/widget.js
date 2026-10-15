@@ -101,6 +101,8 @@ export class TableEditorWidget extends WidgetType {
     }
 
     let active = null
+    // Where a shift-click range starts; outlives the cell's focus.
+    let selectionAnchor = null
     let selectedPart = null
     let cellDrag = null
     let suppressNextTableClick = false
@@ -174,9 +176,58 @@ export class TableEditorWidget extends WidgetType {
       if (focusTarget) focusCellAfterUpdate(focusTarget.row, focusTarget.column, focusTarget.caret)
     }
 
+    // Moves the editor cursor to the line above/below the table, opening one
+    // when the table is the first/last thing in the file.
+    const exitTable = (above) => {
+      // Only rewrite the table when a cell was actually edited; otherwise
+      // leaving it must not reformat the author's source.
+      const edited = serializeTable(model) !== serializeTable(parseTableSource(this.source))
+      const source = edited ? serializeTable(model) : this.source
+      const end = this.from + this.source.length
+      const newEnd = this.from + source.length
+      const changes = []
+      if (source !== this.source) changes.push({ from: this.from, to: end, insert: source })
+      let anchor
+      if (above) {
+        if (this.from === 0) changes.push({ from: 0, insert: "\n" })
+        anchor = Math.max(0, this.from - 1)
+      } else {
+        if (end === view.state.doc.length) changes.push({ from: end, insert: "\n" })
+        anchor = newEnd + 1
+      }
+      tableFormattingTargets.delete(view)
+      view.dispatch({
+        changes,
+        selection: { anchor },
+        annotations: source !== this.source ? tableCellCommit.of(true) : [],
+        userEvent: "input",
+        scrollIntoView: true,
+      })
+      view.focus()
+    }
+
     const captureActiveValue = () => {
       if (!active || active.element.dataset.tableEditing !== 'true') return
       model.rows[active.row][active.column] = active.element.innerText || ""
+    }
+
+    // Deleting the header promotes the first remaining row to header; deleting
+    // every row removes the table, with the line break that separated it.
+    const deleteRows = (top, bottom, column) => {
+      captureActiveValue()
+      model.rows.splice(top, bottom - top + 1)
+      if (model.rows.length) {
+        applyModel({ row: Math.min(top, model.rows.length - 1), column })
+        return
+      }
+      active = null
+      tableFormattingTargets.delete(view)
+      let from = this.from
+      let to = this.from + this.source.length
+      if (from > 0) from--
+      else if (to < view.state.doc.length) to++
+      view.dispatch({ changes: { from, to }, selection: { anchor: from }, userEvent: "delete", scrollIntoView: true })
+      view.focus()
     }
 
     const clearPartSelection = () => {
@@ -213,6 +264,7 @@ export class TableEditorWidget extends WidgetType {
       )
       window.getSelection()?.removeAllRanges()
       selectedPart = { kind, row: anchor.row, column: anchor.column, bounds }
+      selectionAnchor = { row: anchor.row, column: anchor.column }
       tableFormattingTargets.delete(view)
       root.tabIndex = 0
       if (kind === "range") {
@@ -222,11 +274,14 @@ export class TableEditorWidget extends WidgetType {
       } else {
         const first = kind === "row" ? bounds.top : bounds.left + 1
         const last = kind === "row" ? bounds.bottom : bounds.right + 1
+        const name = (index) => kind === "row" && index === 0 ? "header row" : `${kind} ${index}`
         root.setAttribute(
           "aria-label",
           first === last
-            ? `Selected ${kind} ${first}. Press Delete to remove it.`
-            : `Selected ${kind}s ${first} to ${last}. Press Delete to remove them.`
+            ? `Selected ${name(first)}. Press Delete to remove it.`
+            : first === 0 && kind === "row"
+              ? `Selected header row to row ${last}. Press Delete to remove them.`
+              : `Selected ${kind}s ${first} to ${last}. Press Delete to remove them.`
         )
       }
       // Focusing the root must not scroll the (possibly tall) table into view.
@@ -240,7 +295,7 @@ export class TableEditorWidget extends WidgetType {
       const anchor = extend && from ? { row: from.row, column: from.column } : { row, column }
       const bounds = kind === "row"
         ? {
-            top: Math.max(1, Math.min(anchor.row, row)),
+            top: Math.min(anchor.row, row),
             right: model.alignments.length - 1,
             bottom: Math.max(anchor.row, row),
             left: 0,
@@ -268,9 +323,6 @@ export class TableEditorWidget extends WidgetType {
       if (action === "insertRowAfter") {
         model.rows.splice(row + 1, 0, Array(model.alignments.length).fill(""))
         applyModel({ row: row + 1, column })
-      } else if (action === "deleteRow" && row > 0) {
-        model.rows.splice(row, 1)
-        applyModel({ row: Math.min(row, model.rows.length - 1), column })
       } else if (action === "insertColumnBefore") {
         for (const cells of model.rows) cells.splice(column, 0, "")
         model.alignments.splice(column, 0, "none")
@@ -320,6 +372,7 @@ export class TableEditorWidget extends WidgetType {
           editor.dataset.tableEditing = 'true'
           tableFormattingTargets.set(view, { tableFrom: this.from, row, column, element: editor, anchor: 0, head: 0 })
           active = { row, column, element: editor }
+          selectionAnchor = { row, column }
         })
         // Pasted tabular text (Excel, Sheets, several lines) fills cells from
         // this one, adding rows and columns as needed.
@@ -425,7 +478,16 @@ export class TableEditorWidget extends WidgetType {
             const up = event.key === "ArrowUp"
             if (!caretOnEdgeLine(editor, up)) return
             const nextRow = row + (up ? -1 : 1)
-            if (nextRow < 0 || nextRow >= model.rows.length) return
+            if (nextRow < 0 || nextRow >= model.rows.length) {
+              // Past the first/last row the arrow leaves the table.
+              event.preventDefault()
+              model.rows[row][column] = editor.innerText || ""
+              active = null
+              delete editor.dataset.tableEditing
+              renderTableCell(editor, model.rows[row][column])
+              exitTable(up)
+              return
+            }
             event.preventDefault()
             model.rows[row][column] = editor.innerText || ""
             applyModel({ row: nextRow, column, caret: caretOffset(editor) })
@@ -464,6 +526,13 @@ export class TableEditorWidget extends WidgetType {
       const row = Number(cell.dataset.tableRow)
       const column = Number(cell.dataset.tableColumn)
       if (!Number.isInteger(row) || row < 0 || !Number.isInteger(column)) return
+      // Shift-click selects the rectangle from the last clicked cell.
+      if (event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey && selectionAnchor) {
+        event.preventDefault()
+        event.stopPropagation()
+        selectTableRange(selectionAnchor.row, selectionAnchor.column, row, column)
+        return
+      }
       // Anchor a plain click in rendered text before revealing its Markdown,
       // just like anchoredPointerSelection does for ordinary editor text.
       event.stopPropagation()
@@ -591,17 +660,24 @@ export class TableEditorWidget extends WidgetType {
         return
       }
       if (event.key !== "Backspace" && event.key !== "Delete") return
-      if (selectedPart.kind === "range") {
-        event.preventDefault()
+      event.preventDefault()
+      const { row, column, bounds } = selectedPart
+      let { kind } = selectedPart
+      // A drag spanning every column is a row selection, like the grip's.
+      if (kind === "range" && bounds.left === 0 && bounds.right === model.alignments.length - 1) {
+        kind = "row"
+      }
+      clearPartSelection()
+      if (kind === "range") {
+        captureActiveValue()
+        for (let r = bounds.top; r <= bounds.bottom; r++) {
+          for (let c = bounds.left; c <= bounds.right; c++) model.rows[r][c] = ""
+        }
+        applyModel({ row, column })
         return
       }
-      event.preventDefault()
-      const { kind, row, column, bounds } = selectedPart
-      clearPartSelection()
-      if (kind === "row" && bounds.bottom > bounds.top) {
-        captureActiveValue()
-        model.rows.splice(bounds.top, bounds.bottom - bounds.top + 1)
-        applyModel({ row: Math.min(bounds.top, model.rows.length - 1), column })
+      if (kind === "row") {
+        deleteRows(bounds.top, bounds.bottom, column)
       } else if (kind === "column" && bounds.right > bounds.left) {
         // A table keeps at least one column.
         if (bounds.right - bounds.left + 1 >= model.alignments.length) return
@@ -611,7 +687,7 @@ export class TableEditorWidget extends WidgetType {
         model.alignments.splice(bounds.left, count)
         applyModel({ row, column: Math.min(bounds.left, model.alignments.length - 1) })
       } else {
-        performAction(kind === "row" ? "deleteRow" : "deleteColumn", row, column)
+        performAction("deleteColumn", row, column)
       }
     })
     // Icons are inline SVG so strokes stay crisp at any zoom level.
@@ -832,11 +908,10 @@ export class TableEditorWidget extends WidgetType {
       const rootRect = root.getBoundingClientRect()
       const scrollRect = scroll.getBoundingClientRect()
       const box = cell.closest("td, th").getBoundingClientRect()
-      // Header rows can't be selected as a row; a "+" nearby takes the spot.
       // The grip yields only when a "+" sits right on top of it.
       const clear = (control, center) => control.boundary == null
         || Math.abs(control.at - center) > GRIP_CLEARANCE
-      const showRow = row > 0 && clear(addRow, (box.top + box.bottom) / 2)
+      const showRow = clear(addRow, (box.top + box.bottom) / 2)
       const showColumn = model.alignments.length > 1
         && clear(addColumn, (box.left + box.right) / 2)
         && box.left >= scrollRect.left - 1 && box.right <= scrollRect.right + 1

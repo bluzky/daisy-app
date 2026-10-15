@@ -6,7 +6,6 @@
 //
 
 import Cocoa
-import UniformTypeIdentifiers
 
 extension DocumentWindowController {
     private struct ContextOpenPayload {
@@ -23,23 +22,47 @@ extension DocumentWindowController {
         }
     }
 
-    func openInNewWindow(_ fileURL: URL) {
+    func openInNewWindow(_ fileURL: URL, startEditing: Bool = false) {
         Self.markNextWindowAsSeparate()
-        openDocumentWindow(for: fileURL) {
+        openDocumentWindow(for: fileURL, startEditing: startEditing) {
             // If the document was already open, no window was created and
             // the override wasn't consumed — don't let it leak to the next one.
             Self.nextWindowDeclinesTabbing = false
         }
     }
 
+    /// Hands a file Daisy does not edit to the system's default app. Returns
+    /// true when it did, so callers stop before they create a tab for it.
+    @discardableResult
+    func openExternallyIfNeeded(_ fileURL: URL) -> Bool {
+        let url = Self.fileURLWithoutFragment(fileURL)
+        // Folders open as workspaces, whatever their name looks like.
+        guard !url.isExistingDirectory else { return false }
+        let kind = FileKind.classify(url)
+        // Code is edited in place, so a file too big to hold or not valid
+        // UTF-8 goes to another app rather than risk a corrupting save.
+        if kind == .markdown || (kind == .text && CodeDocument.isEditable(at: url)) {
+            return false
+        }
+        NSWorkspace.shared.open(url)
+        return true
+    }
+
     private func openDocumentWindow(for fileURL: URL, startEditing: Bool = false,
                                     completion: (() -> Void)? = nil) {
+        if openExternallyIfNeeded(fileURL) {
+            completion?()
+            return
+        }
         let fragment = fileURL.fragment?.removingPercentEncoding
         NSDocumentController.shared.openDocument(withContentsOf: Self.fileURLWithoutFragment(fileURL),
                                                  display: true) { [weak self] document, _, error in
             completion?()
-            if startEditing, let controller = document?.windowControllers.first as? DocumentWindowController {
-                controller.pendingEditModeURL = fileURL.standardizedFileURL
+            if startEditing, let controller = document?.windowControllers.first as? DocumentWindowController,
+               !controller.isEditing {
+                // Completion runs after initial display. Enter now; setting
+                // pendingEditModeURL here would miss its post-load check.
+                controller.enterEditMode()
             }
             if let fragment,
                let controller = document?.windowControllers.first as? DocumentWindowController,
@@ -51,19 +74,11 @@ extension DocumentWindowController {
         }
     }
 
-    /// Backs File > New Tab. Deliberately NOT the NSResponder
-    /// `newWindowForTab(_:)` override: responding to that selector is what
-    /// makes AppKit show the "+" button in the tab bar, and the app hides
-    /// that button. New tabs remain file-backed, so prompt for a file and
-    /// open it as a tab — an explicit tab request, unlike ⌘O.
-    @objc func newDocumentTab(_ sender: Any?) {
-        promptForDocument(openAsTab: true)
-    }
-
     func openFolder(_ folderURL: URL) {
         let folderURL = folderURL.standardizedFileURL
         if currentFileURL == nil {
             documentWindow.title = folderURL.lastPathComponent
+            updateTabEditedIndicator()
             updateWindowSubtitle()
         }
         (documentWindow.contentViewController as? MainSplitViewController)?
@@ -71,6 +86,14 @@ extension DocumentWindowController {
         documentWindow.makeKeyAndOrderFront(nil)
         NSApp.activate()
         syncSidebarToolbarState()
+        recordLastSession()
+    }
+
+    /// Remembers this window's document and file tree root for the "Reopen
+    /// last folder and file" launch behaviour. Called after the sidebar has
+    /// taken the new file, so the root is the one on screen.
+    func recordLastSession() {
+        LastSessionStore.record(fileURL: currentFileURL, folderURL: projectRootURL)
     }
 
     func contextMenuEditorItems(for fileURL: URL) -> [NSMenuItem] {
@@ -160,11 +183,10 @@ extension DocumentWindowController {
         panel.canChooseDirectories = true
         panel.canChooseFiles = true
         panel.message = NSLocalizedString(
-            "Choose a Markdown file or folder",
+            "Choose a file or folder",
             comment: "Open panel prompt"
         )
-        panel.allowedContentTypes = Self.markdownFileExtensions
-            .compactMap { UTType(filenameExtension: $0) }
+        panel.allowedContentTypes = []
         return panel
     }
 
@@ -194,6 +216,7 @@ extension DocumentWindowController {
         updateEditToolbarItem()
         markdownDocument?.replaceContents(markdown: text, fileURL: fileURL)
         renderCurrentDocument(text: text, fileURL: fileURL)
+        recordLastSession()
         if pendingEditModeURL == fileURL.standardizedFileURL {
             pendingEditModeURL = nil
             let entry = pendingEditModeAppendedEntry
@@ -217,6 +240,7 @@ extension DocumentWindowController {
             ?? untitledDocumentID
         (documentWindow.contentViewController as? MainSplitViewController)?
             .display(markdown: text,
+                     showsPreview: fileURL.map(FileKind.classify) != .text,
                      fileName: fileURL?.lastPathComponent
                          ?? NSLocalizedString("Untitled", comment: "Untitled document name"),
                      url: fileURL,

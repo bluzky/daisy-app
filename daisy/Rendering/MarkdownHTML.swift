@@ -31,16 +31,12 @@ nonisolated enum MarkdownHTML {
     ///   margins, so wide windows read like a paged document. Quick Look,
     ///   whose full-bleed panel minus the body gutters is exactly one
     ///   column.
-    /// - hostCentered: capped at `contentColumnWidth` but anchored to the
-    ///   leading gutter; the app centers the column by *positioning* the
-    ///   web view (see ContentViewController.loadView). Anchoring keeps the
-    ///   column glued to the web view's leading edge so host-driven width
-    ///   changes never re-center it asynchronously (#162), while the web
-    ///   view's trailing edge reaches the window for the native scrollbar.
+    /// - narrow: like `centered`, but capped at the shorter
+    ///   `narrowColumnWidth`.
     /// - full: span the whole window.
     enum ContentWidth {
         case centered
-        case hostCentered
+        case narrow
         case full
     }
 
@@ -151,18 +147,21 @@ nonisolated enum MarkdownHTML {
     /// body gutter on either side, so the app's centered column and the
     /// Quick Look panel wrap lines identically.
     static let contentColumnWidth = Int(preferredPageWidth) - 80
+    /// The Narrow content width's measure: a shorter centered column for
+    /// readers who prefer fewer words per line.
+    static let narrowColumnWidth = 680
 
     // Shared reading/editing design tokens. The two surfaces intentionally
     // keep different renderers, but their page geometry and base typography
     // must come from one source of truth.
     static let bodyFontFamily = "-apple-system, BlinkMacSystemFont, \"SF Pro Text\", system-ui, sans-serif"
     static let codeFontFamily = "ui-monospace, \"SF Mono\", Menlo, monospace"
-    /// Body text sits just above the system Body text style (13pt on macOS)
-    /// for comfortable reading; the heading scale in the stylesheet steps
+    /// Body text sits above the system Body text style (13pt on macOS) at
+    /// the common 16px reading size; the heading scale in the stylesheet steps
     /// through the system title styles (Large Title 26, Title 1 22, Title 2
     /// 17, Title 3 15, Headline 13, Subheadline 11) as em ratios of the body
     /// size, so it scales with this value.
-    static let bodyFontSize: CGFloat = 14
+    static let bodyFontSize: CGFloat = 16
     static let bodyLineHeight: CGFloat = 1.5
     static let pagePaddingTop: CGFloat = 32
     /// App-only breathing room for floating controls, shared by read/edit
@@ -287,6 +286,9 @@ nonisolated enum MarkdownHTML {
                renderExtensionConfiguration: renderExtensionConfiguration).html
     }
 
+    /// Class of the placeholder an empty document shows instead of a blank page.
+    static let emptyDocumentHintClass = "mdp-empty-hint"
+
     static func render(markdown: String,
                        allowsScroll: Bool = false,
                        assetBaseHref: String? = nil,
@@ -300,9 +302,11 @@ nonisolated enum MarkdownHTML {
                        textAlignment: TextAlignmentSetting = .current,
                        warmup: Bool = false,
                        pageTopClearance: CGFloat = 0,
+                       textScale: CGFloat = 1,
                        highlightsCode: Bool = true,
                        documentID: String = "page",
-                       renderExtensionConfiguration: RenderExtensionConfiguration = .allEnabled) -> RenderedHTML {
+                       renderExtensionConfiguration: RenderExtensionConfiguration = .allEnabled,
+                       emptyDocumentHint: String? = nil) -> RenderedHTML {
         let frontmatter = MarkdownFrontmatter.split(markdown)
         let body = frontmatter.body
         let sourceLineOffset: Int
@@ -372,7 +376,14 @@ nonisolated enum MarkdownHTML {
             markdown: body,
             configuration: renderExtensionConfiguration
         )
-        let bodyHTML = extensionRun.html
+        // An empty document otherwise renders a blank page that reads as a
+        // failed load. The hint travels as article HTML so live updates add
+        // and remove it as the file gains or loses content.
+        let bodyHTML = emptyDocumentHint.flatMap { hint in
+            markdown.allSatisfy(\.isWhitespace)
+                ? "<p class=\"\(emptyDocumentHintClass)\">\(htmlEscape(hint))</p>"
+                : nil
+        } ?? extensionRun.html
         let activeExtensions = extensionRun.active
         let extensionAssets = activeExtensions.map { $0.assets(mode: vendorLoading) }
         // Every page shell carries enabled extension CSS. A later fast-path
@@ -397,10 +408,10 @@ nonisolated enum MarkdownHTML {
         switch contentWidth {
         case .centered:
             contentWidthOverride = ""
-        case .hostCentered:
+        case .narrow:
             contentWidthOverride = """
             <style>
-            article.markdown-body { margin-left: 0; }
+            article.markdown-body { max-width: \(narrowColumnWidth)px; }
             </style>
             """
         case .full:
@@ -500,13 +511,19 @@ nonisolated enum MarkdownHTML {
         let colorSchemeAttribute = colorScheme.map {
             " data-mdp-color-scheme=\"\($0.rawValue)\""
         } ?? ""
+        // Inline on <html> so a full load paints at the reader's text size, and
+        // so the host's live updates (`style.setProperty`) target the same
+        // declaration instead of fighting a stylesheet rule.
+        let textScaleAttribute = abs(textScale - 1) > 0.001
+            ? " style=\"\(textScaleProperty): \(textScale)\""
+            : ""
         // Always emitted (possibly empty) so a live theme edit has a stable
         // element to rewrite instead of creating one per page variant.
         let themeStyleBlock =
             "<style id=\"\(themeStyleElementID)\">\(themeOverrides?.css ?? "")</style>"
         let html = """
         <!DOCTYPE html>
-        <html\(colorSchemeAttribute)>
+        <html\(colorSchemeAttribute)\(textScaleAttribute)>
         <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">

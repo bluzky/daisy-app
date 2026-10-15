@@ -8,7 +8,8 @@ import { fencedCodeDetails } from "../fenced-code.js"
 // remains anchored while its input edits the opening line.
 export const codeCopyHandlers = new WeakMap()
 const toggleCodeWrap = StateEffect.define({ map: (pos, changes) => changes.mapPos(pos, 1, MapMode.TrackAfter) ?? undefined })
-export const wrappedCodeBlocks = StateField.define({
+// Blocks wrap by default; the set holds the ones the reader switched to scroll.
+export const unwrappedCodeBlocks = StateField.define({
   create: () => new Set(),
   update(value, tr) {
     if (!tr.docChanged && !tr.effects.some(e => e.is(toggleCodeWrap))) return value

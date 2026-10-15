@@ -14,7 +14,6 @@ extension NSToolbarItem.Identifier {
     static let openInLLM = NSToolbarItem.Identifier("OpenInLLM")
     static let inspector = NSToolbarItem.Identifier("Inspector")
     static let share = NSToolbarItem.Identifier("Share")
-    static let search = NSToolbarItem.Identifier("Search")
     static let searchForDocument = NSToolbarItem.Identifier("SearchForDocument")
     /// The sidebar show/hide toggle. The raw value predates the mode picker
     /// and is kept so saved toolbar layouts still resolve.
@@ -63,8 +62,7 @@ extension DocumentWindowController {
             .space,
             .inspector,
             .share,
-            .editDocument,
-            .search
+            .editDocument
         ]
         if #unavailable(macOS 26.0) {
             return identifiers.filter { $0 != .space }
@@ -102,7 +100,6 @@ extension DocumentWindowController {
             .editDocument,
             .inspector,
             .share,
-            .search,
             .searchForDocument,
             .printDocument,
             .exportPDF,
@@ -197,7 +194,6 @@ extension DocumentWindowController {
         case .inspector: return makeInspectorItem(willBeInsertedIntoToolbar: flag)
         case .alwaysOnTop: return makeAlwaysOnTopItem(willBeInsertedIntoToolbar: flag)
         case .share: return makeShareItem()
-        case .search: return makeSearchItem()
         case .searchForDocument: return makeSearchForDocumentItem()
         case .printDocument: return makePrintItem()
         case .exportPDF: return makeExportPDFItem()
@@ -378,7 +374,7 @@ extension DocumentWindowController {
     }
 
     private func makeExportItem() -> NSToolbarItem {
-        let item = NSToolbarItem(itemIdentifier: .exportDocument)
+        let item = NSMenuToolbarItem(itemIdentifier: .exportDocument)
         let label = NSLocalizedString(
             "Export", comment: "Export toolbar item label")
         item.label = label
@@ -388,7 +384,19 @@ extension DocumentWindowController {
         item.image = NSImage(systemSymbolName: "document.badge.arrow.up",
                              accessibilityDescription: label)
         item.isBordered = true
-        item.action = #selector(MainSplitViewController.exportMarkdownDocument(_:))
+        item.showsIndicator = true
+
+        let menu = NSMenu(title: label)
+        let formats: [(String, Selector)] = [
+            ("PDF…", #selector(MainSplitViewController.exportMarkdownAsPDF(_:))),
+            ("HTML…", #selector(MainSplitViewController.exportMarkdownAsHTML(_:))),
+            ("PNG…", #selector(MainSplitViewController.exportMarkdownAsPNG(_:))),
+            ("Word…", #selector(MainSplitViewController.exportMarkdownAsWord(_:))),
+        ]
+        for (title, action) in formats {
+            menu.addItem(NSMenuItem(title: title, action: action, keyEquivalent: ""))
+        }
+        item.menu = menu
         return item
     }
 

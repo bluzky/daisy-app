@@ -15,7 +15,7 @@ nonisolated enum ExternalLinkPolicy {
 
     static func decision(for url: URL, defaults: UserDefaults?) -> Decision {
         guard isExternal(url), let scheme = url.scheme?.lowercased() else { return .blocked }
-        if ["http", "https", "mailto", "daisy", "md-preview"].contains(scheme)
+        if ["http", "https", "mailto", "daisy"].contains(scheme)
             || (defaults?.bool(forKey: approvalKey(for: scheme, defaults: defaults)) ?? false) {
             return .open
         }

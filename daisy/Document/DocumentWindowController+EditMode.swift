@@ -18,14 +18,19 @@ extension DocumentWindowController {
         mainSplit?.isEditingDocument ?? false
     }
 
-    var canToggleEditMode: Bool {
-        isEditing || currentMarkdown != nil
+    /// A source or text file: edited as code, with no preview to switch to.
+    var isCodeFile: Bool {
+        currentFileURL.map(FileKind.classify) == .text
     }
 
-    var canFormatMarkdown: Bool { isEditing }
+    var canToggleEditMode: Bool {
+        !isCodeFile && (isEditing || currentMarkdown != nil)
+    }
+
+    var canFormatMarkdown: Bool { isEditing && !isCodeFile }
 
     func formatMarkdown(_ command: String) {
-        guard isEditing else { return }
+        guard canFormatMarkdown else { return }
         mainSplit?.editorViewController?.exec(command)
     }
 
@@ -43,15 +48,16 @@ extension DocumentWindowController {
 
     func makeEditItem(willBeInsertedIntoToolbar: Bool) -> NSToolbarItem {
         let edit = NSLocalizedString("Edit", comment: "Edit toolbar item label")
-        let image = NSImage(systemSymbolName: "highlighter",
-                            accessibilityDescription: edit) ?? NSImage()
-        image.isTemplate = true
+        let image = editToolbarImage(editing: isEditing)
 
         let (item, button) = makeToggleButtonItem(identifier: .editDocument,
                                                   image: image,
                                                   label: edit,
                                                   action: #selector(toggleEditAction(_:)))
         item.autovalidates = false
+        button.setButtonType(.momentaryPushIn)
+        button.widthAnchor.constraint(equalToConstant: 30).isActive = true
+        button.heightAnchor.constraint(equalToConstant: 30).isActive = true
 
         if willBeInsertedIntoToolbar {
             editButton = button
@@ -67,11 +73,22 @@ extension DocumentWindowController {
 
     private func applyEditToolbarState(to button: NSButton) {
         let editing = isEditing
-        button.state = editing ? .on : .off
+        button.image = editToolbarImage(editing: editing)
+        button.state = .off
         button.toolTip = editing
             ? NSLocalizedString("Stop editing and return to preview", comment: "Edit toolbar item tooltip while editing")
             : NSLocalizedString("Edit document", comment: "Edit toolbar item tooltip")
-        button.isEnabled = editing || currentMarkdown != nil
+        button.isEnabled = canToggleEditMode
+    }
+
+    private func editToolbarImage(editing: Bool) -> NSImage {
+        let symbol = editing ? "play.tv" : "highlighter"
+        let description = editing
+            ? NSLocalizedString("Preview document", comment: "Edit toolbar play TV image")
+            : NSLocalizedString("Edit document", comment: "Edit toolbar highlighter image")
+        let image = NSImage(systemSymbolName: symbol, accessibilityDescription: description) ?? NSImage()
+        image.isTemplate = true
+        return image
     }
 
     @objc private func toggleEditAction(_ sender: Any?) {
@@ -79,6 +96,7 @@ extension DocumentWindowController {
     }
 
     func toggleEditMode() {
+        guard !isCodeFile else { return }
         if isEditing {
             previewPendingEdits()
         } else {

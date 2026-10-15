@@ -1,15 +1,16 @@
 import { Decoration } from "@codemirror/view"
-import { syntaxTree, LanguageDescription } from "@codemirror/language"
+import { LanguageDescription } from "@codemirror/language"
 import { highlightTree, tags as t } from "@lezer/highlight"
 import { codeHighlight } from "../code-highlight.js"
 import { HEADING_LINE, METRICS, SEPARATOR_BLOCKS, activeBulletDeco, activeOrderedDeco, blockGapLine, blockSeparatorLine, bulletDeco, codeLine, codeLineFirst, codeLineLast, codeScrollText, collapsedLine, completedTaskLine, emphasisMark, fenceMark, frontmatterDelim, frontmatterFirstLine, frontmatterLastLine, frontmatterLine, headingAfterBlankLine, headingMarker, headingPrefix, hiddenCodeFenceSource, hiddenHeadingSource, hide, highlightMark, hrDeco, imageLine, inactiveHeadingLine, linkMark, listContinuationLine, listDepthLine, listItemGapLine, listItemLine, markdownListMarker, orderedDeco, quoteLine, ruleLine, setextMarkerLine, setextSource, strikethroughMark, strongMark, tableLine, taskLine, urlMark } from "../decoration-parts.js"
 import { fencedCodeDetails } from "../fenced-code.js"
 import { currentFindTouches } from "../find.js"
 import { codeLanguages } from "../languages.js"
+import { pendingCoversFence, previewTree } from "../commands/code-fence.js"
 import { activeCodeBlock, pointerPreview } from "../pointer.js"
 import { TaskCheckboxWidget } from "../task-list.js"
 import { ImageWidget } from "../widgets/basic.js"
-import { CodeLanguageWidget, wrappedCodeBlocks } from "../widgets/code.js"
+import { CodeLanguageWidget, unwrappedCodeBlocks } from "../widgets/code.js"
 
 function detectedCodeHighlights(details, cache) {
   const cached = cache.get(details.sourceFrom)
@@ -209,7 +210,7 @@ export function buildDecorations(view, detectedCodeCache) {
 
   for (const { from, to } of view.visibleRanges) {
     let contentDocumentDepth = null
-    syntaxTree(state).iterate({
+    previewTree(state).iterate({
       from, to,
       enter: (node) => {
         depth++
@@ -495,16 +496,22 @@ export function buildDecorations(view, detectedCodeCache) {
           // list starts at its first item, so "first" is a position check.
           const isFirstItem = node.from === listStack[listStack.length - 1]
           const isNested = listStack.length > 1
-          // Keep the separator while editing any line of an item so moving
-          // to a continuation cannot pull the caret upward. Inactive loose lists use
-          // the same compact item spacing as Read Mode.
+          // Inactive loose lists use the same compact item spacing as Read
+          // Mode, so blank lines between items collapse. While the caret is in
+          // an item, the one blank line right above it stays open so typing a
+          // new item does not pull its text upward, and the caret's own blank
+          // line is never collapsed (it would hide the caret). Any earlier
+          // blanks still collapse; keeping them all open stacked into a huge gap.
           const itemLine = state.doc.lineAt(node.from)
           const preserveBlankBefore = touches(itemLine.from, node.to) && itemLine.number > 1
             && state.doc.line(itemLine.number - 1).text.trim() === ""
-          if (!isFirstItem && !preserveBlankBefore) {
+          if (!isFirstItem) {
             let number = itemLine.number - 1
             while (number > 0 && state.doc.line(number).text.trim() === "") {
-              lineOnce(state.doc.line(number).from, blockSeparatorLine(0))
+              const blank = state.doc.line(number)
+              const keepOpen = touches(blank.from, blank.to)
+                || (preserveBlankBefore && number === itemLine.number - 1)
+              if (!keepOpen) lineOnce(blank.from, blockSeparatorLine(0))
               number--
             }
           }
@@ -590,6 +597,13 @@ export function buildDecorations(view, detectedCodeCache) {
         if (name === "FencedCode" || name === "CodeBlock") {
           const first = state.doc.lineAt(node.from)
           const last = state.doc.lineAt(node.to)
+          // A lone opening fence is still being typed: it becomes a block when
+          // Enter adds the closing fence, so leave it as plain text until then.
+          if (name === "FencedCode" && first.number === last.number
+              && node.node.getChildren("CodeMark").length < 2) return false
+          // A fence being typed can pair with one further down; until Enter
+          // gives it its own partner, show the affected lines as plain text.
+          if (name === "FencedCode" && pendingCoversFence(state, node)) return false
           const closed = name === "FencedCode"
             && node.node.lastChild?.name === "CodeMark"
           const hasInterior = last.number - first.number >= (closed ? 2 : 1)
@@ -620,7 +634,7 @@ export function buildDecorations(view, detectedCodeCache) {
             }
             ranges.push(Decoration.widget({
               widget: new CodeLanguageWidget({
-                wrapped: state.field(wrappedCodeBlocks).has(first.from),
+                wrapped: !state.field(unwrappedCodeBlocks).has(first.from),
                 fenceFrom: node.from,
                 language: details.language,
                 detectedLanguage: details.detectedLanguage,
@@ -633,10 +647,13 @@ export function buildDecorations(view, detectedCodeCache) {
           } else {
             ranges.push(Decoration.widget({
               widget: new CodeLanguageWidget({ fenceFrom: first.from, language: 'text',
-                rawInfo: '', plain: true, wrapped: state.field(wrappedCodeBlocks).has(first.from) }),
+                rawInfo: '', plain: true, wrapped: !state.field(unwrappedCodeBlocks).has(first.from) }),
               side: -1,
             }).range(widgetLine.from))
           }
+          // An indented block hides its four-space marker; reveal it on every
+          // line at once, or the caret's line sticks out by four columns.
+          const revealsIndent = name === "CodeBlock" && touches(node.from, node.to)
           let pos = node.from
           while (pos <= node.to) {
             const line = state.doc.lineAt(pos)
@@ -667,11 +684,11 @@ export function buildDecorations(view, detectedCodeCache) {
               if (!isFirst && !isLast) lineOnce(line.from, codeLine)
               ranges.push(Decoration.line({ attributes: {
                 'data-code-scroll-group': String(first.from),
-                class: state.field(wrappedCodeBlocks).has(first.from) ? 'cm-md-code-wrapped' : '',
+                class: !state.field(unwrappedCodeBlocks).has(first.from) ? 'cm-md-code-wrapped' : '',
               } }).range(line.from))
               if (line.length) ranges.push(codeScrollText.range(line.from, line.to))
             }
-            if (name === "CodeBlock" && !touchesLineOf(line.from)) {
+            if (name === "CodeBlock" && !revealsIndent) {
               const indent = line.text.match(/^(?: {4}|\t)/)?.[0]
               if (indent) ranges.push(hide.range(line.from, line.from + indent.length))
             }

@@ -10,6 +10,8 @@ private enum CommandLineToolInstallError: LocalizedError {
     case terminalAutomationFailed(String?)
     case installerScriptWriteFailed(String)
     case bundledToolMissing
+    case bundledExporterMissing
+    case bundledResourceMissing(String)
 
     var errorDescription: String? {
         switch self {
@@ -36,6 +38,19 @@ private enum CommandLineToolInstallError: LocalizedError {
             return NSLocalizedString(
                 "The bundled Daisy CLI could not be found.",
                 comment: "CLI installer error"
+            )
+        case .bundledExporterMissing:
+            return NSLocalizedString(
+                "The bundled Daisy exporter could not be found.",
+                comment: "CLI installer error"
+            )
+        case .bundledResourceMissing(let name):
+            return String(
+                format: NSLocalizedString(
+                    "A bundled Daisy exporter resource is missing: %@",
+                    comment: "CLI installer error"
+                ),
+                name
             )
         }
     }
@@ -93,6 +108,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private weak var automaticAppearanceMenuItem: NSMenuItem?
     private weak var lightAppearanceMenuItem: NSMenuItem?
     private weak var darkAppearanceMenuItem: NSMenuItem?
+    private weak var narrowContentWidthMenuItem: NSMenuItem?
     private weak var normalContentWidthMenuItem: NSMenuItem?
     private weak var fullContentWidthMenuItem: NSMenuItem?
     private var keymapMenuItems: [KeymapCommand: NSMenuItem] = [:]
@@ -124,11 +140,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         installSidebarViewMenuItems()
         installEditModeMenuItem()
         installFormatMenu()
-        installNewTabMenuItem()
+        installInsertMenu()
         installSearchForDocumentMenuItem()
-        installFileCommandMenuItems()
         installFileExportMenuItems()
         installGoMenu()
+        installDeveloperToolsMenuItem()
         installSettingsMenuItem()
         tagKeymapMenuItems()
         NotificationCenter.default.addObserver(self,
@@ -152,7 +168,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         QuickCaptureController.shared.applyEnabledSetting()
         hasFinishedLaunching = true
         if !didReceiveOpenURLsDuringLaunch {
-            scheduleDocumentPrompt(requiresNoDocuments: true)
+            scheduleDocumentPrompt(requiresNoDocuments: true, followsLaunchBehavior: true)
         }
     }
 
@@ -185,13 +201,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func applicationOpenUntitledFile(_ sender: NSApplication) -> Bool {
-        scheduleDocumentPrompt(requiresNoDocuments: true)
+        scheduleDocumentPrompt(requiresNoDocuments: true, followsLaunchBehavior: true)
         return true
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         if !flag {
-            scheduleDocumentPrompt(requiresNoDocuments: true)
+            scheduleDocumentPrompt(requiresNoDocuments: true, followsLaunchBehavior: true)
             return false
         }
         return true
@@ -472,10 +488,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func installCommandLineTools(_ sender: Any?) {
         do {
-            let commandLineToolURL = try bundledCommandLineToolURL()
-            let installerScriptURL = try writeCommandLineToolInstallerScript(
-                commandLineToolURL: commandLineToolURL
-            )
+            let tools = try bundledCommandLineTools()
+            let installerScriptURL = try writeCommandLineToolInstallerScript(tools: tools)
             let installCommand = makeCommandLineToolInstallCommand(scriptURL: installerScriptURL)
             try runInstallCommandInTerminal(installCommand)
         } catch {
@@ -577,9 +591,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return ThemePreset.applied().requiredAppearance == nil
         case #selector(selectContentWidthSetting(_:)):
             return true
+        case #selector(toggleDeveloperTools(_:)):
+            guard let webView = WebInspector.targetWebView(in: NSApp.keyWindow) else { return false }
+            menuItem.state = WebInspector.isVisible(webView) ? .on : .off
+            return true
         case #selector(toggleEditModeFromMenu(_:)):
             return activeDocumentWindowController?.canToggleEditMode ?? false
-        case #selector(formatMarkdownFromMenu(_:)):
+        case #selector(formatMarkdownFromMenu(_:)),
+             #selector(insertImageFromMenu(_:)),
+             #selector(insertCodeBlockFromMenu(_:)),
+             #selector(insertTableFromMenu(_:)):
             return activeDocumentWindowController?.canFormatMarkdown ?? false
         default:
             return true
@@ -599,7 +620,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             .first
     }
 
-    private func scheduleDocumentPrompt(requiresNoDocuments: Bool = false) {
+    /// - Parameter followsLaunchBehavior: Launch and Dock reopen show what the
+    ///   reader chose in Settings; a failed open always falls back to the panel.
+    private func scheduleDocumentPrompt(requiresNoDocuments: Bool = false,
+                                        followsLaunchBehavior: Bool = false) {
         guard !isOpenPanelVisible,
               !isDocumentPromptScheduled else { return }
 
@@ -612,7 +636,63 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self.isDocumentPromptScheduled = false
             guard !requiresNoDocuments || NSDocumentController.shared.documents.isEmpty else { return }
             NSApp.activate(ignoringOtherApps: true)
+            if followsLaunchBehavior, self.performLaunchBehavior() { return }
             NSDocumentController.shared.openDocument(nil)
+        }
+    }
+
+    /// Opens what Settings ▸ General ▸ On launch asks for. Returns false when
+    /// the open panel should be shown instead.
+    private func performLaunchBehavior() -> Bool {
+        switch LaunchBehaviorSetting.current {
+        case .showOpenPanel:
+            return false
+        case .newDocument:
+            NSDocumentController.shared.newDocument(nil)
+            return true
+        case .reopenLastSession:
+            return reopenLastSession()
+        case .openChosenItem:
+            guard let url = LaunchItemStore.resolve() else { return false }
+            if url.isExistingDirectory {
+                openFolder(url)
+            } else {
+                openLaunchFile(url)
+            }
+            return true
+        }
+    }
+
+    private func reopenLastSession() -> Bool {
+        let plan = LastSessionStore.restorePlan()
+        guard !plan.isEmpty else { return false }
+
+        if let folderURL = plan.folderURL {
+            openFolder(folderURL)
+            if let fileURL = plan.fileURL, plan.opensFileInFolderWindow,
+               let controller = activeDocumentWindowController {
+                controller.present(url: fileURL)
+                return true
+            }
+        }
+        if let fileURL = plan.fileURL {
+            openLaunchFile(fileURL)
+        }
+        return true
+    }
+
+    /// Opens a file chosen by the launch behaviour; a failure falls back to
+    /// the open panel so the app isn't left windowless.
+    private func openLaunchFile(_ fileURL: URL) {
+        NSDocumentController.shared.openDocument(withContentsOf: fileURL,
+                                                 display: true) { [weak self] document, _, error in
+            if let error {
+                NSAlert(error: error).runModal()
+            }
+            self?.showWindowIfNeeded(for: document)
+            if error != nil {
+                self?.scheduleDocumentPromptIfIdle()
+            }
         }
     }
 
@@ -645,202 +725,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSApp.windows.contains { $0 is NSOpenPanel && $0.isVisible }
     }
 
-    private func makeCommandLineToolInstallerScript(commandLineToolURL: URL) -> String {
-        """
-        #!/bin/sh
-        set -eu
-        installer_path=$0
-        trap 'rm -f "$installer_path"' EXIT
-        bundled_cli=\(commandLineToolURL.path.shellQuotedString)
-
-        path_contains() {
-          case ":$PATH:" in
-            *":$1:"*) return 0 ;;
-            *) return 1 ;;
-          esac
-        }
-
-        can_install_without_sudo() {
-          dir="$1"
-          if [ -d "$dir" ]; then
-            [ -w "$dir" ] && [ -x "$dir" ]
-            return
-          fi
-
-          parent="${dir%/*}"
-          [ "$parent" != "$dir" ] || parent="."
-          [ -d "$parent" ] && [ -w "$parent" ] && [ -x "$parent" ]
-        }
-
-        is_safe_path_dir() {
-          case "$1" in
-            ""|.|/bin|/sbin|/usr/bin|/usr/sbin|/System/*) return 1 ;;
-            /*) return 0 ;;
-            *) return 1 ;;
-          esac
-        }
-
-        choose_install_dir() {
-          for dir in "$HOME/.local/bin" "$HOME/bin"; do
-            if path_contains "$dir" && can_install_without_sudo "$dir"; then
-              printf '%s\t%s\n' "$dir" "false"
-              return 0
-            fi
-          done
-
-          old_ifs=$IFS
-          IFS=:
-          set -- $PATH
-          IFS=$old_ifs
-
-          for dir in /usr/local/bin /opt/homebrew/bin; do
-            if path_contains "$dir"; then
-              if can_install_without_sudo "$dir"; then
-                printf '%s\t%s\n' "$dir" "false"
-              else
-                printf '%s\t%s\n' "$dir" "true"
-              fi
-              return 0
-            fi
-          done
-
-          for dir do
-            if is_safe_path_dir "$dir" && can_install_without_sudo "$dir"; then
-              printf '%s\t%s\n' "$dir" "false"
-              return 0
-            fi
-          done
-
-          for dir do
-            if is_safe_path_dir "$dir"; then
-              printf '%s\t%s\n' "$dir" "true"
-              return 0
-            fi
-          done
-
-          return 1
-        }
-
-        choice=$(choose_install_dir) || {
-          echo "Could not find a usable PATH directory for Daisy command line tools." >&2
-          exit 1
-        }
-
-        install_dir=${choice%	*}
-        needs_sudo=${choice#*	}
-        primary="$install_dir/daisy"
-
-        is_markdown_preview_launcher() {
-          path="$1"
-          [ -f "$path" ] && [ ! -L "$path" ] || return 1
-          if grep -q '^# Managed by Markdown Preview CLI$' "$path"; then
-            return 0
-          fi
-          grep -q 'exec open -b "doc.daisy"' "$path" ||
-            grep -q 'exec open -b "doc.md-preview"' "$path"
-        }
-
-        can_replace_primary() {
-          path="$1"
-          if [ ! -e "$path" ] && [ ! -L "$path" ]; then
-            return 0
-          fi
-          is_markdown_preview_launcher "$path"
-        }
-
-        can_replace_alias() {
-          alias_path="$1"
-          if [ ! -e "$alias_path" ] && [ ! -L "$alias_path" ]; then
-            return 0
-          fi
-          [ -L "$alias_path" ] || return 1
-          alias_target=$(readlink "$alias_path" || true)
-          [ "$alias_target" = "daisy" ] ||
-            [ "$alias_target" = "$primary" ] ||
-            [ "$alias_target" = "$install_dir/daisy" ] ||
-            [ "$alias_target" = "md-preview" ] ||
-            [ "$alias_target" = "$install_dir/md-preview" ]
-        }
-
-        # Before the rename the primary command was md-preview, a launcher
-        # script. Turn it into an alias so existing habits keep working, but
-        # only if it is ours.
-        can_replace_legacy_name() {
-          path="$1"
-          can_replace_alias "$path" || is_markdown_preview_launcher "$path"
-        }
-
-        refuse_existing_command() {
-          echo "Refusing to replace existing command that was not installed by Daisy: $1" >&2
-          exit 1
-        }
-
-        can_replace_primary "$primary" || refuse_existing_command "$primary"
-        for alias in mdp markdown-preview; do
-          can_replace_alias "$install_dir/$alias" || refuse_existing_command "$install_dir/$alias"
-        done
-        can_replace_legacy_name "$install_dir/md-preview" || refuse_existing_command "$install_dir/md-preview"
-
-        if [ "$needs_sudo" = "true" ]; then
-          echo "Installing Daisy command line tools to $install_dir requires your password."
-          sudo mkdir -p "$install_dir"
-          sudo install -m 755 "$bundled_cli" "$primary"
-        else
-          mkdir -p "$install_dir"
-          install -m 755 "$bundled_cli" "$primary"
-        fi
-
-        for alias in mdp markdown-preview md-preview; do
-          alias_path="$install_dir/$alias"
-          if [ "$needs_sudo" = "true" ]; then
-            sudo ln -sfn "daisy" "$alias_path"
-          else
-            ln -sfn "daisy" "$alias_path"
-          fi
-        done
-
-        echo
-        echo "Daisy CLI is ready."
-        echo
-        echo "Use any of these commands:"
-        echo "  mdp"
-        echo "  daisy"
-        echo "  markdown-preview"
-        echo
-        echo "Examples:"
-        echo "  mdp README.md        Open a Markdown file"
-        echo "  mdp .                Open the current folder"
-        echo "  mdp docs             Browse a folder in Daisy"
-        echo
-        echo "Tips:"
-        echo "  Use mdp for the shortest command."
-        echo "  Re-run Install CLI... after updating the app to refresh these commands."
-        echo "  Installed in: $install_dir"
-        echo
-
-        if command -v mdp >/dev/null 2>&1; then
-          echo "Try it now: mdp ."
-        else
-          echo "Open a new terminal window, then try: mdp ."
-        fi
-        """
-    }
-
-    private func bundledCommandLineToolURL() throws -> URL {
-        guard let url = Bundle.main.url(forResource: "markdown-preview",
-                                        withExtension: nil,
-                                        subdirectory: "bin") else {
+    private func bundledCommandLineTools() throws -> CommandLineTools {
+        guard let launcher = Bundle.main.url(forResource: "daisy",
+                                             withExtension: nil,
+                                             subdirectory: "bin") else {
             throw CommandLineToolInstallError.bundledToolMissing
         }
-        return url
+        guard let exporter = Bundle.main.url(forResource: "daisy-export",
+                                             withExtension: nil,
+                                             subdirectory: "bin") else {
+            throw CommandLineToolInstallError.bundledExporterMissing
+        }
+        let resourceNames = [
+            "highlight.min.js", "mermaid.min.js", "docx-theme-document.json",
+            "docx-theme-github.json", "docx-theme-minimal.json", "docx-theme-serif.json",
+        ]
+        let resources = try resourceNames.map { name -> URL in
+            let parts = name.split(separator: ".", maxSplits: 1).map(String.init)
+            guard let url = Bundle.main.url(forResource: parts[0],
+                                            withExtension: parts.count == 2 ? parts[1] : nil)
+            else { throw CommandLineToolInstallError.bundledResourceMissing(name) }
+            return url
+        }
+        return CommandLineTools(launcher: launcher, exporter: exporter, resources: resources)
     }
 
-    private func writeCommandLineToolInstallerScript(commandLineToolURL: URL) throws -> URL {
+    private func writeCommandLineToolInstallerScript(tools: CommandLineTools) throws -> URL {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("install-markdown-preview-cli-\(UUID().uuidString).sh")
 
         do {
-            try makeCommandLineToolInstallerScript(commandLineToolURL: commandLineToolURL)
+            try CommandLineToolInstaller.script(tools: tools)
                 .write(to: url, atomically: true, encoding: .utf8)
             try FileManager.default.setAttributes([.posixPermissions: 0o700],
                                                   ofItemAtPath: url.path)
@@ -884,6 +799,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func keymapWindowDidBecomeKey(_ notification: Notification) {
         observeKeymapFirstResponder(in: notification.object as? NSWindow)
         applyKeymap()
+        // The front document is the one the next launch should reopen.
+        ((notification.object as? NSWindow)?.windowController as? DocumentWindowController)?
+            .recordLastSession()
     }
 
     @objc private func keymapWindowDidResignKey(_ notification: Notification) {
@@ -917,12 +835,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return .editPasteAndMatchStyle
         }
         switch item.action {
-        case #selector(DocumentWindowController.newDocumentTab(_:)): return .fileNewTab
         case #selector(DocumentWindowController.searchForDocument(_:)): return .fileOmniSearch
-        case #selector(DocumentWindowController.newProjectFile(_:)): return .fileNewFile
-        case #selector(DocumentWindowController.newProjectFolder(_:)): return .fileNewFolder
-        case #selector(DocumentWindowController.renameProjectItem(_:)): return .fileRename
-        case #selector(DocumentWindowController.trashProjectItem(_:)): return .fileMoveToTrash
         case #selector(toggleSidebarFromMenu(_:)): return .viewToggleSidebar
         case #selector(hideSidebarFromMenu(_:)): return .viewHideSidebar
         case #selector(selectOutlineMode(_:)): return .viewShowOutline
@@ -949,7 +862,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case #selector(MarkdownWebView.mdScrollNextHeading(_:)): return .goNextItem
         case #selector(NSResponder.scrollToBeginningOfDocument(_:)): return .goTop
         case #selector(NSResponder.scrollToEndOfDocument(_:)): return .goBottom
-        case #selector(formatMarkdownFromMenu(_:)):
+        case #selector(formatMarkdownFromMenu(_:)),
+             #selector(insertImageFromMenu(_:)),
+             #selector(insertCodeBlockFromMenu(_:)),
+             #selector(insertTableFromMenu(_:)):
             guard let name = item.representedObject as? String else { return nil }
             return ["h0": .formatBody, "h1": .formatHeading1, "h2": .formatHeading2,
                     "h3": .formatHeading3, "bold": .formatBold, "italic": .formatItalic,
@@ -998,31 +914,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return false
     }
 
-    private func installNewTabMenuItem() {
-        guard let fileMenu = topLevelSubmenu(matching: Self.fileMenuTitles),
-              fileMenu.items.first(where: {
-                  $0.action == #selector(DocumentWindowController.newDocumentTab(_:))
-              }) == nil else { return }
-
-        // nil target: resolves through the responder chain to the key
-        // document window's controller, and disables itself when no
-        // document window is open. Custom selector, not newWindowForTab —
-        // see DocumentWindowController.newDocumentTab.
-        let item = NSMenuItem(title: L("New Tab"),
-                              action: #selector(DocumentWindowController.newDocumentTab(_:)),
-                              keyEquivalent: "t")
-        let insertIndex = fileMenu.items
-            .firstIndex { $0.action == #selector(openDocument(_:)) } ?? 0
-        fileMenu.insertItem(item, at: insertIndex)
-    }
-
     private func installSearchForDocumentMenuItem() {
         guard let fileMenu = topLevelSubmenu(matching: Self.fileMenuTitles),
               fileMenu.items.first(where: {
                   $0.action == #selector(DocumentWindowController.searchForDocument(_:))
               }) == nil else { return }
 
-        // nil target, as with New Tab: resolves through the responder chain to
+        // nil target: resolves through the responder chain to
         // the key document window's controller, which decides whether there is
         // a project to search.
         let item = NSMenuItem(title: L("OmniSearch…"),
@@ -1033,64 +931,50 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         fileMenu.insertItem(item, at: openIndex.map { $0 + 1 } ?? 0)
     }
 
-    private func installFileCommandMenuItems() {
-        guard let fileMenu = topLevelSubmenu(matching: Self.fileMenuTitles),
-              fileMenu.items.first(where: {
-                  $0.action == #selector(DocumentWindowController.newProjectFile(_:))
-              }) == nil else { return }
-        // nil targets: resolved through the responder chain to the key
-        // document window, which forwards to the Project Navigator.
-        let specs: [(String, Selector)] = [
-            ("New File", #selector(DocumentWindowController.newProjectFile(_:))),
-            ("New Folder", #selector(DocumentWindowController.newProjectFolder(_:))),
-            ("Rename", #selector(DocumentWindowController.renameProjectItem(_:))),
-            ("Move to Trash", #selector(DocumentWindowController.trashProjectItem(_:)))
-        ]
-        let searchIndex = fileMenu.items.firstIndex {
-            $0.action == #selector(DocumentWindowController.searchForDocument(_:))
-        }
-        var index = searchIndex.map { $0 + 1 } ?? 0
-        for (title, action) in specs {
-            fileMenu.insertItem(NSMenuItem(title: L(title), action: action, keyEquivalent: ""), at: index)
-            index += 1
-        }
-    }
-
     private func installFileExportMenuItems() {
         guard let fileMenu = topLevelSubmenu(matching: Self.fileMenuTitles),
-              let pdfIndex = fileMenu.items.firstIndex(where: {
-                  $0.action == #selector(
-                      MainSplitViewController.exportMarkdownAsPDF(_:))
+              let exportIndex = fileMenu.items.firstIndex(where: {
+                  $0.submenu?.items.contains {
+                      $0.action == #selector(
+                          MainSplitViewController.exportMarkdownAsPDF(_:))
+                  } == true
               })
         else { return }
 
         let shareItem = NSDocumentController.shared.standardShareMenuItem()
-        fileMenu.insertItem(shareItem, at: pdfIndex + 1)
+        fileMenu.insertItem(shareItem, at: exportIndex + 1)
 
         guard #available(macOS 26.0, *) else { return }
+        func item(in menu: NSMenu?, _ action: Selector) -> NSMenuItem? {
+            menu?.items.first { $0.action == action }
+        }
+        let exportMenu = fileMenu.items[exportIndex].submenu
         let icons: [(item: NSMenuItem?, symbol: String)] = [
+            (fileMenu.items[exportIndex], "square.and.arrow.up.on.square"),
             (
-                fileMenu.items.first {
-                    $0.action == #selector(
-                        MainSplitViewController.exportMarkdownDocument(_:))
-                },
-                "square.and.arrow.up.on.square"
-            ),
-            (
-                fileMenu.items.first {
-                    $0.action == #selector(
-                        MainSplitViewController.exportMarkdownAsPDF(_:))
-                },
+                item(in: exportMenu,
+                     #selector(MainSplitViewController.exportMarkdownAsPDF(_:))),
                 "arrow.up.document"
             ),
-            (shareItem, "square.and.arrow.up"),
             (
-                fileMenu.items.first {
-                    $0.action == #selector(
-                        MainSplitViewController.printMarkdown(_:))
-                },
-                "printer"
+                item(in: exportMenu,
+                     #selector(MainSplitViewController.exportMarkdownAsHTML(_:))),
+                "chevron.left.forwardslash.chevron.right"
             ),
+            (
+                item(in: exportMenu,
+                     #selector(MainSplitViewController.exportMarkdownAsPNG(_:))),
+                "photo"
+            ),
+            (
+                item(in: exportMenu,
+                     #selector(MainSplitViewController.exportMarkdownAsWord(_:))),
+                "doc.richtext"
+            ),
+            (shareItem, "square.and.arrow.up"),
+            (item(in: fileMenu,
+                  #selector(MainSplitViewController.printMarkdown(_:))),
+             "printer"),
         ]
         for (item, symbol) in icons {
             guard let item,
@@ -1202,6 +1086,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         mainMenu.insertItem(goItem, at: insertIndex)
     }
 
+    private func installDeveloperToolsMenuItem() {
+        guard let viewMenu = topLevelSubmenu(matching: Self.viewMenuTitles) else { return }
+        let title = L("Developer Tools")
+        let item = NSMenuItem(title: title,
+                              action: #selector(toggleDeveloperTools(_:)),
+                              keyEquivalent: "i")
+        item.keyEquivalentModifierMask = [.command, .option]
+        item.target = self
+        if let image = NSImage(systemSymbolName: "hammer", accessibilityDescription: title) {
+            image.isTemplate = true
+            item.image = image
+        }
+        viewMenu.addItem(.separator())
+        viewMenu.addItem(item)
+    }
+
+    @objc private func toggleDeveloperTools(_ sender: Any?) {
+        guard let webView = WebInspector.targetWebView(in: NSApp.keyWindow) else { return }
+        WebInspector.toggle(webView)
+    }
+
     private func installViewMenuItemIcons() {
         guard let viewMenu = topLevelSubmenu(matching: Self.viewMenuTitles) else { return }
         let icons: [(titles: Set<String>, symbol: String)] = [
@@ -1282,6 +1187,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             submenu.addItem(item)
 
             switch setting {
+            case .narrow:
+                narrowContentWidthMenuItem = item
             case .normal:
                 normalContentWidthMenuItem = item
             case .fullWidth:
@@ -1320,6 +1227,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func syncContentWidthMenuState() {
         let setting = ContentWidthSetting.current
+        narrowContentWidthMenuItem?.state = setting == .narrow ? .on : .off
         normalContentWidthMenuItem?.state = setting == .normal ? .on : .off
         fullContentWidthMenuItem?.state = setting == .fullWidth ? .on : .off
     }
@@ -1496,6 +1404,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         mainMenu.insertItem(rootItem, at: insertIndex)
     }
 
+    /// Insert menu for block-level content, placed right after Format.
+    private func installInsertMenu() {
+        guard let mainMenu = NSApp.mainMenu,
+              topLevelMenuItem(matching: Self.insertMenuTitles) == nil else { return }
+
+        func item(_ titleKey: String, symbol: String, action: Selector) -> NSMenuItem {
+            let item = NSMenuItem(title: L(titleKey), action: action, keyEquivalent: "")
+            item.target = self
+            item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: L(titleKey))
+            return item
+        }
+
+        let insertTitle = L("Insert")
+        let menu = NSMenu(title: insertTitle)
+        menu.addItem(item("Image…", symbol: "photo", action: #selector(insertImageFromMenu(_:))))
+        menu.addItem(item("Code Block", symbol: "curlybraces.square", action: #selector(insertCodeBlockFromMenu(_:))))
+        menu.addItem(item("Table", symbol: "tablecells", action: #selector(insertTableFromMenu(_:))))
+
+        let rootItem = NSMenuItem(title: insertTitle, action: nil, keyEquivalent: "")
+        rootItem.submenu = menu
+        let insertIndex = topLevelMenuItem(matching: Self.formatMenuTitles)
+            .flatMap { mainMenu.items.firstIndex(of: $0) }
+            .map { $0 + 1 } ?? mainMenu.items.count
+        mainMenu.insertItem(rootItem, at: insertIndex)
+    }
+
+    @objc private func insertImageFromMenu(_ sender: Any?) {
+        activeDocumentWindowController?.insertImageFromMenu()
+    }
+
+    @objc private func insertCodeBlockFromMenu(_ sender: Any?) {
+        activeDocumentWindowController?.insertCodeBlockFromMenu()
+    }
+
+    @objc private func insertTableFromMenu(_ sender: Any?) {
+        activeDocumentWindowController?.insertTableFromMenu()
+    }
+
     @objc private func formatMarkdownFromMenu(_ sender: NSMenuItem) {
         guard let command = sender.representedObject as? String else { return }
         activeDocumentWindowController?.formatMarkdown(command)
@@ -1545,6 +1491,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private static let viewMenuTitles: Set<String> = ["View", "显示"]
     private static let windowMenuTitles: Set<String> = ["Window", "窗口"]
     private static let formatMenuTitles: Set<String> = ["Format", "格式"]
+    private static let insertMenuTitles: Set<String> = ["Insert", "插入"]
     private static let goMenuTitles: Set<String> = ["Go", "前往"]
     private static let appearanceMenuTitles: Set<String> = ["Appearance", "外观"]
     private static let contentWidthMenuTitles: Set<String> = ["Content Width", "内容宽度"]

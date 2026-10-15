@@ -12,7 +12,7 @@ final class MainSplitViewController: NSSplitViewController {
     /// Keeps the pane picker and sidebar toggle visible beside the window controls.
     private static let minimumSidebarWidth: CGFloat = 230
 
-    /// How far the chrome overlays (formatting bar, find bar) tuck up into
+    /// How far the chrome overlays (find bar) tuck up into
     /// the native tab bar's empty bottom margin, closing the visual gap
     /// between tabs and bar. Applied only while a tab bar is visible; the
     /// editor's page padding subtracts the same amount
@@ -46,7 +46,12 @@ final class MainSplitViewController: NSSplitViewController {
         sidebarVC.onSelectHeading = { [weak self] index in
             // Pin before scrolling so a no-op scroll still confirms the click.
             self?.contentViewController?.markHeadingActiveFromClick(index)
-            self?.contentViewController?.scrollToHeading(index: index)
+            // The preview is hidden while editing; scroll the source instead.
+            if let editor = self?.editorViewController {
+                editor.scrollToHeading(index: index)
+            } else {
+                self?.contentViewController?.scrollToHeading(index: index)
+            }
         }
         sidebarVC.onSelectFile = { [weak self] url in
             self?.onSelectFile?(url)
@@ -79,7 +84,7 @@ final class MainSplitViewController: NSSplitViewController {
 
         // Wired after addSplitViewItem so the accessors are non-nil.
         contentViewController?.zoomDidChange = { [weak self] zoom in
-            self?.cachedEditorViewController?.applyPageZoom(zoom)
+            self?.cachedEditorViewController?.applyTextScale(zoom)
         }
         contentViewController?.activeHeadingDidChange = { [weak self] headingID in
             self?.sidebarViewController?.setActiveHeading(headingID)
@@ -93,18 +98,28 @@ final class MainSplitViewController: NSSplitViewController {
         contentViewController?.showSnapshot(prefetch)
     }
 
+    /// Keeps the outline in step with unsaved editor text.
+    func refreshOutline(markdown: String) {
+        sidebarViewController?.updateOutline(markdown: markdown)
+    }
+
+    /// `showsPreview` is false for a code file, which is not Markdown: its
+    /// preview and outline get an empty document, so `# comment` lines do not
+    /// become headings. The inspector still counts the real text.
     func display(markdown: String,
+                 showsPreview: Bool = true,
                  fileName: String,
                  url: URL?,
                  assetBaseURL: URL?,
                  documentID: String) {
+        let previewMarkdown = showsPreview ? markdown : ""
         contentViewController?.display(
-            markdown: markdown,
+            markdown: previewMarkdown,
             sourceURL: url,
             assetBaseURL: assetBaseURL,
             documentID: documentID
         )
-        sidebarViewController?.display(markdown: markdown, fileName: fileName, fileURL: url)
+        sidebarViewController?.display(markdown: previewMarkdown, fileName: fileName, fileURL: url)
         inspectorViewController?.display(metadata: DocumentMetadata.make(url: url, markdown: markdown))
     }
 
@@ -121,6 +136,12 @@ final class MainSplitViewController: NSSplitViewController {
         sidebarViewController?.openFolder(folderURL, selectedFileURL: selectedFileURL)
         setSidebarMode(.files)
         showSidebar()
+    }
+
+    /// Roots the navigator at `folderURL` without touching the sidebar's
+    /// mode or visibility.
+    func setProjectRoot(_ folderURL: URL) {
+        sidebarViewController?.openFolder(folderURL, selectedFileURL: nil)
     }
 
     func clearContent() {
@@ -144,35 +165,70 @@ final class MainSplitViewController: NSSplitViewController {
     }
 
     private var activeFindQuery = ""
-    private var activeFindMode: SearchMode = .contains
+    private var activeFindOptions = SearchOptions()
     private var activeFindCompletion: ((FindResult) -> Void)?
 
     func find(_ query: String,
               backwards: Bool = false,
-              mode: SearchMode = .contains,
+              options: SearchOptions = SearchOptions(),
               completion: ((FindResult) -> Void)? = nil) {
         activeFindQuery = query
-        activeFindMode = mode
+        activeFindOptions = options
         activeFindCompletion = completion
         let pasteboard = NSPasteboard(name: .find)
         pasteboard.clearContents()
         pasteboard.setString(query, forType: .string)
         if isEditorPreparing { return } // Replay once the editor and scroll position are ready.
         if let editor = editorViewController {
-            editor.find(query, backwards: backwards, mode: mode, completion: completion)
+            editor.find(query, backwards: backwards, options: options, completion: completion)
         } else {
-            contentViewController?.find(query, backwards: backwards, mode: mode, completion: completion)
+            contentViewController?.find(query, backwards: backwards, options: options, completion: completion)
         }
     }
 
+    /// The visible document's text selection, whichever view is showing.
+    func fetchSelectedText(_ completion: @escaping (String?) -> Void) {
+        if let editor = editorViewController {
+            editor.fetchSelectedText(completion)
+        } else if let content = contentViewController {
+            content.fetchSelectedText(completion)
+        } else {
+            completion(nil)
+        }
+    }
+
+    /// Called when the visible view switches between preview and editor, so
+    /// the find bar can show or hide its replace row.
+    var findContextDidChange: (() -> Void)?
+
+    /// Whether Replace can run: only the source editor is editable.
+    var canReplace: Bool { editorViewController != nil && !isEditorPreparing }
+
+    func replaceCurrent(_ replacement: String,
+                        query: String,
+                        options: SearchOptions,
+                        completion: ((FindResult, Int) -> Void)? = nil) {
+        guard canReplace, let editor = editorViewController else { return }
+        editor.replaceCurrent(replacement, query: query, options: options, completion: completion)
+    }
+
+    func replaceAll(_ replacement: String,
+                    query: String,
+                    options: SearchOptions,
+                    completion: ((FindResult, Int) -> Void)? = nil) {
+        guard canReplace, let editor = editorViewController else { return }
+        editor.replaceAll(replacement, query: query, options: options, completion: completion)
+    }
+
     private func refreshFindAfterModeChange() {
+        findContextDidChange?()
         guard !activeFindQuery.isEmpty else { return }
         if let editor = editorViewController {
-            editor.find(activeFindQuery, mode: activeFindMode, completion: activeFindCompletion)
+            editor.find(activeFindQuery, options: activeFindOptions, completion: activeFindCompletion)
         } else {
             contentViewController?.find("") { [weak self] _ in
                 guard let self, !self.isEditingDocument else { return }
-                self.contentViewController?.find(self.activeFindQuery, mode: self.activeFindMode,
+                self.contentViewController?.find(self.activeFindQuery, options: self.activeFindOptions,
                                                  completion: self.activeFindCompletion)
             }
         }
@@ -185,20 +241,29 @@ final class MainSplitViewController: NSSplitViewController {
         contentViewController?.printDocument()
     }
 
-    @IBAction func exportMarkdownDocument(_ sender: Any?) {
-        contentViewController?.exportDocument()
-    }
-
-    /// Custom selector for the same reason as `printMarkdown(_:)`: keep the
-    /// action distinct from AppKit's built-in document/window responders.
+    // Custom selectors (instead of `export…`) for the same reason as
+    // `printMarkdown(_:)`: keep the actions distinct from AppKit's built-in
+    // document/window responders.
     @IBAction func exportMarkdownAsPDF(_ sender: Any?) {
         contentViewController?.exportPDF()
     }
 
-    /// The document's current page zoom, for the toolbar popover's text-size
-    /// scale. 1.0 when there is no content view yet — the default stop.
+    @IBAction func exportMarkdownAsHTML(_ sender: Any?) {
+        contentViewController?.exportHTML()
+    }
+
+    @IBAction func exportMarkdownAsPNG(_ sender: Any?) {
+        contentViewController?.exportPNG()
+    }
+
+    @IBAction func exportMarkdownAsWord(_ sender: Any?) {
+        contentViewController?.exportWord()
+    }
+
+    /// The document's current text size, for the toolbar popover's scale.
+    /// 1.0 when there is no content view yet — the default stop.
     var documentPageZoom: CGFloat {
-        contentViewController?.pageZoom ?? 1.0
+        contentViewController?.textScale ?? 1.0
     }
 
     @IBAction func zoomInDocument(_ sender: Any?) {
@@ -215,15 +280,17 @@ final class MainSplitViewController: NSSplitViewController {
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         let documentActions = [
-            #selector(exportMarkdownDocument(_:)),
             #selector(exportMarkdownAsPDF(_:)),
+            #selector(exportMarkdownAsHTML(_:)),
+            #selector(exportMarkdownAsPNG(_:)),
+            #selector(exportMarkdownAsWord(_:)),
             #selector(printMarkdown(_:)),
         ]
         if let action = menuItem.action, documentActions.contains(action) {
             return contentViewController?.hasExportableDocument == true
         }
         if menuItem.action == #selector(resetDocumentZoom(_:)) {
-            return abs((contentViewController?.pageZoom ?? 1.0) - 1.0) > 0.001
+            return abs((contentViewController?.textScale ?? 1.0) - 1.0) > 0.001
         }
         return true
     }
@@ -372,11 +439,12 @@ final class MainSplitViewController: NSSplitViewController {
     func enterEditMode(markdown: String,
                        assetBaseURL: URL? = nil,
                        autofocus: Bool = false,
-                       appendingEntry: String? = nil) -> EditorViewController {
+                       appendingEntry: String? = nil,
+                       codeLanguage: String? = nil) -> EditorViewController {
         // Do not invalidate an exit that still owes its caller a completion.
         if isEditorExiting, let editor = cachedEditorViewController { return editor }
         if let editor = editorViewController {
-            editor.load(markdown: markdown, assetBaseURL: assetBaseURL)
+            editor.load(markdown: markdown, assetBaseURL: assetBaseURL, codeLanguage: codeLanguage)
             if autofocus {
                 editor.focusEditor(appendingEntry: appendingEntry)
             }
@@ -398,9 +466,9 @@ final class MainSplitViewController: NSSplitViewController {
             cachedEditorViewController = editorVC
         }
 
-        // Captured before the swap so the editor renders at the same
-        // zoom (and therefore the same column width) as the preview.
-        let previewZoom = contentViewController?.pageZoom ?? 1
+        // Captured before the swap so the editor renders at the same text
+        // size (and therefore the same column and line wrapping) as the preview.
+        let previewZoom = contentViewController?.textScale ?? 1
         let previewScrollProgress = contentViewController?.scrollProgress ?? 0
 
         let generation = UUID()
@@ -417,8 +485,11 @@ final class MainSplitViewController: NSSplitViewController {
         contentViewController?.prepareToRestoreSourceScrollAnchor(nil)
         contentViewController?.pendingAnchorRestored = nil
         // Ensure preview is visible during the prepare phase — a rapid mode
-        // toggle could leave it hidden from a previous edit session.
-        contentViewController?.view.isHidden = false
+        // toggle could leave it hidden from a previous edit session. A code
+        // file stays hidden instead: it has no preview, so showing the empty
+        // page first would only be a blank flash before the editor.
+        let isCodeFile = codeLanguage != nil
+        contentViewController?.view.isHidden = isCodeFile
         editorVC.view.alphaValue = 0
         editorVC.view.isHidden = false
         editorVC.editorDidBecomeReady = { [weak self, weak editorVC] in
@@ -428,8 +499,14 @@ final class MainSplitViewController: NSSplitViewController {
             self.isEditorDOMReady = true
             self.revealEditorIfPrepared(editorVC)
         }
-        editorVC.applyPageZoom(previewZoom)
-        editorVC.load(markdown: markdown, assetBaseURL: assetBaseURL)
+        editorVC.applyTextScale(previewZoom)
+        editorVC.load(markdown: markdown, assetBaseURL: assetBaseURL, codeLanguage: codeLanguage)
+        if isCodeFile {
+            // No preview to take a scroll anchor from: reveal as soon as the
+            // editor page is ready.
+            isSourceScrollAnchorResolved = true
+            return editorVC
+        }
         contentViewController?.sourceScrollAnchor { [weak self, weak editorVC] anchor in
             guard let self, let editorVC, self.editModeGeneration == generation,
                   self.isEditorPreparing else { return }
@@ -447,56 +524,8 @@ final class MainSplitViewController: NSSplitViewController {
         return editorVC
     }
 
-    /// Mounts the formatting bar as a content overlay directly below the
-    /// titlebar chrome. See DocumentWindowController.editBar for why it is
-    /// not a titlebar accessory (the native tab bar always renders below
-    /// accessories, and would jump on every edit-mode toggle).
-    func installFormattingBar(_ bar: NSView) {
-        if Self.usesFloatingFormattingBar {
-            if Self.usesNativeChromeAccessories {
-                layeredContentViewController?.nativeFindOverlay = findOverlayView
-            }
-            layeredContentViewController?.installFormattingBar(bar)
-        } else if Self.usesNativeChromeAccessories {
-            formattingAccessory = installNativeChromeAccessory(bar)
-        } else {
-            layeredContentViewController?.installFormattingBar(bar)
-        }
-        // The editor pads its page below the chrome; the bar is part of
-        // that chrome now, so it must be measured alongside the titlebar.
-        cachedEditorViewController?.formattingBar = bar
-        if Self.usesNativeChromeAccessories {
-            contentViewController?.formattingBar = bar
-            contentViewController?.chromeOverlaysDidChange()
-        }
-    }
-
-    func removeFormattingBar() {
-        if Self.usesFloatingFormattingBar {
-            layeredContentViewController?.removeFormattingBar()
-        } else if #available(macOS 26.1, *), Self.usesNativeChromeAccessories,
-           let item = splitViewItems.dropFirst().first,
-           let index = item.topAlignedAccessoryViewControllers.firstIndex(where: { $0 === formattingAccessory }) {
-            item.removeTopAlignedAccessoryViewController(at: index)
-            formattingAccessory = nil
-        } else {
-            layeredContentViewController?.removeFormattingBar()
-        }
-        cachedEditorViewController?.formattingBar = nil
-        if Self.usesNativeChromeAccessories {
-            contentViewController?.formattingBar = nil
-            contentViewController?.chromeOverlaysDidChange()
-        }
-    }
-
     private weak var findOverlayView: NSView?
-    private var formattingAccessory: NSViewController?
     private var findAccessory: NSViewController?
-
-    static var usesFloatingFormattingBar: Bool {
-        if #available(macOS 26.0, *) { return true }
-        return false
-    }
 
     static var usesNativeChromeAccessories: Bool {
         if #available(macOS 27.0, *) { return false }
@@ -526,7 +555,7 @@ final class MainSplitViewController: NSSplitViewController {
         return accessory
     }
 
-    /// Mounts the find bar the same way — see installFormattingBar. Stays
+    /// Mounts the find bar the same way — like the layered find bar. Stays
     /// mounted for the window's lifetime; visibility toggles via isHidden.
     func installFindOverlay(_ bar: NSView) {
         if Self.usesNativeChromeAccessories {
@@ -768,10 +797,8 @@ private final class LayeredContentViewController: NSViewController {
     }
 
     private var legacyEditorTopConstraint: NSLayoutConstraint?
-    private weak var formattingBar: NSView?
     private weak var findOverlay: NSView?
     weak var nativeFindOverlay: NSView?
-    private var formattingBarTopConstraint: NSLayoutConstraint?
     private var findOverlayTopConstraint: NSLayoutConstraint?
     private var chromeObservation: NSKeyValueObservation?
 
@@ -780,20 +807,6 @@ private final class LayeredContentViewController: NSViewController {
     /// or disappearing reposition them automatically. In full screen the
     /// guide reaches the top of the screen and the revealed toolbar floats
     /// over them, like it floats over the rest of the content.
-    func installFormattingBar(_ bar: NSView) {
-        guard bar.superview !== view else { return }
-        formattingBar = bar
-        formattingBarTopConstraint = installChromeOverlay(bar)
-        updateChromeOverlayLayout()
-    }
-
-    func removeFormattingBar() {
-        formattingBar?.removeFromSuperview()
-        formattingBar = nil
-        formattingBarTopConstraint = nil
-        updateChromeOverlayLayout()
-    }
-
     /// The find bar stays mounted for the window's lifetime and toggles
     /// via isHidden — an overlay never reflows the layout, so showing it
     /// cannot move the tab bar the way a titlebar accessory did.
@@ -855,13 +868,9 @@ private final class LayeredContentViewController: NSViewController {
         if let find = findOverlay, find.superview === view, !find.isHidden {
             editTop += find.fittingSize.height
         }
-        if let top = formattingBarTopConstraint, top.constant != editTop {
-            top.constant = editTop
-        }
         if #unavailable(macOS 26.0), let top = legacyEditorTopConstraint {
             var contentTop: CGFloat = 0
             if let find = findOverlay, !find.isHidden { contentTop += find.fittingSize.height }
-            if let bar = formattingBar, !bar.isHidden { contentTop += bar.fittingSize.height }
             if contentTop > 0 { contentTop += overlap }
             top.constant = max(0, contentTop)
         }

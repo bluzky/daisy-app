@@ -156,6 +156,15 @@ final class SettingsModel {
     var templateFilePath: String?
     var templateCount = 0
 
+    /// Extra extensions and file names Daisy edits as code, comma separated.
+    /// Typing only changes this text; `applyTextFileEntries` makes it current.
+    var textFileEntries = TextFileSettings.customText
+
+    func applyTextFileEntries() {
+        TextFileSettings.setCustomText(textFileEntries)
+        textFileEntries = TextFileSettings.customText
+    }
+
     func chooseTemplateFile() {
         if TemplateStore.chooseFile() { refreshTemplates() }
     }
@@ -168,6 +177,30 @@ final class SettingsModel {
     func refreshTemplates() {
         templateFilePath = TemplateStore.fileDisplayPath
         templateCount = TemplateStore.load().count
+    }
+
+    var launchBehavior: LaunchBehaviorSetting {
+        didSet {
+            guard !isRestoringExternalValues, launchBehavior != oldValue else { return }
+            // Opening a chosen item is useless until there is one, so ask now
+            // and keep the previous behaviour if the reader cancels.
+            if launchBehavior == .openChosenItem, !LaunchItemStore.hasItem {
+                chooseLaunchItem()
+                guard LaunchItemStore.hasItem else {
+                    launchBehavior = oldValue
+                    return
+                }
+            }
+            LaunchBehaviorSetting.current = launchBehavior
+        }
+    }
+
+    var launchItemPath: String?
+
+    func chooseLaunchItem() {
+        if LaunchItemStore.choose() {
+            launchItemPath = LaunchItemStore.displayPath
+        }
     }
 
     var opensDocumentsInTabs: Bool {
@@ -324,6 +357,8 @@ final class SettingsModel {
         strictLineBreaks = StrictLineBreaksSetting.current
         isAlwaysOnTop = AlwaysOnTopPolicy.isEnabled
         opensDocumentsInTabs = TabOpeningPolicy.isEnabled
+        launchBehavior = LaunchBehaviorSetting.current
+        launchItemPath = LaunchItemStore.displayPath
         quickCaptureEnabled = QuickCaptureController.isEnabled
         quickCaptureShortcut = QuickCaptureShortcut.current()
         quickCaptureFolderPath = QuickCaptureStore.folderDisplayPath
@@ -388,6 +423,8 @@ final class SettingsModel {
         strictLineBreaks = StrictLineBreaksSetting.current
         isAlwaysOnTop = AlwaysOnTopPolicy.isEnabled
         opensDocumentsInTabs = TabOpeningPolicy.isEnabled
+        launchBehavior = LaunchBehaviorSetting.current
+        launchItemPath = LaunchItemStore.displayPath
         quickCaptureEnabled = QuickCaptureController.isEnabled
         quickCaptureShortcut = QuickCaptureShortcut.current()
         quickCaptureFolderPath = QuickCaptureStore.folderDisplayPath

@@ -210,7 +210,7 @@ nonisolated extension MarkdownHTML {
                 // Wrap pre in a positioned container so the copy button
                 // stays pinned regardless of horizontal scroll inside pre.
                 const wrap = document.createElement('div');
-                wrap.className = 'md-code-wrap';
+                wrap.className = 'md-code-wrap is-wrapped';
                 pre.parentNode.insertBefore(wrap, pre);
                 wrap.appendChild(pre);
 
@@ -223,10 +223,10 @@ nonisolated extension MarkdownHTML {
                 const toggle = document.createElement('button');
                 toggle.type = 'button';
                 toggle.className = 'md-code-action md-code-toggle-wrap';
-                toggle.innerHTML = codeIcon('wrap');
-                toggle.title = localized.wrapCode;
+                toggle.innerHTML = codeIcon('unwrap');
+                toggle.title = localized.unwrapCode;
                 toggle.setAttribute('aria-label', toggle.title);
-                toggle.setAttribute('aria-pressed', 'false');
+                toggle.setAttribute('aria-pressed', 'true');
                 header.appendChild(toggle);
                 const button = document.createElement('button');
                 button.type = 'button';

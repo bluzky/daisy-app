@@ -50,3 +50,22 @@ export function indentMarkdownListItems(view) {
   dispatchBlockChanges(view, changes)
   return true
 }
+
+// Backspace on an empty list item removes the whole marker (and any task box)
+// in one press, leaving an empty line; the next Backspace then joins it to the
+// line above. CodeMirror's default instead turns "- " into spaces, which takes
+// several presses to clear.
+const EMPTY_LIST_ITEM = /^[ \t]*(?:[-+*]|\d{1,9}[.)])[ \t]*(?:\[[ xX]\][ \t]*)?$/
+export function deleteEmptyListMarker(view) {
+  const { state } = view
+  const range = state.selection.main
+  if (!range.empty) return false
+  const line = state.doc.lineAt(range.head)
+  if (range.head !== line.to || !EMPTY_LIST_ITEM.test(line.text)) return false
+  view.dispatch({
+    changes: { from: line.from, to: line.to },
+    selection: { anchor: line.from },
+    userEvent: "delete.backward",
+  })
+  return true
+}

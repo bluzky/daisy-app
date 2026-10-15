@@ -12,11 +12,6 @@ extension Logger {
     nonisolated static let perf = Logger(subsystem: subsystem, category: "perf")
 }
 
-enum SearchMode {
-    case contains
-    case beginsWith
-}
-
 struct SourceScrollAnchor {
     /// Fractional one-based source line at the top of the viewport.
     let sourcePosition: CGFloat
@@ -25,6 +20,11 @@ struct SourceScrollAnchor {
     /// inside the page padding and the fractional line alone would restore
     /// the position one padding too low.
     let topGap: CGFloat
+
+    init(sourcePosition: CGFloat, topGap: CGFloat) {
+        self.sourcePosition = sourcePosition
+        self.topGap = topGap
+    }
 
     /// Decodes the `{position, gap}` dictionaries produced by the editor's
     /// getScrollAnchor() and the preview's source-anchor script.
@@ -41,6 +41,7 @@ struct SourceScrollAnchor {
 /// Lives here (not AppDelegate.swift) because this file is compiled into
 /// both targets and the setting is read at render time below.
 enum ContentWidthSetting: String, CaseIterable {
+    case narrow
     case normal
     case fullWidth
 
@@ -62,6 +63,7 @@ enum ContentWidthSetting: String, CaseIterable {
 
     var title: String {
         switch self {
+        case .narrow: return NSLocalizedString("Narrow", comment: "Content width")
         case .normal: return NSLocalizedString("Normal", comment: "Content width")
         case .fullWidth: return NSLocalizedString("Full Width", comment: "Content width")
         }
@@ -69,19 +71,20 @@ enum ContentWidthSetting: String, CaseIterable {
 
     var renderWidth: MarkdownHTML.ContentWidth {
         switch self {
-        case .normal: return .hostCentered
+        case .narrow: return .narrow
+        case .normal: return .centered
         case .fullWidth: return .full
         }
     }
-}
 
-struct FindResult {
-    let top: CGFloat?
-    let bottom: CGFloat?
-    let index: Int
-    let total: Int
-
-    static let none = FindResult(top: nil, bottom: nil, index: 0, total: 0)
+    /// The column measure in CSS px, or nil when the column spans the window.
+    var columnWidth: Int? {
+        switch self {
+        case .narrow: return MarkdownHTML.narrowColumnWidth
+        case .normal: return MarkdownHTML.contentColumnWidth
+        case .fullWidth: return nil
+        }
+    }
 }
 
 final class MarkdownWebView: NSView, WKNavigationDelegate {
@@ -143,20 +146,22 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         config.userContentController.addUserScript(Self.disableContextMenuScript)
         config.userContentController.add(messageBridge, name: HostBridge.name)
         Self.disableUserInstalledFonts(in: config.preferences)
+        config.preferences.setValue(true, forKey: "developerExtrasEnabled")
         webView = PreviewWKWebView(frame: .zero, configuration: config)
+        webView.isInspectable = true
         super.init(frame: frameRect)
 
         messageBridge.owner = self
         webView.setValue(false, forKey: "drawsBackground")
         webView.navigationDelegate = self
-        webView.translatesAutoresizingMaskIntoConstraints = false
+        // Autoresizing, not constraints: the docked Web Inspector is added as
+        // a sibling of the web view, and WebKit then shrinks the web view's
+        // frame to make room. Constraints would reset that frame on every
+        // layout pass, covering the inspector (and its resize edge) until
+        // WebKit shrinks it again on the next run loop turn.
+        webView.frame = bounds
+        webView.autoresizingMask = [.width, .height]
         addSubview(webView)
-        NSLayoutConstraint.activate([
-            webView.topAnchor.constraint(equalTo: topAnchor),
-            webView.bottomAnchor.constraint(equalTo: bottomAnchor),
-            webView.leadingAnchor.constraint(equalTo: leadingAnchor),
-            webView.trailingAnchor.constraint(equalTo: trailingAnchor),
-        ])
         DispatchQueue.main.async { [weak self] in
             self?.configureWebKitScrollView()
             self?.warmupVendors()
@@ -221,6 +226,7 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         let baseHref = MarkdownAssetResolution.rootBaseHref
         let markdown = Self.warmupMarkdown
         let contentWidth = ContentWidthSetting.current.renderWidth
+        let textScale = textScale
         let themeOverrides = Self.currentThemeOverrides()
         let renderExtensionConfiguration = RenderExtensionPreferences.currentConfiguration
         Task { @concurrent [weak self] in
@@ -228,6 +234,7 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
                                             markdown: markdown,
                                             assetBaseHref: baseHref,
                                             contentWidth: contentWidth,
+                                            textScale: textScale,
                                             themeOverrides: themeOverrides,
                                             renderExtensionConfiguration: renderExtensionConfiguration,
                                             warmup: true)
@@ -312,16 +319,24 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         renderGeneration &+= 1
         let generation = renderGeneration
         let contentWidth = ContentWidthSetting.current.renderWidth
+        let textScale = textScale
         let themeOverrides = Self.currentThemeOverrides()
         let renderExtensionConfiguration = RenderExtensionPreferences.currentConfiguration
+        #if QUICK_LOOK_EXTENSION
+        let emptyDocumentHint: String? = nil
+        #else
+        let emptyDocumentHint: String? = Self.emptyDocumentHint()
+        #endif
         Task { @concurrent [weak self] in
             let rendered = Self.timedRender(label: "display",
                                             markdown: markdown,
                                             assetBaseHref: baseHref,
                                             contentWidth: contentWidth,
+                                            textScale: textScale,
                                             themeOverrides: themeOverrides,
                                             renderExtensionConfiguration: renderExtensionConfiguration,
-                                            documentID: documentID)
+                                            documentID: documentID,
+                                            emptyDocumentHint: emptyDocumentHint)
             #if DEBUG
             let renderFinishedAt = DispatchTime.now().uptimeNanoseconds
             await self?.applyDisplayDebug(
@@ -342,10 +357,12 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
                                                 markdown: String,
                                                 assetBaseHref: String,
                                                 contentWidth: MarkdownHTML.ContentWidth,
+                                                textScale: CGFloat,
                                                 themeOverrides: MarkdownHTML.ThemeOverrides? = nil,
                                                 renderExtensionConfiguration: MarkdownHTML.RenderExtensionConfiguration,
                                                 documentID: String = "page",
-                                                warmup: Bool = false) -> MarkdownHTML.RenderedHTML {
+                                                warmup: Bool = false,
+                                                emptyDocumentHint: String? = nil) -> MarkdownHTML.RenderedHTML {
         let t0 = DispatchTime.now()
         let rendered = MarkdownHTML.render(markdown: markdown,
                                            allowsScroll: true,
@@ -355,8 +372,10 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
                                            themeOverrides: themeOverrides,
                                            warmup: warmup,
                                            pageTopClearance: MarkdownHTML.appPageTopClearance,
+                                           textScale: textScale,
                                            documentID: documentID,
-                                           renderExtensionConfiguration: renderExtensionConfiguration)
+                                           renderExtensionConfiguration: renderExtensionConfiguration,
+                                           emptyDocumentHint: emptyDocumentHint)
         let elapsedMs = Int(
             (Double(DispatchTime.now().uptimeNanoseconds - t0.uptimeNanoseconds)
              / 1_000_000).rounded()
@@ -474,6 +493,19 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
     }
 
     #if !QUICK_LOOK_EXTENSION
+    /// What an empty document shows instead of a blank page. Names the
+    /// reader's own Toggle Edit Mode shortcut, which the keymap can change.
+    private static func emptyDocumentHint() -> String {
+        guard let shortcut = KeymapStore.shared.keymap
+            .bindings(for: .viewToggleEditMode).first?.displayString else {
+            return NSLocalizedString("Choose View ▸ Toggle Edit Mode to start writing",
+                                     comment: "Empty document placeholder without a shortcut")
+        }
+        return String(format: NSLocalizedString("Press %@ to start writing",
+                                                comment: "Empty document placeholder; %@ is a shortcut such as ⌘E"),
+                      shortcut)
+    }
+
     /// Rewrites the theme override `<style>` in the loaded page so a color
     /// edited in Settings restyles the preview live, without a reload. Fresh
     /// renders embed the same CSS via `currentThemeOverrides`.
@@ -577,9 +609,16 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
 
     func find(_ query: String,
               backwards: Bool = false,
-              mode: SearchMode = .contains,
+              options: SearchOptions = SearchOptions(),
               completion: ((FindResult) -> Void)? = nil) {
-        highlightMatches(for: query, backwards: backwards, mode: mode, completion: completion)
+        highlightMatches(for: query, backwards: backwards, options: options, completion: completion)
+    }
+
+    /// The page's current text selection, for pre-filling the find bar.
+    func fetchSelectedText(_ completion: @escaping (String?) -> Void) {
+        webView.evaluateJavaScript("window.getSelection().toString()") { value, _ in
+            completion(value as? String)
+        }
     }
 
     /// Flashes the macOS-style "burst" animation over the current match —
@@ -613,9 +652,9 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         webView.evaluateJavaScript(script) { _, _ in }
     }
 
-    // Discrete zoom stops, mirroring Safari's ⌘+/⌘− cadence. Not private:
-    // the toolbar popover draws one dot per stop to show where the current
-    // text size sits on the scale.
+    // Discrete text-size stops, mirroring Safari's ⌘+/⌘− cadence. Not
+    // private: the toolbar popover draws one dot per stop to show where the
+    // current text size sits on the scale.
     static let zoomSteps: [CGFloat] = [
         0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0
     ]
@@ -626,14 +665,22 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         zoomSteps.indices.min { abs(zoomSteps[$0] - zoom) < abs(zoomSteps[$1] - zoom) } ?? 0
     }
 
+    /// WebKit's page zoom, the factor between CSS pixels and view points.
+    /// The text-size controls no longer change it — they scale type through
+    /// `textScale` — but coordinate conversions keep going through it.
     var pageZoom: CGFloat { webView.pageZoom }
 
-    func zoomIn() { setPageZoom(nextZoomStep(from: webView.pageZoom, increasing: true)) }
-    func zoomOut() { setPageZoom(nextZoomStep(from: webView.pageZoom, increasing: false)) }
-    func resetZoom() { setPageZoom(1.0) }
+    /// The reader's text size: ⌘+ / ⌘−, pinch, and the Settings stops.
+    /// Applied as `--mdp-text-scale` rather than WebKit page zoom, which
+    /// would scale the Content Width column along with the text.
+    private(set) var textScale: CGFloat = 1
+
+    func zoomIn() { setTextScale(nextZoomStep(from: textScale, increasing: true)) }
+    func zoomOut() { setTextScale(nextZoomStep(from: textScale, increasing: false)) }
+    func resetZoom() { setTextScale(1.0) }
 
     fileprivate func beginMagnificationZoom() {
-        magnificationStartZoom = webView.pageZoom
+        magnificationStartZoom = textScale
         accumulatedMagnification = 0
         didMagnifyDuringCurrentGesture = false
     }
@@ -651,7 +698,7 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         didMagnifyDuringCurrentGesture = true
         accumulatedMagnification += delta
         let scale = max(0.1, 1 + accumulatedMagnification)
-        setPageZoom((magnificationStartZoom ?? webView.pageZoom) * scale, persist: false)
+        setTextScale((magnificationStartZoom ?? textScale) * scale, persist: false)
     }
 
     fileprivate func endMagnificationZoom() {
@@ -661,24 +708,24 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         accumulatedMagnification = 0
         didMagnifyDuringCurrentGesture = false
         if shouldPersistZoom {
-            persistPageZoom(webView.pageZoom)
+            persistTextScale(textScale)
         }
     }
 
     func enablePersistentZoom(defaultsKey: String) {
         zoomDefaultsKey = defaultsKey
         guard let stored = UserDefaults.standard.object(forKey: defaultsKey) as? NSNumber else { return }
-        setPageZoom(CGFloat(truncating: stored), persist: false, notifyHeight: false)
+        setTextScale(CGFloat(truncating: stored), persist: false)
     }
 
-    /// Re-reads the stored zoom after Settings changes it. Unlike
+    /// Re-reads the stored text size after Settings changes it. Unlike
     /// `enablePersistentZoom` this applies the absent-key case too, so picking
     /// the default size — which clears the key — still resets an already-zoomed
     /// window instead of leaving it where it was.
     func applyPersistedZoom() {
         guard let zoomDefaultsKey else { return }
         let stored = UserDefaults.standard.object(forKey: zoomDefaultsKey) as? NSNumber
-        setPageZoom(stored.map { CGFloat(truncating: $0) } ?? 1.0, persist: false)
+        setTextScale(stored.map { CGFloat(truncating: $0) } ?? 1.0, persist: false)
     }
 
     private func nextZoomStep(from current: CGFloat, increasing: Bool) -> CGFloat {
@@ -690,20 +737,23 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         }
     }
 
-    private func setPageZoom(_ value: CGFloat,
-                             persist: Bool = true,
-                             notifyHeight: Bool = true) {
+    /// The page reflows and reports its new height itself, so unlike a page
+    /// zoom change there is no height to re-fire from here.
+    private func setTextScale(_ value: CGFloat, persist: Bool = true) {
         let clamped = clampedZoom(value)
-        guard abs(webView.pageZoom - clamped) > 0.001 else { return }
-        webView.pageZoom = clamped
-        updateChromeZoom()
+        guard abs(textScale - clamped) > 0.001 else { return }
+        textScale = clamped
+        applyTextScaleToPage()
         zoomDidChange?(clamped)
         if persist {
-            persistPageZoom(clamped)
+            persistTextScale(clamped)
         }
-        if notifyHeight {
-            heightDidChange?(lastReportedDocumentHeight * clamped)
-        }
+    }
+
+    /// Fresh renders carry the scale in their markup; this covers the loaded
+    /// page, and a load that started before the scale last changed.
+    private func applyTextScaleToPage() {
+        webView.evaluateJavaScript("document.documentElement.style.setProperty('\(MarkdownHTML.textScaleProperty)', '\(textScale)')", completionHandler: nil)
     }
 
     private func updateChromeZoom() {
@@ -716,7 +766,7 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         return max(Self.zoomSteps.first!, min(Self.zoomSteps.last!, value))
     }
 
-    private func persistPageZoom(_ value: CGFloat) {
+    private func persistTextScale(_ value: CGFloat) {
         guard let zoomDefaultsKey else { return }
         if abs(value - 1.0) <= 0.001 {
             UserDefaults.standard.removeObject(forKey: zoomDefaultsKey)
@@ -937,17 +987,18 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
 
     private func highlightMatches(for query: String,
                                   backwards: Bool,
-                                  mode: SearchMode,
+                                  options: SearchOptions,
                                   completion: ((FindResult) -> Void)?) {
-        let beginsWith = mode == .beginsWith
         let script = """
         (() => {
+            \(SearchPatternScript.javaScript)
             const root = document.querySelector('.markdown-body') || document.body;
-            const previousQuery = window.__mdPreviewSearchQuery || '';
-            const previousBeginsWith = window.__mdPreviewSearchBeginsWith === true;
-            const beginsWith = \(beginsWith ? "true" : "false");
-            const sameQuery = previousQuery === \(javaScriptStringLiteral(query))
-                && previousBeginsWith === beginsWith;
+            const query = \(javaScriptStringLiteral(query));
+            const mode = '\(options.mode.rawValue)';
+            const caseSensitive = \(options.caseSensitive ? "true" : "false");
+            const key = JSON.stringify([query, mode, caseSensitive]);
+            const sameQuery = window.__mdPreviewSearchKey === key;
+            const limit = \(Self.searchMatchLimit);
 
             // Tear down prior highlights, but only normalize() the parents we
             // actually touched — root.normalize() is O(N) over the entire
@@ -963,16 +1014,21 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
                 dirty.forEach((parent) => parent.normalize());
             }
 
-            const query = \(javaScriptStringLiteral(query));
-            window.__mdPreviewSearchQuery = query;
-            window.__mdPreviewSearchBeginsWith = beginsWith;
-            if (!query) {
+            window.__mdPreviewSearchKey = key;
+            const empty = (error) => {
                 window.__mdPreviewSearchIndex = -1;
-                return { top: null, bottom: null, index: 0, total: 0 };
+                return { top: null, bottom: null, index: 0, total: 0, error: error };
+            };
+            if (!query) return empty(false);
+            let pattern;
+            try {
+                pattern = window.__mdSearchPattern(query, mode, caseSensitive);
+            } catch (e) {
+                return empty(true);
             }
-            const isWordChar = (ch) => /[A-Za-z0-9_]/.test(ch);
 
-            const needle = query.toLocaleLowerCase();
+            // Matches are found one text node at a time, so a match cannot
+            // span inline formatting and ^ / $ anchor to the node.
             const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
                 acceptNode(node) {
                     const parent = node.parentElement;
@@ -981,9 +1037,6 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
                     )) {
                         return NodeFilter.FILTER_REJECT;
                     }
-                    // Don't double-lowercase here; the inner loop already does
-                    // one .toLocaleLowerCase() per node and an .indexOf, which
-                    // short-circuits cheaply on non-matching text.
                     return NodeFilter.FILTER_ACCEPT;
                 }
             });
@@ -992,36 +1045,30 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
             while (walker.nextNode()) { nodes.push(walker.currentNode); }
 
             const marks = [];
+            let capped = false;
             for (const node of nodes) {
+                if (capped) break;
                 const text = node.nodeValue;
-                const lower = text.toLocaleLowerCase();
                 const fragment = document.createDocumentFragment();
                 let offset = 0;
-                let searchFrom = 0;
-                let matchIndex = lower.indexOf(needle, searchFrom);
                 let nodeHasMatch = false;
+                let match;
+                pattern.lastIndex = 0;
 
-                while (matchIndex !== -1) {
-                    const prevChar = matchIndex === 0 ? '' : text[matchIndex - 1];
-                    const isBoundary = matchIndex === 0 || !isWordChar(prevChar);
-
-                    if (!beginsWith || isBoundary) {
-                        fragment.append(document.createTextNode(text.slice(offset, matchIndex)));
-
-                        const mark = document.createElement('mark');
-                        mark.className = 'md-search-highlight';
-                        mark.textContent = text.slice(matchIndex, matchIndex + query.length);
-                        fragment.append(mark);
-                        marks.push(mark);
-
-                        offset = matchIndex + query.length;
-                        searchFrom = offset;
-                        nodeHasMatch = true;
-                    } else {
-                        // Skip this match, but keep scanning the same text node.
-                        searchFrom = matchIndex + 1;
+                while ((match = pattern.exec(text)) !== null) {
+                    if (!match[0]) {
+                        pattern.lastIndex = match.index + (text.codePointAt(match.index) > 0xFFFF ? 2 : 1);
+                        continue;
                     }
-                    matchIndex = lower.indexOf(needle, searchFrom);
+                    if (marks.length >= limit) { capped = true; break; }
+                    fragment.append(document.createTextNode(text.slice(offset, match.index)));
+                    const mark = document.createElement('mark');
+                    mark.className = 'md-search-highlight';
+                    mark.textContent = match[0];
+                    fragment.append(mark);
+                    marks.push(mark);
+                    offset = match.index + match[0].length;
+                    nodeHasMatch = true;
                 }
 
                 if (nodeHasMatch) {
@@ -1030,10 +1077,7 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
                 }
             }
 
-            if (marks.length === 0) {
-                window.__mdPreviewSearchIndex = -1;
-                return { top: null, bottom: null, index: 0, total: 0 };
-            }
+            if (marks.length === 0) return empty(false);
 
             const previousIndex = Number.isInteger(window.__mdPreviewSearchIndex)
                 ? window.__mdPreviewSearchIndex
@@ -1062,7 +1106,9 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
                 top: rect.top + scrollY,
                 bottom: rect.bottom + scrollY,
                 index: index + 1,
-                total: marks.length
+                total: marks.length,
+                capped: capped,
+                error: false
             };
         })();
         """
@@ -1073,9 +1119,14 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
             let bottom = (dict?["bottom"] as? NSNumber).map { self.scaledDocumentOffset(CGFloat(truncating: $0)) }
             let index = (dict?["index"] as? NSNumber)?.intValue ?? 0
             let total = (dict?["total"] as? NSNumber)?.intValue ?? 0
-            completion(FindResult(top: top, bottom: bottom, index: index, total: total))
+            completion(FindResult(top: top, bottom: bottom, index: index, total: total,
+                                  error: dict?["error"] as? Bool ?? false,
+                                  capped: dict?["capped"] as? Bool ?? false))
         }
     }
+
+    /// Same cap as the source editor's highlights.
+    static let searchMatchLimit = 10000
 
     private func scaledDocumentOffset(_ cssOffset: CGFloat) -> CGFloat {
         cssOffset * webView.pageZoom
@@ -1526,6 +1577,7 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         configureWebKitScrollView()
         isPageReady = true
         updateChromeZoom()
+        applyTextScaleToPage()
         #if !QUICK_LOOK_EXTENSION
         // A render snapshots the theme before its concurrent pass; if the
         // colors changed mid-flight, the navigation just installed stale

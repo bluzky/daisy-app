@@ -16,7 +16,6 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>daisy</string>
-				<string>md-preview</string>
 			</array>
 		</dict>
 	</array>
@@ -42,6 +41,20 @@
 				<string>doc.daisy.mdtxt</string>
 				<string>doc.daisy.mdtext</string>
 				<string>doc.daisy.mdx</string>
+			</array>
+			<key>NSDocumentClass</key>
+			<string>$(PRODUCT_MODULE_NAME).MarkdownDocument</string>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Text Document</string>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.plain-text</string>
 			</array>
 			<key>NSDocumentClass</key>
 			<string>$(PRODUCT_MODULE_NAME).MarkdownDocument</string>

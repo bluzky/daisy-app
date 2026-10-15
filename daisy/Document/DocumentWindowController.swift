@@ -90,6 +90,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     var autoSaveTimerID: UUID?
     var isPerformingAutomaticSave = false
     var autoSaveFeedbackResetWork: DispatchWorkItem?
+    var outlineRefreshWork: DispatchWorkItem?
     var autoSaveFeedback = AutoSaveFeedback.none {
         didSet { updateWindowSubtitle() }
     }
@@ -104,24 +105,46 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
                 stopAutoSaveTimer()
             }
             updateWindowSubtitle()
+            // The native dot in the tab's close button (and window close
+            // button). MarkdownDocument.isDocumentEdited stays false, so
+            // set it on the window directly.
+            setDocumentEdited(hasUnsavedEditorChanges)
+            updateTabEditedIndicator()
         }
     }
-    /// The formatting bar shown while editing. Not a titlebar accessory:
-    /// AppKit pins the native tab bar to the bottom of the titlebar, below
-    /// every accessory, so a bar mounted there sits above the tabs and its
-    /// mount/unmount shoves the tab bar up and down. Instead the bar is an
-    /// overlay in the content host, pinned to the window's
-    /// contentLayoutGuide — always directly below the tab bar (or the
-    /// toolbar when no tabs are shown), and the tab bar never moves.
-    weak var editBar: NSView?
+
+    /// The tab bar ignores the window's edited flag, so mark the tab header
+    /// itself with an orange dot and title while the editor holds unsaved
+    /// changes.
+    private static let tabTitleFont = NSFont.systemFont(ofSize: 12, weight: .regular)
+
+    func updateTabEditedIndicator() {
+        let tab = documentWindow.tab
+        guard hasUnsavedEditorChanges else {
+            tab.accessoryView = nil
+            tab.attributedTitle = NSAttributedString(string: documentWindow.title,
+                                                     attributes: [.font: Self.tabTitleFont])
+            return
+        }
+        let image = NSImage(systemSymbolName: "circle.fill",
+                            accessibilityDescription: NSLocalizedString(
+                                "Unsaved changes", comment: "Tab indicator for unsaved edits"))
+        let dot = NSImageView(image: image ?? NSImage())
+        dot.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 7, weight: .regular)
+        dot.contentTintColor = .systemOrange
+        tab.accessoryView = dot
+        tab.attributedTitle = NSAttributedString(
+            string: documentWindow.title,
+            attributes: [.foregroundColor: NSColor.systemOrange,
+                         .font: Self.tabTitleFont])
+    }
+
     weak var copyItem: NSToolbarItem?
     var copyFeedbackWork: DispatchWorkItem?
     /// The Themes & Settings popover while it is on screen.
     var themesPopover: NSPopover?
-    var formattingPopover: NSPopover?
     /// Armed only while the themes popover is open.
     let themesPopoverEscapeMonitor = EscapeKeyMonitor()
-    weak var searchField: NSSearchField?
     /// The Table of Contents / Project Navigator picker in the toolbar.
     var sidebarModeItem: NSToolbarItemGroup?
     /// The original position and spacer while sidebar-only items are removed.
@@ -136,7 +159,6 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     /// titlebar accessory — so showing it never pushes the tab bar down.
     /// Mounted once at setup and toggled via isHidden.
     weak var findBarOverlay: NSView?
-    var searchMode: SearchMode = .contains
     var pendingFindWork: DispatchWorkItem?
     static let findDebounceDelay: TimeInterval = 0.10
 
@@ -206,7 +228,15 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         Self.nextWindowRequestsTab = false
         let split = MainSplitViewController()
         split.onSelectFile = { [weak self] url in
-            self?.present(url: url)
+            // Tree selections open in a new tab so the current document (and
+            // any unsaved edits) stays put. A window with no file open yet
+            // takes the file itself rather than leaving an empty tab behind.
+            guard let self, !self.openExternallyIfNeeded(url) else { return }
+            if self.currentFileURL == nil {
+                self.present(url: url, preservingEditMode: true, intent: .normal, fragment: nil)
+            } else {
+                self.openInNewTab(url, startEditing: true)
+            }
         }
         split.onOpenMarkdownLink = { [weak self] url in
             if SettingsModel.shared.opensMarkdownLinksInNewWindows {
@@ -249,9 +279,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     func applyThemeColorsSetting() {
         applyWindowBackgroundTheme()
         mainSplit?.applyThemeColors()
-        // The bars paint the page backgrounds; a theme edit changes those
+        // The find bar paints the page backgrounds; a theme edit changes those
         // colors without an appearance flip, so force a redraw.
-        editBar?.needsDisplay = true
         findBarOverlay?.needsDisplay = true
     }
 
@@ -274,7 +303,6 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
                 documentWindow.titlebarAppearsTransparent = true
             }
         }
-        (editBar as? EditAccessoryContainerView)?.updateFullscreenBackground()
         (findBarOverlay as? EditAccessoryContainerView)?.updateFullscreenBackground()
         updateFullscreenToolbarTheme()
     }
@@ -380,6 +408,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         }
         documentWindow.title = fileURL?.lastPathComponent
             ?? NSLocalizedString("Untitled", comment: "Window title when no document is open")
+        updateTabEditedIndicator()
         updateWindowSubtitle()
         attachToExistingTabGroupIfNeeded()
         if let pendingSnapshot {
@@ -408,8 +437,10 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         if let fileURL {
             NSDocumentController.shared.noteNewRecentDocumentURL(fileURL)
             renderCurrentDocument(text: markdown, fileURL: fileURL)
+            recordLastSession()
             startWatching(fileURL)
             offerToBecomeDefaultHandlerIfNeeded()
+            enterEditMode()
         }
     }
 
@@ -421,7 +452,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         searchOpenRequestID = nil
         let fragment = url.fragment?.removingPercentEncoding
         let url = Self.fileURLWithoutFragment(url)
-        let preserveEditMode = isEditing || pendingEditModeURL != nil
+        let preserveEditMode = true
         if isEditing || hasPendingEditorChanges {
             requestEndEditing(keepAccessoryMounted: true) { [weak self] success in
                 guard success else { return }
@@ -457,6 +488,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         pendingEditModeURL = preservingEditMode ? url.standardizedFileURL : nil
         markdownDocument?.replaceFileURL(url)
         documentWindow.title = url.lastPathComponent
+        updateTabEditedIndicator()
         resetAutoSaveFeedback()
         updateWindowSubtitle()
         if isFileSwitch {
@@ -536,13 +568,17 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     func startWatching(_ url: URL) {
         fileWatcher?.cancel()
         let watcher = FileWatcher(url: url) { [weak self] in
-            // While editing, disk changes (including our own ⌘S writes)
-            // must not re-render or clobber the in-progress session. Every
-            // commit revalidates the disk contents before writing, so an
-            // external edit is either reloaded or resolved explicitly.
+            // While editing with unsaved changes, disk changes must not
+            // clobber the session; every commit revalidates the disk
+            // contents before writing, so an external edit is resolved
+            // explicitly then. A clean editor can safely follow the disk.
             guard let self, self.currentFileURL == url,
-                  !self.isEditing, !self.hasPendingEditorChanges else { return }
-            self.loadFile(at: url, silentOnFailure: true)
+                  !self.hasPendingEditorChanges else { return }
+            if self.isEditing {
+                self.reloadCleanEditorFromDisk()
+            } else {
+                self.loadFile(at: url, silentOnFailure: true)
+            }
         }
         watcher.onRename = { [weak self] newURL in
             self?.handleRename(to: newURL)
@@ -556,9 +592,16 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     /// re-rendering the WebView, since the markdown content didn't change.
     func handleRename(to newURL: URL) {
         guard currentFileURL != nil else { return }
+        // A file moved to the Trash is effectively deleted: close it rather
+        // than follow it into `.Trash`.
+        if newURL.pathComponents.contains(".Trash") {
+            documentWindow.close()
+            return
+        }
         currentFileURL = newURL
         markdownDocument?.replaceFileURL(newURL)
         documentWindow.title = newURL.lastPathComponent
+        updateTabEditedIndicator()
         updateWindowSubtitle()
         NSDocumentController.shared.noteNewRecentDocumentURL(newURL)
         refreshOpenWithItem()

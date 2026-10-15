@@ -1,6 +1,6 @@
 import { EditorView, keymap, dropCursor } from "@codemirror/view"
 import { Compartment, EditorState, Prec, Transaction } from "@codemirror/state"
-import { defaultKeymap, history, historyKeymap, indentLess } from "@codemirror/commands"
+import { cursorDocEnd, cursorDocStart, defaultKeymap, history, historyKeymap, indentLess, selectDocEnd, selectDocStart } from "@codemirror/commands"
 import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete"
 import { markdown, markdownKeymap, markdownLanguage } from "@codemirror/lang-markdown"
 import { yamlFrontmatter } from "@codemirror/lang-yaml"
@@ -9,23 +9,26 @@ import { tags as t } from "@lezer/highlight"
 import { html } from "@codemirror/lang-html"
 import { convertClipboardToMarkdown } from "../clipboard-markdown.mjs"
 import { codeHighlight } from "./code-highlight.js"
-import { autoCloseFence } from "./commands/fence-autoclose.js"
+import { codeModeExtensions } from "./code-mode.js"
+import { codeBackspace, codeDelete, exitCodeBlock, keepCaretOffFences, openCodeFence, pendingFence, settleCodeCaretPlugin } from "./commands/code-fence.js"
 import { applyBlockStyle, applyListStyle, editableListLines, enclosingNode, insertLink, listPrefix, orderedList, setHeading, stylingContext, toggleBlockPrefix, toggleInlineMark } from "./commands/format.js"
-import { indentMarkdownListItems } from "./commands/list-indent.js"
+import { deleteEmptyListMarker, indentMarkdownListItems } from "./commands/list-indent.js"
+import { deleteTableBackward, deleteTableForward, openLineBelowTable } from "./commands/table-edges.js"
 import { METRICS, directionLines } from "./decoration-parts.js"
 import { editorModuleEnabled, editorModuleExtensions, editorModules } from "./extensions.js"
-import { documentFind, findTheme, setFind } from "./find.js"
+import { collectMatches, documentFind, expandReplacement, findTheme, sameSearch, setFind } from "./find.js"
 import { formattingState } from "./formatting-state.js"
 import { codeLanguages } from "./languages.js"
 import { alignInactiveHeadings, livePreview } from "./live-preview/plugins.js"
 import { obsidianHighlight } from "./obsidian-highlight.js"
+import { codeCardWidth } from "./code-card-width.js"
 import { activeCodeBlock, anchoredPointerSelection, pointerPreview, stablePointerPreview } from "./pointer.js"
 import { slashTemplatesChanged } from "./slash.js"
 import { tableEditors } from "./table/editors.js"
 import { escapedTableCell } from "./table/model.js"
 import { captureTableSelection, prepareTableFormatting, restoreTableFormatting, tableCellSourceRange, tableFormattingCallbacks, tableFormattingSelection, tableFormattingTargets, tableInlineCommands } from "./table/selection.js"
 import { continueTaskList } from "./task-list.js"
-import { codeCopyHandlers, wrappedCodeBlocks } from "./widgets/code.js"
+import { codeCopyHandlers, unwrappedCodeBlocks } from "./widgets/code.js"
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -33,6 +36,7 @@ import { codeCopyHandlers, wrappedCodeBlocks } from "./widgets/code.js"
 
 window.MDEditor = {
   create(parent, doc, callbacks) {
+    let jumpToDocEdge = () => false
     const onDirty = callbacks && callbacks.onDirty
     const onPasteImage = callbacks && callbacks.onPasteImage
     // Live preview spacing tokens from the host stylesheet (MarkdownHTML
@@ -50,11 +54,24 @@ window.MDEditor = {
     }
     const moduleExtensions = [...editorModules.values()].map((module) =>
       moduleCompartments.get(module.id).of(moduleEnabled.get(module.id) ? editorModuleExtensions(module, moduleOptions(module.id), moduleHost) : []))
+    // A string selects code-only editing (see code-mode.js); "" is plain text.
+    const codeLanguage = typeof (callbacks && callbacks.codeLanguage) === "string" ? callbacks.codeLanguage : null
     const view = new EditorView({
       parent,
       state: EditorState.create({
         doc,
-        extensions: [
+        extensions: codeLanguage !== null ? [
+          ...codeModeExtensions(codeLanguage),
+          EditorView.updateListener.of((update) => {
+            if (update.docChanged && callbacks?.onSearchChange) {
+              callbacks.onSearchChange(searchResult(update.state.field(documentFind)))
+            }
+            if (update.docChanged && onDirty
+                && !update.transactions.some((transaction) => transaction.isUserEvent("rename"))) {
+              onDirty()
+            }
+          }),
+        ] : [
           history(),
           documentFind,
           findTheme,
@@ -78,9 +95,10 @@ window.MDEditor = {
             }),
           }),
           activeCodeBlock,
-          wrappedCodeBlocks,
+          unwrappedCodeBlocks,
           pointerPreview,
           stablePointerPreview,
+          codeCardWidth,
           anchoredPointerSelection,
           ...moduleExtensions,
           tableEditors,
@@ -93,12 +111,28 @@ window.MDEditor = {
           }),
           Prec.lowest(livePreview),
           alignInactiveHeadings,
-          autoCloseFence,
+          pendingFence,
+          keepCaretOffFences,
+          settleCodeCaretPlugin,
           closeBrackets(),
           // paragraphReflow deliberately omitted: the preview renders
           // single newlines as hard breaks, so the
           // editor keeps them visible instead of joining lines.
-          Prec.highest(keymap.of([{ key: "Enter", run: continueTaskList }])),
+          Prec.highest(keymap.of([
+            { key: "Enter", run: continueTaskList },
+            { key: "Enter", run: exitCodeBlock },
+            { key: "Enter", run: openCodeFence },
+            { key: "Enter", run: openLineBelowTable },
+            { key: "ArrowDown", run: openLineBelowTable },
+            { key: "ArrowRight", run: openLineBelowTable },
+            { key: "Backspace", run: deleteTableBackward },
+            { key: "Backspace", run: codeBackspace },
+            { key: "Backspace", run: deleteEmptyListMarker },
+            { key: "Mod-ArrowUp", run: (v) => jumpToDocEdge(v, cursorDocStart, false), shift: (v) => jumpToDocEdge(v, selectDocStart, false) },
+            { key: "Mod-ArrowDown", run: (v) => jumpToDocEdge(v, cursorDocEnd, true), shift: (v) => jumpToDocEdge(v, selectDocEnd, true) },
+            { key: "Delete", run: deleteTableForward },
+            { key: "Delete", run: codeDelete },
+          ])),
           keymap.of([
             { key: "Mod-b", run: toggleInlineMark("**") },
             { key: "Mod-i", run: toggleInlineMark("*") },
@@ -117,7 +151,7 @@ window.MDEditor = {
             }
             if (update.docChanged && callbacks?.onSearchChange) {
               const search = update.state.field(documentFind)
-              callbacks.onSearchChange({ index: search.index + 1, total: search.matches.length })
+              callbacks.onSearchChange(searchResult(search))
             }
             if (update.docChanged && onDirty
                 && !update.transactions.some((transaction) => transaction.isUserEvent("rename"))) {
@@ -128,6 +162,9 @@ window.MDEditor = {
             paste(event, view) {
               if (event.target instanceof Element
                   && event.target.closest(".cm-md-table-cell")) return false
+              // Code takes the clipboard verbatim: converting rich text would
+              // wrap a <pre> in fences that close the block being pasted into.
+              if (enclosingNode(view.state, view.state.selection.main.from, ["FencedCode", "CodeBlock"])) return false
               const clipboard = event.clipboardData
               const items = Array.from(clipboard?.items || [])
               const clipboardText = typeof clipboard?.getData === "function"
@@ -175,7 +212,50 @@ window.MDEditor = {
     const pageScrolling = !!(callbacks && callbacks.pageScrolling)
     const scroller = pageScrolling ? document.scrollingElement : view.scrollDOM
     const scrollEvents = pageScrolling ? window : scroller
+    // CodeMirror estimates the height of lines it has not drawn, so a single
+    // scrollIntoView toward the document end stops short. After moving the
+    // caret, keep scrolling to the real edge until the scroll height settles.
+    jumpToDocEdge = (v, move, toEnd) => {
+      move(v)
+      let lastHeight = -1, stableFrames = 0, frames = 0
+      const settle = () => {
+        scroller.scrollTop = toEnd ? scroller.scrollHeight : 0
+        stableFrames = scroller.scrollHeight === lastHeight ? stableFrames + 1 : 0
+        lastHeight = scroller.scrollHeight
+        if (stableFrames < 4 && ++frames < 60) requestAnimationFrame(settle)
+      }
+      requestAnimationFrame(settle)
+      return true
+    }
     let preservedSourcePosition = null
+    const searchResult = (search) => ({
+      index: search.index + 1,
+      total: search.matches.length,
+      capped: search.capped,
+      error: search.error,
+    })
+    // Brings the highlighted search state in line with the bar's query and
+    // options without moving the current match when nothing changed.
+    const syncSearch = (query, options) => {
+      if (!query) return false
+      if (!sameSearch(view.state.field(documentFind), query, options)) {
+        view.dispatch({ effects: setFind.of({ query, options, index: 0 }) })
+      }
+      return true
+    }
+    const revealCurrentMatch = (search) => {
+      const match = search.matches[search.index]
+      if (!match) return
+      preservedSourcePosition = null
+      didUserScroll = true
+      view.dispatch({ effects: EditorView.scrollIntoView(match.from, { y: "center" }) })
+      // A jump far from the mounted lines can leave the new viewport blank
+      // until the next scroll event; setScrollPosition nudges it the same way.
+      requestAnimationFrame(() => {
+        scrollEvents.dispatchEvent(new Event("scroll"))
+        view.requestMeasure()
+      })
+    }
     let preservedSourceGap = 0
     let preservedScrollTop = null
     // CodeMirror block heights start at the first line, after content padding.
@@ -228,7 +308,7 @@ window.MDEditor = {
     }
     if (callbacks?.onCopyCode) codeCopyHandlers.set(view, callbacks.onCopyCode)
     if (callbacks?.onFormattingChange) tableFormattingCallbacks.set(view, callbacks.onFormattingChange)
-    callbacks?.onFormattingChange?.(formattingState(view.state))
+    if (codeLanguage === null) callbacks?.onFormattingChange?.(formattingState(view.state))
     return {
       getMarkdown: () => view.state.doc.toString(),
       getBlockStyle: () => tableFormattingTargets.has(view) ? 'table' : stylingContext(view.state).style,
@@ -294,24 +374,60 @@ window.MDEditor = {
         }
         return 0
       },
-      find: (query, backwards = false, beginsWith = false) => {
+      find: (query, backwards = false, options = null) => {
         const previous = view.state.field(documentFind)
-        const same = previous.query === query && previous.beginsWith === beginsWith
+        const same = sameSearch(previous, query, options)
         let index = 0
         if (same && previous.matches.length) {
           index = (previous.index + (backwards ? -1 : 1) + previous.matches.length) % previous.matches.length
         } else if (backwards) {
           index = Number.MAX_SAFE_INTEGER
         }
-        view.dispatch({ effects: setFind.of({ query, beginsWith, index }) })
+        view.dispatch({ effects: setFind.of({ query, options, index }) })
         const search = view.state.field(documentFind)
-        const match = search.matches[search.index]
-        if (match) {
-          preservedSourcePosition = null
-          didUserScroll = true
-          view.dispatch({ effects: EditorView.scrollIntoView(match.from, { y: "center" }) })
-        }
-        return { index: search.index + 1, total: search.matches.length }
+        revealCurrentMatch(search)
+        return searchResult(search)
+      },
+      replaceCurrent: (replacement, query, options = null) => {
+        if (!syncSearch(query, options)) return searchResult(view.state.field(documentFind))
+        const search = view.state.field(documentFind)
+        const entry = search.matches[search.index]
+        if (!entry) return searchResult(search)
+        const insert = expandReplacement(String(replacement ?? ""), entry, options)
+        view.dispatch({
+          changes: { from: entry.from, to: entry.to, insert },
+          selection: { anchor: entry.from + insert.length },
+          userEvent: "input.replace",
+        })
+        // Advance by position, so a replacement that contains the query does
+        // not land on its own output.
+        const after = view.state.field(documentFind)
+        const resume = entry.from + insert.length
+        let next = after.matches.findIndex((match) => match.from >= resume)
+        if (next < 0) next = 0
+        view.dispatch({ effects: setFind.of({ query, options, index: next }) })
+        const result = view.state.field(documentFind)
+        revealCurrentMatch(result)
+        return { ...searchResult(result), replaced: 1 }
+      },
+      replaceAll: (replacement, query, options = null) => {
+        // Bring the highlights and the reported counts to this query first,
+        // as replaceCurrent does, so they never describe a stale one.
+        if (!syncSearch(query, options)) return { ...searchResult(view.state.field(documentFind)), replaced: 0 }
+        // Not the capped list the highlights use: a limit must never leave
+        // matches behind.
+        const { matches, error } = collectMatches(view.state.doc, query, options)
+        if (error || !matches.length) return { ...searchResult(view.state.field(documentFind)), replaced: 0 }
+        const text = String(replacement ?? "")
+        view.dispatch({
+          changes: matches.map((entry) => ({
+            from: entry.from,
+            to: entry.to,
+            insert: expandReplacement(text, entry, options),
+          })),
+          userEvent: "input.replace",
+        })
+        return { ...searchResult(view.state.field(documentFind)), replaced: matches.length }
       },
       isSyntaxReady: () => syntaxTreeAvailable(view.state, view.state.doc.length),
       replaceMarkdown: (markdown) => {

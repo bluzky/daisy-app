@@ -8,11 +8,16 @@ import Cocoa
 private final class FileNode {
     let url: URL
     let isDirectory: Bool
+    /// False for a file that cannot be read, or a symlink whose target is
+    /// gone, so there is nothing to preview. The row stays in the tree,
+    /// dimmed, with nothing to open.
+    let isPreviewable: Bool
     private var loadedChildren: [FileNode]?
 
-    init(url: URL, isDirectory: Bool) {
+    init(url: URL, isDirectory: Bool, isPreviewable: Bool = true) {
         self.url = url
         self.isDirectory = isDirectory
+        self.isPreviewable = isPreviewable
     }
 
     var displayName: String { url.lastPathComponent }
@@ -30,13 +35,17 @@ private final class FileNode {
         }
         let entries = (try? FileManager.default.contentsOfDirectory(
             at: url,
-            includingPropertiesForKeys: [.isDirectoryKey],
+            includingPropertiesForKeys: [.isDirectoryKey, .isReadableKey, .isSymbolicLinkKey],
             options: [.skipsHiddenFiles])) ?? []
-        let nodes: [FileNode] = entries.compactMap { entry in
-            let isDir = (try? entry.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
-            if isDir { return FileNode(url: entry, isDirectory: true) }
-            guard ProjectFileIndex.markdownExtensions.contains(entry.pathExtension.lowercased()) else { return nil }
-            return FileNode(url: entry, isDirectory: false)
+        let nodes: [FileNode] = entries.map { entry in
+            let values = try? entry.resourceValues(forKeys: [.isDirectoryKey, .isReadableKey, .isSymbolicLinkKey])
+            if values?.isDirectory ?? false { return FileNode(url: entry, isDirectory: true) }
+            // A symlink whose target is missing reports as a non-directory
+            // and unreadable; `fileExists` follows links, so it catches it.
+            let isBroken = (values?.isSymbolicLink ?? false)
+                && !FileManager.default.fileExists(atPath: entry.path)
+            let isPreviewable = (values?.isReadable ?? true) && !isBroken
+            return FileNode(url: entry, isDirectory: false, isPreviewable: isPreviewable)
         }
         let sorted = nodes.sorted { lhs, rhs in
             if lhs.isDirectory != rhs.isDirectory { return lhs.isDirectory }
@@ -79,6 +88,8 @@ final class ProjectNavigatorView: NSView {
     private let scrollView = NSScrollView()
     private let outlineView = NSOutlineView()
     private var rootNode: FileNode?
+    private var workspace: SidebarWorkspace?
+    private var isApplyingWorkspaceState = false
     private let bookmarksGroup = BookmarksGroupNode()
     private let filesHeader = FilesHeaderNode()
     private var bookmarkNodes: [BookmarkNode] = []
@@ -152,17 +163,46 @@ final class ProjectNavigatorView: NSView {
         ])
     }
 
-    func setRoot(_ url: URL?) {
+    /// Mounts workspace model, not another navigator view. Each navigator
+    /// keeps its own selection while folder expansion stays shared.
+    func setWorkspace(_ workspace: SidebarWorkspace?) {
+        guard self.workspace !== workspace else { return }
+        removeWorkspaceObserver()
+        self.workspace = workspace
+        if let workspace {
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(workspaceExpansionStateDidChange),
+                name: SidebarWorkspace.expansionStateDidChange,
+                object: workspace
+            )
+        }
+        mountRoot(workspace?.rootURL)
+    }
+
+    private func removeWorkspaceObserver() {
+        NotificationCenter.default.removeObserver(
+            self,
+            name: SidebarWorkspace.expansionStateDidChange,
+            object: workspace
+        )
+    }
+
+    @objc private func workspaceExpansionStateDidChange(_ notification: Notification) {
+        guard !isApplyingWorkspaceState,
+              (notification.userInfo?[SidebarWorkspace.expansionStateSourceKey]
+                  as? ProjectNavigatorView) !== self else { return }
+        restoreWorkspaceExpansionState()
+    }
+
+    private func mountRoot(_ url: URL?) {
         cancelAllWatchers()
         rootNode = url.map { FileNode(url: $0.standardizedFileURL, isDirectory: true) }
         updateSecurityScopedAccess()
         reloadBookmarkNodes()
         outlineView.reloadData()
         expandBookmarksGroupIfNeeded()
-        if let rootNode {
-            outlineView.expandItem(rootNode)
-            syncWatchers()
-        }
+        restoreWorkspaceExpansionState()
     }
 
     // MARK: - Bookmarks
@@ -249,16 +289,46 @@ final class ProjectNavigatorView: NSView {
     /// Reloads the outline from disk while preserving expansion state.
     /// Selection is left to the caller.
     private func refreshTree() {
-        let expandedURLs = collectExpandedURLs()
+        let expandedURLs = workspace?.expandedFolderURLs ?? collectExpandedURLs()
         if let rootNode { invalidateCaches(rootNode) }
         reloadBookmarkNodes()
         outlineView.reloadData()
         expandBookmarksGroupIfNeeded()
         if let rootNode {
-            outlineView.expandItem(rootNode)
-            reExpand(rootNode, expanded: expandedURLs)
+            if workspace == nil {
+                outlineView.expandItem(rootNode)
+                reExpand(rootNode, expanded: expandedURLs)
+            } else {
+                restoreWorkspaceExpansionState()
+            }
         }
         syncWatchers()
+    }
+
+    private func restoreWorkspaceExpansionState() {
+        guard let rootNode else { return }
+        isApplyingWorkspaceState = true
+        defer { isApplyingWorkspaceState = false }
+        guard let workspace else {
+            outlineView.expandItem(rootNode)
+            syncWatchers()
+            return
+        }
+        applyExpansionState(to: rootNode, expanded: workspace.expandedFolderURLs)
+        syncWatchers()
+    }
+
+    private func applyExpansionState(to node: FileNode, expanded: Set<URL>) {
+        guard node.isDirectory else { return }
+        let url = SidebarWorkspace.canonicalURL(node.url)
+        guard expanded.contains(url) else {
+            outlineView.collapseItem(node, collapseChildren: true)
+            return
+        }
+        outlineView.expandItem(node)
+        for child in node.children() where child.isDirectory {
+            applyExpansionState(to: child, expanded: expanded)
+        }
     }
 
     private func invalidateCaches(_ node: FileNode) {
@@ -276,7 +346,7 @@ final class ProjectNavigatorView: NSView {
             for index in 0..<count {
                 let child = outlineView.child(index, ofItem: item)
                 if let node = child as? FileNode, outlineView.isItemExpanded(node) {
-                    result.insert(node.url.standardizedFileURL)
+                    result.insert(SidebarWorkspace.canonicalURL(node.url))
                     walk(child)
                 }
             }
@@ -302,6 +372,11 @@ final class ProjectNavigatorView: NSView {
         }
     }
 
+    private func publishWorkspaceExpansionState() {
+        guard !isApplyingWorkspaceState else { return }
+        workspace?.setExpandedFolderURLs(collectExpandedURLs(), source: self)
+    }
+
     func setCurrentFile(_ url: URL?) {
         currentFileURL = url?.standardizedFileURL
         guard let url, let rootNode else {
@@ -324,6 +399,7 @@ final class ProjectNavigatorView: NSView {
         for ancestor in path.dropLast() {
             outlineView.expandItem(ancestor)
         }
+        publishWorkspaceExpansionState()
         if let leaf = path.last {
             let row = outlineView.row(forItem: leaf)
             if row >= 0 {
@@ -370,6 +446,7 @@ final class ProjectNavigatorView: NSView {
                 outlineView.expandItem(node)
             }
         } else {
+            guard node.isPreviewable else { return }
             let requestedURL = node.url.standardizedFileURL
             guard requestedURL != currentFileURL else { return }
             // `shouldSelectItem` keeps the highlight on the committed file,
@@ -557,7 +634,7 @@ private extension ProjectNavigatorView {
     }
 
     private func createMarkdownFile(named name: String, in directory: URL) {
-        guard let fileName = markdownFileName(from: name) else {
+        guard let fileName = newFileName(from: name) else {
             presentInvalidNameAlert()
             return
         }
@@ -645,20 +722,32 @@ private extension ProjectNavigatorView {
     }
 
     private func trash(_ url: URL) {
+        let closesCurrentFile = documentWindowController?.currentFileURL
+            .map { $0.standardizedFileURL.isDescendantOrSame(of: url) } ?? false
         do {
             try FileManager.default.trashItem(at: url, resultingItemURL: nil)
         } catch {
             presentFileOperationError(error)
             return
         }
+        if closesCurrentFile {
+            documentWindowController?.documentWindow.close()
+        }
         refreshTree()
     }
 
     private func rename(_ source: URL, to name: String) {
         let source = source.standardizedFileURL
+        // Only Markdown files are held to Markdown names. Any other file
+        // keeps its own kind, so renaming a PNG is not refused.
+        let isMarkdown = FileKind.classify(source) == .markdown
         guard let fileName = source.isExistingDirectory
             ? validItemName(name)
-            : markdownFileName(from: name, defaultExtension: source.pathExtension) else {
+            : (isMarkdown ? newFileName(from: name, defaultExtension: source.pathExtension)
+                : validItemName(name).map { name in
+                    (name as NSString).pathExtension.isEmpty && !source.pathExtension.isEmpty
+                        ? name + "." + source.pathExtension : name
+                }) else {
             presentInvalidNameAlert()
             return
         }
@@ -683,8 +772,8 @@ private extension ProjectNavigatorView {
         ProjectItemName.validated(name)
     }
 
-    private func markdownFileName(from name: String, defaultExtension: String = "md") -> String? {
-        ProjectItemName.markdownFileName(from: name, defaultExtension: defaultExtension)
+    private func newFileName(from name: String, defaultExtension: String = "md") -> String? {
+        ProjectItemName.newFileName(from: name, defaultExtension: defaultExtension)
     }
 
     private func presentNameAlert(title: String,
@@ -768,6 +857,7 @@ private extension ProjectNavigatorView {
         for ancestor in path.dropLast() {
             outlineView.expandItem(ancestor)
         }
+        publishWorkspaceExpansionState()
         if let node = path.last {
             let row = outlineView.row(forItem: node)
             if row >= 0 {
@@ -938,7 +1028,9 @@ extension ProjectNavigatorView: NSMenuDelegate {
         menu.addItem(.separator())
         addCreationItems(to: menu, for: url)
 
-        if !node.isDirectory {
+        // A dimmed file has nothing to open or copy; Show in Finder, creating
+        // items, Copy Path, Rename and Trash stay so it can still be dealt with.
+        if !node.isDirectory && node.isPreviewable {
             menu.addItem(.separator())
             menu.addItem(makeMenuItem(
                 title: NSLocalizedString("Open in New Tab", comment: "Project navigator context menu"),
@@ -1196,8 +1288,12 @@ extension ProjectNavigatorView: NSOutlineViewDelegate {
         let icon = NSWorkspace.shared.icon(forFile: iconPath)
         icon.size = NSSize(width: 16, height: 16)
         cell.imageView?.image = icon
-        let isMissing = (item as? BookmarkNode).map { $0.url == nil } ?? false
+        let isNotPreviewable = (item as? FileNode).map { !$0.isPreviewable } ?? false
+        let isMissing = ((item as? BookmarkNode).map { $0.url == nil } ?? false) || isNotPreviewable
         cell.imageView?.alphaValue = isMissing ? 0.4 : 1
+        cell.toolTip = isNotPreviewable
+            ? NSLocalizedString("This file can't be read.", comment: "Project navigator tooltip for an unreadable file")
+            : nil
         cell.textField?.textColor = isSelectedRow
             ? (themeAccent ?? .controlAccentColor)
             : (isMissing ? .tertiaryLabelColor : .labelColor)
@@ -1260,12 +1356,17 @@ extension ProjectNavigatorView: NSOutlineViewDelegate {
         }
         // Newly-loaded subtree needs its own watcher.
         syncWatchers()
+        guard !isApplyingWorkspaceState else { return }
+        publishWorkspaceExpansionState()
     }
 
     func outlineViewItemDidCollapse(_ notification: Notification) {
         if notification.userInfo?["NSObject"] is BookmarksGroupNode {
             UserDefaults.standard.set(false, forKey: Self.bookmarksExpandedKey)
+            return
         }
+        guard !isApplyingWorkspaceState else { return }
+        publishWorkspaceExpansionState()
     }
 }
 

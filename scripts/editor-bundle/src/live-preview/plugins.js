@@ -4,7 +4,7 @@ import { codeBlockWrappers } from "../decoration-parts.js"
 import { documentFind } from "../find.js"
 import { buildDecorations } from "./build-decorations.js"
 import { pointerPreview } from "../pointer.js"
-import { wrappedCodeBlocks } from "../widgets/code.js"
+import { unwrappedCodeBlocks } from "../widgets/code.js"
 
 export const livePreview = ViewPlugin.fromClass(class {
   constructor(view) {
@@ -18,7 +18,7 @@ export const livePreview = ViewPlugin.fromClass(class {
     // change. Refresh widgets then too, or images can stay as source until input.
     if (update.docChanged || update.selectionSet || update.viewportChanged || update.focusChanged
         || update.startState.field(pointerPreview) !== update.state.field(pointerPreview)
-        || update.startState.field(wrappedCodeBlocks) !== update.state.field(wrappedCodeBlocks)
+        || update.startState.field(unwrappedCodeBlocks) !== update.state.field(unwrappedCodeBlocks)
         || syntaxTree(update.startState) !== syntaxTree(update.state)
         || update.startState.field(documentFind) !== update.state.field(documentFind)) {
       this.decorations = buildDecorations(update.view, this.detectedCodeCache)

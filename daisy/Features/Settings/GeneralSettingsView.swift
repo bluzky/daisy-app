@@ -26,6 +26,30 @@ struct GeneralSettingsView: View {
             }
 
             Section {
+                Picker(selection: $model.launchBehavior) {
+                    Text(L("Show the Open dialog")).tag(LaunchBehaviorSetting.showOpenPanel)
+                    Text(L("Create a new document")).tag(LaunchBehaviorSetting.newDocument)
+                    Text(L("Reopen last folder and file")).tag(LaunchBehaviorSetting.reopenLastSession)
+                    Text(L("Open a specific file or folder")).tag(LaunchBehaviorSetting.openChosenItem)
+                } label: {
+                    Text(L("On launch"))
+                    Text(L("What Daisy opens when it starts or you click its Dock icon with no window open. Opening a file from Finder always opens that file."))
+                }
+                .pickerStyle(.menu)
+
+                if model.launchBehavior == .openChosenItem {
+                    LabeledContent {
+                        Button(L("Choose…")) { model.chooseLaunchItem() }
+                    } label: {
+                        Text(L("File or folder"))
+                        Text(model.launchItemPath ?? L("Not found. Choose it again."))
+                    }
+                }
+            } header: {
+                Text(L("Startup"))
+            }
+
+            Section {
                 Toggle(isOn: $model.isAlwaysOnTop) {
                     Text(L("Always on Top"))
                     Text(L("Keeps every Daisy window in front of other apps, including windows you open later. A window in full screen is left alone until it comes back out."))
@@ -105,6 +129,23 @@ struct GeneralSettingsView: View {
 
             Section {
                 LabeledContent {
+                    TextField("", text: $model.textFileEntries, prompt: Text("lua, php, Justfile"))
+                        .labelsHidden()
+                        .multilineTextAlignment(.trailing)
+                        .onSubmit { model.applyTextFileEntries() }
+                } label: {
+                    Text(L("Also edit as code"))
+                    Text(L("Extensions or file names, separated by commas."))
+                }
+            } header: {
+                Text(L("Code and text files"))
+            } footer: {
+                Text(L("Daisy edits common source and text files without a preview, and opens other files in their default app. Files over 5 MB, or not UTF-8, always open in the default app."))
+            }
+            .onDisappear { model.applyTextFileEntries() }
+
+            Section {
+                LabeledContent {
                     Picker("", selection: $model.autoSaveIntervalMinutes) {
                         Text(L("Never")).tag(AutoSaveSetting.disabledMinutes)
                         Text(L("30 seconds")).tag(AutoSaveSetting.thirtySeconds)
@@ -147,7 +188,7 @@ struct GeneralSettingsView: View {
                 Text(L("External apps & tools"))
             } footer: {
                 Text(L("The app the Open button in the document toolbar uses first. Its menu still offers every other installed app."))
-                Text(L("Adds mdp, daisy, and markdown-preview to your PATH. Run it again after updating the app to refresh the commands."))
+                Text(L("Adds the daisy command to your PATH. Run it again after updating the app to refresh it."))
             }
 
             Section {

@@ -41,7 +41,7 @@
 "The app the Open button in the document toolbar uses first. Its menu still offers every other installed app." = "文稿工具栏中的“打开”按钮会优先使用此 App。菜单仍会列出所有其他已安装的 App。";
 "Command line tools" = "命令行工具";
 "Install…" = "安装…";
-"Adds mdp, daisy, and markdown-preview to your PATH. Run it again after updating the app to refresh the commands." = "将 mdp、daisy 和 markdown-preview 添加到 PATH。更新 App 后请再次运行，以刷新这些命令。";
+"Adds the daisy command to your PATH. Run it again after updating the app to refresh it." = "将 daisy 命令添加到 PATH。更新 App 后请再次运行，以刷新该命令。";
 "Daisy" = "Daisy";
 "Version %@ (%@)" = "版本 %@（%@）";
 "Check for Updates" = "检查更新";
@@ -80,6 +80,7 @@
 "Light" = "浅色";
 "Dark" = "深色";
 "Content Width" = "内容宽度";
+"Narrow" = "窄";
 "Normal" = "标准";
 "Full Width" = "全宽";
 "Toggle Sidebar" = "切换边栏";
@@ -132,11 +133,10 @@
 "Block Quote" = "引用";
 
 /* Open panel */
-"Choose a Markdown file or folder" = "选择 Markdown 文件或文件夹";
+"Choose a file or folder" = "选择文件或文件夹";
 
 /* Search toolbar */
 "Search" = "搜索";
-"Search in Document" = "在文稿中搜索";
 
 /* Main toolbar */
 "Navigation" = "导航";
@@ -177,12 +177,20 @@
 "Heading %d" = "标题 %d";
 
 /* Find bar */
-"Match:" = "匹配：";
-"Contains" = "包含";
-"Begins With" = "开头为";
+"Find" = "查找";
+"Replace" = "替换";
+"Replace All" = "全部替换";
+"Toggle Replace" = "显示或隐藏替换";
+"Match Case" = "区分大小写";
+"Word" = "全字匹配";
+"Regex" = "正则表达式";
+"Close" = "关闭";
 "Done" = "完成";
 "Not found" = "未找到";
+"Invalid pattern" = "无效的表达式";
+"%d replaced" = "已替换 %d 处";
 "%d of %d" = "第 %1$d 个，共 %2$d 个";
+"%d of %d+" = "第 %1$d 个，共 %2$d+ 个";
 "Previous match" = "上一个匹配项";
 "Next match" = "下一个匹配项";
 
@@ -391,7 +399,6 @@
 "Math" = "数学公式";
 "Mermaid" = "Mermaid";
 "Colorful headings" = "彩色标题";
-"Collapsible headings" = "可折叠标题";
 "Slash commands" = "斜杠命令";
 "Editor" = "编辑器";
 "Lists" = "列表";
@@ -436,3 +443,26 @@
 "New File" = "新建文件";
 "New Folder" = "新建文件夹";
 "Move to Trash" = "移到废纸篓";
+"Insert" = "插入";
+"Image…" = "图片…";
+"Developer Tools" = "开发者工具";
+
+/* Launch behavior */
+"Startup" = "启动";
+"On launch" = "启动时";
+"Show the Open dialog" = "显示“打开”对话框";
+"Create a new document" = "新建文稿";
+"Reopen last folder and file" = "重新打开上次的文件夹和文件";
+"What Daisy opens when it starts or you click its Dock icon with no window open. Opening a file from Finder always opens that file." = "Daisy 启动时，或在没有打开窗口时点按其程序坞图标时要打开的内容。从“访达”打开文件时，始终会打开该文件。";
+"Open a specific file or folder" = "打开指定的文件或文件夹";
+"File or folder" = "文件或文件夹";
+"Not found. Choose it again." = "找不到该项目，请重新选取。";
+"Choose the Markdown file or folder Daisy opens when it starts" = "选取 Daisy 启动时要打开的 Markdown 文件或文件夹";
+
+/* Empty document */
+"Press %@ to start writing" = "按 %@ 开始写作";
+"Choose View ▸ Toggle Edit Mode to start writing" = "选取“显示”▸“切换编辑模式”开始写作";
+"Also edit as code" = "另外作为代码编辑";
+"Extensions or file names, separated by commas." = "扩展名或文件名，以逗号分隔。";
+"Code and text files" = "代码和文本文件";
+"Daisy edits common source and text files without a preview, and opens other files in their default app. Files over 5 MB, or not UTF-8, always open in the default app." = "Daisy 会直接编辑常见的源代码和文本文件（不带预览），其他文件用默认应用打开。超过 5 MB 或非 UTF-8 的文件始终用默认应用打开。";

@@ -38,6 +38,7 @@ final class WebViewLayoutHarness {
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .nonPersistent()
         configuration.preferences.inactiveSchedulingPolicy = .none
+        configuration.setURLSchemeHandler(VendorSchemeHandler(), forURLScheme: "md-asset")
         // A command-line test has no visible window. WebKit pauses native
         // animation frames there, even while async JavaScript is running.
         // Drive the frame clock explicitly; DOM layout, fonts, images, and
@@ -52,6 +53,35 @@ final class WebViewLayoutHarness {
                     return id;
                 };
                 window.cancelAnimationFrame = id => callbacks.delete(id);
+                // A windowless page counts as hidden, and WebKit then aligns
+                // chained timers to 1 s after about ten iterations, so the
+                // tests' 15 ms settle loops took ~1 s per step. Short timers
+                // run off a MessageChannel pump instead, which is not
+                // throttled; longer ones stay native.
+                const nativeSetTimeout = window.setTimeout.bind(window);
+                const nativeClearTimeout = window.clearTimeout.bind(window);
+                const shortTimers = new Map();
+                const pump = new MessageChannel();
+                pump.port1.onmessage = () => {
+                    const now = performance.now();
+                    for (const [id, timer] of [...shortTimers]) {
+                        if (timer.due > now || !shortTimers.delete(id)) continue;
+                        timer.callback(...timer.args);
+                    }
+                    if (shortTimers.size) pump.port2.postMessage(0);
+                };
+                window.setTimeout = (callback, delay = 0, ...args) => {
+                    if (typeof callback !== 'function' || Number(delay) > 50) {
+                        return nativeSetTimeout(callback, delay, ...args);
+                    }
+                    const id = -(++nextID);
+                    shortTimers.set(id, { callback, args, due: performance.now() + Number(delay) });
+                    if (shortTimers.size === 1) pump.port2.postMessage(0);
+                    return id;
+                };
+                window.clearTimeout = id => {
+                    if (!shortTimers.delete(id)) nativeClearTimeout(id);
+                };
                 window.__layoutTestFrame = () => {
                     const frame = [...callbacks.entries()];
                     for (const [id, callback] of frame) {
@@ -264,4 +294,29 @@ final class WebViewLayoutHarness {
         let description: String
         init(_ description: String) { self.description = description }
     }
+}
+
+/// Serves `md-asset:///__vendor/<file>` from the repository's vendor folder,
+/// the way the app's scheme handler serves it from the bundle, so pages that
+/// fetch a vendor bundle lazily (the editor's Mermaid) load it here too.
+private final class VendorSchemeHandler: NSObject, WKURLSchemeHandler {
+    private static let files = [
+        "mermaid.min.js": "daisy/Vendor/Mermaid/mermaid.min.js",
+    ]
+
+    func webView(_ webView: WKWebView, start urlSchemeTask: any WKURLSchemeTask) {
+        guard let url = urlSchemeTask.request.url,
+              url.path.hasPrefix("/__vendor/"),
+              let path = Self.files[url.lastPathComponent],
+              let data = try? Data(contentsOf: TestVendor.repositoryRoot.appendingPathComponent(path)) else {
+            urlSchemeTask.didFailWithError(URLError(.fileDoesNotExist))
+            return
+        }
+        urlSchemeTask.didReceive(URLResponse(url: url, mimeType: "text/javascript",
+                                             expectedContentLength: data.count, textEncodingName: "utf-8"))
+        urlSchemeTask.didReceive(data)
+        urlSchemeTask.didFinish()
+    }
+
+    func webView(_ webView: WKWebView, stop urlSchemeTask: any WKURLSchemeTask) {}
 }

@@ -33,11 +33,11 @@ Or grab the latest signed and notarized DMG from the [Releases](https://github.c
 </p>
 
 <p align="center">
-  <em>Edit Markdown directly with a native formatting toolbar:</em>
+  <em>Edit Markdown directly with the Format and Insert menus:</em>
 </p>
 
 <p align="center">
-  <img src="docs/screenshot-edit-mode.png" width="820" alt="Edit Mode with document outline and Markdown formatting toolbar" />
+  <img src="docs/screenshot-edit-mode.png" width="820" alt="Edit Mode with document outline" />
 </p>
 
 <p align="center">
@@ -59,20 +59,23 @@ Or grab the latest signed and notarized DMG from the [Releases](https://github.c
 ## Features
 
 - **Read Mode** — native `WKWebView` rendering with a document outline, file navigator and inspector panel. Task checkboxes save straight to the file.
+- **Workspaces** — open a folder to make it a workspace. Files inside it share Files sidebar root and folder expansion across open windows and tabs; opening a Markdown file directly uses its parent folder unless an open workspace already contains it. The Files sidebar lists every file in the folder: Markdown and source or text files open in Daisy, any other file opens in its default app, and files that can't be read are dimmed.
 - **Bookmarks** — right-click a file or folder in the file navigator and choose **Bookmark** to pin it in a Bookmarks section at the top of the Files tab. Click a bookmarked file to open it, or a folder to make it the project root; remove one from its right-click menu.
-- **Edit Mode** — edit in place with a formatting toolbar, Markdown syntax that previews as you type, inline table editing, and safe rich-text paste conversion. Pasting web content preserves common Markdown formatting, including absolute http(s) images; HTML tables and spreadsheet TSV become GFM tables. Image pastes still use Daisy's native asset flow (<kbd>⌘E</kbd> to toggle, <kbd>⌘S</kbd> to save).
+- **Edit Mode** — Markdown files open straight into it, whether chosen from Files sidebar, OmniSearch, Finder, or command line. Edit in place with Format and Insert menus (image, code block, table), Markdown syntax that previews as you type, inline table editing, and safe rich-text paste conversion. Pasting web content preserves common Markdown formatting, including absolute http(s) images; HTML tables and spreadsheet TSV become GFM tables. Image pastes still use Daisy's native asset flow (<kbd>⌘E</kbd> to toggle, <kbd>⌘S</kbd> to save).
 - **Slash commands** — type `/` at the start of a line or after a space to turn it into a heading, list, quote, divider, code block, table, image, Mermaid diagram, math block, or callout.
+- **Code and text files** — source and text files (`.txt`, `.json`, `.swift`, `.py`, `Makefile` and more) open straight into a code editor: syntax highlighting, line numbers, find and replace, and no preview or Markdown formatting. Add your own extensions or file names in **Settings → General → Code and text files**. Files over 5 MB, or not valid UTF-8, open in their default app instead.
 - **Templates** — insert your own Markdown snippets from the slash menu. Choose a template file in **Settings → General → Templates**; see [Templates](#templates) below.
-- **Extensions** — code highlighting, callouts, KaTeX math, Mermaid diagrams, and colorful and collapsible headings, each switchable in **Settings → Extensions**. Mermaid, colorful headings and slash commands also apply in Edit Mode.
+- **Extensions** — code highlighting, callouts, KaTeX math, Mermaid diagrams, and colorful headings, each switchable in **Settings → Extensions**. Mermaid, colorful headings and slash commands also apply in Edit Mode for Markdown files; the code editor for source and text files uses none of them.
 - **Quick Look** — system-wide `.md` previews from Finder, Spotlight, and Mail.
-- **Search** — in-document search (<kbd>⌘F</kbd>) and OmniSearch (<kbd>⌘K</kbd>), one box for recent files, files by name, text inside files and menu commands. Type `>` first to list commands only. Type a name that matches no file and the top result offers to create it (`notes/roadmap` makes `notes/roadmap.md`) and opens it for editing.
+- **Search** — in-document search (<kbd>⌘F</kbd>) and OmniSearch (<kbd>⌘K</kbd>), one box for recent files, files by name (any file type; non-Markdown files open in their default app), text inside Markdown and text files and menu commands. Type `>` first to list commands only. Type a name that matches no file and the top result offers to create it (`notes/roadmap` makes `notes/roadmap.md`; type a Markdown, source or text extension, such as `notes/todo.txt` or `src/main.swift`, to get that file instead) and opens it for editing.
 - **Quick Capture** — turn on the shortcut in Settings, then press it from any app (<kbd>⌃⌥Space</kbd> by default, changeable there) to open `Inbox.md` from your capture folder in the editor. Each time adds a new `## yyyy-MM-dd HH:mm` heading at the end and puts the cursor under it.
 - **Custom shortcuts** — rebind Daisy commands in **Settings → Shortcuts**. Daisy reads and writes `~/.config/daisy/keymap.json`; bindings apply only in their Global, Reading, Editing, or Search context. Project Navigator file commands (New File <kbd>⌥⌘N</kbd>, New Folder <kbd>⇧⌘N</kbd>, Rename, Move to Trash) are in the File menu and act on the selected sidebar item; Rename and Move to Trash have no default shortcut.
 - **Reading settings** — text size and zoom, content width, text alignment, strict line breaks, and themes with font, spacing, and color customization.
+- **Export** — **File → Export** has one item per format — **PDF…**, **HTML…**, **PNG…** and **Word…** (`.docx`) — each with its own save dialog. Word exports use real Word headings, lists, tables and code blocks, include Mermaid diagrams as pictures when the Mermaid extension is enabled (otherwise they remain code), and have a **Theme** picker: GitHub (default), Serif, Minimal and Document. Add your own by dropping a `docx-theme-<id>.json` file into `~/.config/daisy/docx-themes/`; see [Building a DOCX export theme](docs/docx-theme-authoring.md).
 
 
 
-- **Command line and URL scheme** — `mdp .` from a shell, or `daisy://file/<absolute path>` from a browser link. `md-preview://` links still work.
+- **Command line and URL scheme** — `daisy .` opens from a shell; `daisy export report.md --format docx --output report.docx` writes a Word document. [CLI docs](docs/command-line.md) cover export. Browser links use `daisy://file/<absolute path>`.
 
 
 ### Templates
@@ -112,8 +115,12 @@ Write `\{{` for a literal `{{`. An unknown name is left as typed.
 
 ## Supported file types
 
-`.md`, `.markdown`, `.mdown`, `.mdx`, `.txt`
+Rendered as Markdown: `.md`, `.markdown`, `.mdown`, `.mkd`, `.mdwn`, `.mdx`, `.mkdn`
 UTI: `net.daringfireball.markdown`
+
+Edited as code, with no preview: `.txt` and common source, config and text files (see **Settings → General → Code and text files** for the list and to add more).
+
+Anything else opens in its default app.
 
 ## Requirements
 
@@ -168,9 +175,10 @@ Use `./scripts/rollback-release.sh` to revert the appcast pointer if a release m
 Pull requests are welcome. For larger changes, please open an issue first to discuss what you'd like to change.
 
 1. Fork the repo and create your branch from `main`.
-2. Run the app and verify the change end-to-end (UI changes need a manual smoke test — there's no UI test suite yet).
-3. Keep PRs focused; one logical change per PR.
-4. Match the existing Swift style (no formatter is enforced; mirror nearby code).
+2. The editor's JavaScript bundle (`daisy/Vendor/CodeMirror/mdedit.min.js`) is built, not checked in. Install Node.js; an Xcode build runs `npm ci && npm run build` in `scripts/editor-bundle` when the bundle is missing or stale. `swift test` reads the same file, so build once in Xcode or run those two commands first. Editor behaviour is covered by `npm test` in that folder.
+3. Run the app and verify the change end-to-end (UI changes need a manual smoke test — there's no UI test suite yet).
+4. Keep PRs focused; one logical change per PR.
+5. Match the existing Swift style (no formatter is enforced; mirror nearby code).
 
 ## Acknowledgments
 - [swift-markdown](https://github.com/swiftlang/swift-markdown) — Markdown parser (Apple, cmark-gfm-backed)

@@ -149,7 +149,7 @@ final class FileSearchResultsTests: XCTestCase {
     func testCreateRowWaitsForTheIndexAndNeedsAValidName() throws {
         XCTAssertEqual(try FileSearchResults.rows(query: "roadmap", recentURLs: [], snapshot: nil), [])
         let snapshot = ProjectFileIndex.Snapshot(root: root, candidates: [], isTruncated: false)
-        XCTAssertEqual(try FileSearchResults.rows(query: "foo.txt", recentURLs: [], snapshot: snapshot), [])
+        XCTAssertEqual(try FileSearchResults.rows(query: "foo.png", recentURLs: [], snapshot: snapshot), [])
         XCTAssertEqual(try FileSearchResults.rows(query: "> roadmap", recentURLs: [], snapshot: snapshot), [])
     }
 

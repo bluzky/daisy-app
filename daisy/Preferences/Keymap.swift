@@ -15,12 +15,7 @@ enum KeymapContext: String, CaseIterable, Hashable {
 }
 
 enum KeymapCommand: String, CaseIterable, Hashable {
-    case fileNewTab = "file.newTab"
     case fileOmniSearch = "file.omniSearch"
-    case fileNewFile = "file.newFile"
-    case fileNewFolder = "file.newFolder"
-    case fileRename = "file.rename"
-    case fileMoveToTrash = "file.moveToTrash"
     case viewToggleSidebar = "view.toggleSidebar"
     case viewHideSidebar = "view.hideSidebar"
     case viewShowOutline = "view.showOutline"
@@ -70,8 +65,7 @@ enum KeymapCommand: String, CaseIterable, Hashable {
 
     var context: KeymapContext {
         switch self {
-        case .fileNewTab, .fileOmniSearch,
-             .fileNewFile, .fileNewFolder, .fileRename, .fileMoveToTrash,
+        case .fileOmniSearch,
              .viewToggleSidebar, .viewHideSidebar, .viewShowOutline,
              .viewShowProjectNavigator, .viewToggleEditMode, .viewToggleToolbar,
              .viewToggleAlwaysOnTop, .findFind, .findReplace, .findNext,
@@ -93,12 +87,7 @@ enum KeymapCommand: String, CaseIterable, Hashable {
 
     var titleKey: String {
         switch self {
-        case .fileNewTab: "New Tab"
         case .fileOmniSearch: "OmniSearch…"
-        case .fileNewFile: "New File"
-        case .fileNewFolder: "New Folder"
-        case .fileRename: "Rename"
-        case .fileMoveToTrash: "Move to Trash"
         case .viewToggleSidebar: "Toggle Sidebar"
         case .viewHideSidebar: "Hide Sidebar"
         case .viewShowOutline: "Table of Contents"
@@ -455,9 +444,7 @@ struct Keymap {
 
     private static let defaultBindings: [KeymapContext: [(KeyBinding, KeymapCommand)]] = [
         .global: pairs([
-            ("cmd+t", .fileNewTab), ("cmd+k", .fileOmniSearch),
-            ("opt+cmd+n", .fileNewFile),
-            ("shift+cmd+n", .fileNewFolder), ("cmd+l", .viewToggleSidebar),
+            ("cmd+k", .fileOmniSearch), ("cmd+l", .viewToggleSidebar),
             ("ctrl+cmd+1", .viewHideSidebar), ("ctrl+cmd+2", .viewShowOutline),
             ("ctrl+cmd+3", .viewShowProjectNavigator), ("cmd+e", .viewToggleEditMode),
             ("opt+cmd+t", .viewToggleToolbar), ("ctrl+cmd+t", .viewToggleAlwaysOnTop),

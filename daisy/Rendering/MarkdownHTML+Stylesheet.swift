@@ -15,6 +15,17 @@ nonisolated extension MarkdownHTML {
     /// Shared document stylesheet. Extension CSS is emitted from registry.
     static let stylesheet = baseStylesheet
 
+    /// The reader's text size (⌘+ / ⌘−, pinch, Settings) as a multiplier on
+    /// `:root`. It scales the body type and the text-rhythm spacing, never
+    /// the page geometry, so the Content Width column keeps its on-screen
+    /// measure at every text size.
+    static let textScaleProperty = "--mdp-text-scale"
+
+    /// A `px` length that follows the reader's text size.
+    static func textScaled(_ px: CGFloat) -> String {
+        "calc(\(px)px * var(\(textScaleProperty), 1))"
+    }
+
     private static let baseStylesheet = """
     :root {
         color-scheme: light dark;
@@ -130,7 +141,7 @@ nonisolated extension MarkdownHTML {
     }
     body {
         font-family: var(--mdp-doc-font, \(bodyFontFamily));
-        font-size: \(bodyFontSize)px;
+        font-size: \(textScaled(bodyFontSize));
         font-weight: var(--mdp-body-weight, 400);
         line-height: var(--mdp-line-height, \(bodyLineHeight));
         letter-spacing: var(--mdp-letter-spacing, normal);
@@ -203,7 +214,7 @@ nonisolated extension MarkdownHTML {
     }
     .md-source-list-line {
         display: block;
-        margin-top: \(listItemSpacing)px;
+        margin-top: \(textScaled(listItemSpacing));
     }
     .md-source-list-marker {
         display: inline-block;
@@ -267,19 +278,28 @@ nonisolated extension MarkdownHTML {
         content: "—";
         color: var(--secondary);
     }
+    /* Stands in for an empty document's content; not part of the document,
+       so it can't be selected and never reaches paper or PDF. */
+    .\(emptyDocumentHintClass) {
+        margin: 30vh 0 0;
+        text-align: center;
+        color: var(--secondary);
+        -webkit-user-select: none;
+        user-select: none;
+    }
 
     p {
-        margin: \(paragraphSpacing)px 0 0;
+        margin: \(textScaled(paragraphSpacing)) 0 0;
     }
     /* The final blank of a run shrinks to a small gap so a single authored
        blank plus the next block's margin matches other renderers' paragraph
        rhythm. Earlier blanks in the run keep their natural line height, so
        extra authored blanks still grow the gap. */
     .md-source-blank-line {
-        height: \(blankLineGap)px;
+        height: \(textScaled(blankLineGap));
     }
     .md-source-blank-line:has(+ .md-source-blank-line) {
-        height: \(sourceLineHeight)px;
+        height: \(textScaled(sourceLineHeight));
     }
 
     h1, h2, h3, h4, h5, h6 {
@@ -288,7 +308,7 @@ nonisolated extension MarkdownHTML {
         /* Top-only, like every block: the next block's own top margin is the
            gap below a heading. In the flex column margins no longer collapse,
            so a bottom margin here would add to it. */
-        margin: calc(0.6rem + 0.5em) 0 0;
+        margin: calc(0.6rem * var(\(textScaleProperty), 1) + 0.5em) 0 0;
         overflow-wrap: anywhere;
     }
     /* System title scale as ratios of a 13px body: Large Title 26, Title 1
@@ -309,7 +329,7 @@ nonisolated extension MarkdownHTML {
     .md-source-blank-line + h4,
     .md-source-blank-line + h5,
     .md-source-blank-line + h6 {
-        margin-top: \(sourceLineHeight)px;
+        margin-top: \(textScaled(sourceLineHeight));
     }
 
     a { color: var(--link); text-decoration: none; }
@@ -375,7 +395,7 @@ nonisolated extension MarkdownHTML {
     }
     pre {
         position: relative;
-        margin: \(paragraphSpacing)px 0 0;
+        margin: \(textScaled(paragraphSpacing)) 0 0;
         padding: 16px;
         background: var(--code-bg);
         border: 0.5px solid var(--code-border);
@@ -407,7 +427,7 @@ nonisolated extension MarkdownHTML {
     }
     .md-code-wrap {
         position: relative;
-        margin: \(paragraphSpacing)px 0 0;
+        margin: \(textScaled(paragraphSpacing)) 0 0;
         background: var(--code-bg);
         border: 0.5px solid var(--code-border);
         border-radius: 16px;
@@ -439,7 +459,7 @@ nonisolated extension MarkdownHTML {
     .md-code-action:focus-visible { outline: 2px solid AccentColor; outline-offset: 1px; }
     .mermaid-figure {
         position: relative;
-        margin: \(largeBlockSpacing)px auto 0;
+        margin: \(textScaled(largeBlockSpacing)) auto 0;
         background: var(--code-bg);
         border-radius: 15px;
         overflow: hidden;
@@ -447,20 +467,43 @@ nonisolated extension MarkdownHTML {
         /* The stage is absolutely positioned, so the figure has no width of
            its own. Left to its auto margins inside the article's flex column
            it shrinks to 0 wide, and the aspect ratio then makes it 0 tall.
-           The max-width is the height cap carried through the aspect ratio,
-           which block layout derived by itself: a tall diagram narrows and
-           stays centred rather than filling the column with empty sides. */
-        --mm-max-height: min(70vh, 720px);
+           Only the width is capped, at the diagram's natural width, so it is
+           never scaled up past the size Mermaid laid it out at. The height
+           follows from the aspect ratio: a tall diagram stays readable and
+           the page scrolls past it.
+           The padding mirrors the .mermaid padding, and the ::before sizer
+           applies the aspect ratio to what's left inside it. Applied to the
+           padded box instead, the fixed 32px eats a large share of a wide
+           diagram's short height and the SVG letterboxes to a fraction of
+           the column. (aspect-ratio with content-box sizing would say this
+           directly, but WebKit subtracts the padding twice.) */
+        padding: 16px;
         width: 100%;
-        max-width: calc(var(--mm-max-height) * (var(--mm-aspect, 4 / 3)));
-        aspect-ratio: var(--mm-aspect, 4 / 3);
-        max-height: var(--mm-max-height);
+        max-width: calc(var(--mm-natural-width, 100%) + 32px);
         contain: layout paint;
     }
+    .mermaid-figure::before {
+        content: "";
+        display: block;
+        aspect-ratio: var(--mm-aspect, 4 / 3);
+    }
+    .mermaid-figure.mermaid-error::before { content: none; }
+    /* A render failure leaves Mermaid source in the stage. Return it to normal
+       flow so the source gives the figure its height instead of escaping its
+       now-unsized absolute stage. */
+    .mermaid-figure.mermaid-error .mermaid-stage {
+        position: static;
+        overflow: visible;
+        contain: none;
+    }
+    .mermaid-figure.mermaid-error .mermaid {
+        position: static;
+        display: block;
+        padding: 0;
+    }
+    .mermaid-figure.mermaid-error .mermaid-hud { display: none; }
     .mermaid-figure.mermaid-width-expanded {
-        width: 100%;
         max-width: none;
-        max-height: none;
     }
     .mermaid-figure:focus-visible {
         box-shadow: 0 0 0 3px color-mix(in srgb, AccentColor 60%, transparent);
@@ -594,7 +637,7 @@ nonisolated extension MarkdownHTML {
 
     blockquote {
         position: relative;
-        margin: \(quoteSpacing)px 0 0;
+        margin: \(textScaled(quoteSpacing)) 0 0;
         padding: 0.4em 1em;
         padding-inline-start: 1.5em;
         color: var(--secondary);
@@ -612,7 +655,7 @@ nonisolated extension MarkdownHTML {
     blockquote > *:first-child { margin-top: 0; }
 
     .markdown-alert {
-        margin: \(largeBlockSpacing)px 0 0;
+        margin: \(textScaled(largeBlockSpacing)) 0 0;
         padding: 12px 16px;
         background: var(--aside-bg);
         border-left: 4px solid var(--aside-border);
@@ -646,7 +689,7 @@ nonisolated extension MarkdownHTML {
     .markdown-alert-caution .markdown-alert-title { color: #d1242f; }
 
     ul, ol {
-        margin: \(paragraphSpacing)px 0 0;
+        margin: \(textScaled(paragraphSpacing)) 0 0;
         padding-inline-start: var(--mdp-list-indent);
         padding-inline-end: 0;
     }
@@ -668,9 +711,9 @@ nonisolated extension MarkdownHTML {
         border: 0.2em solid var(--link);
         border-radius: 50%;
     }
-    li { margin-top: \(listItemSpacing)px; }
+    li { margin-top: \(textScaled(listItemSpacing)); }
     li:first-child { margin-top: 0; }
-    li > ul, li > ol { margin-top: \(listItemSpacing)px; }
+    li > ul, li > ol { margin-top: \(textScaled(listItemSpacing)); }
     li > p:first-child { margin-top: 0; }
 
     li.task-list-item { list-style: none; }
@@ -711,12 +754,18 @@ nonisolated extension MarkdownHTML {
         background-size: 100% 100%;
     }
 
-    table {
-        margin: \(largeBlockSpacing)px 0 0;
-        border-collapse: collapse;
-        display: block;
+    /* Tables always span the full column, however little their cells hold.
+       The wrapper owns the margin and the horizontal scroll: a table box
+       cannot scroll itself and still stretch to the column. */
+    .md-table-scroll {
+        margin: \(textScaled(largeBlockSpacing)) 0 0;
         overflow-x: auto;
         max-width: 100%;
+    }
+    .md-table-scroll > table {
+        border-collapse: collapse;
+        display: table;
+        width: 100%;
     }
     th, td {
         padding: 8px 12px;
@@ -738,14 +787,14 @@ nonisolated extension MarkdownHTML {
         border: 0;
         height: 1px;
         background: var(--grid);
-        margin: \(hrSpacing)px 0 0;
+        margin: \(textScaled(hrSpacing)) 0 0;
     }
 
     img {
         /* Follow the surrounding text, including explicit HTML alignment. */
         display: inline-block;
         max-width: 100%;
-        margin: \(paragraphSpacing)px 0 0;
+        margin: \(textScaled(paragraphSpacing)) 0 0;
         border-radius: 8px;
     }
     /* Keep downscaled images proportional, but let explicit width/height
@@ -783,6 +832,12 @@ nonisolated extension MarkdownHTML {
        excludes these paper-only changes and preserves the read-only page.
        --------------------------------------------------------------------- */
     @media print {
+        /* Paper and PDF keep their own type size; the on-screen text size
+           is a reading preference, not part of the document. Important so
+           it beats the live value the app sets inline on <html>. */
+        :root {
+            \(textScaleProperty): 1 !important;
+        }
         :root:not(.\(previewPrintClass)) {
             color-scheme: light;
             --text: #1d1d1f;
@@ -798,6 +853,9 @@ nonisolated extension MarkdownHTML {
         html,
         body {
             overflow: visible;
+        }
+        .\(emptyDocumentHintClass) {
+            display: none;
         }
         :root:not(.\(previewPrintClass)),
         :root:not(.\(previewPrintClass)) body {
@@ -834,7 +892,7 @@ nonisolated extension MarkdownHTML {
         /* Splitting these across a page break loses the reading order. */
         :root:not(.\(previewPrintClass)) pre,
         :root:not(.\(previewPrintClass)) blockquote,
-        :root:not(.\(previewPrintClass)) table,
+        :root:not(.\(previewPrintClass)) .md-table-scroll,
         :root:not(.\(previewPrintClass)) figure,
         :root:not(.\(previewPrintClass)) .md-frontmatter,
         :root:not(.\(previewPrintClass)) .markdown-alert {
@@ -855,7 +913,7 @@ nonisolated extension MarkdownHTML {
         /* Inner scrollers can't scroll on paper — let them wrap instead of
            clipping their overflow. */
         :root:not(.\(previewPrintClass)) .md-code-wrap,
-        :root:not(.\(previewPrintClass)) table,
+        :root:not(.\(previewPrintClass)) .md-table-scroll,
         :root:not(.\(previewPrintClass)) pre {
             overflow: visible !important;
         }

@@ -22,19 +22,20 @@ extension DocumentWindowController {
             markdown: markdown,
             assetBaseURL: currentFileURL?.deletingLastPathComponent(),
             autofocus: autofocus,
-            appendingEntry: appendingEntry
+            appendingEntry: appendingEntry,
+            codeLanguage: isCodeFile ? CodeDocument.language(forFileName: currentFileURL?.lastPathComponent ?? "") : nil
         )
         editor.cancelRequested = { [weak self] in
-            self?.previewPendingEdits()
+            // A code file has no preview to return to.
+            guard let self, !self.isCodeFile else { return }
+            self.previewPendingEdits()
         }
         editor.contentDidChange = { [weak self] in
             self?.editorChangeRevision += 1
             self?.hasUnsavedEditorChanges = true
             self?.stopAutoSaveTimer()
             self?.startAutoSaveTimerIfNeeded()
-        }
-        editor.formattingDidChange = { [weak self] heading, commands in
-            self?.updateFormattingSelection(heading: heading, commands: commands)
+            self?.scheduleOutlineRefresh()
         }
         editor.pasteImageRequested = { [weak self] from, to in
             self?.pasteImage(at: from, replacing: to)
@@ -50,8 +51,24 @@ extension DocumentWindowController {
             editorChangeRevision = 0
             hasUnsavedEditorChanges = false
         }
-        showEditAccessory()
         updateEditToolbarItem()
+    }
+
+    /// Rebuilds the sidebar outline from the editor text shortly after typing
+    /// stops, so outline clicks match what the editor holds.
+    private func scheduleOutlineRefresh() {
+        guard !isCodeFile else { return }
+        outlineRefreshWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, let split = self.mainSplit,
+                  let editor = split.editorViewController else { return }
+            editor.fetchMarkdown { markdown in
+                guard let markdown else { return }
+                split.refreshOutline(markdown: markdown)
+            }
+        }
+        outlineRefreshWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1, execute: work)
     }
 
     /// Switches to preview without resolving the editing session. The preview
@@ -115,6 +132,7 @@ extension DocumentWindowController {
 
             self.currentFileURL = url
             self.documentWindow.title = url.lastPathComponent
+            self.updateTabEditedIndicator()
             self.markdownDocument?.replaceContents(markdown: text, fileURL: url)
             self.mainSplit?.openFileURLDidChange(url, markdown: text)
             self.resetAutoSaveFeedback()
@@ -362,6 +380,27 @@ extension DocumentWindowController {
         }
     }
 
+    /// Follows an outside change to the file while the editor holds no
+    /// unsaved edits. Our own saves update the baseline, so they read as
+    /// unchanged here and are ignored.
+    func reloadCleanEditorFromDisk() {
+        guard isEditing, !hasPendingEditorChanges,
+              let editor = mainSplit?.editorViewController,
+              case let .modified(externalMarkdown) = diskFileState(
+                  for: currentFileURL,
+                  expectedMarkdown: editorBaselineMarkdown ?? currentMarkdown
+              ) else { return }
+        currentMarkdown = externalMarkdown
+        editorDraftMarkdown = nil
+        editorBaselineMarkdown = externalMarkdown
+        editorChangeRevision = 0
+        if let url = currentFileURL {
+            markdownDocument?.replaceContents(markdown: externalMarkdown, fileURL: url)
+            renderCurrentDocument(text: externalMarkdown, fileURL: url)
+        }
+        editor.replaceMarkdown(externalMarkdown)
+    }
+
     func adoptExternalMarkdown(_ markdown: String,
                               editor: EditorViewController?,
                               exitAfter: Bool) {
@@ -377,10 +416,7 @@ extension DocumentWindowController {
             }
         }
         if !exitAfter {
-            editor?.load(
-                markdown: markdown,
-                assetBaseURL: currentFileURL?.deletingLastPathComponent()
-            )
+            editor?.replaceMarkdown(markdown)
         }
         completeSuccessfulEditorCommit(exitAfter: exitAfter, rerender: true)
     }
@@ -442,7 +478,6 @@ extension DocumentWindowController {
             return
         }
         split.editorViewController?.contentDidChange = nil
-        split.editorViewController?.formattingDidChange = nil
         split.editorViewController?.cancelRequested = nil
         split.editorViewController?.pasteImageRequested = nil
         split.editorViewController?.pickImageRequested = nil
@@ -464,9 +499,7 @@ extension DocumentWindowController {
             if !preserveUnsavedChanges {
                 self.hasUnsavedEditorChanges = false
             }
-            if self.editBar == nil {
-                self.updateEditToolbarItem()
-            }
+            self.updateEditToolbarItem()
             completion()
         }
     }

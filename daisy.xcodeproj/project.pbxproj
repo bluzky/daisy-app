@@ -13,7 +13,10 @@
 		9A2040010000000000000001 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 9A2040010000000000000004 /* Localizable.strings */; };
 		9A33940A2FA5AF500015D9A4 /* Markdown in Frameworks */ = {isa = PBXBuildFile; productRef = 9A3394092FA5AF500015D9A4 /* Markdown */; };
 		9A33940C2FA5AF500015D9A4 /* Markdown in Frameworks */ = {isa = PBXBuildFile; productRef = 9A33940B2FA5AF500015D9A4 /* Markdown */; };
-		9AC100010000000000000001 /* bin/markdown-preview in Copy CLI Tool */ = {isa = PBXBuildFile; fileRef = 9AC100010000000000000002 /* bin/markdown-preview */; };
+		9AC100010000000000000001 /* bin/daisy in Copy CLI Tool */ = {isa = PBXBuildFile; fileRef = 9AC100010000000000000002 /* bin/daisy */; };
+		9AC200010000000000000001 /* Markdown in Frameworks */ = {isa = PBXBuildFile; productRef = 9AC200010000000000000011 /* Markdown */; };
+		9AC200010000000000000002 /* daisy-export in Copy CLI Tool */ = {isa = PBXBuildFile; fileRef = 9AC200010000000000000010 /* daisy-export */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		9AF00000000000000000000E /* mdedit.min.js in Resources */ = {isa = PBXBuildFile; fileRef = 9AF000000000000000000110 /* mdedit.min.js */; };
 		9AF000000000000000000003 /* mermaid.min.js in Resources */ = {isa = PBXBuildFile; fileRef = 9AF000000000000000000101 /* mermaid.min.js */; };
 		9AF000000000000000000004 /* LICENSE in Resources */ = {isa = PBXBuildFile; fileRef = 9AF000000000000000000102 /* LICENSE */; };
 		9AF000000000000000000005 /* katex.min.js in Resources */ = {isa = PBXBuildFile; fileRef = 9AF000000000000000000103 /* katex.min.js */; };
@@ -33,6 +36,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = 9A02092C2FA10D4C00092060;
 			remoteInfo = "quick-look";
+		};
+		9AC200010000000000000003 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 9A0207B92FA0ED7C00092060 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 9AC200010000000000000004;
+			remoteInfo = "daisy-export";
 		};
 /* End PBXContainerItemProxy section */
 
@@ -54,7 +64,8 @@
 			dstPath = bin;
 			dstSubfolderSpec = 7;
 			files = (
-				9AC100010000000000000001 /* bin/markdown-preview in Copy CLI Tool */,
+				9AC100010000000000000001 /* bin/daisy in Copy CLI Tool */,
+				9AC200010000000000000002 /* daisy-export in Copy CLI Tool */,
 			);
 			name = "Copy CLI Tool";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -68,7 +79,8 @@
 		9A0209A02FA1100100092060 /* Version.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Version.xcconfig; sourceTree = "<group>"; };
 		9A2040010000000000000002 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = daisy/en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		9A2040010000000000000003 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "daisy/zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
-		9AC100010000000000000002 /* bin/markdown-preview */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = "bin/markdown-preview"; sourceTree = "<group>"; };
+		9AC100010000000000000002 /* bin/daisy */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = "bin/daisy"; sourceTree = "<group>"; };
+		9AC200010000000000000010 /* daisy-export */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "daisy-export"; sourceTree = BUILT_PRODUCTS_DIR; };
 		9AF000000000000000000101 /* mermaid.min.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = mermaid.min.js; path = daisy/Vendor/Mermaid/mermaid.min.js; sourceTree = "<group>"; };
 		9AF000000000000000000102 /* LICENSE */ = {isa = PBXFileReference; lastKnownFileType = text; name = LICENSE; path = daisy/Vendor/Mermaid/LICENSE; sourceTree = "<group>"; };
 		9AF000000000000000000103 /* katex.min.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = katex.min.js; path = daisy/Vendor/KaTeX/katex.min.js; sourceTree = "<group>"; };
@@ -78,6 +90,7 @@
 		9AF000000000000000000107 /* highlight.min.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = highlight.min.js; path = daisy/Vendor/Highlight/highlight.min.js; sourceTree = "<group>"; };
 		9AF000000000000000000109 /* Highlight-LICENSE.txt */ = {isa = PBXFileReference; lastKnownFileType = text; name = "Highlight-LICENSE.txt"; path = "daisy/Vendor/Highlight/Highlight-LICENSE.txt"; sourceTree = "<group>"; };
 		9AF00000000000000000010A /* purify.min.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = purify.min.js; path = daisy/Vendor/DOMPurify/purify.min.js; sourceTree = "<group>"; };
+		9AF000000000000000000110 /* mdedit.min.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = mdedit.min.js; path = daisy/Vendor/CodeMirror/mdedit.min.js; sourceTree = "<group>"; };
 		9AF00000000000000000010B /* DOMPurify-LICENSE.txt */ = {isa = PBXFileReference; lastKnownFileType = text; name = "DOMPurify-LICENSE.txt"; path = "daisy/Vendor/DOMPurify/DOMPurify-LICENSE.txt"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -92,6 +105,8 @@
 		9A0209432FA10E6600092060 /* Exceptions for "daisy" folder in "quick-look" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				Features/Find/SearchOptions.swift,
+				Features/Find/SearchPatternScript.swift,
 				Helpers/ChromeStripClickThrough.swift,
 				Rendering/CodeFenceInfo.swift,
 				Rendering/CodeHighlighter.swift,
@@ -102,7 +117,6 @@
 				Rendering/MarkdownAssetSchemeHandler.swift,
 				Rendering/MarkdownFrontmatter.swift,
 				Rendering/MarkdownHTML.swift,
-				"Rendering/MarkdownHTML+CollapsibleHeaders.swift",
 				"Rendering/MarkdownHTML+ColorfulHeaders.swift",
 				"Rendering/MarkdownHTML+Footnotes.swift",
 				"Rendering/MarkdownHTML+Highlight.swift",
@@ -123,12 +137,27 @@
 			);
 			target = 9A02092C2FA10D4C00092060 /* quick-look */;
 		};
+		9AF0000000000000000001A1 /* Exceptions for "daisy" folder in "daisy" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Vendor/CodeMirror/mdedit.min.js,
+			);
+			target = 9A0207C02FA0ED7C00092060 /* daisy */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		9AC200010000000000000005 /* cli */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
+			path = cli;
+			sourceTree = "<group>";
+		};
 		9A0207C32FA0ED7C00092060 /* daisy */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
+				9AF0000000000000000001A1 /* Exceptions for "daisy" folder in "daisy" target */,
 				9A0209432FA10E6600092060 /* Exceptions for "daisy" folder in "quick-look" target */,
 			);
 			path = daisy;
@@ -163,6 +192,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		9AC200010000000000000006 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9AC200010000000000000001 /* Markdown in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -172,6 +209,7 @@
 				9A0209A02FA1100100092060 /* Version.xcconfig */,
 				9A2040010000000000000004 /* Localizable.strings */,
 				9AC100010000000000000004 /* Resources */,
+				9AF000000000000000000110 /* mdedit.min.js */,
 				9AF000000000000000000101 /* mermaid.min.js */,
 				9AF000000000000000000102 /* LICENSE */,
 				9AF000000000000000000103 /* katex.min.js */,
@@ -183,6 +221,7 @@
 				9AF00000000000000000010A /* purify.min.js */,
 				9AF00000000000000000010B /* DOMPurify-LICENSE.txt */,
 				9A0207C32FA0ED7C00092060 /* daisy */,
+				9AC200010000000000000005 /* cli */,
 				9A0209312FA10D4C00092060 /* quick-look */,
 				9A02092E2FA10D4C00092060 /* Frameworks */,
 				9A0207C22FA0ED7C00092060 /* Products */,
@@ -194,6 +233,7 @@
 			children = (
 				9A0207C12FA0ED7C00092060 /* Daisy.app */,
 				9A02092D2FA10D4C00092060 /* quick-look.appex */,
+				9AC200010000000000000010 /* daisy-export */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -209,7 +249,7 @@
 		9AC100010000000000000004 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
-				9AC100010000000000000002 /* bin/markdown-preview */,
+				9AC100010000000000000002 /* bin/daisy */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -221,6 +261,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 9A0207D02FA0ED7D00092060 /* Build configuration list for PBXNativeTarget "daisy" */;
 			buildPhases = (
+				9AF0000000000000000001A0 /* Build Editor Bundle */,
 				9A0207BD2FA0ED7C00092060 /* Sources */,
 				9A0207BE2FA0ED7C00092060 /* Frameworks */,
 				9A0207BF2FA0ED7C00092060 /* Resources */,
@@ -231,6 +272,7 @@
 			);
 			dependencies = (
 				9A02093B2FA10D4C00092060 /* PBXTargetDependency */,
+				9AC200010000000000000007 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				9A0207C32FA0ED7C00092060 /* daisy */,
@@ -243,6 +285,28 @@
 			productName = daisy;
 			productReference = 9A0207C12FA0ED7C00092060 /* Daisy.app */;
 			productType = "com.apple.product-type.application";
+		};
+		9AC200010000000000000004 /* daisy-export */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 9AC200010000000000000008 /* Build configuration list for PBXNativeTarget "daisy-export" */;
+			buildPhases = (
+				9AC200010000000000000009 /* Sources */,
+				9AC200010000000000000006 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				9AC200010000000000000005 /* cli */,
+			);
+			name = "daisy-export";
+			packageProductDependencies = (
+				9AC200010000000000000011 /* Markdown */,
+			);
+			productName = "daisy-export";
+			productReference = 9AC200010000000000000010 /* daisy-export */;
+			productType = "com.apple.product-type.tool";
 		};
 		9A02092C2FA10D4C00092060 /* quick-look */ = {
 			isa = PBXNativeTarget;
@@ -283,6 +347,9 @@
 					9A02092C2FA10D4C00092060 = {
 						CreatedOnToolsVersion = 26.4.1;
 					};
+					9AC200010000000000000004 = {
+						CreatedOnToolsVersion = 26.4.1;
+					};
 				};
 			};
 			buildConfigurationList = 9A0207BC2FA0ED7C00092060 /* Build configuration list for PBXProject "daisy" */;
@@ -306,6 +373,7 @@
 			targets = (
 				9A0207C02FA0ED7C00092060 /* daisy */,
 				9A02092C2FA10D4C00092060 /* quick-look */,
+				9AC200010000000000000004 /* daisy-export */,
 			);
 		};
 /* End PBXProject section */
@@ -315,6 +383,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9AF00000000000000000000E /* mdedit.min.js in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -338,7 +407,38 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		9AF0000000000000000001A0 /* Build Editor Bundle */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Build Editor Bundle";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(SRCROOT)/daisy/Vendor/CodeMirror/mdedit.min.js",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e\n# Builds the CodeMirror editor bundle (not checked in) when it is missing or\n# older than its sources. See scripts/editor-bundle/package.json.\ncd \"$SRCROOT/scripts/editor-bundle\"\nOUT=\"$SRCROOT/daisy/Vendor/CodeMirror/mdedit.min.js\"\nif [ -f \"$OUT\" ] && [ -z \"$(find src entry-cm.js build.mjs package.json package-lock.json -newer \"$OUT\" -print -quit 2>/dev/null)\" ]; then\n  exit 0\nfi\n# Xcode runs scripts without the user's shell profile; find Node the usual ways.\nif ! command -v node >/dev/null 2>&1; then\n  export PATH=\"$(/bin/zsh -lc 'printf %s \"$PATH\"' 2>/dev/null):$HOME/.asdf/shims:$HOME/.local/share/mise/shims:$HOME/.volta/bin:/opt/homebrew/bin:/usr/local/bin:$PATH\"\nfi\nif ! command -v node >/dev/null 2>&1; then\n  echo \"error: Node.js is required to build the editor bundle (scripts/editor-bundle). Install Node, then build again.\" >&2\n  exit 1\nfi\n[ -d node_modules ] || npm ci\nnpm run build\n";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
+		9AC200010000000000000009 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		9A0207BD2FA0ED7C00092060 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -360,6 +460,11 @@
 			isa = PBXTargetDependency;
 			target = 9A02092C2FA10D4C00092060 /* quick-look */;
 			targetProxy = 9A02093A2FA10D4C00092060 /* PBXContainerItemProxy */;
+		};
+		9AC200010000000000000007 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 9AC200010000000000000004 /* daisy-export */;
+			targetProxy = 9AC200010000000000000003 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -514,6 +619,7 @@
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = P5LRK5LK5T;
 				ENABLE_APP_SANDBOX = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -553,6 +659,7 @@
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = P5LRK5LK5T;
 				ENABLE_APP_SANDBOX = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -576,6 +683,34 @@
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		9AC200010000000000000012 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 9A0209A02FA1100100092060 /* Version.xcconfig */;
+			buildSettings = {
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "lemon.doc.daisy.export.dev";
+				PRODUCT_NAME = "daisy-export";
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		9AC200010000000000000013 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 9A0209A02FA1100100092060 /* Version.xcconfig */;
+			buildSettings = {
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "lemon.doc.daisy.export";
+				PRODUCT_NAME = "daisy-export";
+				SKIP_INSTALL = YES;
 				SWIFT_VERSION = 6.0;
 			};
 			name = Release;
@@ -663,6 +798,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		9AC200010000000000000008 /* Build configuration list for PBXNativeTarget "daisy-export" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9AC200010000000000000012 /* Debug */,
+				9AC200010000000000000013 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		9A0209412FA10D4C00092060 /* Build configuration list for PBXNativeTarget "quick-look" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -705,6 +849,11 @@
 			productName = Markdown;
 		};
 		9A33940B2FA5AF500015D9A4 /* Markdown */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9A3394082FA5AF500015D9A4 /* XCRemoteSwiftPackageReference "swift-markdown" */;
+			productName = Markdown;
+		};
+		9AC200010000000000000011 /* Markdown */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 9A3394082FA5AF500015D9A4 /* XCRemoteSwiftPackageReference "swift-markdown" */;
 			productName = Markdown;

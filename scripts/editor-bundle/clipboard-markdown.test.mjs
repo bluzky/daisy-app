@@ -38,6 +38,23 @@ check("HTML table wins over TSV", convert({
   types: ["text/html", "text/tab-separated-values"],
 }), "| Name | Note |\n| --- | --- |\n| A\\|B | **ok** |")
 
+check("a spreadsheet table wrapped in app markup pastes as the table alone", convert({
+  html: "<meta charset='utf-8'><style>td { color: red }</style><google-sheets-html-origin>"
+    + "<table><tr><td>Name</td><td>Score</td></tr><tr><td>Ada</td><td>10</td></tr></table>"
+    + "</google-sheets-html-origin>",
+}), "| Name | Score |\n| --- | --- |\n| Ada | 10 |")
+
+check("a document with several tables keeps everything, not just the first table", convert({
+  html: "<h1>Report</h1><table><tr><th>Field</th></tr><tr><td>A</td></tr></table>"
+    + "<h2>Summary</h2><p>Orders kept flowing.</p>"
+    + "<table><tr><th>Item</th></tr><tr><td>B</td></tr></table>"
+    + "<ul><li>Reconcile totals.</li></ul>",
+}), "# Report\n\n| Field |\n| --- |\n| A |\n\n## Summary\n\nOrders kept flowing.\n\n| Item |\n| --- |\n| B |\n\n- Reconcile totals.")
+
+check("a table with surrounding text keeps the text", convert({
+  html: "<p>Before</p><table><tr><th>Name</th></tr><tr><td>Ada</td></tr></table><p>After</p>",
+}), "Before\n\n| Name |\n| --- |\n| Ada |\n\nAfter")
+
 check("table cells drop stray breaks and blank lines", convert({
   html: "<table><tr><th><p>Name</p></th></tr><tr><td><p>Intro:</p><p>a</p><p>b</p><br></td></tr></table>",
 }), "| Name |\n| --- |\n| Intro:<br>a<br>b |")
@@ -49,6 +66,15 @@ check("snake_case stays unescaped in table cells", convert({
 check("TSV makes GFM table", convert({ text: "Name\tScore\nAda\t10" }),
   "| Name | Score |\n| --- | --- |\n| Ada | 10 |")
 check("single tabbed plain-text row stays plain text", convert({ text: "const x\t= 1" }), null)
+const fencedSource = "```mermaid\nflowchart TD\n    A --> B{\"Done?\"}\n    B -- No --> C[\"a<br/>b\"]\n```"
+check("Markdown source with a fenced block pastes as plain text, not inline code", convert({
+  html: fencedSource.split("\n").map(line => `<div><code>${line.replace(/</g, "&lt;")}</code></div>`).join(""),
+  text: fencedSource,
+}), null)
+check("an unclosed fence does not suppress HTML conversion", convert({
+  html: "<p><strong>bold</strong></p>",
+  text: "```js\nbold",
+}), "**bold**")
 check("ordinary plain text stays CodeMirror-owned", convert({ text: "paste me" }), null)
 
 const unsafe = convert({ html: [

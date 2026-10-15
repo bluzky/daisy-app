@@ -1,5 +1,11 @@
 #!/bin/sh
 # Managed by Markdown Preview CLI
+if [ "${1-}" = "export" ]; then
+  shift
+  command_dir=$(CDPATH= cd "$(dirname "$0")" && pwd)
+  exec "$command_dir/.daisy-export" "$@"
+fi
+
 if [ "$#" -eq 0 ]; then
   exec open -b "lemon.doc.daisy" .
 else

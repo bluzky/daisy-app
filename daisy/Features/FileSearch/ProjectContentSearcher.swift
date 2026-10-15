@@ -104,7 +104,8 @@ nonisolated enum ProjectContentSearcher {
         var hits: [Hit] = []
         for index in snapshot.candidates.indices {
             if index % cancellationCheckInterval == 0 { try Task.checkCancellation() }
-            guard let url = snapshot.url(at: index),
+            guard FileKind.classify(fileName: snapshot.candidates[index].fileName).opensInDaisy,
+                  let url = snapshot.url(at: index),
                   !skipping.contains(url.standardizedFileURL),
                   let text = readText(at: url),
                   let match = match(query: query, in: text) else { continue }

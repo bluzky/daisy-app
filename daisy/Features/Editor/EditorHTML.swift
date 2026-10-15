@@ -7,6 +7,13 @@ nonisolated enum EditorHTML {
 
     struct Configuration {
         var fullWidth = false
+        /// Column measure in CSS px when not `fullWidth`.
+        var columnWidth = MarkdownHTML.contentColumnWidth
+        /// The reader's text size, mirroring the preview. Seeds
+        /// `--mdp-text-scale`, which scales type and text spacing only, so
+        /// the column and gutters keep their measure; the host updates the
+        /// property live when the text size changes.
+        var textScale: CGFloat = 1
         var lightPageBackground = "transparent"
         var darkPageBackground = "transparent"
         var themeOverrideCSS = ""
@@ -14,6 +21,9 @@ nonisolated enum EditorHTML {
         /// element a live settings change rewrites (see `readerStyleCSS`).
         var readerStyleCSS = ""
         var usesPageScrolling = false
+        /// A fence name or alias to edit the file as code, "" for plain text,
+        /// nil for the Markdown editor. Source and text files take this path.
+        var codeLanguage: String?
         var bridgeName = "mdEditorHost"
         /// Enabled flag per editor module id; see `MarkdownHTML.editorExtensionState`.
         var extensionState: [String: Bool] = [:]
@@ -52,18 +62,18 @@ nonisolated enum EditorHTML {
 
     static func render(markdown: String,
                        editorJavaScript: String,
-                       mermaidJavaScript: String? = nil,
+                       includesMermaid: Bool = false,
                        assetBaseURL: URL? = nil,
                        configuration: Configuration = Configuration()) -> String {
-        let columnMaxWidth = configuration.fullWidth ? "none" : "\(MarkdownHTML.contentColumnWidth)px"
+        let columnMaxWidth = configuration.fullWidth
+            ? "none"
+            : "\(configuration.columnWidth)px"
         let lightPageBackground = configuration.lightPageBackground
         let darkPageBackground = configuration.darkPageBackground
         let usesPageScrolling = configuration.usesPageScrolling
-        let includesMermaid = mermaidJavaScript != nil
-        let mermaidJavaScript = mermaidJavaScript ?? ""
         return """
         <!DOCTYPE html>
-        <html data-page-scrolling="\(usesPageScrolling)">
+        <html data-page-scrolling="\(usesPageScrolling)"\(configuration.codeLanguage == nil ? "" : " data-code-mode")>
         <head>
         <meta charset="UTF-8">
         \(assetBaseURL.map { "<base href=\"\(htmlAttributeLiteral(MarkdownAssetResolution.baseHref(forFolder: $0)))\">" } ?? "")
@@ -83,6 +93,7 @@ nonisolated enum EditorHTML {
             --code-border: #f0f0f0;
             /* Same code palette as the preview stylesheet. */
             \(MarkdownHTML.lightCodePaletteCSS)
+            --mdp-text-scale: \(configuration.textScale);
         }
         @media (prefers-color-scheme: dark) {
             :root {
@@ -105,7 +116,7 @@ nonisolated enum EditorHTML {
         }
         body {
             font-family: var(--mdp-doc-font, \(MarkdownHTML.bodyFontFamily));
-            font-size: \(MarkdownHTML.bodyFontSize)px;
+            font-size: \(MarkdownHTML.textScaled(MarkdownHTML.bodyFontSize));
             font-weight: var(--mdp-body-weight, 400);
             line-height: var(--mdp-line-height, \(MarkdownHTML.bodyLineHeight));
             letter-spacing: var(--mdp-letter-spacing, normal);
@@ -134,7 +145,7 @@ nonisolated enum EditorHTML {
             cursor: default;
             box-sizing: border-box;
             font-family: var(--mdp-doc-font, \(MarkdownHTML.bodyFontFamily)) !important;
-            font-size: \(MarkdownHTML.bodyFontSize)px;
+            font-size: \(MarkdownHTML.textScaled(MarkdownHTML.bodyFontSize));
             font-weight: var(--mdp-body-weight, 400);
             line-height: var(--mdp-line-height, \(MarkdownHTML.bodyLineHeight));
             letter-spacing: var(--mdp-letter-spacing, normal);
@@ -146,7 +157,7 @@ nonisolated enum EditorHTML {
             min-height: 100%;
             margin: 0 auto;
             /* Reader margins: symmetric inset inside the column, as in the preview. */
-            padding: 0 var(--mdp-page-inset, 0) \(MarkdownHTML.pagePaddingBottom)px;
+            padding: 0 var(--mdp-page-inset, 0px) \(MarkdownHTML.pagePaddingBottom)px;
             box-sizing: border-box;
             caret-color: var(--text);
             cursor: text;
@@ -161,6 +172,25 @@ nonisolated enum EditorHTML {
         #editor .cm-line {
             padding: 0;
         }
+        /* Code files: a full-width monospace buffer with a line-number
+           gutter, not the reader column. */
+        html[data-code-mode] #editor .cm-scroller {
+            font-family: ui-monospace, "SF Mono", Menlo, monospace !important;
+            font-size: 0.9em;
+            line-height: 1.5;
+            padding-inline: 0;
+        }
+        html[data-code-mode] #editor .cm-content {
+            max-width: none;
+            margin: 0;
+            padding: 0 16px \(MarkdownHTML.pagePaddingBottom)px 8px;
+        }
+        html[data-code-mode] #editor .cm-gutters {
+            background: transparent;
+            border: none;
+            color: var(--secondary);
+        }
+        html[data-code-mode] #editor .cm-activeLine { background: rgba(128, 128, 128, 0.1); }
         /* Hanging trailing spaces must not push the last word onto a new
            line. Match read-mode wrapping while preserving editable spaces. */
         #editor .cm-content.cm-lineWrapping { white-space: pre-wrap; }
@@ -175,7 +205,7 @@ nonisolated enum EditorHTML {
         #editor .cm-md-h4, #editor .cm-md-h5, #editor .cm-md-h6 {
             font-weight: 600;
             line-height: 1.25;
-            padding-top: calc(0.6rem + 0.5em);
+            padding-top: calc(0.6rem * var(--mdp-text-scale, 1) + 0.5em);
         }
         #editor .cm-md-h1 { font-size: 2em; }
         /* Mirror the preview's first-child margin reset so the document
@@ -194,7 +224,7 @@ nonisolated enum EditorHTML {
         #editor .cm-md-h4.cm-md-heading-after-blank,
         #editor .cm-md-h5.cm-md-heading-after-blank,
         #editor .cm-md-h6.cm-md-heading-after-blank {
-            padding-top: 4px;
+            padding-top: \(MarkdownHTML.textScaled(MarkdownHTML.blankLineGap));
         }
         /* A source line whose height another element owns collapses to
            nothing: inactive code fence lines (the card transfers their
@@ -239,7 +269,7 @@ nonisolated enum EditorHTML {
             position: absolute;
             inset-inline-start: 0;
             top: 0;
-            font-size: \(MarkdownHTML.bodyFontSize)px;
+            font-size: \(MarkdownHTML.textScaled(MarkdownHTML.bodyFontSize));
             line-height: \(MarkdownHTML.bodyLineHeight);
             color: var(--secondary);
             white-space: pre;
@@ -424,7 +454,7 @@ nonisolated enum EditorHTML {
         }
         /* Preview list items after the first carry a margin-top. */
         #editor .cm-md-list-item-gap {
-            padding-top: \(MarkdownHTML.listItemSpacing)px;
+            padding-top: \(MarkdownHTML.textScaled(MarkdownHTML.listItemSpacing));
         }
         #editor .cm-md-rule-line {
             height: 1px;
@@ -439,7 +469,6 @@ nonisolated enum EditorHTML {
         }
         #editor .cm-md-code-card {
             position: relative;
-            container-type: inline-size;
             display: grid;
             grid-template-columns: max-content;
             /* Classic horizontal scrollbars must not stretch the code rows
@@ -459,7 +488,7 @@ nonisolated enum EditorHTML {
             position: relative;
             padding: 0;
             white-space: pre;
-            min-width: 100cqw;
+            min-width: var(--code-card-width, 100%);
         }
         #editor .cm-md-code-scroll-text {
             display: inline-block;
@@ -490,7 +519,7 @@ nonisolated enum EditorHTML {
             margin-inline: 9px 10px;
             margin-top: calc(-8px - \(codeLanguageHeaderHeight)px);
             margin-bottom: 8px;
-            width: calc(100cqw - 19px);
+            width: calc(var(--code-card-width, 100%) - 19px);
             height: 28px;
             display: flex;
             align-items: center;
@@ -572,21 +601,30 @@ nonisolated enum EditorHTML {
                the preview's .mermaid-figure margin. */
             position: relative;
             margin: 0 auto;
+            /* Sized like the preview's .mermaid-figure: only the width is
+               capped, at the diagram's natural width, and the ::before sizer
+               applies the aspect ratio inside padding that mirrors the
+               stage's, so a wide diagram doesn't letterbox. Text size leaves
+               diagrams at their natural size. */
+            --mm-padding: 16px;
+            padding: var(--mm-padding);
             width: 100%;
-            --mm-max-height: min(70vh, 720px);
-            max-width: calc(var(--mm-max-height) * (var(--mm-aspect, 4 / 3)));
-            aspect-ratio: var(--mm-aspect, 4 / 3);
-            max-height: var(--mm-max-height);
+            max-width: calc(var(--mm-natural-width, 100%) + 2 * var(--mm-padding));
             overflow: hidden;
             border-radius: 15px;
             background: var(--code-bg);
             cursor: text;
             box-sizing: border-box;
         }
+        .cm-md-mermaid-preview::before {
+            content: "";
+            display: block;
+            aspect-ratio: var(--mm-aspect, 4 / 3);
+        }
         .cm-md-mermaid-stage {
             position: absolute;
             inset: 0;
-            padding: 16px;
+            padding: var(--mm-padding, 16px);
             box-sizing: border-box;
             display: flex;
             align-items: center;
@@ -608,7 +646,7 @@ nonisolated enum EditorHTML {
         }
         .cm-md-table-widget {
             position: relative;
-            width: fit-content;
+            width: 100%;
             /* Outer spacing comes from the block separator lines, matching
                the preview's table margin. */
             margin: 0;
@@ -617,7 +655,7 @@ nonisolated enum EditorHTML {
             /* The widget sits inside .cm-md-table's monospace line, so it
                restates the document type settings. */
             font-family: var(--mdp-doc-font, \(MarkdownHTML.bodyFontFamily));
-            font-size: \(MarkdownHTML.bodyFontSize)px;
+            font-size: \(MarkdownHTML.textScaled(MarkdownHTML.bodyFontSize));
             font-weight: var(--mdp-body-weight, 400);
             line-height: var(--mdp-line-height, \(MarkdownHTML.bodyLineHeight));
             letter-spacing: var(--mdp-letter-spacing, normal);
@@ -627,7 +665,7 @@ nonisolated enum EditorHTML {
             outline: none;
         }
         .cm-md-table-scroll {
-            width: fit-content;
+            width: 100%;
             max-width: 100%;
             overflow-x: auto;
         }
@@ -660,7 +698,7 @@ nonisolated enum EditorHTML {
             user-select: text;
         }
         .cm-md-table-cell {
-            min-height: calc(\(MarkdownHTML.bodyFontSize)px * \(MarkdownHTML.bodyLineHeight));
+            min-height: calc(\(MarkdownHTML.textScaled(MarkdownHTML.bodyFontSize)) * \(MarkdownHTML.bodyLineHeight));
             padding: 8px 12px;
             outline: none;
             white-space: pre-wrap;
@@ -780,16 +818,36 @@ nonisolated enum EditorHTML {
         </head>
         <body>
         <div id="editor"></div>
-        \(includesMermaid ? "<script>\(mermaidJavaScript)</script>" : "")
         \(includesMermaid ? """
         <script>
-        if (window.mermaid) {
-            window.mermaid.initialize({
-                startOnLoad: false,
-                securityLevel: "strict",
-                theme: window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "default"
-            });
-        }
+        // Mermaid is fetched after first paint, so the text shows before the
+        // bundle parses. A diagram rendered sooner waits on __mdLoadMermaid,
+        // which resolves to null if the bundle fails to load.
+        (function () {
+            let load = null;
+            window.__mdLoadMermaid = function () {
+                if (!load) {
+                    load = new Promise(function (resolve) {
+                        const script = document.createElement("script");
+                        script.onload = function () {
+                            if (window.mermaid) {
+                                window.mermaid.initialize({
+                                    startOnLoad: false,
+                                    securityLevel: "strict",
+                                    theme: window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "default"
+                                });
+                            }
+                            resolve(window.mermaid || null);
+                        };
+                        script.onerror = function () { resolve(null); };
+                        script.src = "\(MarkdownAssetScheme.vendorURL("mermaid.min.js"))";
+                        document.head.appendChild(script);
+                    });
+                }
+                return load;
+            };
+            requestAnimationFrame(function () { setTimeout(window.__mdLoadMermaid, 0); });
+        })();
         </script>
         """ : "")
         <script>\(editorJavaScript)</script>
@@ -804,7 +862,9 @@ nonisolated enum EditorHTML {
             window.onerror = function (message) { post("error: " + message); };
             let editor = null;
             let slashTemplates = [];
-            window.__mdLoadEditor = function (markdown, baseHref) {
+            window.__mdLoadEditor = function (markdown, baseHref, codeLanguage) {
+                const isCode = typeof codeLanguage === "string";
+                document.documentElement.toggleAttribute("data-code-mode", isCode);
                 let base = document.querySelector("head > base");
                 if (baseHref) {
                     if (!base) {
@@ -821,6 +881,7 @@ nonisolated enum EditorHTML {
                     markdown,
                     {
                         pageScrolling: \(usesPageScrolling),
+                        codeLanguage: isCode ? codeLanguage : undefined,
                         extensionState: \(extensionStateLiteral(configuration.extensionState)),
                         extensionOptions: \(jsonObjectLiteral(configuration.extensionOptions)),
                         onDirty: function () { post("dirty"); },
@@ -829,7 +890,7 @@ nonisolated enum EditorHTML {
                             post({ kind: "formattingState", heading: state.heading, commands: state.commands });
                         },
                         onSearchChange: function (result) {
-                            post({ kind: "findResult", index: result.index, total: result.total });
+                            post({ kind: "findResult", index: result.index, total: result.total, capped: result.capped, error: result.error });
                         },
                         onPasteImage: function (from, to) {
                             post({ kind: "pasteImage", from: from, to: to });
@@ -852,8 +913,14 @@ nonisolated enum EditorHTML {
                 );
                 editor.setSlashTemplates(slashTemplates);
                 window.__mdEditor = {
-                    find: function (query, backwards, beginsWith) {
-                        return editor.find(query, backwards, beginsWith);
+                    find: function (query, backwards, options) {
+                        return editor.find(query, backwards, options);
+                    },
+                    replaceCurrent: function (replacement, query, options) {
+                        return editor.replaceCurrent(replacement, query, options);
+                    },
+                    replaceAll: function (replacement, query, options) {
+                        return editor.replaceAll(replacement, query, options);
                     },
                     getMarkdown: function () { return editor.getMarkdown(); },
                     getHeadingLevel: function () { return editor.getHeadingLevel(); },
@@ -890,7 +957,7 @@ nonisolated enum EditorHTML {
             document.addEventListener("keydown", function (e) {
                 if (e.key === "Escape" && !e.defaultPrevented) post("cancel");
             });
-            window.__mdLoadEditor(\(jsStringLiteral(markdown)), \(jsStringLiteral(assetBaseURL.map { MarkdownAssetResolution.baseHref(forFolder: $0) } ?? "")));
+            window.__mdLoadEditor(\(jsStringLiteral(markdown)), \(jsStringLiteral(assetBaseURL.map { MarkdownAssetResolution.baseHref(forFolder: $0) } ?? "")), \(configuration.codeLanguage.map(jsStringLiteral) ?? "undefined"));
         })();
         </script>
         </body>

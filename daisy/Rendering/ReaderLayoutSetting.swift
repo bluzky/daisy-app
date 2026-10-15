@@ -44,8 +44,7 @@ nonisolated struct ReaderLayoutSetting: Equatable, Codable, Sendable {
     /// Symmetric inset added inside the reading column, in points. Applied as
     /// padding rather than by shrinking `max-width`: the column measure is
     /// `ContentWidthSetting`'s to own, and a `max-width` here would do
-    /// nothing in Full Width and sit off-centre in the app's normal mode,
-    /// where the article is host-centered with `margin-left: 0`.
+    /// nothing in Full Width.
     var pageInset: Int {
         Int(0.9 * max(0, effective.marginsPercent))
     }

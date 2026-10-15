@@ -19,7 +19,7 @@ enum TabOpeningPolicy {
     }
 
     /// - Parameters:
-    ///   - isExplicitTabRequest: The open came from "Open in New Tab", ⌘T, or
+    ///   - isExplicitTabRequest: The open came from "Open in New Tab" or
     ///     the tab bar's "+", which asks for a tab whatever anything else says.
     ///   - opensDocumentsInTabs: This app's own preference — the reader wants
     ///     one Daisy window with the documents inside it.

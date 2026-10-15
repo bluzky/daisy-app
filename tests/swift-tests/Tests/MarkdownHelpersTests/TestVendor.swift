@@ -29,10 +29,13 @@ enum TestVendor {
 
     /// Repo-relative vendored JS escaped for an inline `<script>` block.
     static func script(_ relativePath: String) throws -> String {
-        try String(
-            contentsOf: repositoryRoot.appendingPathComponent(relativePath),
-            encoding: .utf8
-        )
-        .replacingOccurrences(of: "</script", with: "<\\/script")
+        let url = repositoryRoot.appendingPathComponent(relativePath)
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw NSError(domain: "TestVendor", code: 1, userInfo: [NSLocalizedDescriptionKey:
+                "\(relativePath) is missing. The editor bundle is not checked in: run "
+                + "`npm ci && npm run build` in scripts/editor-bundle (an Xcode build does it too)."])
+        }
+        return try String(contentsOf: url, encoding: .utf8)
+            .replacingOccurrences(of: "</script", with: "<\\/script")
     }
 }

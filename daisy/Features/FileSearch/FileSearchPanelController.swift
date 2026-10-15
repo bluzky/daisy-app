@@ -68,6 +68,10 @@ final class FileSearchPanelController: NSViewController {
     private let statusLabel = NSTextField(labelWithString: "")
     private let openFolderButton = NSButton()
     private let footer = KeyHintFooter()
+    /// Fixed height of the results area, so the panel doesn't resize as the
+    /// query changes: room for eight selectable rows.
+    private static let resultsHeight: CGFloat = 12 + 8 * (40 + 2)
+
     /// Height of the key-hint strip under the results.
     private static let footerHeight: CGFloat = 30
 
@@ -278,8 +282,7 @@ final class FileSearchPanelController: NSViewController {
         (view.window as? FileSearchPanel)?.queryField = queryField
         view.window?.makeFirstResponder(queryField)
         recentURLs = NSDocumentController.shared.recentDocumentURLs.filter {
-            $0.isFileURL && (ProjectFileIndex.markdownExtensions.contains($0.pathExtension.lowercased())
-                            || $0.pathExtension.lowercased() == "txt")
+            $0.isFileURL && FileKind.classify($0).opensInDaisy
         }
         refreshResults()
         loadIndex()
@@ -302,9 +305,7 @@ final class FileSearchPanelController: NSViewController {
         fieldSeparator.isHidden = false
         footer.isHidden = false
         guard let panel = view.window else { return }
-        let resultsHeight: CGFloat = results.isEmpty ? 108 : results.prefix(8).reduce(12) {
-            $0 + ($1.isSelectable ? 40 : 24) + tableView.intercellSpacing.height
-        }
+        let resultsHeight = Self.resultsHeight
         resultsHeightConstraint?.constant = resultsHeight
         let height: CGFloat = 52 + resultsHeight + Self.footerHeight
         var frame = panel.frame

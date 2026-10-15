@@ -41,9 +41,15 @@
 	<key>Dv1-io-Yv7.title</key>
 	<string>Spelling and Grammar</string>
 	<key>Ex0-fm-F00.title</key>
-	<string>Export…</string>
+	<string>Export</string>
 	<key>Ex1-pd-F01.title</key>
-	<string>Export as PDF…</string>
+	<string>PDF…</string>
+	<key>Ex1-ht-F01.title</key>
+	<string>HTML…</string>
+	<key>Ex1-pn-F01.title</key>
+	<string>PNG…</string>
+	<key>Ex1-wd-F01.title</key>
+	<string>Word…</string>
 	<key>F2S-fz-NVQ.title</key>
 	<string>Help</string>
 	<key>FKE-Sm-Kum.title</key>
@@ -60,8 +66,6 @@
 	<string>View</string>
 	<key>IAo-SY-fd9.title</key>
 	<string>Open…</string>
-	<key>KaW-ft-85H.title</key>
-	<string>Revert to Saved</string>
 	<key>Kd2-mp-pUS.title</key>
 	<string>Show All</string>
 	<key>LE2-aR-0XJ.title</key>
