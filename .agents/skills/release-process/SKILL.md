@@ -58,7 +58,7 @@ Read this before running it — the script ships the update, it doesn't just pre
 - the working tree must be **clean** — commit everything, including the `CHANGELOG.md` entry, before running the script;
 - a `## [X.Y.Z]` entry must already exist in `CHANGELOG.md` for the version being released (the script only validates and extracts it — it never writes the entry itself; that's the `changelog-maintenance` skill's job, see below);
 - `jq`, `python3` and the Sparkle tools (`sign_update`, `generate_keys`, found in DerivedData or via `SPARKLE_BIN`) must be present;
-- a `Developer ID Application` certificate for the signing team must be in the keychain (team = `DAISY_TEAM_ID`, defaulting to `DEVELOPMENT_TEAM` in the project), and the `notarytool` keychain profile (`NOTARY_PROFILE`, default `md-preview-notary`) must work;
+- a `Developer ID Application` certificate for the signing team must be in the keychain (team = `DAISY_TEAM_ID`, defaulting to `DEVELOPMENT_TEAM` in the project), and the `notarytool` keychain profile (`NOTARY_PROFILE`, default `daisy-notary`) must work;
 - the keychain EdDSA key must match `SUPublicEDKey` in `Info.plist` (skipped when `SPARKLE_KEY_FILE` is set);
 - unless `--draft` / `--skip-github`: `gh` installed and authenticated, an `origin` remote, and no existing GitHub release for the tag. It also warns when `Info.plist`'s `SUFeedURL` is not `https://<owner>.github.io/<repo>/appcast.xml`, because installed apps would never see the release.
 
@@ -118,5 +118,5 @@ The script removes the version from `appcast.xml` on `gh-pages` first (so nobody
 ## Distribution configuration
 - **Hosting**: GitHub. The DMG is a GitHub release asset; the appcast is `appcast.xml` on the `gh-pages` branch, served by GitHub Pages at `https://<owner>.github.io/<repo>/appcast.xml`. `Info.plist`'s `SUFeedURL` must be that URL — verify it before releasing.
 - **Codesign identity**: a `Developer ID Application` certificate for `DEVELOPMENT_TEAM` (override with `DAISY_TEAM_ID`).
-- **Notary keychain profile**: `md-preview-notary` by default (override with `NOTARY_PROFILE`); create with `xcrun notarytool store-credentials`.
+- **Notary keychain profile**: `daisy-notary` by default (override with `NOTARY_PROFILE`); create with `xcrun notarytool store-credentials`.
 - **EdDSA key**: public key in `Info.plist` `SUPublicEDKey`; the private key is in the login Keychain (or `SPARKLE_KEY_FILE`). `generate_keys -p` prints the Keychain's public key — it must match the plist.

@@ -17,7 +17,7 @@
 #
 # Environment (all optional):
 #   DAISY_TEAM_ID     Apple team used to sign (default: DEVELOPMENT_TEAM in the project)
-#   NOTARY_PROFILE    notarytool keychain profile (default: md-preview-notary)
+#   NOTARY_PROFILE    notarytool keychain profile (default: daisy-notary)
 #   SPARKLE_BIN       Sparkle bin dir holding sign_update / generate_keys
 #   SPARKLE_KEY_FILE  EdDSA private key file for sign_update (default: login Keychain)
 #
@@ -104,7 +104,7 @@ fi
 
 TAG="v$VERSION"
 TEAM_ID="${DAISY_TEAM_ID:-$(grep -m1 'DEVELOPMENT_TEAM = ' "$PBXPROJ" | sed -E 's/.*= *([A-Z0-9]+);.*/\1/')}"
-NOTARY_PROFILE="${NOTARY_PROFILE:-md-preview-notary}"
+NOTARY_PROFILE="${NOTARY_PROFILE:-daisy-notary}"
 
 echo "▸ Releasing $VERSION (build $BUILD)"
 
