@@ -1,6 +1,6 @@
 # Mixed formatting document
 
-A paragraph with **bold phrase**, *italic phrase*, ~~deleted phrase~~, ==highlighted phrase==, `inlineToken`, and an [inline link](https://example.com). It combines styles in one line and wraps naturally in narrow windows.
+A paragraph with **bold phrase**, *italic phrase*, ~~deleted phrase~~, ==highlighted phrase==, `inlineToken`, and one more [inline link](https://example.com). It combines styles in one line and wraps naturally in narrow windows.
 
 ## Heading two
 ### Heading three

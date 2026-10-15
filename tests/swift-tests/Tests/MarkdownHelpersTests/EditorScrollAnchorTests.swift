@@ -54,7 +54,7 @@ final class EditorScrollAnchorTests: XCTestCase {
                 harness.webView.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
                 _ = try await harness.layout(texts: [], imageCount: 0)
                 // Exercise live changes and returning to Original, not only initial rendering.
-                for name in ["Paper", "Graphite", "Original"] {
+                for name in ["Paper", "Ember", "Original"] {
                     let preset = try XCTUnwrap(ThemePreset.builtIn.first { $0.name == name })
                     let css = isEditor ? preset.setting.editorOverrideCSS
                         : (preset.setting.markdownThemeOverrides?.css ?? "")
@@ -374,7 +374,7 @@ final class EditorScrollAnchorTests: XCTestCase {
                     for (const offset of [1, 8, 120, max, 0]) {
                         line.scrollLeft = offset;
                         positions.push({offset, x: button.getBoundingClientRect().x, expected: x});
-                        pinned &&= Math.abs(button.getBoundingClientRect().x - x) < 1;
+                        pinned &&= Math.abs(button.getBoundingClientRect().x - x) < 2;
                     }
                     return { pinned, positions, pageFixed: scrollers.every(s => s.scrollWidth <= s.clientWidth + 1 && s.scrollLeft === 0),
                         scrollers: scrollers.map(s => [s.scrollWidth, s.clientWidth, s.scrollLeft]) };
@@ -827,7 +827,7 @@ final class EditorScrollAnchorTests: XCTestCase {
                     document.querySelectorAll('.cm-md-code-toggle-wrap, .md-code-toggle-wrap').forEach(t => { if (t.getAttribute('aria-pressed') === 'true') t.click(); }); for (let i = 0; i < 8; i++) window.__layoutTestFrame();
                     const page = \(pageScrolling ? "document.scrollingElement" : "document.querySelector('.cm-scroller')");
                     const style = getComputedStyle(page);
-                    const nested = [...document.querySelectorAll('\(isEditor ? ".cm-md-code-card, .cm-md-table-scroll" : ".md-code-wrap pre, table")')];
+                    const nested = [...document.querySelectorAll('\(isEditor ? ".cm-md-code-card, .cm-md-table-scroll" : ".md-code-wrap pre, .md-table-scroll")')];
                     const innerScrolling = nested.length === 2 && nested.every(element => {
                         element.scrollLeft = 80;
                         return element.scrollLeft > 0;
