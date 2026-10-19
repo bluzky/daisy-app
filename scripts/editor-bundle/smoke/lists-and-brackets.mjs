@@ -266,3 +266,40 @@ const edgeKey = (key) => {
 }
 check("Cmd-Down is handled by the editor", edgeKey("ArrowDown"))
 check("Cmd-Up is handled by the editor", edgeKey("ArrowUp"))
+
+// Cmd+Enter steps a list item through list item -> task -> done task.
+const cycleEditor = (source) => {
+  const host = dom.window.document.createElement("div")
+  dom.window.document.body.appendChild(host)
+  const editor = dom.window.MDEditor.create(host, source, {})
+  const press = () => {
+    const event = new dom.window.KeyboardEvent("keydown", { key: "Enter", ctrlKey: true, bubbles: true, cancelable: true })
+    host.querySelector(".cm-content").dispatchEvent(event)
+    return event.defaultPrevented
+  }
+  return { editor, press }
+}
+{
+  const { editor, press } = cycleEditor("- Buy milk")
+  editor.select(5, 5)
+  press()
+  check("Cmd+Enter turns a list item into a task", editor.getMarkdown() === "- [ ] Buy milk")
+  press()
+  check("Cmd+Enter checks an open task", editor.getMarkdown() === "- [x] Buy milk")
+  press()
+  check("Cmd+Enter turns a done task back into a list item", editor.getMarkdown() === "- Buy milk")
+  check("Cmd+Enter keeps the caret in the item text", editor.getLinkSelection().from === 5)
+}
+{
+  const { editor, press } = cycleEditor("1. One\n  * [X] Two\n> - Three\nplain")
+  editor.select(0, 25)
+  press()
+  check("Cmd+Enter steps each selected item from its own state",
+    editor.getMarkdown() === "1. [ ] One\n  * Two\n> - [ ] Three\nplain")
+}
+{
+  const { editor, press } = cycleEditor("plain text")
+  editor.select(5, 5)
+  press()
+  check("Cmd+Enter outside a list leaves the line's text alone", !editor.getMarkdown().startsWith("- "))
+}

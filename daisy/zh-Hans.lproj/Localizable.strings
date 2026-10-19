@@ -418,6 +418,8 @@
 "Important" = "重要";
 "Warning" = "警告";
 "Caution" = "小心";
+"Today" = "今天";
+"Now" = "现在";
 "Toggle \"%@\" section" = "切换“%@”章节";
 
 /* Quick Capture */

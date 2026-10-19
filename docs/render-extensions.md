@@ -54,7 +54,10 @@ callbacks the page gave the editor).
 
 A slash command normally carries a template (`convert`). One with `host` names a
 host action instead (`SLASH_HOST_ACTIONS`, e.g. `pickImage`), posts a message to
-the app, and is hidden when the page has no matching callback.
+the app, and is hidden when the page has no matching callback. One with
+`insert(now)` (`/today`, `/now`) replaces only the typed `/query` with its
+text and leaves the rest of the line alone; it reads the same clock as template
+variables (`slashClock`).
 
 Templates are not part of `options`, which are fixed when the editor is created.
 `TemplateStore` reads the file the user chose (a security-scoped bookmark),
