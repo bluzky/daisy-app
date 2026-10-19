@@ -92,6 +92,31 @@ final class MainSplitViewController: NSSplitViewController {
         contentViewController?.localMarkdownLinkActivated = { [weak self] url in
             self?.onOpenMarkdownLink?(url)
         }
+        inspectorViewController?.onOpenLink = { [weak self] link, documentURL in
+            self?.openInspectorLink(link, from: documentURL)
+        }
+    }
+
+    /// Opens a link picked in the inspector the way clicking it in the
+    /// preview does: Markdown files in Daisy, other files in their default
+    /// app, web links through the external-link policy.
+    private func openInspectorLink(_ link: DocumentLink, from documentURL: URL?) {
+        switch link.target(relativeTo: documentURL) {
+        case .external(let url):
+            ExternalLinkOpener.open(url, window: view.window)
+        case .file(let url, let fragment):
+            guard FileKind.classify(url) == .markdown else {
+                NSWorkspace.shared.open(url)
+                return
+            }
+            var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+            components?.fragment = fragment
+            onOpenMarkdownLink?(components?.url ?? url)
+        case .section(let id):
+            contentViewController?.scrollToFragment(id)
+        case nil:
+            NSSound.beep()
+        }
     }
 
     func showSnapshot(_ prefetch: DocumentSnapshotCache.Prefetch) {

@@ -750,6 +750,11 @@ final class ContentViewController: NSViewController {
         }
     }
 
+    /// Scrolls the preview to the element a `#fragment` link names.
+    func scrollToFragment(_ id: String) {
+        scrollToElement(id: id)
+    }
+
     private func scrollToElement(id: String) {
         webView.elementOffset(id: id) { [weak self] offset in
             guard let self, let offset else { return }

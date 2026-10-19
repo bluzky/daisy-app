@@ -213,6 +213,9 @@
 "Lines" = "Lines";
 "Headings" = "Headings";
 "Links" = "Links";
+"No links" = "No links";
+"Open Link" = "Open Link";
+"Copy Link" = "Copy Link";
 "Images" = "Images";
 "Modified" = "Modified";
 "No frontmatter" = "No frontmatter";

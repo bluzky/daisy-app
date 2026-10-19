@@ -213,6 +213,9 @@
 "Lines" = "行数";
 "Headings" = "标题";
 "Links" = "链接";
+"No links" = "没有链接";
+"Open Link" = "打开链接";
+"Copy Link" = "拷贝链接";
 "Images" = "图像";
 "Modified" = "修改日期";
 "No frontmatter" = "无前置元数据";
