@@ -96,58 +96,24 @@ extension DocumentWindowController {
         LastSessionStore.record(fileURL: currentFileURL, folderURL: projectRootURL)
     }
 
-    func contextMenuEditorItems(for fileURL: URL) -> [NSMenuItem] {
-        let candidates = editorCandidates(for: fileURL)
-        let defaultEditor = resolveDefaultEditor(among: candidates)
-
-        var items: [NSMenuItem] = []
-
-        let externalItem = NSMenuItem(
+    /// The Files sidebar's "Open with External Editor" item: the file in the
+    /// default external editor, disabled when there is none.
+    func contextMenuExternalEditorItem(for fileURL: URL) -> NSMenuItem {
+        let defaultEditor = resolveDefaultEditor(among: editorCandidates(for: fileURL))
+        let item = NSMenuItem(
             title: NSLocalizedString("Open with External Editor", comment: "Context menu item"),
             action: #selector(contextLaunchEditor(_:)),
             keyEquivalent: ""
         )
-        externalItem.image = NSImage(systemSymbolName: "arrow.up.right.square",
-                                     accessibilityDescription: nil)
+        item.image = NSImage(systemSymbolName: "arrow.up.right.square", accessibilityDescription: nil)
         if let defaultEditor {
-            externalItem.target = self
-            externalItem.representedObject = ContextOpenPayload(fileURL: fileURL, appURL: defaultEditor.url)
-            externalItem.toolTip = localizedOpenIn(displayName(for: defaultEditor.url))
+            item.target = self
+            item.representedObject = ContextOpenPayload(fileURL: fileURL, appURL: defaultEditor.url)
+            item.toolTip = localizedOpenIn(displayName(for: defaultEditor.url))
         } else {
-            externalItem.isEnabled = false
+            item.isEnabled = false
         }
-        items.append(externalItem)
-
-        let openAs = NSMenuItem(
-            title: NSLocalizedString("Open As", comment: "Context menu submenu"),
-            action: nil,
-            keyEquivalent: ""
-        )
-        let submenu = NSMenu()
-        if candidates.isEmpty {
-            submenu.addItem(disabledItem(NSLocalizedString("No editors available", comment: "Open As empty state")))
-        } else {
-            for candidate in candidates {
-                let item = NSMenuItem(
-                    title: displayName(for: candidate.url),
-                    action: #selector(contextLaunchEditor(_:)),
-                    keyEquivalent: ""
-                )
-                item.target = self
-                item.representedObject = ContextOpenPayload(fileURL: fileURL, appURL: candidate.url)
-                let icon = NSWorkspace.shared.icon(forFile: candidate.url.path)
-                icon.size = NSSize(width: 16, height: 16)
-                item.image = icon
-                if let defaultEditor, sameEditor(candidate, defaultEditor) {
-                    item.state = .on
-                }
-                submenu.addItem(item)
-            }
-        }
-        openAs.submenu = submenu
-        items.append(openAs)
-
-        return items
+        return item
     }
 
     @objc private func contextLaunchEditor(_ sender: NSMenuItem) {
