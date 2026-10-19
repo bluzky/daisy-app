@@ -14,6 +14,7 @@ import { c, cpp, java, kotlin, objectiveC, csharp } from "@codemirror/legacy-mod
 import { sql } from "@codemirror/legacy-modes/mode/sql"
 import { toml } from "@codemirror/legacy-modes/mode/toml"
 import { hcl } from "codemirror-lang-hcl"
+import { elixir } from "codemirror-lang-elixir"
 
 // ---------------------------------------------------------------------------
 // Fenced-code languages
@@ -67,6 +68,7 @@ export const codeLanguages = [
   LanguageDescription.of({ name: "css", alias: ["scss"], support: css() }),
   LanguageDescription.of({ name: "html", alias: ["htm", "xml"], support: html() }),
   LanguageDescription.of({ name: "hcl", alias: ["terraform", "tf"], support: hcl() }),
+  LanguageDescription.of({ name: "elixir", alias: ["ex", "exs"], support: elixir() }),
   legacy("swift", [], swift),
   legacy("shell", ["sh", "bash", "zsh", "console"], shell),
   legacy("yaml", ["yml"], yaml),
