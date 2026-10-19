@@ -251,6 +251,7 @@
 "Choose the folder containing this Markdown file to save the image." = "Choose the folder containing this Markdown file to save the image.";
 "Choose an image to insert." = "Choose an image to insert.";
 "Image" = "Image";
+"Link to File" = "Link to File";
 "Choose a new name for this image." = "Choose a new name for this image.";
 "Rename" = "Rename";
 
@@ -319,6 +320,8 @@
 /* OmniSearch */
 "OmniSearch…" = "OmniSearch…";
 "Search files and commands" = "Search files and commands";
+"Link to a file in this project" = "Link to a file in this project";
+"Type a file name to link to" = "Type a file name to link to";
 "No results" = "No results";
 "Open a folder to search its files" = "Open a folder to search its files";
 "Open Folder…" = "Open Folder…";
@@ -331,6 +334,7 @@
 "Searching…" = "Searching…";
 "open" = "open";
 "open in new tab" = "open in new tab";
+"insert link" = "insert link";
 "open in new window" = "open in new window";
 "Create “%@”" = "Create “%@”";
 "Can’t Create File Here" = "Can’t Create File Here";
@@ -448,6 +452,7 @@
 "Move to Trash" = "Move to Trash";
 "Insert" = "Insert";
 "Image…" = "Image…";
+"Link to File…" = "Link to File…";
 "Developer Tools" = "Developer Tools";
 
 /* Launch behavior */

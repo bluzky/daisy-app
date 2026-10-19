@@ -47,6 +47,7 @@ const SLASH_ICONS = {
   code: '<path d="M7.5 6.5L4 10l3.5 3.5M12.5 6.5L16 10l-3.5 3.5"/>',
   table: '<rect x="3.5" y="4.5" width="13" height="11" rx="2"/><path d="M3.5 9h13M9 9v6.5"/>',
   image: '<rect x="3.5" y="4.5" width="13" height="11" rx="2"/><circle cx="7.6" cy="8.6" r="1.3"/><path d="M4 14.2l4-3.4 3 2.4 2.2-2 3.3 3"/>',
+  link: '<path d="M8.6 11.4a3 3 0 004.3 0l2.4-2.4a3 3 0 00-4.3-4.3l-1 1"/><path d="M11.4 8.6a3 3 0 00-4.3 0l-2.4 2.4a3 3 0 004.3 4.3l1-1"/>',
   mermaid: '<rect x="3" y="3.5" width="6" height="4" rx="1"/><rect x="11" y="12.5" width="6" height="4" rx="1"/><path d="M6 7.5v3a2 2 0 002 2h3"/>',
   math: '<path d="M14.5 5h-9l4 5-4 5h9"/>',
   note: '<circle cx="10" cy="10" r="6.5"/><path d="M10 9.3v4M10 6.8v.1"/>',
@@ -65,6 +66,10 @@ const SLASH_HOST_ACTIONS = {
   pickImage: {
     available: (callbacks) => typeof callbacks.onPickImage === "function",
     run: (callbacks, position) => callbacks.onPickImage(position, position),
+  },
+  pickLink: {
+    available: (callbacks) => typeof callbacks.onPickLink === "function",
+    run: (callbacks, position) => callbacks.onPickLink(position, position),
   },
 }
 
@@ -102,6 +107,8 @@ const SLASH_COMMANDS = [
     } },
   { id: "image", group: "blocks", label: "Image", aliases: ["image", "picture", "photo", "img"],
     host: "pickImage" },
+  { id: "link", group: "blocks", label: "Link to File", aliases: ["link", "file", "page", "ref", "reference"],
+    host: "pickLink" },
   { id: "mermaid", group: "blocks", label: "Mermaid diagram", aliases: ["mermaid", "diagram", "chart", "flowchart"],
     convert: (raw) => slashFence("```mermaid", "```", raw, ["graph TD", "    A --> B"]) },
   { id: "math", group: "blocks", label: "Math Block", aliases: ["math", "equation", "latex", "katex"],
@@ -203,16 +210,33 @@ function slashTrigger(state) {
   }
 }
 
+// How a query matches one name: whole name, start of the name, or start of a
+// later word. A label outranks an alias at the same kind of match, so `/li`
+// puts "Link to File" above the `list` and `line` aliases. Within a kind, the
+// name the query covers more of wins, so `/table` prefers "Table" over a
+// longer name that merely starts the same way.
+const SLASH_MATCH_EXACT = 3
+const SLASH_MATCH_PREFIX = 2
+const SLASH_MATCH_WORD = 1
+
+function slashNameScore(name, needle, isLabel) {
+  let kind = 0
+  if (name === needle) kind = SLASH_MATCH_EXACT
+  else if (name.startsWith(needle)) kind = SLASH_MATCH_PREFIX
+  else if (name.split(/[\s-]+/).some((word) => word.startsWith(needle))) kind = SLASH_MATCH_WORD
+  if (!kind) return 0
+  return kind * 4 + (isLabel ? 2 : 0) + needle.length / name.length
+}
+
 function slashMatches(commands, query) {
   if (!query) return commands
   const needle = query.toLowerCase()
   const scored = []
   commands.forEach((command, order) => {
+    const labels = command.labelNames || [command.label.toLowerCase()]
     let score = 0
     for (const name of command.names) {
-      if (name === needle) score = Math.max(score, 3)
-      else if (name.startsWith(needle)) score = Math.max(score, 2)
-      else if (name.split(/[\s-]+/).some((word) => word.startsWith(needle))) score = Math.max(score, 1)
+      score = Math.max(score, slashNameScore(name, needle, labels.includes(name)))
     }
     if (score) scored.push({ command, score, order })
   })
@@ -257,11 +281,13 @@ function slashExtensions(options, host) {
     (command) => !command.host || SLASH_HOST_ACTIONS[command.host].available(host.callbacks)
   ).map((command) => {
     const label = options[`cmd.${command.id}`] || command.label
+    const labelNames = [label.toLowerCase(), command.label.toLowerCase()]
     return {
       ...command,
       label,
+      labelNames,
       // The English name and aliases stay searchable in any language.
-      names: [label.toLowerCase(), command.label.toLowerCase(), ...command.aliases],
+      names: [...labelNames, ...command.aliases],
     }
   })
   const groupLabel = (id) => options[`group.${id}`] || SLASH_GROUPS.find((group) => group.id === id).label
@@ -281,6 +307,7 @@ function slashExtensions(options, host) {
     return [...commands, {
       ...SLASH_TEMPLATES_ENTRY,
       label,
+      labelNames: [label.toLowerCase(), SLASH_TEMPLATES_ENTRY.label.toLowerCase()],
       names: [label.toLowerCase(), SLASH_TEMPLATES_ENTRY.label.toLowerCase(), "template"],
     }]
   }

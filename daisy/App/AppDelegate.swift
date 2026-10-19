@@ -602,6 +602,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
              #selector(insertCodeBlockFromMenu(_:)),
              #selector(insertTableFromMenu(_:)):
             return activeDocumentWindowController?.canFormatMarkdown ?? false
+        case #selector(insertLinkToFileFromMenu(_:)):
+            return activeDocumentWindowController?.canInsertLinkToFile ?? false
         default:
             return true
         }
@@ -854,6 +856,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case #selector(DocumentWindowController.toggleAlwaysOnTop(_:)): return .viewToggleAlwaysOnTop
         case #selector(DocumentWindowController.goBackInHistory(_:)): return .goBack
         case #selector(DocumentWindowController.goForwardInHistory(_:)): return .goForward
+        case #selector(insertLinkToFileFromMenu(_:)): return .insertLinkToFile
         case #selector(NSResponder.scrollLineUp(_:)): return .goLineUp
         case #selector(NSResponder.scrollLineDown(_:)): return .goLineDown
         case #selector(NSResponder.scrollPageUp(_:)): return .goPageUp
@@ -1421,6 +1424,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let insertTitle = L("Insert")
         let menu = NSMenu(title: insertTitle)
         menu.addItem(item("Image…", symbol: "photo", action: #selector(insertImageFromMenu(_:))))
+        menu.addItem(item("Link to File…", symbol: "link", action: #selector(insertLinkToFileFromMenu(_:))))
         menu.addItem(item("Code Block", symbol: "curlybraces.square", action: #selector(insertCodeBlockFromMenu(_:))))
         menu.addItem(item("Table", symbol: "tablecells", action: #selector(insertTableFromMenu(_:))))
 
@@ -1434,6 +1438,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func insertImageFromMenu(_ sender: Any?) {
         activeDocumentWindowController?.insertImageFromMenu()
+    }
+
+    @objc private func insertLinkToFileFromMenu(_ sender: Any?) {
+        activeDocumentWindowController?.insertLinkToFileFromMenu()
     }
 
     @objc private func insertCodeBlockFromMenu(_ sender: Any?) {
