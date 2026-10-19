@@ -63,6 +63,20 @@ final class MarkdownDocumentController: NSDocumentController {
         return try super.typeForContents(of: url)
     }
 
+    /// File > New (⌘N) adds the untitled document as a tab of the front
+    /// document window, whatever the tabbing preferences say. With no
+    /// document window open it gets a window of its own.
+    override func newDocument(_ sender: Any?) {
+        let hasDocumentWindow = NSApp.orderedWindows.contains {
+            $0.isVisible && $0.windowController is DocumentWindowController
+        }
+        if hasDocumentWindow { DocumentWindowController.markNextWindowAsTab() }
+        super.newDocument(sender)
+        // Consumed when the window was built; cleared in case none was, so
+        // it cannot leak to the next open.
+        DocumentWindowController.nextWindowRequestsTab = false
+    }
+
     override func openUntitledDocumentAndDisplay(_ displayDocument: Bool) throws -> NSDocument {
         let document = try super.openUntitledDocumentAndDisplay(displayDocument)
         if displayDocument {
