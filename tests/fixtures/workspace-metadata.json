@@ -48,7 +48,7 @@
   },
   {
     "name": "malformed tokens and task continuation are ignored without rewriting source",
-    "source": "#123 #bad//path #trailing/ #_ @/no +---\n(#good), @home-office +one_two/three-4\n- [ ] Valid due:2024-02-29 scheduled:2025-01-01 p:high\n- [x] Bad due:2023-02-29 scheduled:2025-13-01 p:urgent\nNot a task due:2025-01-02 p:low\n- [ ] Continuation\n  due:2025-01-02 p:low",
+    "source": "#123 #bad//path #trailing/ #_ @/no +---\n(#ignored), #good @home-office +one_two/three-4\n- [ ] Valid due:2024-02-29 scheduled:2025-01-01 p:high\n- [x] Bad due:2023-02-29 scheduled:2025-13-01 p:urgent\nNot a task due:2025-01-02 p:low\n- [ ] Continuation\n  due:2025-01-02 p:low",
     "expected": {
       "tags": [{ "source": "#good", "key": "good", "line": 2 }],
       "contexts": [{ "source": "@home-office", "key": "home-office", "line": 2 }],
@@ -57,6 +57,19 @@
         { "line": 3, "due": "2024-02-29", "scheduled": "2025-01-01", "priority": "high" },
         { "line": 4, "due": null, "scheduled": null, "priority": null },
         { "line": 6, "due": null, "scheduled": null, "priority": null }
+      ]
+    }
+  },
+  {
+    "name": "metadata tokens require whitespace boundaries and fields use lowercase syntax",
+    "source": "(#hidden) #Visible @Desk +Project\n- [ ] Lowercase due:2025-03-04 scheduled:2025-03-01 p:low DUE:2025-04-01 Scheduled:2025-04-02 P:high\nOrdinary due:2025-05-01 p:medium\n- [ ] Inline `due:2025-06-01 p:high` scheduled:2025-06-02",
+    "expected": {
+      "tags": [{ "source": "#Visible", "key": "visible", "line": 1 }],
+      "contexts": [{ "source": "@Desk", "key": "desk", "line": 1 }],
+      "projects": [{ "source": "+Project", "key": "project", "line": 1 }],
+      "tasks": [
+        { "line": 2, "due": "2025-03-04", "scheduled": "2025-03-01", "priority": "low" },
+        { "line": 4, "due": null, "scheduled": "2025-06-02", "priority": null }
       ]
     }
   }

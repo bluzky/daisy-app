@@ -3,7 +3,13 @@ import XCTest
 @testable import MarkdownHelpers
 
 final class WorkspaceMetadataTests: XCTestCase {
+    override class func setUp() {
+        super.setUp()
+        TestVendor.installWorkspaceMetadataExtractor()
+    }
+
     func testSharedFixtureCorpus() throws {
+        XCTAssertTrue(WorkspaceMetadataExtractor.isAvailable)
         let fixtures = try JSONDecoder().decode([Fixture].self, from: Data(contentsOf: fixtureURL))
         for fixture in fixtures {
             let source = fixture.source
