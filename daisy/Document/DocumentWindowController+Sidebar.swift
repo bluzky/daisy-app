@@ -266,13 +266,6 @@ extension DocumentWindowController {
         syncSidebarToolbarState()
     }
 
-    @objc func hideSidebarFromMenu(_ sender: Any?) {
-        guard let split = documentWindow.contentViewController as? MainSplitViewController,
-              split.isSidebarVisible else { return }
-        split.toggleSidebar()
-        syncSidebarToolbarState()
-    }
-
     @objc func selectOutlineMode(_ sender: Any?) {
         guard let split = documentWindow.contentViewController as? MainSplitViewController else { return }
         split.setSidebarMode(.outline)

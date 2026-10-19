@@ -17,9 +17,9 @@ enum KeymapContext: String, CaseIterable, Hashable {
 enum KeymapCommand: String, CaseIterable, Hashable {
     case fileOmniSearch = "file.omniSearch"
     case viewToggleSidebar = "view.toggleSidebar"
-    case viewHideSidebar = "view.hideSidebar"
     case viewShowOutline = "view.showOutline"
     case viewShowProjectNavigator = "view.showProjectNavigator"
+    case viewToggleInspector = "view.toggleInspector"
     case viewToggleEditMode = "view.toggleEditMode"
     case viewToggleToolbar = "view.toggleToolbar"
     case viewToggleAlwaysOnTop = "view.toggleAlwaysOnTop"
@@ -66,8 +66,8 @@ enum KeymapCommand: String, CaseIterable, Hashable {
     var context: KeymapContext {
         switch self {
         case .fileOmniSearch,
-             .viewToggleSidebar, .viewHideSidebar, .viewShowOutline,
-             .viewShowProjectNavigator, .viewToggleEditMode, .viewToggleToolbar,
+             .viewToggleSidebar, .viewShowOutline,
+             .viewShowProjectNavigator, .viewToggleInspector, .viewToggleEditMode, .viewToggleToolbar,
              .viewToggleAlwaysOnTop, .findFind, .findReplace, .findNext,
              .findPrevious, .findJumpToSelection, .goBack, .goForward:
             .global
@@ -89,9 +89,9 @@ enum KeymapCommand: String, CaseIterable, Hashable {
         switch self {
         case .fileOmniSearch: "OmniSearch…"
         case .viewToggleSidebar: "Toggle Sidebar"
-        case .viewHideSidebar: "Hide Sidebar"
         case .viewShowOutline: "Table of Contents"
         case .viewShowProjectNavigator: "Project Navigator"
+        case .viewToggleInspector: "Inspector"
         case .viewToggleEditMode: "Toggle Edit Mode"
         case .viewToggleToolbar: "Show Toolbar"
         case .viewToggleAlwaysOnTop: "Always on Top"
@@ -445,8 +445,9 @@ struct Keymap {
     private static let defaultBindings: [KeymapContext: [(KeyBinding, KeymapCommand)]] = [
         .global: pairs([
             ("cmd+k", .fileOmniSearch), ("cmd+l", .viewToggleSidebar),
-            ("ctrl+cmd+1", .viewHideSidebar), ("ctrl+cmd+2", .viewShowOutline),
-            ("ctrl+cmd+3", .viewShowProjectNavigator), ("cmd+e", .viewToggleEditMode),
+            ("ctrl+cmd+1", .viewShowOutline), ("ctrl+cmd+2", .viewShowProjectNavigator),
+            ("shift+cmd+i", .viewToggleInspector),
+            ("cmd+e", .viewToggleEditMode),
             ("opt+cmd+t", .viewToggleToolbar), ("ctrl+cmd+t", .viewToggleAlwaysOnTop),
             ("cmd+f", .findFind), ("opt+cmd+f", .findReplace), ("cmd+g", .findNext),
             ("shift+cmd+g", .findPrevious), ("cmd+j", .findJumpToSelection),

@@ -102,9 +102,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var coalescedReloadDepth = 0
     private var needsCoalescedPreviewReload = false
 
-    private weak var hideSidebarMenuItem: NSMenuItem?
     private weak var outlineMenuItem: NSMenuItem?
     private weak var filesMenuItem: NSMenuItem?
+    private weak var inspectorMenuItem: NSMenuItem?
     private weak var automaticAppearanceMenuItem: NSMenuItem?
     private weak var lightAppearanceMenuItem: NSMenuItem?
     private weak var darkAppearanceMenuItem: NSMenuItem?
@@ -538,11 +538,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         syncSidebarViewMenuState()
     }
 
-    @objc private func hideSidebarFromMenu(_ sender: Any?) {
-        activeDocumentWindowController?.hideSidebarFromMenu(sender)
-        syncSidebarViewMenuState()
-    }
-
     @objc private func selectOutlineMode(_ sender: Any?) {
         activeDocumentWindowController?.selectOutlineMode(sender)
         syncSidebarViewMenuState()
@@ -550,6 +545,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func selectFilesMode(_ sender: Any?) {
         activeDocumentWindowController?.selectFilesMode(sender)
+        syncSidebarViewMenuState()
+    }
+
+    @objc private func toggleInspectorFromMenu(_ sender: Any?) {
+        activeDocumentWindowController?.toggleInspectorFromMenu()
         syncSidebarViewMenuState()
     }
 
@@ -581,9 +581,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         syncContentWidthMenuState()
         switch menuItem.action {
         case #selector(toggleSidebarFromMenu(_:)),
-             #selector(hideSidebarFromMenu(_:)),
              #selector(selectOutlineMode(_:)),
              #selector(selectFilesMode(_:)),
+             #selector(toggleInspectorFromMenu(_:)),
              #selector(performFindPanelAction(_:)),
              #selector(performTextFinderAction(_:)):
             return activeDocumentWindowController != nil
@@ -837,7 +837,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         switch item.action {
         case #selector(DocumentWindowController.searchForDocument(_:)): return .fileOmniSearch
         case #selector(toggleSidebarFromMenu(_:)): return .viewToggleSidebar
-        case #selector(hideSidebarFromMenu(_:)): return .viewHideSidebar
+        case #selector(toggleInspectorFromMenu(_:)): return .viewToggleInspector
         case #selector(selectOutlineMode(_:)): return .viewShowOutline
         case #selector(selectFilesMode(_:)): return .viewShowProjectNavigator
         case #selector(toggleEditModeFromMenu(_:)): return .viewToggleEditMode
@@ -1295,7 +1295,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }) {
             viewMenu.removeItem(existing)
         }
-        guard viewMenu.items.first(where: { $0.action == #selector(hideSidebarFromMenu(_:)) }) == nil else {
+        guard viewMenu.items.first(where: { $0.action == #selector(toggleSidebarFromMenu(_:)) }) == nil else {
             return
         }
 
@@ -1311,26 +1311,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                                              action: #selector(toggleSidebarFromMenu(_:)))
         viewMenu.insertItem(toggle, at: insertIndex)
 
-        let hide = makeSidebarViewMenuItem(title: L("Hide Sidebar"),
-                                           symbol: "sidebar.leading",
-                                           keyEquivalent: "1",
-                                           action: #selector(hideSidebarFromMenu(_:)))
-        viewMenu.insertItem(hide, at: insertIndex + 1)
-        hideSidebarMenuItem = hide
-
         let outline = makeSidebarViewMenuItem(title: L("Table of Contents"),
                                               symbol: "list.bullet.indent",
-                                              keyEquivalent: "2",
+                                              keyEquivalent: "1",
                                               action: #selector(selectOutlineMode(_:)))
-        viewMenu.insertItem(outline, at: insertIndex + 2)
+        viewMenu.insertItem(outline, at: insertIndex + 1)
         outlineMenuItem = outline
 
         let files = makeSidebarViewMenuItem(title: L("Project Navigator"),
                                             symbol: "folder",
-                                            keyEquivalent: "3",
+                                            keyEquivalent: "2",
                                             action: #selector(selectFilesMode(_:)))
-        viewMenu.insertItem(files, at: insertIndex + 3)
+        viewMenu.insertItem(files, at: insertIndex + 2)
         filesMenuItem = files
+
+        // ⇧⌘I: ⌘I is Italic and ⌥⌘I the Web Inspector.
+        let inspector = makeSidebarViewMenuItem(title: L("Inspector"),
+                                                symbol: "info.circle",
+                                                keyEquivalent: "i",
+                                                modifiers: [.shift, .command],
+                                                action: #selector(toggleInspectorFromMenu(_:)))
+        viewMenu.insertItem(inspector, at: insertIndex + 3)
+        inspectorMenuItem = inspector
 
         viewMenu.insertItem(.separator(), at: insertIndex + 4)
     }
@@ -1465,12 +1467,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func syncSidebarViewMenuState() {
         guard let state = activeDocumentWindowController?.sidebarMenuState else {
-            hideSidebarMenuItem?.state = .off
             outlineMenuItem?.state = .off
             filesMenuItem?.state = .off
+            inspectorMenuItem?.state = .off
             return
         }
-        hideSidebarMenuItem?.state = state.sidebarVisible ? .off : .on
+        inspectorMenuItem?.state = activeDocumentWindowController?.isInspectorVisible == true ? .on : .off
         outlineMenuItem?.state = (state.sidebarVisible && state.mode == .outline) ? .on : .off
         filesMenuItem?.state = (state.sidebarVisible && state.mode == .files) ? .on : .off
     }
