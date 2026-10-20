@@ -49,7 +49,11 @@ final class MarkdownDocument: NSDocument {
         // Read before the new window exists, while the window ⌘N was
         // pressed in is still main.
         let sourceController = NSApp.mainWindow?.windowController as? DocumentWindowController
-        let isTabRequest = DocumentWindowController.nextWindowRequestsTab
+        // Open in New Tab / New Window come from inside a window, so the
+        // file keeps that window's project. Plain opens (Finder, ⌘O,
+        // recents) are bound to the file's own folder.
+        let isOpenedFromWindow = DocumentWindowController.nextWindowRequestsTab
+            || DocumentWindowController.nextWindowDeclinesTabbing
         let controller = DocumentWindowController()
         controller.pendingSnapshot = snapshot
         addWindowController(controller)
@@ -60,7 +64,7 @@ final class MarkdownDocument: NSDocument {
         }
         if fileURL == nil {
             controller.prepareSidebarForUntitledDocument(from: sourceController)
-        } else if isTabRequest, let fileURL {
+        } else if isOpenedFromWindow, let fileURL {
             controller.inheritProject(from: sourceController, containing: fileURL)
         }
         controller.display(markdown: markdown, fileURL: fileURL)

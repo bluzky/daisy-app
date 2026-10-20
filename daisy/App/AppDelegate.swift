@@ -670,9 +670,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard !plan.isEmpty else { return false }
 
         if let folderURL = plan.folderURL {
-            openFolder(folderURL)
-            if let fileURL = plan.fileURL, plan.opensFileInFolderWindow,
-               let controller = activeDocumentWindowController {
+            let controller = openFolder(folderURL)
+            if let fileURL = plan.fileURL, plan.opensFileInFolderWindow, let controller {
                 controller.present(url: fileURL)
                 return true
             }
@@ -707,20 +706,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         isDocumentPromptScheduled = false
     }
 
-    func openFolder(_ url: URL) {
-        if let controller = activeDocumentWindowController {
+    /// A folder gets a window of its own, bound to it as its workspace. A
+    /// window already bound to the folder comes forward instead, and a blank
+    /// untitled window is reused rather than left behind.
+    @discardableResult
+    func openFolder(_ url: URL) -> DocumentWindowController? {
+        let root = url.resolvingSymlinksInPath().standardizedFileURL
+        let controllers = NSDocumentController.shared.documents
+            .flatMap(\.windowControllers)
+            .compactMap { $0 as? DocumentWindowController }
+        if let existing = controllers.first(where: { $0.projectRootURL == root }) {
+            existing.documentWindow.makeKeyAndOrderFront(nil)
+            NSApp.activate()
+            return existing
+        }
+        if let controller = activeDocumentWindowController, controller.isBlank {
             controller.openFolder(url)
-            return
+            return controller
         }
 
+        DocumentWindowController.markNextWindowAsSeparate()
         let document = MarkdownDocument()
         NSDocumentController.shared.addDocument(document)
         document.makeWindowControllers()
         document.showWindows()
         guard let controller = document.windowControllers.first as? DocumentWindowController else {
-            return
+            return nil
         }
         controller.openFolder(url)
+        return controller
     }
 
     private var isOpenPanelVisible: Bool {

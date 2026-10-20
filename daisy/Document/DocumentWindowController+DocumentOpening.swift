@@ -74,6 +74,29 @@ extension DocumentWindowController {
         }
     }
 
+    /// An untitled window with nothing in it and no workspace, which an
+    /// opened folder can take over instead of leaving it behind.
+    var isBlank: Bool {
+        currentFileURL == nil && projectRootURL == nil && !hasUntitledContent
+    }
+
+    /// An untitled document someone has written in. A folder window showing
+    /// no file yet has none, so it can take the file it opens.
+    var hasUntitledContent: Bool {
+        currentFileURL == nil
+            && (!(currentMarkdown ?? "").isEmpty || hasPendingEditorChanges)
+    }
+
+    /// A window showing no file and not being written in shows shortcut
+    /// hints instead of a blank page: a folder window before its first file,
+    /// or an untitled one taken out of Edit Mode while still empty.
+    func updateEmptyHints() {
+        mainSplit?.setShowsEmptyHints(currentFileURL == nil && !isEditing && !hasUntitledContent)
+    }
+
+    /// Binds this window to `folderURL` as its workspace. Opening a folder
+    /// from the UI goes through `AppDelegate.openFolder`, which picks the
+    /// window.
     func openFolder(_ folderURL: URL) {
         let folderURL = folderURL.standardizedFileURL
         if currentFileURL == nil {
@@ -130,7 +153,7 @@ extension DocumentWindowController {
         panel.beginSheetModal(for: documentWindow) { [weak self] response in
             guard let self, response == .OK, let url = panel.url else { return }
             if url.isExistingDirectory {
-                self.openFolder(url)
+                (NSApp.delegate as? AppDelegate)?.openFolder(url)
                 return
             }
             if openAsTab {

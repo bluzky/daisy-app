@@ -58,16 +58,6 @@ private enum SidebarWorkspaceRegistry {
         workspace(rootedAt: SidebarWorkspace.canonicalURL(url))
     }
 
-    static func workspace(forFile url: URL) -> SidebarWorkspace {
-        let fileURL = SidebarWorkspace.canonicalURL(url)
-        discardReleasedWorkspaces()
-        let containingRoots = workspaces.keys.filter { fileURL.isDescendantOrSame(of: $0) }
-        if let root = containingRoots.max(by: { $0.pathComponents.count < $1.pathComponents.count }) {
-            return workspace(rootedAt: root)
-        }
-        return workspace(rootedAt: fileURL.deletingLastPathComponent())
-    }
-
     private static func workspace(rootedAt rootURL: URL) -> SidebarWorkspace {
         discardReleasedWorkspaces()
         if let workspace = workspaces[rootURL]?.workspace { return workspace }
@@ -284,13 +274,16 @@ final class SidebarViewController: NSViewController {
     }
 
     /// Defers navigator mounting until Files mode (avoids disk walks for TOC).
-    /// A direct file joins its deepest existing containing workspace, or
-    /// creates a workspace rooted at its parent. Untitled documents retain
-    /// their deferred workspace.
+    /// A window keeps its workspace once it has one, whatever file it shows
+    /// next; a window without one is bound to the file's parent folder.
     private func setOpenFileURL(_ fileURL: URL?) {
         if let fileURL {
             let fileURL = SidebarWorkspace.canonicalURL(fileURL)
-            pendingWorkspace = SidebarWorkspaceRegistry.workspace(forFile: fileURL)
+            if pendingWorkspace == nil {
+                pendingWorkspace = SidebarWorkspaceRegistry.workspace(
+                    forExplicitFolder: fileURL.deletingLastPathComponent()
+                )
+            }
             pendingFileURL = fileURL
         } else {
             pendingFileURL = nil
