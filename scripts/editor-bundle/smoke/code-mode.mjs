@@ -23,6 +23,14 @@ check("code mode replace all rewrites matches",
   editor.replaceAll("count", "value").replaced === 1 && editor.getMarkdown().includes("let count = 1"))
 editor.destroy()
 
+const elixirHost = dom.window.document.createElement("div")
+dom.window.document.body.appendChild(elixirHost)
+const elixirEditor = dom.window.MDEditor.create(elixirHost, "defmodule Greeter do\n  :world\nend\n", {
+  codeLanguage: "exs",
+})
+check("code mode highlights Elixir aliases", elixirHost.querySelector(".hl-keyword") != null)
+elixirEditor.destroy()
+
 const plain = dom.window.document.createElement("div")
 dom.window.document.body.appendChild(plain)
 const plainEditor = dom.window.MDEditor.create(plain, "just text", { codeLanguage: "" })

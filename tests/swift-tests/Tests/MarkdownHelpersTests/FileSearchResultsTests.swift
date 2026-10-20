@@ -146,6 +146,13 @@ final class FileSearchResultsTests: XCTestCase {
         XCTAssertFalse(byRecent.contains { if case .createFile = $0 { true } else { false } })
     }
 
+    func testLinkModeNeverOffersToCreateAFile() throws {
+        let snapshot = ProjectFileIndex.Snapshot(root: root, candidates: [.init(relativePath: "guide.md")],
+                                                 isTruncated: false)
+        XCTAssertEqual(try FileSearchResults.rows(query: "notes/roadmap", recentURLs: [], snapshot: snapshot,
+                                                  offersCreate: false), [])
+    }
+
     func testCreateRowWaitsForTheIndexAndNeedsAValidName() throws {
         XCTAssertEqual(try FileSearchResults.rows(query: "roadmap", recentURLs: [], snapshot: nil), [])
         let snapshot = ProjectFileIndex.Snapshot(root: root, candidates: [], isTruncated: false)

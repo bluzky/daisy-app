@@ -320,7 +320,8 @@ nonisolated extension MarkdownHTML {
       ("h1", "Heading 1"), ("h2", "Heading 2"), ("h3", "Heading 3"),
       ("quote", "Block Quote"), ("divider", "Divider"),
       ("bullet", "Bulleted List"), ("ordered", "Numbered List"), ("task", "Checklist"),
-      ("code", "Code Block"), ("table", "Table"), ("image", "Image"), ("mermaid", "Mermaid diagram"),
+      ("code", "Code Block"), ("table", "Table"), ("image", "Image"),
+      ("link", "Link to File"), ("mermaid", "Mermaid diagram"),
       ("math", "Math Block"), ("note", "Note"), ("tip", "Tip"),
       ("important", "Important"), ("warning", "Warning"), ("caution", "Caution"),
       ("templates", "Templates")

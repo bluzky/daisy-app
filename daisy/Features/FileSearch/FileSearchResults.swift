@@ -83,7 +83,8 @@ nonisolated enum FileSearchResults {
     static func rows(query: String,
                      recentURLs: [URL],
                      snapshot: ProjectFileIndex.Snapshot?,
-                     commands: [CommandCandidate] = []) throws -> [Row] {
+                     commands: [CommandCandidate] = [],
+                     offersCreate: Bool = true) throws -> [Row] {
         if let commandQuery = commandQuery(query) {
             let matched = try rankedCommands(query: commandQuery, commands: commands)
             return matched.isEmpty ? [] : [.commandsHeading] + matched.map { .command($0) }
@@ -123,7 +124,7 @@ nonisolated enum FileSearchResults {
         // Offered only once the index has loaded, so it cannot flash up for a
         // file the walk simply has not reached yet, and only when nothing at
         // all matched by name.
-        if let snapshot, files.isEmpty, recentIndices.isEmpty,
+        if offersCreate, let snapshot, files.isEmpty, recentIndices.isEmpty,
            let relativePath = ProjectItemName.newFileRelativePath(from: query) {
             rows.insert(.createFile(NewFile(relativePath: relativePath, projectRoot: snapshot.root)), at: 0)
         }

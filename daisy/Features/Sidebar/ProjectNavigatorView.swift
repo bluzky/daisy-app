@@ -1020,18 +1020,12 @@ extension ProjectNavigatorView: NSMenuDelegate {
         }
         guard row >= 0, let node = outlineView.item(atRow: row) as? FileNode else { return }
         let url = node.url
-
-        menu.addItem(makeMenuItem(title: NSLocalizedString("Show in Finder", comment: "Project navigator context menu"),
-                                  symbol: "folder",
-                                  action: #selector(showInFinder(_:)),
-                                  url: url))
-        menu.addItem(.separator())
-        addCreationItems(to: menu, for: url)
-
         // A dimmed file has nothing to open or copy; Show in Finder, creating
         // items, Copy Path, Rename and Trash stay so it can still be dealt with.
-        if !node.isDirectory && node.isPreviewable {
-            menu.addItem(.separator())
+        let opensInDaisy = !node.isDirectory && node.isPreviewable
+
+        // Open: every way to look at the item, Finder included.
+        if opensInDaisy {
             menu.addItem(makeMenuItem(
                 title: NSLocalizedString("Open in New Tab", comment: "Project navigator context menu"),
                 symbol: "macwindow",
@@ -1045,18 +1039,25 @@ extension ProjectNavigatorView: NSMenuDelegate {
                 url: url
             ))
             if let controller = documentWindowController {
-                for item in controller.contextMenuEditorItems(for: url) {
-                    menu.addItem(item)
-                }
+                menu.addItem(controller.contextMenuExternalEditorItem(for: url))
             }
-            menu.addItem(.separator())
+        }
+        menu.addItem(makeMenuItem(title: NSLocalizedString("Show in Finder", comment: "Project navigator context menu"),
+                                  symbol: "folder",
+                                  action: #selector(showInFinder(_:)),
+                                  url: url))
+
+        menu.addItem(.separator())
+        addCreationItems(to: menu, for: url)
+
+        // Copy: the contents and the path together.
+        menu.addItem(.separator())
+        if opensInDaisy {
             menu.addItem(makeMenuItem(title: NSLocalizedString("Copy", comment: "Project navigator context menu"),
                                       symbol: "document.on.clipboard",
                                       action: #selector(copyContents(_:)),
                                       url: url))
         }
-
-        menu.addItem(.separator())
         menu.addItem(makeMenuItem(title: NSLocalizedString("Copy Path", comment: "Project navigator context menu"),
                                   symbol: "document.on.document",
                                   action: #selector(copyPath(_:)),

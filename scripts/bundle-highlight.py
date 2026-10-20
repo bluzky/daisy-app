@@ -3,8 +3,8 @@
 
 Downloads highlight.min.js (the common-languages bundle from
 @highlightjs/cdn-assets), the github + github-dark themes, and the LICENSE
-from jsDelivr. Adds the third-party Terraform/HCL grammar, then combines the
-two themes into a single CSS that gates dark rules behind
+from jsDelivr. Adds the third-party Terraform/HCL grammar and official Elixir
+grammar, then combines the two themes into a single CSS that gates dark rules behind
 `prefers-color-scheme: dark`, so a single stylesheet covers both appearances.
 
 Run from repo root:  ./scripts/bundle-highlight.py [VERSION]
@@ -42,6 +42,7 @@ def main() -> int:
     license_text = fetch(LICENSE_URL)
     terraform = fetch(f"{TERRAFORM_CDN}/dist/index.js").decode("utf-8").strip()
     terraform_license = fetch(f"{TERRAFORM_CDN}/LICENSE")
+    elixir = fetch(f"{CDN}/languages/elixir.min.js")
 
     # The maintained package publishes an ES module. Its definitions are
     # otherwise browser-ready, so remove the pinned release's export footer
@@ -68,6 +69,7 @@ if (instance) instance.registerLanguage('terraform', hljsDefineTerraform);
    typeof module !== 'undefined' ? module.exports : null);
 """
     js += terraform_addon.encode("utf-8")
+    js += b"\n" + elixir
 
     combined_license = (
         license_text.rstrip()

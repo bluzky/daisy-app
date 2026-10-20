@@ -898,6 +898,9 @@ nonisolated enum EditorHTML {
                         onPickImage: function (from, to) {
                             post({ kind: "pickImage", from: from, to: to });
                         },
+                        onPickLink: function (from, to) {
+                            post({ kind: "pickLink", from: from, to: to });
+                        },
                         // Preview block margins (MarkdownHTML design tokens):
                         // the bundle sizes blank-separator lines from these.
                         spacing: {

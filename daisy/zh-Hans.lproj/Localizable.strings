@@ -213,6 +213,9 @@
 "Lines" = "行数";
 "Headings" = "标题";
 "Links" = "链接";
+"No links" = "没有链接";
+"Open Link" = "打开链接";
+"Copy Link" = "拷贝链接";
 "Images" = "图像";
 "Modified" = "修改日期";
 "No frontmatter" = "无前置元数据";
@@ -248,6 +251,7 @@
 "Choose the folder containing this Markdown file to save the image." = "请选择包含此 Markdown 文件的文件夹，以保存图片。";
 "Choose an image to insert." = "选择要插入的图片。";
 "Image" = "图片";
+"Link to File" = "链接到文件";
 "Choose a new name for this image." = "为此图像输入新名称。";
 "Rename" = "重命名";
 
@@ -316,6 +320,8 @@
 /* OmniSearch */
 "OmniSearch…" = "OmniSearch…";
 "Search files and commands" = "搜索文件和命令";
+"Link to a file in this project" = "链接到此项目中的文件";
+"Type a file name to link to" = "输入要链接的文件名";
 "No results" = "没有结果";
 "Open a folder to search its files" = "打开一个文件夹以搜索其中的文件";
 "Open Folder…" = "打开文件夹…";
@@ -328,6 +334,7 @@
 "Searching…" = "正在搜索…";
 "open" = "打开";
 "open in new tab" = "在新标签页中打开";
+"insert link" = "插入链接";
 "open in new window" = "在新窗口中打开";
 "Create “%@”" = "创建“%@”";
 "Can’t Create File Here" = "无法在此创建文件";
@@ -445,6 +452,7 @@
 "Move to Trash" = "移到废纸篓";
 "Insert" = "插入";
 "Image…" = "图片…";
+"Link to File…" = "链接到文件…";
 "Developer Tools" = "开发者工具";
 
 /* Launch behavior */

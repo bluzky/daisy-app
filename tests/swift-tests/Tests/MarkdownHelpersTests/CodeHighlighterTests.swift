@@ -18,6 +18,17 @@ final class CodeHighlighterTests: XCTestCase {
         XCTAssertNil(CodeHighlighter.highlight("plain", language: ""))
     }
 
+    func testHighlightsElixirGrammarInRenderedFences() throws {
+        XCTAssertTrue(CodeHighlighter.supports(language: "elixir"))
+        let code = "defmodule Greeter do\n  def hello, do: :world\nend"
+        let html = try XCTUnwrap(CodeHighlighter.highlight(code, language: "elixir"))
+        XCTAssertTrue(html.contains("hljs-keyword"), html)
+
+        let rendered = MarkdownHTML.render(markdown: "```elixir\n\(code)\n```")
+        XCTAssertTrue(rendered.articleHTML.contains("data-hljs-done=\"1\""))
+        XCTAssertTrue(rendered.articleHTML.contains("hljs-keyword"), rendered.articleHTML)
+    }
+
     func testOutputStaysEscaped() throws {
         let html = try XCTUnwrap(CodeHighlighter.highlight("<b>&</b>", language: "html"))
         XCTAssertFalse(html.contains("<b>"))

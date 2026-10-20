@@ -402,6 +402,41 @@ const slashInsertTemplate = (body, { source = "", locale = "en" } = {}) => {
 
 {
   const { editor } = slashEditor("")
+  editor.insertTextAt("/", 0, 0)
+  check("link command is hidden when the page cannot pick files", !slashLabels().includes("Link to File"))
+}
+
+{
+  const picks = []
+  const { host, editor } = slashEditor("See ", { onPickLink: (from, to) => picks.push([from, to]) })
+  editor.insertTextAt("/link", 4, 4)
+  check("link command is offered when the page can pick files", slashLabels()[0] === "Link to File")
+  slashKey(host, "Enter")
+  check("link command removes the typed query and keeps the line", editor.getMarkdown() === "See ")
+  check("link command asks the host to pick at the query position",
+    picks.length === 1 && picks[0][0] === 4 && picks[0][1] === 4)
+  check("link command closes the menu", !slashVisible())
+}
+
+{
+  const { editor } = slashEditor("", { onPickLink: () => {} })
+  editor.insertTextAt("/li", 0, 0)
+  check("a label prefix outranks an alias prefix", slashLabels()[0] === "Link to File")
+  editor.insertTextAt("st", 3, 3)
+  check("an exact alias outranks a word inside a label",
+    JSON.stringify(slashLabels().slice(0, 3)) === JSON.stringify(["Bulleted List", "Numbered List", "Checklist"]))
+}
+
+{
+  const { editor } = slashEditor("")
+  editor.insertTextAt("/tab", 0, 0)
+  check("a label prefix still leads without host commands", slashLabels()[0] === "Table")
+  editor.insertTextAt("le", 4, 4)
+  check("an exact label match stays first", slashLabels()[0] === "Table")
+}
+
+{
+  const { editor } = slashEditor("")
   editor.setExtensionState({ "slash-commands": false })
   editor.insertTextAt("/", 0, 0)
   check("disabling the module stops the menu", !slashVisible())

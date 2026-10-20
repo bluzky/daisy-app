@@ -5,6 +5,7 @@ final class CodeLanguageCatalogTests: XCTestCase {
     func testFilteringMatchesNamesAndAliases() {
         XCTAssertEqual(CodeLanguageCatalog.matching("  SWIFT ").map(\.id), ["swift"])
         XCTAssertEqual(CodeLanguageCatalog.matching("terraform").map(\.id), ["hcl"])
+        XCTAssertEqual(CodeLanguageCatalog.matching("exs").map(\.id), ["elixir"])
         XCTAssertEqual(CodeLanguageCatalog.matching("objc").map(\.id), ["objective-c"])
         XCTAssertEqual(CodeLanguageCatalog.matching("C++").map(\.id), ["cpp"])
         XCTAssertTrue(CodeLanguageCatalog.matching("not-a-language").isEmpty)

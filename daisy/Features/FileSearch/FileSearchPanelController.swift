@@ -19,6 +19,13 @@ final class FileSearchPanelController: NSViewController {
         case newWindow
     }
 
+    /// What the palette is for. `.insertLink` searches project file names
+    /// only and hands the chosen file to `onInsertLink` instead of opening it.
+    enum Mode {
+        case open
+        case insertLink
+    }
+
     /// Called with the chosen file once the panel has gone. The controller
     /// dismisses itself first — see `activateSelection`.
     var onOpen: ((URL, OpenTarget) -> Void)?
@@ -27,6 +34,9 @@ final class FileSearchPanelController: NSViewController {
     var onCreateFile: ((String) -> Void)?
     /// Called when the reader asks for a folder from the empty state.
     var onRequestOpenFolder: (() -> Void)?
+    /// Called with the chosen file in `.insertLink` mode, after the panel has
+    /// gone, so the editor has focus back when the link lands.
+    var onInsertLink: ((URL) -> Void)?
 
     var onDismiss: (() -> Void)?
     private var presentation: FileSearchPanelPresentation?
@@ -56,6 +66,7 @@ final class FileSearchPanelController: NSViewController {
     }
 
     private let projectRoot: URL?
+    private let mode: Mode
     private let index: ProjectFileIndex
     private let commandCatalog: OmniSearchCommandCatalog?
 
@@ -101,9 +112,10 @@ final class FileSearchPanelController: NSViewController {
     /// opened is the one the reader was about to see at the top.
     private var pendingActivation: OpenTarget?
 
-    init(projectRoot: URL?, index: ProjectFileIndex = .shared,
+    init(projectRoot: URL?, mode: Mode = .open, index: ProjectFileIndex = .shared,
          commands: OmniSearchCommandCatalog? = nil) {
         self.projectRoot = projectRoot
+        self.mode = mode
         self.index = index
         self.commandCatalog = commands
         super.init(nibName: nil, bundle: nil)
@@ -174,8 +186,9 @@ final class FileSearchPanelController: NSViewController {
         // Open Quickly presents it: in a palette the field is the whole point,
         // so it reads as the subject rather than as one control among several.
         queryField.translatesAutoresizingMaskIntoConstraints = false
-        queryField.placeholderString = NSLocalizedString("Search files and commands",
-                                                         comment: "OmniSearch field placeholder")
+        queryField.placeholderString = mode == .insertLink
+            ? NSLocalizedString("Link to a file in this project", comment: "OmniSearch link mode placeholder")
+            : NSLocalizedString("Search files and commands", comment: "OmniSearch field placeholder")
         queryField.delegate = self
         queryField.font = .systemFont(ofSize: 20)
         queryField.isBordered = false
@@ -284,6 +297,14 @@ final class FileSearchPanelController: NSViewController {
         recentURLs = NSDocumentController.shared.recentDocumentURLs.filter {
             $0.isFileURL && FileKind.classify($0).opensInDaisy
         }
+        if mode == .insertLink {
+            // A link points into the project; recents from elsewhere would
+            // produce paths that climb out of it.
+            let rootPath = projectRoot.map { FileSearchResults.resolvedIdentity($0).path + "/" }
+            recentURLs = recentURLs.filter { url in
+                rootPath.map { FileSearchResults.resolvedIdentity(url).path.hasPrefix($0) } ?? false
+            }
+        }
         refreshResults()
         loadIndex()
     }
@@ -361,15 +382,18 @@ final class FileSearchPanelController: NSViewController {
         let snapshot = snapshot
         let recentURLs = recentURLs
         let commands = commandCatalog?.candidates ?? []
+        let offersCreate = mode == .open
         rankTask?.cancel()
         if !hasSearchQuery {
             apply((try? FileSearchResults.rows(query: query, recentURLs: recentURLs, snapshot: nil,
-                                               commands: commands)) ?? [], for: query)
+                                               commands: commands, offersCreate: offersCreate)) ?? [],
+                  for: query)
             return
         }
         rankTask = Task { [weak self] in
             guard let ranked = try? await Self.rank(query: query, recentURLs: recentURLs,
-                                                    snapshot: snapshot, commands: commands),
+                                                    snapshot: snapshot, commands: commands,
+                                                    offersCreate: offersCreate),
                   let self, !Task.isCancelled else { return }
             self.apply(ranked, for: query)
         }
@@ -378,8 +402,10 @@ final class FileSearchPanelController: NSViewController {
     @concurrent
     private nonisolated static func rank(query: String,
                                          recentURLs: [URL], snapshot: ProjectFileIndex.Snapshot?,
-                                         commands: [FileSearchResults.CommandCandidate]) async throws -> [FileSearchResults.Row] {
-        try FileSearchResults.rows(query: query, recentURLs: recentURLs, snapshot: snapshot, commands: commands)
+                                         commands: [FileSearchResults.CommandCandidate],
+                                         offersCreate: Bool) async throws -> [FileSearchResults.Row] {
+        try FileSearchResults.rows(query: query, recentURLs: recentURLs, snapshot: snapshot,
+                                   commands: commands, offersCreate: offersCreate)
     }
 
     private func apply(_ ranked: [FileSearchResults.Row], for query: String) {
@@ -414,6 +440,12 @@ final class FileSearchPanelController: NSViewController {
             keymap.bindings(for: command).first?.displayString
         }
         var hints: [KeyHintFooter.Hint] = []
+        if mode == .insertLink {
+            if let keys = keys(.searchOpenResult) {
+                hints.append(.init(keys: keys, label: NSLocalizedString("insert link", comment: "OmniSearch key hint")))
+            }
+            return hints
+        }
         let labelled: [(KeymapCommand, String)] = [
             (.searchOpenResult, NSLocalizedString("open", comment: "OmniSearch key hint")),
             (.searchOpenResultInNewTab, NSLocalizedString("open in new tab", comment: "OmniSearch key hint")),
@@ -435,7 +467,8 @@ final class FileSearchPanelController: NSViewController {
         let hadContent = !contentHits.isEmpty || contentSearching
         contentHits = []
         contentSearching = false
-        guard let snapshot, FileSearchResults.commandQuery(query) == nil,
+        // Links are found by file name only.
+        guard mode == .open, let snapshot, FileSearchResults.commandQuery(query) == nil,
               ProjectContentSearcher.isSearchable(query) else {
             if hadContent { refreshContentSection() }
             return
@@ -496,7 +529,9 @@ final class FileSearchPanelController: NSViewController {
         if results.isEmpty {
             statusLabel.stringValue = hasSearchQuery
                 ? NSLocalizedString("No results", comment: "OmniSearch no results")
-                : NSLocalizedString("No recent files", comment: "OmniSearch empty history")
+                : mode == .insertLink
+                    ? NSLocalizedString("Type a file name to link to", comment: "OmniSearch link mode empty state")
+                    : NSLocalizedString("No recent files", comment: "OmniSearch empty history")
             openFolderButton.isHidden = projectRoot != nil
             statusLabel.isHidden = false
             return
@@ -642,6 +677,11 @@ final class FileSearchPanelController: NSViewController {
     /// create a file. All three dismiss first, so a Save/Don't Save sheet or a
     /// menu action finds the document window in charge of focus.
     private func activate(_ row: FileSearchResults.Row, target: OpenTarget) {
+        if mode == .insertLink {
+            // Every open target inserts: there is nothing to open.
+            if let url = row.entry?.url { insertLink(to: url) }
+            return
+        }
         switch row {
         case .file(let entry):
             openFile(at: entry.url, target: target)
@@ -670,6 +710,14 @@ final class FileSearchPanelController: NSViewController {
         closePalette()
         parent?.makeKeyAndOrderFront(nil)
         DispatchQueue.main.async { onCreateFile?(newFile.relativePath) }
+    }
+
+    private func insertLink(to url: URL) {
+        let onInsertLink = onInsertLink
+        let parent = view.window?.parent
+        closePalette()
+        parent?.makeKeyAndOrderFront(nil)
+        DispatchQueue.main.async { onInsertLink?(url) }
     }
 
     private func openFile(at url: URL, target: OpenTarget) {

@@ -47,6 +47,45 @@ extension DocumentWindowController {
         palette.present(relativeTo: documentWindow)
     }
 
+    // MARK: Link to File
+
+    /// Insert > Link to File… needs a saved Markdown document inside the
+    /// mounted project: the link is written relative to the document.
+    var canInsertLinkToFile: Bool {
+        canFormatMarkdown && projectRootURL != nil && currentFileURL != nil
+    }
+
+    func insertLinkToFileFromMenu() {
+        guard canInsertLinkToFile, let editor = mainSplit?.editorViewController else { return }
+        editor.fetchLinkSelection { [weak self] selection in
+            guard let selection else { return }
+            self?.pickLinkTarget(text: selection.text, from: selection.from, to: selection.to)
+        }
+    }
+
+    /// Opens OmniSearch over the project's file names; the chosen file is
+    /// linked at `from..<to`, labelled with `text` or, when that is empty,
+    /// the file's name.
+    func pickLinkTarget(text: String, from: Int, to: Int) {
+        guard canInsertLinkToFile, let projectRoot = projectRootURL,
+              documentWindow.attachedSheet == nil, fileSearchPalette == nil else {
+            NSSound.beep()
+            return
+        }
+        let palette = FileSearchPanelController(projectRoot: projectRoot, mode: .insertLink)
+        palette.onInsertLink = { [weak self] target in
+            guard let self, self.canFormatMarkdown, let documentURL = self.currentFileURL else { return }
+            let label = text.isEmpty ? ProjectFileLink.defaultText(for: target) : text
+            self.mainSplit?.editorViewController?.insertLink(
+                text: label,
+                url: ProjectFileLink.destination(to: target, from: documentURL),
+                from: from, to: to)
+        }
+        palette.onDismiss = { [weak self] in self?.fileSearchPalette = nil }
+        fileSearchPalette = palette
+        palette.present(relativeTo: documentWindow)
+    }
+
     /// Offered in Customize Toolbar but deliberately absent from the default
     /// set: the toolbar already carries a search *field* for in-document find,
     /// and two magnifiers side by side would read as the same feature twice.

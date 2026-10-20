@@ -598,6 +598,16 @@ extension DocumentWindowController {
         setInspectorToggleSelected(isVisible)
     }
 
+    /// View > Inspector: the same toggle as the toolbar button, which may
+    /// not be in the toolbar at all.
+    func toggleInspectorFromMenu() {
+        toggleInspectorAction(self)
+    }
+
+    var isInspectorVisible: Bool {
+        (documentWindow.contentViewController as? MainSplitViewController)?.isInspectorVisible ?? false
+    }
+
     private func refreshInspectorToggleItem() {
         let isVisible = (documentWindow.contentViewController as? MainSplitViewController)?
             .isInspectorVisible ?? false

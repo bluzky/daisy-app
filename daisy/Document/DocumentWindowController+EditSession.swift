@@ -43,6 +43,9 @@ extension DocumentWindowController {
         editor.pickImageRequested = { [weak self] from, to in
             self?.pickImage(at: from, replacing: to)
         }
+        editor.pickLinkRequested = { [weak self] from, to in
+            self?.pickLinkTarget(text: "", from: from, to: to)
+        }
         editor.imageClicked = { [weak self] url in
             self?.renameImage(at: url)
         }
@@ -481,6 +484,7 @@ extension DocumentWindowController {
         split.editorViewController?.cancelRequested = nil
         split.editorViewController?.pasteImageRequested = nil
         split.editorViewController?.pickImageRequested = nil
+        split.editorViewController?.pickLinkRequested = nil
         split.editorViewController?.imageClicked = nil
         documentWindow.makeFirstResponder(nil)
         let overlayHidden: @MainActor () -> Void = { [weak self] in

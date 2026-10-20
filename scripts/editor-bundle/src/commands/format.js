@@ -2,6 +2,11 @@ import { EditorSelection } from "@codemirror/state"
 import { syntaxTree } from "@codemirror/language"
 import { tags as t } from "@lezer/highlight"
 import { parseTableSource } from "../table/model.js"
+import { tableFormattingTargets } from "../table/selection.js"
+
+// Formatting a table cell edits source hidden behind the table widget, where
+// the native cell owns the caret; scrolling to that position jumps the view.
+const scrollsToSelection = (view) => !tableFormattingTargets.has(view)
 
 // ---------------------------------------------------------------------------
 // Bold / italic toggles
@@ -39,7 +44,7 @@ export function toggleInlineMark(marker) {
         range: EditorSelection.range(from + len, to + len),
       }
     })
-    view.dispatch(changes, { scrollIntoView: true, userEvent: "input" })
+    view.dispatch(changes, { scrollIntoView: scrollsToSelection(view), userEvent: "input" })
     return true
   }
 }
@@ -257,7 +262,7 @@ export function insertLink(view) {
     changes: { from: range.from, to: range.to, insert },
     selection: EditorSelection.range(urlStart, urlStart + 3),
     userEvent: "input",
-    scrollIntoView: true,
+    scrollIntoView: scrollsToSelection(view),
   })
   return true
 }

@@ -15,6 +15,7 @@ nonisolated enum CodeLanguageCatalog {
         .init(id: "cpp", name: "C++", glyph: "C⁺⁺", aliases: "cc hpp"),
         .init(id: "csharp", name: "C#", glyph: "C#", aliases: "cs"),
         .init(id: "css", name: "CSS", glyph: "#", aliases: "scss"),
+        .init(id: "elixir", name: "Elixir", glyph: "Ex", aliases: "ex exs"),
         .init(id: "go", name: "Go", glyph: "Go", aliases: "golang"),
         .init(id: "hcl", name: "HCL", glyph: "{}", aliases: "terraform tf"),
         .init(id: "html", name: "HTML", glyph: "<>", aliases: "htm xml"),
