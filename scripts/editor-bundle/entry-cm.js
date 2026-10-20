@@ -10,5 +10,6 @@
 // appear in the editor's extension list.
 import "./src/extensions.js"
 import "./src/slash.js"
+import "./src/metadata-completion.js"
 import "./src/task-metadata.js"
 import "./src/api.js"

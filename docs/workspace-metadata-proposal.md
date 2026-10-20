@@ -101,11 +101,19 @@ Typing a field key such as `due:`, `scheduled:`, or `p:` does not open a picker;
 - Do not intercept IME composition or nonempty/multiple selections in the initial implementation.
 - Completion replaces the entire active token, including any existing suffix, while preserving surrounding text.
 - Each accepted completion is one undoable edit.
-- Unknown tag, context, or project names are valid. Offer “Use <token>” without a separate creation dialog.
+- Unknown tag, context, or project names are valid and need no creation step. The menu lists only known names; when none match, it closes and the typed name stays as written.
 - Empty results must not erase typed text or prevent normal editing.
 - Provide accessible labels and selected-option state; verify keyboard and VoiceOver behavior.
 
 For indexed names, rank exact matches before prefixes and hierarchical segment prefixes; use usage frequency and deterministic lexical ordering as tie-breakers. Do not change slash-command ranking during the refactor.
+
+Implemented in the editor (`scripts/editor-bundle/src/metadata-completion.js`, Settings → Extensions → Metadata suggestions):
+
+- A `#` or `+` at the start of a line (after indentation or `>`) waits for a name character before opening, so typing a heading or a `+` list item never flashes the picker. Elsewhere, a bare trigger lists every name of that kind.
+- Filtering uses the text before the caret; accepting replaces the whole token, including name characters after the caret, and leaves the caret after the name. No space is added.
+- Rows show the marker and the name; use counts only order them. The token being typed is left out of the current document's names, so a half-typed name never suggests itself.
+- The current document's names come from the shared extractor. When a name also appears in the workspace snapshot, the document's most used spelling is shown and the larger of the two counts is used, because the snapshot already counts the saved copy of this document.
+- The host sends workspace names with `setWorkspaceCandidates({ version, tags, contexts, projects })`, each kind a list of `{ name, count }` without the marker. A snapshot with a lower version than the one held is ignored; invalid names are dropped.
 
 ### Dates and priorities
 
