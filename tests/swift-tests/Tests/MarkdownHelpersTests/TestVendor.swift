@@ -27,7 +27,7 @@ enum TestVendor {
         CodeHighlighter.useGrammar(source: source)
     }
 
-    /// Points metadata tests at same checked-in standalone bundle app loads.
+    /// Points metadata tests at the built standalone bundle the app loads.
     static func installWorkspaceMetadataExtractor() {
         guard let source = try? String(
             contentsOf: repositoryRoot.appendingPathComponent(

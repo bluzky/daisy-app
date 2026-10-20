@@ -1,20 +1,14 @@
 import Foundation
 import JavaScriptCore
 
-struct WorkspaceMetadata: Equatable {
+nonisolated struct WorkspaceMetadata: Equatable {
     let tags: [WorkspaceMetadataToken]
     let contexts: [WorkspaceMetadataToken]
     let projects: [WorkspaceMetadataToken]
     let tasks: [WorkspaceTaskMetadata]
-
-    static func extract(_ markdown: String) -> WorkspaceMetadata {
-        WorkspaceMetadataExtractor.extract(markdown) ?? .empty
-    }
-
-    private static let empty = WorkspaceMetadata(tags: [], contexts: [], projects: [], tasks: [])
 }
 
-struct WorkspaceMetadataToken: Equatable {
+nonisolated struct WorkspaceMetadataToken: Equatable {
     /// Exact source spelling, marker included. `key` is normalized by shared
     /// JavaScript grammar for deterministic lookup.
     let source: String
@@ -22,43 +16,87 @@ struct WorkspaceMetadataToken: Equatable {
     let line: Int
 }
 
-struct WorkspaceTaskMetadata: Equatable {
+nonisolated struct WorkspaceTaskMetadata: Equatable {
     let line: Int
     let due: String?
     let scheduled: String?
     let priority: String?
 }
 
-/// Executes bundled JavaScript grammar. Context stays behind a lock because
-/// JavaScriptCore contexts are mutable; extraction itself is read-only.
+/// Executes bundled JavaScript grammar. JavaScriptCore contexts are mutable,
+/// so a bounded pool leases one context to each concurrent extraction.
 nonisolated enum WorkspaceMetadataExtractor {
-    static var isAvailable: Bool { withEngine { $0 != nil } }
+    static var isAvailable: Bool { withEngine { _ in true } ?? false }
 
     /// Replaces bundled extractor for helper tests. App code loads
     /// `Vendor/WorkspaceMetadata/workspace-metadata.min.js`.
     static func useExtractor(source: String) {
         lock.lock()
         defer { lock.unlock() }
-        engine = Engine(source: source)
+        pool = EnginePool(source: source)
     }
 
+    /// Nil when the bundle is missing or the script fails. Callers must not
+    /// treat that as a file with no metadata, or an index would cache it.
     static func extract(_ markdown: String) -> WorkspaceMetadata? {
-        withEngine { $0?.extract(markdown) }
+        withEngine { $0.extract(markdown) }
     }
 
     private static let lock = NSLock()
-    nonisolated(unsafe) private static var engine: Engine??
+    nonisolated(unsafe) private static var pool: EnginePool?
 
-    private static func withEngine<Result>(_ body: (Engine?) -> Result) -> Result {
+    private static func withEngine<Result>(_ body: (Engine) -> Result?) -> Result? {
         lock.lock()
-        defer { lock.unlock() }
-        if engine == nil {
-            let source = VendorResource.string(
-                "workspace-metadata.min", ext: "js", subdir: "Vendor/WorkspaceMetadata"
-            )
-            engine = .some(source.flatMap(Engine.init(source:)))
+        if pool == nil, let source = VendorResource.string(
+            "workspace-metadata.min", ext: "js", subdir: "Vendor/WorkspaceMetadata"
+        ) {
+            pool = EnginePool(source: source)
         }
-        return body(engine!)
+        let activePool = pool
+        lock.unlock()
+        return activePool?.withEngine(body)
+    }
+
+    private final class EnginePool: @unchecked Sendable {
+        private let source: String
+        private let maximumCount = min(4, max(1, ProcessInfo.processInfo.activeProcessorCount))
+        private let condition = NSCondition()
+        private var available: [Engine] = []
+        private var count = 0
+
+        init(source: String) {
+            self.source = source
+        }
+
+        func withEngine<Result>(_ body: (Engine) -> Result?) -> Result? {
+            let engine: Engine
+            condition.lock()
+            while available.isEmpty && count >= maximumCount {
+                condition.wait()
+            }
+            if let availableEngine = available.popLast() {
+                engine = availableEngine
+                condition.unlock()
+            } else {
+                count += 1
+                condition.unlock()
+                guard let createdEngine = Engine(source: source) else {
+                    condition.lock()
+                    count -= 1
+                    condition.broadcast()
+                    condition.unlock()
+                    return nil
+                }
+                engine = createdEngine
+            }
+
+            let result = body(engine)
+            condition.lock()
+            available.append(engine)
+            condition.signal()
+            condition.unlock()
+            return result
+        }
     }
 
     private final class Engine: @unchecked Sendable {
@@ -90,7 +128,7 @@ nonisolated enum WorkspaceMetadataExtractor {
     }
 }
 
-private struct Payload: Decodable {
+nonisolated private struct Payload: Decodable {
     let tags: [Token]
     let contexts: [Token]
     let projects: [Token]
@@ -105,7 +143,7 @@ private struct Payload: Decodable {
         )
     }
 
-    struct Token: Decodable {
+    nonisolated struct Token: Decodable {
         let source: String
         let key: String
         let line: Int
@@ -115,7 +153,7 @@ private struct Payload: Decodable {
         }
     }
 
-    struct Task: Decodable {
+    nonisolated struct Task: Decodable {
         let line: Int
         let due: String?
         let scheduled: String?

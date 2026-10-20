@@ -2,7 +2,7 @@ import Foundation
 import XCTest
 @testable import MarkdownHelpers
 
-final class WorkspaceMetadataTests: XCTestCase {
+final class WorkspaceMetadataExtractorTests: XCTestCase {
     override class func setUp() {
         super.setUp()
         TestVendor.installWorkspaceMetadataExtractor()
@@ -13,7 +13,8 @@ final class WorkspaceMetadataTests: XCTestCase {
         let fixtures = try JSONDecoder().decode([Fixture].self, from: Data(contentsOf: fixtureURL))
         for fixture in fixtures {
             let source = fixture.source
-            XCTAssertEqual(WorkspaceMetadata.extract(source), fixture.expected.metadata, fixture.name)
+            let metadata = try XCTUnwrap(WorkspaceMetadataExtractor.extract(source), fixture.name)
+            XCTAssertEqual(metadata, fixture.expected.metadata, fixture.name)
             XCTAssertEqual(source, fixture.source, "\(fixture.name): extraction must be read-only")
         }
     }
@@ -24,7 +25,7 @@ final class WorkspaceMetadataTests: XCTestCase {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-            .appending(path: "fixtures/workspace-metadata.json")
+            .appending(path: "fixtures/workspace-metadata/grammar.json")
     }
 }
 
