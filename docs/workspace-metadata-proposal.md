@@ -10,7 +10,7 @@ Add todo.txt-inspired metadata to Markdown content, with searchable inline compl
 - [ ] Review proposal +daisy @alex @work #review p:high scheduled:2026-10-20 due:2026-10-23
 ```
 
-Keep Markdown files authoritative. Index only folders the user explicitly opens with **File → Open Workspace…**; opening a folder or file any other way never starts indexing. Store the disposable index in the app's container, never inside the workspace.
+Keep Markdown files authoritative. A workspace is a folder containing a `.daisy/config.json` marker, created with **File → Initialize Workspace**. Only a folder window on a workspace folder is indexed; opening a plain folder or a file never starts indexing. Store the disposable index in the app's container, never inside the workspace.
 
 ## Goals and scope
 
@@ -21,7 +21,7 @@ Keep Markdown files authoritative. Index only folders the user explicitly opens 
 - Reuse completion infrastructure instead of implementing a separate menu for every prefix.
 - Make future metadata fields possible without introducing a plugin loader now.
 - Reuse indexed suggestions across tabs and app launches.
-- Index only explicitly opened workspaces, and never write into the user's folders.
+- Index only folders the user has made workspaces, and write nothing into the user's folders except the marker that Initialize Workspace creates.
 
 Non-goals for the initial release:
 
@@ -39,6 +39,7 @@ Non-goals for the initial release:
 - `daisy/Features/Editor/EditorViewController.swift`: Swift/editor bridge.
 - `daisy/Features/FileSearch/ProjectFileIndex.swift`: bounded workspace file discovery and short-lived caching. This indexes file names, not metadata content.
 - `daisy/Features/Sidebar/BookmarkStore.swift`: security-scoped bookmark persistence for navigator pins.
+- `daisy/Features/Launch/LastSessionStore.swift`: bookmark persistence for the last window's folder and file, used by Reopen last session.
 - `scripts/editor-bundle/smoke/slash-commands.mjs`: existing slash-command regression tests.
 
 The current slash matcher ranks exact, prefix, and word-prefix matches; it is not a general fuzzy matcher. Preserve its existing behavior during extraction.
@@ -180,7 +181,7 @@ Do not require a Swift round-trip on every keystroke.
 
 ### Swift
 
-- Open and persist workspaces, and manage their security-scoped access.
+- Detect the workspace marker when a folder opens, and create or remove it on request.
 - Discover files, run the shared extractor on saved files, and maintain the cache.
 - Watch and reconcile filesystem changes.
 - Aggregate workspace candidates and send versioned snapshots to editors.
@@ -199,27 +200,31 @@ Dates and priorities stay out of the workspace index. If a native feature later 
 
 ## Workspaces
 
-A workspace is a folder the user opens with **File → Open Workspace…**. Only workspaces are indexed. Open Folder…, opening a file, drag and drop, and the command-line tool keep their current behavior: they never start indexing, never walk ancestors looking for a workspace, and never write anything into the folder.
+A workspace is a folder whose root contains `.daisy/config.json`. Opening that folder as a folder window, in any way, makes the window a workspace window, and only workspace windows are indexed. Opening a folder without the marker, or opening a file, keeps today's behavior and never starts indexing.
 
-- Open Workspace… presents the system folder picker, so the chosen folder carries a user-selected grant. Persist it as a security-scoped bookmark so the workspace reopens across launches and can appear in a recent-workspaces list.
-- The chosen folder is both the workspace root and the navigator root. There is no marker-file discovery and no ancestor walk.
-- A file opened directly that lies inside an open workspace joins that workspace and receives its suggestions, mirroring today's reuse of a containing open folder. If several open workspaces contain it, the deepest root wins. A file outside every open workspace gets current-buffer suggestions only.
-- Key workspaces by canonical root (standardized, symlinks resolved). Opening the same folder twice reuses one index service. Do not follow symlinks out of the root or into cycles.
-- Overlapping workspaces (for example `repo/` and `repo/subproject/` both opened) index independently. Each editor queries only its own workspace, so overlap cannot double-count within one suggestion list. An unsaved buffer contributes to every open workspace that contains it.
-- Track workspaces in a dedicated `WorkspaceRegistry`. Leave `SidebarWorkspaceRegistry` and Open Folder behavior unchanged.
+Detection checks only the folder being opened. Daisy does not walk parent directories or descend into subfolders looking for a marker, and does not search other windows for a workspace that contains a file.
+
+- **Detection.** Every folder open goes through `AppDelegate.openFolder`: File → Open… on a folder, Finder, drag and drop, the command-line tool, the Open Folder… buttons in OmniSearch and the navigator, and Reopen last session. When the opened root contains `.daisy/config.json`, the window is a workspace window. Nothing extra is persisted: restoring the folder finds the marker again.
+- **Folder windows only.** A window opened for a single file roots its navigator at the file's parent folder. That root is never checked for a marker, because checking it would be a one-level parent walk. To use a workspace, open its folder.
+- **Initialize Workspace.** File → Initialize Workspace is enabled in a folder window whose root has no marker. It creates `.daisy/config.json` and turns every open folder window on that root into a workspace window. If the write fails, show an error and leave the window a plain folder.
+- **Remove Workspace.** File → Remove Workspace, enabled in a workspace window, deletes `.daisy/` and that workspace's cache, and turns its windows back into plain folder windows. Deleting `.daisy/` by hand has the same effect the next time Daisy reconciles the folder.
+- **The marker.** `.daisy/config.json` contains only `{"version": 1}`. Its presence makes the folder a workspace; Daisy reads it only for `version` and ignores unknown content, so a marker that arrives with a cloned repository can turn on indexing and nothing else. It holds no cache or per-user state, so committing it is harmless and shares the workspace with collaborators; adding it to `.gitignore` keeps it personal. Initialize Workspace is the only command that writes into a workspace folder.
+- **Window scope.** A workspace window keeps its workspace whatever file it shows next, as a folder window keeps its navigator root today. Every document it shows gets that workspace's suggestions; only files inside the root contribute to the index. Open in New Tab or Open in New Window for a file inside the root, and a new untitled document created from the window, carry the workspace over, as they already carry the navigator root.
+- **Files opened directly.** A file opened from Finder, ⌘O, Open Recent, drag and drop, or the command-line tool gets a plain window and current-buffer suggestions only, even if it lies inside a workspace folder. This matches today's behavior: such opens bind the window to the file's own folder rather than to a containing open folder.
+- **Shared index.** Key workspaces by canonical root (symlinks resolved, then standardized, as `SidebarWorkspace.canonicalURL` does). The index service is shared by canonical root, so a second workspace window on the same root does not index again. Do not follow symlinks out of the root or into cycles. There is no workspace registry; leave `SidebarWorkspaceRegistry` and folder-opening behavior unchanged.
+- **Nested and overlapping workspaces.** If `repo/` and `repo/sub/` both have markers, opening `repo/` indexes everything under it, including `sub/`; opening `repo/sub/` indexes only `sub/`. They index independently, and each editor queries only its own window's workspace, so overlap cannot double-count within one suggestion list.
 
 ```text
-File → Open Workspace…  → repo/            indexed; suggestions from all of repo/
-File → Open Folder…     → repo/docs/       not indexed; no files written
-Open repo/docs/a.md     while repo/ is an open workspace → joins repo/
-Open ~/notes/b.md       with no containing workspace     → current-buffer suggestions only
+Open repo/ (has .daisy/config.json)                  window A: workspace repo/, indexed
+Open notes/ (no marker)                              window B: plain folder, not indexed, nothing written
+File → Initialize Workspace in window B              writes notes/.daisy/config.json; window B becomes a workspace
+Open in New Tab from window A → repo/docs/a.md       joins repo/
+Finder → repo/docs/a.md                              plain window, current-buffer suggestions only
 ```
 
 ### Sandbox limits
 
-Daisy's read-only temporary exception for `/` means reads succeed almost everywhere, but writes require a user-selected or bookmarked grant. Workspaces come only from the folder picker, and the index lives in the app container (below), so indexing never needs write access to the workspace and never broadens access.
-
-If a workspace bookmark is stale or cannot be resolved, show the workspace as unavailable and offer to choose it again. Do not silently fall back to path-only access.
+Daisy's read-only temporary exception for `/` means reads succeed almost everywhere, but writes require a user-selected or bookmarked grant. Detection and indexing only read, and the index lives in the app container (below), so a workspace needs no access beyond what a folder window already has, and indexing never broadens access. Workspace folders are restored through the existing folder bookmark in `LastSessionStore`. Only Initialize Workspace and Remove Workspace write, and they need the write grant a folder chosen in the open panel, opened from Finder, or dropped on the app already has; without it they fail with an error and change nothing.
 
 ## Index storage
 
@@ -229,7 +234,7 @@ Store each workspace's index in the app's sandbox container, not in the workspac
 <app container>/Library/Caches/WorkspaceIndex/<root-id>.sqlite
 ```
 
-`<root-id>` is derived from the canonical root path and its volume identifier. Daisy writes nothing into the workspace folder: no marker directory, no `.gitignore`, no cache. This keeps `git status` clean and keeps SQLite out of iCloud Drive, Dropbox, and network folders, where synced database files are a known source of corruption. A possible future `.daisy/config.json` for intentional, shareable workspace settings is reserved; it is not part of this implementation.
+`<root-id>` is derived from the canonical root path and its volume identifier. Apart from the `.daisy/config.json` marker, Daisy writes nothing into the workspace folder: no cache, no `.gitignore`, no per-user state. The marker is small, static, and safe to commit or sync; keeping the cache out keeps SQLite out of git, iCloud Drive, Dropbox, and network folders, where synced database files are a known source of corruption. Future shareable workspace settings may be added to `config.json` under a new version; per-user state never goes there.
 
 ### Cache contents
 
@@ -251,23 +256,25 @@ Treat a cache from disk as untrusted input: validate schema and paths, prevent p
 - Missing cache (first open, or purged by the system): rebuild in the background.
 - Exclude the cache directory from watcher feedback.
 - “Rebuild Workspace Index” deletes and recreates that workspace's cache file only.
-- Removing a workspace from the recent-workspaces list deletes its cache file.
+- Remove Workspace deletes that workspace's cache file.
+- Cache files not opened for 30 days are deleted at launch, so caches for abandoned workspaces do not accumulate.
 - If the root moves and its bookmark resolves to a new path, re-key or rebuild the cache rather than trusting stale paths.
 
 ## Index lifecycle
 
 | Event | Action |
 | --- | --- |
-| Folder or file opened outside a workspace | No indexing; current-buffer suggestions only |
-| Workspace opens | Load compatible cached candidates, then reconcile in background |
-| Another tab opens the same workspace | Reuse the shared index service |
+| Folder without a marker, or a file, opened | No indexing; current-buffer suggestions only |
+| Initialize Workspace | Write the marker; index as for a workspace that opens |
+| Folder with a marker opens | Load compatible cached candidates, then reconcile in background |
+| Another window or tab binds the same workspace root | Reuse the shared index service |
 | Initial cache is absent | Discover eligible Markdown and parse with bounded concurrency |
 | User types `#`, `@`, or `+` | Query memory; never scan the filesystem |
 | Buffer changes | Update debounced in-memory tokens; current editor updates immediately |
 | File saves or changes externally | Reparse that file and persist its token set |
 | File is created, removed, or renamed | Add, remove, or move its contribution |
-| App regains focus or watcher loses events | Reconcile filesystem state |
-| Last workspace consumer closes | Stop watching and release service after an idle interval |
+| App regains focus or watcher loses events | Reconcile filesystem state; a removed marker turns the windows back into plain folders |
+| Last workspace window on that root closes | Stop watching and release service after an idle interval |
 
 Background reconciliation discovers additions and deletions and compares fingerprints. Modification time and size provide fast checks, not absolute proof of unchanged content. Use hashes when validating uncertain files; provide a full rebuild path.
 
@@ -275,7 +282,7 @@ Publish partial results during initial indexing. Show current-buffer suggestions
 
 Reuse existing discovery exclusions where appropriate, classify eligible Markdown consistently, and add explicit file-size and scan-budget limits. Watchers must coalesce changes and avoid following symlinks outside authorized scope.
 
-Unsaved buffers replace, rather than add to, saved-file contributions. Deduplicate shared document buffers across tabs; the current editor's version takes precedence for its own suggestions. Closing an unsaved buffer without saving restores the disk contribution.
+Unsaved buffers replace, rather than add to, saved-file contributions, in the workspace of the window editing them; other workspaces containing the file pick up the change when it is saved. Deduplicate shared document buffers across tabs; the current editor's version takes precedence for its own suggestions. Closing an unsaved buffer without saving restores the disk contribution.
 
 `/due`, `/schedule`, and the Priority commands work without a workspace index.
 
@@ -295,7 +302,7 @@ The Markdown is never changed, and badges are not needed to understand the file:
 
 1. **Grammar and extractor:** finalize token boundaries, normalization, priority values, task scope, and duplicate handling; build the single JS extractor and its JavaScriptCore bridge.
 2. **Shared completion controller:** in three parts — 2a extracts slash behavior with no change, 2c adds `/due`, `/schedule`, and the Priority commands, then 2b adds `#`/`@`/`+` suggestions.
-3. **Workspaces:** add Open Workspace…, persisted security-scoped bookmarks, the workspace registry, and file-to-workspace membership.
+3. **Workspaces:** detect the `.daisy/config.json` marker on folder open, add Initialize Workspace and Remove Workspace, and window-scoped workspace membership.
 4. **Workspace indexing:** add bounded extraction, unsaved overlays, snapshots, filesystem reconciliation, and cache persistence in the app container.
 5. **Integration and documentation:** wire workspace candidates into providers; update README and samples; verify runtime interaction and failure modes.
 
@@ -317,11 +324,12 @@ Keep changes independently testable. No release or version bump is implied by th
 ### Swift and integration tests
 
 - The JavaScriptCore bridge returns the same results as the editor for every fixture.
-- Open Workspace persists and restores bookmarks; a stale bookmark prompts re-selection.
-- Open Folder, direct file opens, and the command-line tool never index or write into the folder.
-- Files inside an open workspace join it; the deepest workspace wins; files outside every workspace get buffer-only suggestions.
-- Overlapping workspaces index independently; symlink aliases share one service; symlinks outside the root are not followed.
-- Nothing is written inside a workspace folder.
+- Opening a folder with a marker, by any route including Reopen last session, gives a workspace window; a folder without one stays plain; only the opened root is checked.
+- Initialize Workspace writes only `.daisy/config.json`; Remove Workspace deletes it and the cache; a failed write changes nothing; unknown marker content is ignored.
+- Folder opens without a marker, direct file opens, and the command-line tool never index or write into the folder.
+- Only workspace windows, and tabs, windows, and untitled documents created from them, are bound to a workspace; files opened from outside get buffer-only suggestions even when they lie inside an open workspace; no parent directory is ever walked.
+- Overlapping workspaces index independently; workspace windows on the same root, including symlink aliases, share one index service; symlinks outside the root are not followed.
+- Nothing other than the marker is written inside a workspace folder.
 - Cached reopen, incremental updates, rename/deletion, watcher reconciliation, and scan truncation.
 - Cache corruption/version mismatch, system purge, root relocation, path validation, contention, write failure, and cache-only rebuild.
 - Multiple tabs share results without duplicate counts; unsaved overlays supersede cached data.
