@@ -13,13 +13,102 @@ extension DocumentWindowController {
         let appURL: URL
     }
 
-    func openInNewTab(_ fileURL: URL, startEditing: Bool = false) {
+    func openInNewTab(_ fileURL: URL, startEditing: Bool = false, asPreview: Bool = false) {
         Self.markNextWindowAsTab()
+        Self.nextWindowIsPreview = asPreview
         openDocumentWindow(for: fileURL, startEditing: startEditing) {
             // If the document was already open, no window was created and
             // the override wasn't consumed — don't let it leak to the next one.
             Self.nextWindowRequestsTab = false
+            Self.nextWindowIsPreview = false
         }
+    }
+
+    /// A single click in the Files sidebar, as in VS Code: the file's own
+    /// tab if it is open, otherwise the frame's preview tab, which the next
+    /// click replaces. This window takes the file itself when it shows
+    /// nothing yet.
+    func openFromSidebar(_ url: URL) {
+        let fileURL = FileSearchResults.resolvedIdentity(Self.fileURLWithoutFragment(url))
+        if let existing = Self.controller(showing: fileURL) {
+            existing.documentWindow.makeKeyAndOrderFront(nil)
+            return
+        }
+        let frame = documentWindow.tabbedWindows?
+            .compactMap { $0.windowController as? DocumentWindowController } ?? [self]
+        let slot = isShowingNothing ? self : frame.first {
+            $0.isPreviewTab && !$0.hasPendingEditorChanges
+        }
+        guard let slot else {
+            openInNewTab(url, startEditing: true, asPreview: true)
+            return
+        }
+        slot.isPreviewTab = true
+        slot.requestedPreviewURL = fileURL
+        slot.present(url: url)
+    }
+
+    /// The sidebar's double-click: the file's preview tab stays, even while
+    /// it is still loading.
+    func keepTab(showing url: URL) {
+        let fileURL = FileSearchResults.resolvedIdentity(url)
+        guard let tab = Self.controller(showing: fileURL)
+            ?? Self.allControllers.first(where: { $0.isPreviewTab && $0.requestedPreviewURL == fileURL }) else {
+            // Its new tab is not built yet.
+            Self.nextWindowIsPreview = false
+            return
+        }
+        tab.isPreviewTab = false
+    }
+
+    /// The window showing the file at `resolvedURL`, matched by resolved
+    /// identity so a symlink or alias path finds the same file's tab rather
+    /// than opening a second editor on it.
+    private static func controller(showing resolvedURL: URL) -> DocumentWindowController? {
+        allControllers.first {
+            $0.currentFileURL.map(FileSearchResults.resolvedIdentity) == resolvedURL
+        }
+    }
+
+    /// No file, nothing written and not being edited: a folder window
+    /// before its first file. Its frame's next file takes its place.
+    var isShowingNothing: Bool {
+        currentFileURL == nil && !isEditing && !hasUntitledContent
+    }
+
+    /// Binds a file opened from outside the app (Finder, ⌘O, recents) to the
+    /// innermost open workspace containing it, so it joins that frame. With
+    /// none, the window is bound to the file's own folder later.
+    func bindToOpenWorkspace(containing fileURL: URL) {
+        let fileURL = SidebarWorkspace.canonicalURL(fileURL)
+        let source = Self.allControllers
+            .filter { $0 !== self }
+            .filter { $0.projectRootURL.map { fileURL.isDescendantOrSame(of: $0) } ?? false }
+            .max { ($0.projectRootURL?.pathComponents.count ?? 0) < ($1.projectRootURL?.pathComponents.count ?? 0) }
+        inheritProject(from: source, containing: fileURL)
+    }
+
+    /// Content width of a window opened for a single file: the reading
+    /// column and its margins, with no room set aside for a sidebar.
+    private static let singleFileContentWidth: CGFloat = 860
+
+    /// A file opened on its own, outside every open workspace, is for
+    /// reading: the sidebar starts hidden and the window is sized to the
+    /// text. It no longer saves its frame, so the workspace window size
+    /// stays as it was.
+    func prepareForSingleFile() {
+        mainSplit?.hideSidebar()
+        syncSidebarToolbarState()
+        let window = documentWindow
+        window.setFrameAutosaveName("")
+        var frame = window.frame
+        let width = window.frameRect(forContentRect: NSRect(
+            x: 0, y: 0, width: Self.singleFileContentWidth, height: 1
+        )).width
+        guard width < frame.width else { return }
+        frame.origin.x += (frame.width - width) / 2
+        frame.size.width = width
+        window.setFrame(frame, display: false)
     }
 
     func openInNewWindow(_ fileURL: URL, startEditing: Bool = false) {
@@ -91,7 +180,7 @@ extension DocumentWindowController {
     /// hints instead of a blank page: a folder window before its first file,
     /// or an untitled one taken out of Edit Mode while still empty.
     func updateEmptyHints() {
-        mainSplit?.setShowsEmptyHints(currentFileURL == nil && !isEditing && !hasUntitledContent)
+        mainSplit?.setShowsEmptyHints(isShowingNothing)
     }
 
     /// Binds this window to `folderURL` as its workspace. Opening a folder
@@ -108,6 +197,7 @@ extension DocumentWindowController {
             .openFolder(folderURL, selectedFileURL: currentFileURL)
         folderRootURL = projectRootURL
         refreshWorkspaceState()
+        syncTabbingIdentifier()
         documentWindow.makeKeyAndOrderFront(nil)
         NSApp.activate()
         syncSidebarToolbarState()

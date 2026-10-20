@@ -142,19 +142,19 @@ Suggest `#`, `@`, and `+` names while typing, from the current document and from
 
 ## Phase 3 — Workspace marker and window scope
 
-Status: complete. The marker is `daisy/Features/WorkspaceMetadata/WorkspaceMarker.swift` (tests in `tests/swift-tests/Tests/MarkdownHelpersTests/WorkspaceMarkerTests.swift`); window state and the two commands are in `daisy/Document/DocumentWindowController+Workspace.swift`; the menu items are installed by `installWorkspaceMenuItems` in `daisy/App/AppDelegate.swift`. Nothing consumes `workspaceRootURL` yet (Phase 4).
+Status: complete. The marker is `daisy/Features/WorkspaceMetadata/WorkspaceMarker.swift` (tests in `tests/swift-tests/Tests/MarkdownHelpersTests/WorkspaceMarkerTests.swift`); window state and the two commands are in `daisy/Document/DocumentWindowController+Workspace.swift`; the menu items are installed by `installWorkspaceMenuItems` in `daisy/App/AppDelegate.swift`. `indexedWorkspaceRootURL` is the root the Phase 4 index uses.
 
 ### Goal
 
-Make indexing opt-in and window-scoped: a folder window whose root contains `.daisy/config.json` is a workspace window, along with the tabs, windows, and untitled documents created from it. Every other way of opening a folder or file keeps today's behavior. Membership never comes from walking a file's parent directories or searching other windows for a containing workspace.
+Make indexing opt-in and window-scoped: a folder window whose root contains `.daisy/config.json` is a workspace window, along with the tabs, windows, and untitled documents created from it. A file opened from Finder, ⌘O, or Open Recent joins the frame of an open window whose folder contains it (see `bindToOpenWorkspace` in `daisy/Document/DocumentWindowController+DocumentOpening.swift`), and gets that window's workspace along with its project. Every other way of opening a folder or file keeps today's behavior. Membership never comes from walking a file's parent directories on disk; only open windows are consulted.
 
 ### Tasks
 
 1. Add `daisy/Features/WorkspaceMetadata/WorkspaceMarker.swift`: `isWorkspace(root:)` checks only that `<root>/.daisy/config.json` is a file, without reading it; `initialize(root:)` creates `.daisy/` and writes `{"version": 1}` atomically, keeping an existing marker; `remove(root:)` deletes `config.json`, then `.daisy/` if nothing else is in it. Keep it free of AppKit so it links into `tests/swift-tests`.
 2. In `AppDelegate.openFolder`, after the window takes the folder, set `isWorkspace` on the `DocumentWindowController` from `WorkspaceMarker.isWorkspace(root:)`. This covers File → Open…, Finder, drag and drop, the command-line tool, the OmniSearch and navigator Open Folder… buttons, and Reopen last session; persist nothing new in `LastSessionStore`. Leave the existing window-reuse rules and `SidebarWorkspaceRegistry` in `daisy/Features/Sidebar/SidebarViewController.swift` unchanged. Add no workspace registry.
-3. Expose `workspaceRootURL` from the window: the canonical `projectRootURL` (`SidebarWorkspace.canonicalURL`) when `isWorkspace`, otherwise nil. Phase 4 keys its shared index service on this value. File windows, whose navigator root is the file's parent, are never checked.
+3. Expose `indexedWorkspaceRootURL` from the window: the canonical `projectRootURL` (`SidebarWorkspace.canonicalURL`) when `isWorkspace`, otherwise nil. Phase 4 keys its shared index service on this value. File windows, whose navigator root is the file's parent, are never checked.
 4. Add **File → Initialize Workspace** and **File → Remove Workspace** after Open Recent, installed in code by `AppDelegate` like OmniSearch…. Initialize is enabled in a folder window opened through `openFolder` whose root has no marker; Remove in a workspace window. Each updates every open folder window on that root. A failed write shows an error and changes nothing. Localize new strings in `en.lproj/Localizable.strings` and `zh-Hans.lproj/Localizable.strings`.
-5. Carry `isWorkspace` only along the paths that already carry a window's project: `inheritProject(from:containing:)` (Open in New Tab / New Window for a file inside the root) and `prepareSidebarForUntitledDocument(from:)` (new untitled document), both in `daisy/Document/DocumentWindowController+Sidebar.swift`. Plain opens in `daisy/Document/MarkdownDocument.swift` (Finder, ⌘O, Open Recent, drag and drop, command-line tool) never set it.
+5. Carry `isWorkspace` only along the paths that already carry a window's project: `inheritProject(from:containing:)` (Open in New Tab / New Window for a file inside the root) and `prepareSidebarForUntitledDocument(from:)` (new untitled document), both in `daisy/Document/DocumentWindowController+Sidebar.swift`. Plain opens in `daisy/Document/MarkdownDocument.swift` (Finder, ⌘O, Open Recent, drag and drop, command-line tool) go through `bindToOpenWorkspace`, which calls `inheritProject` for the innermost open window containing the file, so they inherit a workspace only from such a window.
 6. Re-check the marker when the app becomes active, so a marker deleted or added outside Daisy takes effect without reopening the window.
 7. Ensure folder opens without a marker, file opens, drag and drop, and the command-line tool never set `isWorkspace`, never walk parent directories, and never write into the folder.
 
@@ -162,13 +162,13 @@ Make indexing opt-in and window-scoped: a folder window whose root contains `.da
 
 - Marker: present, absent, `.daisy` as a file, `config.json` as a folder, malformed or unknown content; a marker in a parent or a subfolder is not detected.
 - Initialize writes only `.daisy/config.json` and keeps an existing one; Remove deletes the marker and keeps other files in `.daisy/`; a failed write leaves the folder unchanged.
-- `workspaceRootURL` canonicalization: symlink aliases and `..` forms give the same root; nested workspaces stay distinct.
-- Membership: Open in New Tab/Window inside the root and untitled documents inherit the workspace; a file opened from outside gets none, even when it lies inside a workspace folder; a file window is never a workspace window.
+- `indexedWorkspaceRootURL` canonicalization: symlink aliases and `..` forms give the same root; nested workspaces stay distinct.
+- Membership: Open in New Tab/Window inside the root and untitled documents inherit the workspace; a file opened from outside joins the workspace of an open window containing it and gets none when no such window is open; a file window is never a workspace window.
 - Reopen last session on a folder with a marker gives a workspace window.
 
 ### Exit criteria
 
-- A workspace window comes only from a folder open with a marker at its root, Initialize Workspace, or inheritance from a workspace window; no code path derives one from a file's location.
+- A workspace window comes only from a folder open with a marker at its root, Initialize Workspace, or inheritance from an open workspace window; no code path derives one from a file's location on disk.
 - No workspace registry or new bookmark store.
 - Folder-opening and file-opening behavior is unchanged for folders without a marker.
 
@@ -188,7 +188,7 @@ Aggregate saved-file and unsaved-buffer name metadata per resolved workspace.
 
 ### Tasks
 
-1. Add root-scoped actor/service under `daisy/Features/WorkspaceMetadata/WorkspaceMetadataIndex.swift`, shared by `workspaceRootURL` through a static weak lookup inside the service (this replaces a separate registry).
+1. Add root-scoped actor/service under `daisy/Features/WorkspaceMetadata/WorkspaceMetadataIndex.swift`, shared by `indexedWorkspaceRootURL` through a static weak lookup inside the service (this replaces a separate registry).
 2. Reuse Markdown discovery rules, exclusions, caps, and file classification from `daisy/Features/FileSearch/ProjectFileIndex.swift`.
 3. Index only saved Markdown tags, contexts, and projects. Do not index dates or priorities.
 4. Exclude hidden/pruned paths, oversized files, inaccessible files, and symlink targets outside the workspace root. Index overlapping workspaces independently.
@@ -257,7 +257,7 @@ Ship coherent behavior with accurate documentation and end-to-end validation.
 3. Add "Rebuild Workspace Index" UI/action for the current workspace.
 4. Update `README.md`, samples, and behavior comments only after final behavior exists.
 5. Task metadata badges render in the editor and Read mode (`task-metadata` render extension); Quick Look and exports stay literal. Re-check this when wiring Phase 6 runtime tests.
-6. Perform runtime tests for keyboard navigation, mouse selection, VoiceOver labels/selection state, date chooser cancel/accept, two-tab overlays, Initialize and Remove Workspace, marker detection on every folder-open route including last-session restore, folders without a marker staying unindexed, a Finder-opened file inside a workspace root staying a plain window, overlapping workspaces, unresolvable bookmarks, synced folders (nothing but the marker written), large workspaces, and cache corruption.
+6. Perform runtime tests for keyboard navigation, mouse selection, VoiceOver labels/selection state, date chooser cancel/accept, two-tab overlays, Initialize and Remove Workspace, marker detection on every folder-open route including last-session restore, folders without a marker staying unindexed, a Finder-opened file joining an open workspace window that contains it and staying plain when none is open, overlapping workspaces, unresolvable bookmarks, synced folders (nothing but the marker written), large workspaces, and cache corruption.
 
 ### Exit criteria
 
@@ -284,7 +284,7 @@ Run targeted JS and Swift tests during each phase. Before merge, run all command
 | Index and editor disagree on what is metadata | One JS extractor run in both hosts; bridge tests replay the fixture corpus. |
 | JavaScriptCore throughput limits initial indexing | Bounded context pool; partial snapshots; incremental reparse after the first pass. |
 | Slash refactor regresses mature editor behavior | Preserve existing tests first; extract controller without changing ranking or templates; ship Phase 2a alone, gated on the unchanged smoke suite. |
-| Indexing surprises users or broadens access | Index only folder windows whose root has the marker; check only the opened root; workspaces bind to windows, never to a file's location; indexing only reads. |
+| Indexing surprises users or broadens access | Index only folder windows whose root has the marker; check only the opened root; workspaces bind to windows, and a file joins one only through an open window; indexing only reads. |
 | A cloned repository's marker starts indexing unasked | The marker can only turn on read-only indexing with local storage; scan limits and progress state bound the cost; Remove Workspace turns it off. |
 | Workspace files leak into git or sync | The marker holds only a version and is safe to commit; keep the cache and all per-user state in the app container. |
 | Multiple tabs double-count metadata | Workspace service owns one document overlay per shared document identity. |

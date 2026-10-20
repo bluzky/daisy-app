@@ -75,6 +75,24 @@ private final class BookmarkNode {
     var displayName: String { url?.lastPathComponent ?? bookmark.name }
 }
 
+/// Reports a double-click's second click as it arrives, before AppKit's
+/// click tracking. When the first click selects another tab, that second
+/// click can land on either tab's sidebar while the switch is under way, and
+/// AppKit then sends no doubleAction. It also takes the click that
+/// activates its window, which is how it reaches the newly selected tab.
+private final class SidebarOutlineView: NSOutlineView {
+    var onSecondClick: ((Int) -> Void)?
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    override func mouseDown(with event: NSEvent) {
+        if event.clickCount == 2 {
+            onSecondClick?(row(at: convert(event.locationInWindow, from: nil)))
+        }
+        super.mouseDown(with: event)
+    }
+}
+
 final class ProjectNavigatorView: NSView {
 
     private static let bookmarksExpandedKey = "Sidebar.BookmarksExpanded"
@@ -84,9 +102,11 @@ final class ProjectNavigatorView: NSView {
     )
 
     var onSelectFile: ((URL) -> Void)?
+    /// A double-click: the file's tab stays instead of being a preview.
+    var onKeepFile: ((URL) -> Void)?
 
     private let scrollView = NSScrollView()
-    private let outlineView = NSOutlineView()
+    private let outlineView = SidebarOutlineView()
     private var rootNode: FileNode?
     private var workspace: SidebarWorkspace?
     private var isApplyingWorkspaceState = false
@@ -134,6 +154,9 @@ final class ProjectNavigatorView: NSView {
         outlineView.delegate = self
         outlineView.target = self
         outlineView.action = #selector(rowClicked)
+        outlineView.onSecondClick = { [weak self] row in
+            self?.keepFile(atRow: row)
+        }
         outlineView.indentationPerLevel = 14
         outlineView.refusesFirstResponder = true
         outlineView.registerForDraggedTypes([Self.draggedURLsPasteboardType])
@@ -454,6 +477,22 @@ final class ProjectNavigatorView: NSView {
             // selects the requested file only after navigation succeeds.
             onSelectFile?(node.url)
         }
+    }
+
+    /// A double-click's first click already opened the file; the second
+    /// keeps its tab.
+    private func keepFile(atRow row: Int) {
+        guard row >= 0 else { return }
+        let url: URL?
+        switch outlineView.item(atRow: row) {
+        case let node as FileNode where !node.isDirectory && node.isPreviewable:
+            url = node.url
+        case let node as BookmarkNode where !node.bookmark.isDirectory:
+            url = node.url
+        default:
+            url = nil
+        }
+        if let url { onKeepFile?(url) }
     }
 
     @objc private func showInFinder(_ sender: NSMenuItem) {

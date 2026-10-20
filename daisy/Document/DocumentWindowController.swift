@@ -66,7 +66,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     var isWorkspace = false {
         didSet { updateWorkspaceIndexBinding() }
     }
-    /// The shared index for `workspaceRootURL`, and what it last published.
+    /// The shared index for `indexedWorkspaceRootURL`, and what it last published.
     var workspaceIndex: WorkspaceMetadataIndex?
     var workspaceCandidates: WorkspaceMetadataSnapshot?
     var workspaceSnapshotTask: Task<Void, Never>?
@@ -121,6 +121,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         didSet {
             guard oldValue != hasUnsavedEditorChanges else { return }
             if hasUnsavedEditorChanges {
+                // Writing in a preview tab keeps it.
+                isPreviewTab = false
                 startAutoSaveTimerIfNeeded()
             } else if !isEditorCommitInFlight {
                 stopAutoSaveTimer()
@@ -140,13 +142,31 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     /// itself with an orange dot and title while the editor holds unsaved
     /// changes.
     private static let tabTitleFont = NSFont.systemFont(ofSize: 12, weight: .regular)
+    /// A preview tab's title is italic, as in VS Code.
+    private static let previewTabTitleFont = NSFontManager.shared.convert(tabTitleFont, toHaveTrait: .italicFontMask)
+
+    /// A tab opened by a single click in the Files sidebar, which the next
+    /// click replaces. Editing the file or double-clicking it keeps the tab.
+    var isPreviewTab = false {
+        didSet {
+            guard oldValue != isPreviewTab else { return }
+            updateTabEditedIndicator()
+        }
+    }
+    /// The file a sidebar click last asked this preview tab to show. Leaving
+    /// Edit Mode can delay the switch past a double-click's second click.
+    var requestedPreviewURL: URL?
+    /// Opened directly (Finder, ⌘O, recents, command line) rather than from
+    /// inside the app, so a Markdown file starts in Read Mode.
+    var opensInReadMode = false
 
     func updateTabEditedIndicator() {
         let tab = documentWindow.tab
         guard hasUnsavedEditorChanges else {
             tab.accessoryView = nil
-            tab.attributedTitle = NSAttributedString(string: documentWindow.title,
-                                                     attributes: [.font: Self.tabTitleFont])
+            tab.attributedTitle = NSAttributedString(
+                string: documentWindow.title,
+                attributes: [.font: isPreviewTab ? Self.previewTabTitleFont : Self.tabTitleFont])
             return
         }
         let image = NSImage(systemSymbolName: "circle.fill",
@@ -218,10 +238,13 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     /// New Window" needs that window to skip the native tab group during
     /// its first order-front (when AppKit decides tab placement).
     static var nextWindowDeclinesTabbing = false
-    /// One-shot for explicit tab requests (Open in New Tab, ⌘T, the tab
-    /// bar's "+"): the next window joins the frontmost window's tab group
-    /// even when the system tabbing preference wouldn't put it there.
+    /// One-shot for tab requests made from inside a window (Open in New Tab,
+    /// ⌘N): the next window keeps that window's workspace, and so joins its
+    /// frame.
     static var nextWindowRequestsTab = false
+    /// One-shot for a single click in the Files sidebar: the next window is
+    /// a preview tab.
+    static var nextWindowIsPreview = false
 
     static func markNextWindowAsSeparate() {
         nextWindowDeclinesTabbing = true
@@ -231,9 +254,34 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         nextWindowRequestsTab = true
     }
 
-    /// Whether this window was created by an explicit tab request; consumed
-    /// by attachToExistingTabGroupIfNeeded on first show.
-    private var joinsTabGroupOnFirstShow = false
+    /// Windows of one workspace share an identifier, and windows of
+    /// different workspaces never do, so AppKit only ever tabs a workspace's
+    /// windows together — Merge All Windows and tab dragging included.
+    private static let baseTabbingIdentifier = "MarkdownDocumentWindow"
+
+    static func tabbingIdentifier(forWorkspace root: URL?) -> String {
+        guard let root else { return baseTabbingIdentifier }
+        return baseTabbingIdentifier + ":" + root.path
+    }
+
+    /// Every open document window, in no particular order.
+    static var allControllers: [DocumentWindowController] {
+        NSDocumentController.shared.documents
+            .flatMap(\.windowControllers)
+            .compactMap { $0 as? DocumentWindowController }
+    }
+
+    /// The workspace this window belongs to: its sidebar's root, or for a
+    /// file whose sidebar has not taken it yet, the folder it will be bound
+    /// to.
+    var workspaceRootURL: URL? {
+        if let projectRootURL { return projectRootURL }
+        return currentFileURL.map { SidebarWorkspace.canonicalURL($0.deletingLastPathComponent()) }
+    }
+
+    func syncTabbingIdentifier() {
+        documentWindow.tabbingIdentifier = Self.tabbingIdentifier(forWorkspace: workspaceRootURL)
+    }
 
     private func setupWindow() {
         documentWindow.styleMask.insert(.fullSizeContentView)
@@ -244,23 +292,19 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         documentWindow.collectionBehavior.insert(.fullScreenPrimary)
         applyAlwaysOnTopLevel(isFullScreen: false)
         documentWindow.delegate = self
-        documentWindow.tabbingIdentifier = "MarkdownDocumentWindow"
+        documentWindow.tabbingIdentifier = Self.baseTabbingIdentifier
         documentWindow.tabbingMode = Self.nextWindowDeclinesTabbing ? .disallowed : .automatic
-        joinsTabGroupOnFirstShow = Self.nextWindowRequestsTab && !Self.nextWindowDeclinesTabbing
+        isPreviewTab = Self.nextWindowIsPreview
         Self.nextWindowDeclinesTabbing = false
         Self.nextWindowRequestsTab = false
+        Self.nextWindowIsPreview = false
         let split = MainSplitViewController()
         split.onSelectFile = { [weak self] url in
-            // Tree selections replace this window's document; the workspace
-            // stays. An untitled document with content still gets a new tab,
-            // so it keeps its edits instead of taking the selected file's
-            // identity.
             guard let self, !self.openExternallyIfNeeded(url) else { return }
-            if self.hasUntitledContent {
-                self.openInNewTab(url, startEditing: true)
-            } else {
-                self.present(url: url)
-            }
+            self.openFromSidebar(url)
+        }
+        split.onKeepFile = { [weak self] url in
+            self?.keepTab(showing: url)
         }
         split.onOpenMarkdownLink = { [weak self] url in
             if SettingsModel.shared.opensMarkdownLinksInNewWindows {
@@ -349,15 +393,15 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     /// AppKit's automatic tab placement runs when NSDocument shows its
     /// windows — but this controller orders the window front itself (from
     /// makeWindowControllers, before showWindows), so the window is already
-    /// visible and placement never happens on its own. Join the frontmost
-    /// document window's tab group explicitly on first show instead — but
-    /// only when the open was an explicit tab request, when this app's own
-    /// "Open documents in tabs" preference is on, or when the system
-    /// "Prefer tabs when opening documents" setting asks for it. Plain
-    /// opens (Finder, ⌘O, recents) otherwise get their own window.
+    /// visible and placement never happens on its own. One frame per
+    /// workspace: on first show, join the frontmost window of the same
+    /// workspace as a tab, whatever the tabbing preferences say. A window
+    /// whose workspace has no frame yet starts one. Only Open in New Window
+    /// opts out.
     func attachToExistingTabGroupIfNeeded() {
-        guard !documentWindow.isVisible,
-              documentWindow.tabbingMode != .disallowed,
+        guard !documentWindow.isVisible else { return }
+        syncTabbingIdentifier()
+        guard documentWindow.tabbingMode != .disallowed,
               let host = ([NSApp.mainWindow] + NSApp.orderedWindows)
                   .compactMap({ $0 })
                   .first(where: {
@@ -365,22 +409,20 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
                           && $0.isVisible
                           && $0.tabbingIdentifier == documentWindow.tabbingIdentifier
                   }) else { return }
-
-        let systemPreference: TabOpeningPolicy.SystemPreference
-        switch NSWindow.userTabbingPreference {
-        case .always: systemPreference = .always
-        case .inFullScreen: systemPreference = .inFullScreen
-        case .manual: systemPreference = .manual
-        @unknown default: systemPreference = .manual
+        // A tab takes its frame's size; a single file's narrow frame must
+        // not become the saved size of workspace windows.
+        if host.frameAutosaveName.isEmpty {
+            documentWindow.setFrameAutosaveName("")
         }
-
-        guard TabOpeningPolicy.joinsExistingTabGroup(
-            isExplicitTabRequest: joinsTabGroupOnFirstShow,
-            opensDocumentsInTabs: TabOpeningPolicy.isEnabled,
-            systemPreference: systemPreference,
-            hostIsFullScreen: host.styleMask.contains(.fullScreen)
-        ) else { return }
         host.addTabbedWindow(documentWindow, ordered: .above)
+        // A folder window showing nothing yet only held the frame open; the
+        // file takes its place rather than leaving an empty tab behind.
+        for window in host.tabbedWindows ?? [host] where window !== documentWindow {
+            if let placeholder = window.windowController as? DocumentWindowController,
+               placeholder.isShowingNothing {
+                placeholder.close()
+            }
+        }
     }
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {
@@ -465,7 +507,9 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
             recordLastSession()
             startWatching(fileURL)
             offerToBecomeDefaultHandlerIfNeeded()
-            enterEditMode()
+            if !(opensInReadMode && FileKind.classify(fileURL) == .markdown) {
+                enterEditMode()
+            }
         }
     }
 

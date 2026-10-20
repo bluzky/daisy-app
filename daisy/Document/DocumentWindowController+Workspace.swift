@@ -4,15 +4,15 @@
 //
 //  A workspace window is a folder window whose folder has a workspace
 //  marker. The window decides membership, never a file's location: only the
-//  window's own folder is checked, and a window opened on a file never
-//  becomes one.
+//  window's own folder is checked. A window opened on a file is one only
+//  when it inherits the workspace from an open workspace window it joins.
 //
 
 import Cocoa
 
 extension DocumentWindowController {
     /// The workspace this window's documents get suggestions from, or nil.
-    var workspaceRootURL: URL? { isWorkspace ? folderRootURL : nil }
+    var indexedWorkspaceRootURL: URL? { isWorkspace ? folderRootURL : nil }
 
     /// Re-reads the marker, so one added or deleted outside Daisy counts.
     func refreshWorkspaceState() {
@@ -48,7 +48,7 @@ extension DocumentWindowController {
     }
 
     @objc func removeWorkspace(_ sender: Any?) {
-        guard let root = workspaceRootURL else {
+        guard let root = indexedWorkspaceRootURL else {
             NSSound.beep()
             return
         }
@@ -65,7 +65,7 @@ extension DocumentWindowController {
     /// Binds this window to the shared index for its workspace, or lets go
     /// of it when the window stops being a workspace window.
     func updateWorkspaceIndexBinding() {
-        let root = workspaceRootURL.map(WorkspaceMetadataIndex.canonicalRoot)
+        let root = indexedWorkspaceRootURL.map(WorkspaceMetadataIndex.canonicalRoot)
         guard root != workspaceIndex?.root else { return }
         releaseWorkspaceIndex()
         guard let root else {

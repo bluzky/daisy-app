@@ -314,8 +314,6 @@
 /* Settings — Windows */
 "Windows" = "窗口";
 "Keeps every Daisy window in front of other apps, including windows you open later. A window in full screen is left alone until it comes back out." = "让所有 Daisy 窗口始终显示在其他 App 前面，包括之后打开的窗口。窗口进入全屏时不会置顶，退出全屏后会恢复。";
-"Open documents in tabs" = "以标签页打开文稿";
-"A file opened from Finder joins the front window as a tab instead of getting one of its own — Open in New Window still opens a window." = "从“访达”打开的文件会作为标签页加入最前面的窗口，而不是各自新建一个窗口——“在新窗口中打开”仍会打开新窗口。";
 
 /* OmniSearch */
 "OmniSearch…" = "OmniSearch…";

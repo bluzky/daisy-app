@@ -202,7 +202,7 @@ Dates and priorities stay out of the workspace index. If a native feature later 
 
 A workspace is a folder whose root contains `.daisy/config.json`. Opening that folder as a folder window, in any way, makes the window a workspace window, and only workspace windows are indexed. Opening a folder without the marker, or opening a file, keeps today's behavior and never starts indexing.
 
-Detection checks only the folder being opened. Daisy does not walk parent directories or descend into subfolders looking for a marker, and does not search other windows for a workspace that contains a file.
+Detection checks only the folder being opened. Daisy does not walk parent directories or descend into subfolders looking for a marker, A file can join a workspace only through a window that is already open on it (below).
 
 - **Detection.** Every folder open goes through `AppDelegate.openFolder`: File → Open… on a folder, Finder, drag and drop, the command-line tool, the Open Folder… buttons in OmniSearch and the navigator, and Reopen last session. When the opened root contains `.daisy/config.json`, the window is a workspace window. Nothing extra is persisted: restoring the folder finds the marker again.
 - **Folder windows only.** A window opened for a single file roots its navigator at the file's parent folder. That root is never checked for a marker, because checking it would be a one-level parent walk. To use a workspace, open its folder.
@@ -210,7 +210,7 @@ Detection checks only the folder being opened. Daisy does not walk parent direct
 - **Remove Workspace.** File → Remove Workspace, enabled in a workspace window, deletes `.daisy/config.json` (and `.daisy/` once nothing else is in it) and that workspace's cache, and turns its windows back into plain folder windows. Deleting the marker by hand has the same effect the next time Daisy becomes active.
 - **The marker.** `.daisy/config.json` contains only `{"version": 1}`. Its presence makes the folder a workspace; Daisy does not read its contents, and later versions will ignore content they do not recognise, so a marker that arrives with a cloned repository can turn on indexing and nothing else. It holds no cache or per-user state, so committing it is harmless and shares the workspace with collaborators; adding it to `.gitignore` keeps it personal. Initialize Workspace is the only command that writes into a workspace folder.
 - **Window scope.** A workspace window keeps its workspace whatever file it shows next, as a folder window keeps its navigator root today. Every document it shows gets that workspace's suggestions; only files inside the root contribute to the index. Open in New Tab or Open in New Window for a file inside the root, and a new untitled document created from the window, carry the workspace over, as they already carry the navigator root.
-- **Files opened directly.** A file opened from Finder, ⌘O, Open Recent, drag and drop, or the command-line tool gets a plain window and current-buffer suggestions only, even if it lies inside a workspace folder. This matches today's behavior: such opens bind the window to the file's own folder rather than to a containing open folder.
+- **Files opened directly.** A file opened from Finder, ⌘O, Open Recent, drag and drop, or the command-line tool joins, as a tab, the frame of the innermost open window whose folder contains it, and gets that window's workspace if it has one. With no such window open, it gets a plain window and current-buffer suggestions only, even if it lies inside a workspace folder.
 - **Shared index.** Key workspaces by canonical root (symlinks resolved, then standardized, as `SidebarWorkspace.canonicalURL` does). The index service is shared by canonical root, so a second workspace window on the same root does not index again. Do not follow symlinks out of the root or into cycles. There is no workspace registry; leave `SidebarWorkspaceRegistry` and folder-opening behavior unchanged.
 - **Nested and overlapping workspaces.** If `repo/` and `repo/sub/` both have markers, opening `repo/` indexes everything under it, including `sub/`; opening `repo/sub/` indexes only `sub/`. They index independently, and each editor queries only its own window's workspace, so overlap cannot double-count within one suggestion list.
 
@@ -219,7 +219,8 @@ Open repo/ (has .daisy/config.json)                  window A: workspace repo/, 
 Open notes/ (no marker)                              window B: plain folder, not indexed, nothing written
 File → Initialize Workspace in window B              writes notes/.daisy/config.json; window B becomes a workspace
 Open in New Tab from window A → repo/docs/a.md       joins repo/
-Finder → repo/docs/a.md                              plain window, current-buffer suggestions only
+Finder → repo/docs/a.md                              tab in window A's frame, joins repo/
+Finder → other/b.md (no open window contains it)     plain window, current-buffer suggestions only
 ```
 
 ### Sandbox limits
@@ -264,7 +265,7 @@ Treat a cache from disk as untrusted input: validate schema and paths, prevent p
 
 | Event | Action |
 | --- | --- |
-| Folder without a marker, or a file, opened | No indexing; current-buffer suggestions only |
+| Folder without a marker, or a file outside every open workspace window, opened | No indexing; current-buffer suggestions only |
 | Initialize Workspace | Write the marker; index as for a workspace that opens |
 | Folder with a marker opens | Load compatible cached candidates, then reconcile in background |
 | Another window or tab binds the same workspace root | Reuse the shared index service |
@@ -327,7 +328,7 @@ Keep changes independently testable. No release or version bump is implied by th
 - Opening a folder with a marker, by any route including Reopen last session, gives a workspace window; a folder without one stays plain; only the opened root is checked.
 - Initialize Workspace writes only `.daisy/config.json`; Remove Workspace deletes it and the cache, keeping other files in `.daisy/`; a failed write changes nothing; unknown marker content is ignored.
 - Folder opens without a marker, direct file opens, and the command-line tool never index or write into the folder.
-- Only workspace windows, and tabs, windows, and untitled documents created from them, are bound to a workspace; files opened from outside get buffer-only suggestions even when they lie inside an open workspace; no parent directory is ever walked.
+- Only workspace windows, and tabs, windows, and untitled documents created from them, are bound to a workspace; a file opened from outside joins the workspace of an open window containing it, and otherwise gets buffer-only suggestions; no parent directory is ever walked.
 - Overlapping workspaces index independently; workspace windows on the same root, including symlink aliases, share one index service; symlinks outside the root are not followed.
 - Nothing other than the marker is written inside a workspace folder.
 - Cached reopen, incremental updates, rename/deletion, watcher reconciliation, and scan truncation.
