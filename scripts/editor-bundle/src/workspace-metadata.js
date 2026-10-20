@@ -5,15 +5,17 @@ import {
   TASK_DATE_KEYS,
   isTaskDate,
 } from "./task-fields.js";
+import {
+  METADATA_MARKERS,
+  TOKEN_CHARACTER,
+  TOKEN_START,
+  isMetadataValue,
+  normalizedKey,
+} from "./metadata-names.js";
 
 // This module deliberately has no CodeMirror view/state or DOM dependency. It
 // is bundled once for native callers and is also imported by editor API code.
 const markdownParser = parser.configure(GFM);
-const TOKEN_START = /[\p{L}\p{N}_-]/u;
-// Combining marks (`\p{M}`) continue a token so decomposed accents and
-// scripts such as Devanagari or Thai keep their whole names.
-const TOKEN_CHARACTER = /[\p{L}\p{M}\p{N}_\-/]/u;
-const LETTER = /\p{L}/u;
 const WHITESPACE = /\s/u;
 // Fields start at the line start or after whitespace, like `#`/`@`/`+`
 // tokens. The leading group captures that boundary so `fieldStart` can point
@@ -35,9 +37,6 @@ const BLOCKED_NODES = new Set([
   "URL",
 ]);
 
-// Lookup keys: NFKC, then lowercase. Source spelling is kept separately.
-const normalizedKey = (value) =>
-  value.normalize("NFKC").toLocaleLowerCase("en-US");
 const isTokenCharacter = (character) => TOKEN_CHARACTER.test(character);
 
 function characterAt(source, offset) {
@@ -163,7 +162,7 @@ function isBlocked(offset, ranges) {
 function collectTokens(source, starts, ranges, result) {
   for (let offset = 0; offset < source.length; ) {
     const marker = characterAt(source, offset);
-    if (marker !== "#" && marker !== "@" && marker !== "+") {
+    if (!METADATA_MARKERS[marker]) {
       offset = nextOffset(source, offset);
       continue;
     }
@@ -186,18 +185,13 @@ function collectTokens(source, starts, ranges, result) {
       end = nextOffset(source, end);
     }
     const value = source.slice(valueStart, end);
-    if (
-      (!value.includes("/") || value.split("/").every(Boolean)) &&
-      LETTER.test(value)
-    ) {
+    if (isMetadataValue(value)) {
       const token = {
         source: source.slice(offset, end),
         key: normalizedKey(value),
         line: lineAt(starts, offset),
       };
-      if (marker === "#") result.tags.push(token);
-      else if (marker === "@") result.contexts.push(token);
-      else result.projects.push(token);
+      result[METADATA_MARKERS[marker]].push(token);
     }
     offset = end;
   }

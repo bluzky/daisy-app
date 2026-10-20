@@ -82,6 +82,20 @@ final class DocumentFontSettingTests: XCTestCase {
                       "the code size correction is missing")
     }
 
+    // Edit mode sizes inline code from the same per-face correction as Read
+    // mode, so a serif document's code is the same size in both.
+    func testEditorInlineCodeUsesTheReadModeCodeSize() {
+        let page = EditorHTML.render(markdown: "Body `code`.", editorJavaScript: "")
+        XCTAssertTrue(page.contains("font-size: var(--mdp-code-font-size, 0.9em);"))
+        let heading = page.range(of: ".cm-md-h6) .cm-md-inline-code {")
+        XCTAssertNotNil(heading, "code in a heading takes the heading size")
+        if let heading {
+            XCTAssertTrue(page[heading.upperBound...].prefix(80).contains("font-size: inherit;"))
+        }
+        let css = EditorHTML.readerStyleCSS(documentFont: .newYork, readerLayout: ReaderLayoutSetting(), textAlignment: .automatic)
+        XCTAssertTrue(css.contains("--mdp-code-font-size: \(DocumentFontSetting.newYork.codeFontSize);"))
+    }
+
     // The stylesheet keeps a literal fallback, so a page rendered before the
     // override is applied still has a face rather than the browser default.
     func testTheStylesheetFallsBackToTheSystemFace() {

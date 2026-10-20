@@ -10,7 +10,7 @@ final class MarkdownRenderExtensionTests: XCTestCase {
       MarkdownHTML.renderExtensions.map(\.id),
       [
         "highlight", "callout", "katex", "mermaid", "colorful-headings",
-        "task-metadata", "slash-commands"
+        "task-metadata", "slash-commands", "metadata-completion"
       ]
     )
     let orders = MarkdownHTML.renderExtensions.map(\.order)
@@ -60,6 +60,12 @@ final class MarkdownRenderExtensionTests: XCTestCase {
         ),
         .init(
           titleKey: "Slash commands",
+          descriptionKey: nil,
+          defaultEnabled: true,
+          userToggleable: true
+        ),
+        .init(
+          titleKey: "Metadata suggestions",
           descriptionKey: nil,
           defaultEnabled: true,
           userToggleable: true
@@ -256,7 +262,10 @@ final class MarkdownRenderExtensionTests: XCTestCase {
     let state = MarkdownHTML.editorExtensionState(configuration: .allEnabled)
     XCTAssertEqual(
       state,
-      ["mermaid": true, "colorful-headings": true, "task-metadata": true, "slash-commands": true]
+      [
+        "mermaid": true, "colorful-headings": true, "task-metadata": true, "slash-commands": true,
+        "metadata-completion": true
+      ]
     )
   }
 
@@ -266,7 +275,10 @@ final class MarkdownRenderExtensionTests: XCTestCase {
     )
     XCTAssertEqual(
       MarkdownHTML.editorExtensionState(configuration: configuration),
-      ["mermaid": false, "colorful-headings": true, "task-metadata": true, "slash-commands": true]
+      [
+        "mermaid": false, "colorful-headings": true, "task-metadata": true, "slash-commands": true,
+        "metadata-completion": true
+      ]
     )
   }
 
@@ -291,11 +303,24 @@ final class MarkdownRenderExtensionTests: XCTestCase {
     XCTAssertFalse(slash.isActive(in: .init(html: "<p>x</p>", markdown: "/")))
   }
 
-  func testOnlySlashCommandsSkipThePreview() {
+  func testOnlyEditorMenusSkipThePreview() {
     XCTAssertEqual(
       MarkdownHTML.renderExtensions.filter { !$0.affectsPreview }.map(\.id),
-      ["slash-commands"]
+      ["slash-commands", "metadata-completion"]
     )
+  }
+
+  func testMetadataCompletionIsEditorOnlyWithItsOwnMenuCSS() throws {
+    let metadata = try XCTUnwrap(MarkdownHTML.renderExtensions.first { $0.id == "metadata-completion" })
+    XCTAssertFalse(metadata.isActive(in: .init(html: "<p>#tag</p>", markdown: "#tag @alex +daisy")))
+    XCTAssertEqual(metadata.editor?.moduleID, "metadata-completion")
+    let css = try XCTUnwrap(metadata.editor?.css)
+    XCTAssertTrue(css.contains(".cm-md-metadata-menu[hidden] { display: none; }"))
+    XCTAssertTrue(css.contains(".cm-md-metadata-item.cm-md-metadata-selected {"))
+    XCTAssertFalse(css.contains("cm-md-slash"))
+    XCTAssertTrue(MarkdownHTML.slashCommandsEditorStylesheet.contains(".cm-md-slash-menu[hidden] { display: none; }"))
+    XCTAssertTrue(MarkdownHTML.slashCommandsEditorStylesheet.contains(".cm-md-slash-calendar-footer {"))
+    XCTAssertNil(MarkdownHTML.editorExtensionOptions()["metadata-completion"])
   }
 
   func testSlashCommandOptionsCarryEveryLabelKey() throws {
@@ -479,6 +504,27 @@ final class MarkdownRenderExtensionTests: XCTestCase {
     (() => { window.MdPreview.reapplyExtensions(); return document.querySelectorAll('.mdp-task-field').length; })()
     """) as? Int
     XCTAssertEqual(again, 5)
+
+    // Updating Read mode morphs the article toward fresh HTML (toggling Edit
+    // and Read mode does this). Badges must not pile up across updates.
+    let articleJSON = String(decoding: try JSONEncoder().encode([rendered.articleHTML]), as: UTF8.self)
+    let updated = try await webView.evaluateJavaScript("""
+    (() => {
+      const [html] = \(articleJSON);
+      window.MdPreview.update(html);
+      window.MdPreview.update(html);
+      const first = document.querySelector('li');
+      return JSON.stringify({
+        morph: typeof morphdom === 'function',
+        count: document.querySelectorAll('.mdp-task-field').length,
+        first: Array.from(first.querySelectorAll('.mdp-task-field-source')).map(s => s.textContent).join('|'),
+      });
+    })()
+    """) as? String
+    let state = try JSONSerialization.jsonObject(with: Data(try XCTUnwrap(updated).utf8)) as? [String: Any]
+    XCTAssertEqual(state?["morph"] as? Bool, true, "the update must take the morph path")
+    XCTAssertEqual(state?["count"] as? Int, 5)
+    XCTAssertEqual(state?["first"] as? String, "scheduled:2026-10-20|due:2000-01-03|p:high")
   }
 
   private final class ExtensionInvocationCounter: @unchecked Sendable {

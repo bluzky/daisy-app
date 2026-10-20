@@ -296,9 +296,12 @@ nonisolated enum EditorHTML {
             box-decoration-break: clone;
             -webkit-box-decoration-break: clone;
         }
+        /* Same size as Read mode: `--mdp-code-font-size` follows the
+           document font (smaller beside a serif), and a heading's code takes
+           the heading size. */
         .cm-md-inline-code {
             font-family: ui-monospace, "SF Mono", Menlo, monospace;
-            font-size: 0.9em;
+            font-size: var(--mdp-code-font-size, 0.9em);
             background: var(--code-bg);
             border: 0.5px solid var(--code-border);
             border-radius: 5px;
@@ -306,6 +309,9 @@ nonisolated enum EditorHTML {
             overflow-wrap: anywhere;
             -webkit-box-decoration-break: clone;
             box-decoration-break: clone;
+        }
+        #editor :is(.cm-md-h1, .cm-md-h2, .cm-md-h3, .cm-md-h4, .cm-md-h5, .cm-md-h6) .cm-md-inline-code {
+            font-size: inherit;
         }
         .cm-md-link { color: var(--link); }
         .cm-md-url { color: var(--secondary); }

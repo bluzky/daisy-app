@@ -23,6 +23,7 @@ import { alignInactiveHeadings, livePreview } from "./live-preview/plugins.js"
 import { obsidianHighlight } from "./obsidian-highlight.js"
 import { codeCardWidth } from "./code-card-width.js"
 import { activeCodeBlock, anchoredPointerSelection, pointerPreview, stablePointerPreview } from "./pointer.js"
+import { readWorkspaceCandidates, workspaceCandidatesChanged } from "./metadata-completion.js"
 import { slashTemplatesChanged } from "./slash.js"
 import { tableEditors } from "./table/editors.js"
 import { escapedTableCell } from "./table/model.js"
@@ -47,7 +48,7 @@ window.MDEditor = {
     const moduleCompartments = new Map()
     const moduleEnabled = new Map()
     // Handed to every module: the callbacks the page gave this editor.
-    const moduleHost = { callbacks: callbacks || {}, slashTemplates: [] }
+    const moduleHost = { callbacks: callbacks || {}, slashTemplates: [], workspaceCandidates: null }
     const moduleOptions = (id) => (callbacks && callbacks.extensionOptions && callbacks.extensionOptions[id]) || {}
     for (const module of editorModules.values()) {
       const enabled = editorModuleEnabled(callbacks && callbacks.extensionState, module.id)
@@ -569,6 +570,17 @@ window.MDEditor = {
         moduleHost.slashTemplates = (Array.isArray(templates) ? templates : []).filter(
           (template) => template && typeof template.name === "string" && typeof template.body === "string")
         view.dispatch({ effects: slashTemplatesChanged.of(null) })
+      },
+      // Workspace names for `#`, `@` and `+` suggestions, as
+      // `{ version, tags, contexts, projects }` with `[{ name, count }]` per
+      // kind (names without their marker). A snapshot older than the one held
+      // is ignored; returns whether this one was taken.
+      setWorkspaceCandidates: (snapshot) => {
+        const next = readWorkspaceCandidates(snapshot, moduleHost.workspaceCandidates)
+        if (!next) return false
+        moduleHost.workspaceCandidates = next
+        view.dispatch({ effects: workspaceCandidatesChanged.of(null) })
+        return true
       },
       setExtensionState: (state) => {
         const effects = []
