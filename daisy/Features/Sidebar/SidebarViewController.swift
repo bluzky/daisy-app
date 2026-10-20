@@ -80,6 +80,7 @@ final class SidebarViewController: NSViewController {
 
     var onSelectHeading: ((Int) -> Void)?
     var onSelectFile: ((URL) -> Void)?
+    var onKeepFile: ((URL) -> Void)?
     var onModeChanged: ((Mode) -> Void)?
 
     private var contentContainer: NSView!
@@ -144,6 +145,9 @@ final class SidebarViewController: NSViewController {
         projectNavigator.translatesAutoresizingMaskIntoConstraints = false
         projectNavigator.onSelectFile = { [weak self] url in
             self?.onSelectFile?(url)
+        }
+        projectNavigator.onKeepFile = { [weak self] url in
+            self?.onKeepFile?(url)
         }
         contentContainer.addSubview(projectNavigator)
 

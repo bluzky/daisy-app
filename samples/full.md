@@ -3,7 +3,7 @@ Sample Markdown Cheat Sheet
 
 This is a sample markdown file to help you write Markdown quickly :)
 
-Daisy opens Markdown files in Edit Mode. Choose *View → Toggle Edit Mode* to switch between editing and reading preview.
+Daisy opens Markdown files from Finder in Read Mode, and files chosen in the Files sidebar or OmniSearch in Edit Mode. Choose *View → Toggle Edit Mode* to switch between editing and reading preview.
 
 ## Text basics
 this is *italic* and this is **bold** .  another _italic_ and another __bold__
