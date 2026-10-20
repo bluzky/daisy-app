@@ -324,10 +324,10 @@ nonisolated extension MarkdownHTML {
       ("link", "Link to File"), ("mermaid", "Mermaid diagram"),
       ("math", "Math Block"), ("note", "Note"), ("tip", "Tip"),
       ("important", "Important"), ("warning", "Warning"), ("caution", "Caution"),
-      ("templates", "Templates")
+      ("today", "Today"), ("now", "Now"), ("templates", "Templates")
     ]
     let groups: [(id: String, key: String)] = [
-      ("text", "Text"), ("lists", "Lists"), ("blocks", "Blocks")
+      ("text", "Text"), ("lists", "Lists"), ("blocks", "Blocks"), ("insert", "Insert")
     ]
     // Language for the names a template variable writes, such as {{weekday}}.
     var labels: [String: String] = ["locale": Bundle.main.preferredLocalizations.first ?? "en"]

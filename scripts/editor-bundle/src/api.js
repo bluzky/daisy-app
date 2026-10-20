@@ -27,7 +27,7 @@ import { slashTemplatesChanged } from "./slash.js"
 import { tableEditors } from "./table/editors.js"
 import { escapedTableCell } from "./table/model.js"
 import { captureTableSelection, prepareTableFormatting, restoreTableFormatting, tableCellSourceRange, tableFormattingCallbacks, tableFormattingSelection, tableFormattingTargets, tableInlineCommands } from "./table/selection.js"
-import { continueTaskList } from "./task-list.js"
+import { continueTaskList, cycleListItemState } from "./task-list.js"
 import { codeCopyHandlers, unwrappedCodeBlocks } from "./widgets/code.js"
 
 // ---------------------------------------------------------------------------
@@ -120,6 +120,7 @@ window.MDEditor = {
           // editor keeps them visible instead of joining lines.
           Prec.highest(keymap.of([
             { key: "Enter", run: continueTaskList },
+            { key: "Mod-Enter", run: cycleListItemState },
             { key: "Enter", run: exitCodeBlock },
             { key: "Enter", run: openCodeFence },
             { key: "Enter", run: openLineBelowTable },

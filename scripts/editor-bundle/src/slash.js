@@ -12,6 +12,7 @@ const SLASH_GROUPS = [
   { id: "text", label: "Text" },
   { id: "lists", label: "Lists" },
   { id: "blocks", label: "Blocks" },
+  { id: "insert", label: "Insert" },
 ]
 
 // An existing block marker on the converted line is replaced, not stacked.
@@ -55,6 +56,8 @@ const SLASH_ICONS = {
   important: '<circle cx="10" cy="10" r="6.5"/><path d="M10 6.6v4.2M10 13.2v.1"/>',
   warning: '<path d="M10 3.8L17 16H3z"/><path d="M10 8.6v3.2M10 13.8v.1"/>',
   caution: '<path d="M7 3.5h6l3.5 3.5v6L13 16.5H7L3.5 13V7z"/><path d="M10 7v3.5M10 12.8v.1"/>',
+  today: '<rect x="3.5" y="4.5" width="13" height="12" rx="2"/><path d="M3.5 8.5h13M7 3v3M13 3v3"/>',
+  now: '<circle cx="10" cy="10" r="6.5"/><path d="M10 6.5V10l2.5 1.5"/>',
   templates: '<path d="M6 3.5h5.5L15 7v8.5a1 1 0 01-1 1H6a1 1 0 01-1-1v-11a1 1 0 011-1z"/><path d="M11.5 3.5V7H15M7.5 10.5h5M7.5 13.5h5"/>',
 }
 
@@ -73,6 +76,8 @@ const SLASH_HOST_ACTIONS = {
   },
 }
 
+// A command with `insert(now)` converts nothing: its text replaces the typed
+// `/query` where it stands, so it also works in the middle of a sentence.
 // `convert(raw)` receives the rest of the line and returns the replacement
 // lines plus where the caret goes (`select` extends it over that many chars).
 const SLASH_COMMANDS = [
@@ -123,6 +128,10 @@ const SLASH_COMMANDS = [
     convert: (raw) => slashCallout("WARNING", raw) },
   { id: "caution", group: "blocks", label: "Caution", aliases: ["caution", "danger", "callout", "alert", "admonition"],
     convert: (raw) => slashCallout("CAUTION", raw) },
+  { id: "today", group: "insert", label: "Today", aliases: ["today", "date"],
+    insert: (now) => slashDate(now) },
+  { id: "now", group: "insert", label: "Now", aliases: ["now", "time", "datetime", "date"],
+    insert: (now) => `${slashDate(now)} ${slashTime(now)}` },
 ]
 
 // Templates come from the host's template file (`setSlashTemplates`). They sit
@@ -140,10 +149,13 @@ const SLASH_TEMPLATES_ENTRY = {
 // as typed so a typo is visible. `{{cursor}}` marks where the caret lands.
 const SLASH_VARIABLE = /\\\{\{|\{\{\s*([A-Za-z]+)\s*\}\}/g
 
+const slashPad = (value) => String(value).padStart(2, "0")
+const slashDate = (now) => `${now.getFullYear()}-${slashPad(now.getMonth() + 1)}-${slashPad(now.getDate())}`
+const slashTime = (now) => `${slashPad(now.getHours())}:${slashPad(now.getMinutes())}`
+
 function slashExpandTemplate(body, now, locale) {
-  const pad = (value) => String(value).padStart(2, "0")
-  const date = () => `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
-  const time = () => `${pad(now.getHours())}:${pad(now.getMinutes())}`
+  const date = () => slashDate(now)
+  const time = () => slashTime(now)
   const weekday = () => {
     try { return new Intl.DateTimeFormat(locale || undefined, { weekday: "long" }).format(now) }
     catch (_) { return new Intl.DateTimeFormat("en", { weekday: "long" }).format(now) }
@@ -243,7 +255,17 @@ function slashMatches(commands, query) {
   return scored.sort((a, b) => b.score - a.score || a.order - b.order).map((entry) => entry.command)
 }
 
-function applySlashCommand(view, trigger, command, host) {
+function applySlashCommand(view, trigger, command, host, clock) {
+  if (command.insert) {
+    const text = command.insert(clock())
+    view.dispatch({
+      changes: { from: trigger.from, to: trigger.to, insert: text },
+      selection: EditorSelection.cursor(trigger.from + text.length),
+      userEvent: "slash.apply",
+      scrollIntoView: true,
+    })
+    return
+  }
   if (command.host) {
     // Drop the typed `/query`, keep the rest of the line, then hand over.
     view.dispatch({
@@ -292,10 +314,8 @@ function slashExtensions(options, host) {
   })
   const groupLabel = (id) => options[`group.${id}`] || SLASH_GROUPS.find((group) => group.id === id).label
   const templatesLabel = options["cmd.templates"] || SLASH_TEMPLATES_ENTRY.label
-  const templateContext = {
-    now: () => (host.callbacks.slashClock ? host.callbacks.slashClock() : new Date()),
-    locale: options.locale,
-  }
+  const clock = () => (host.callbacks.slashClock ? host.callbacks.slashClock() : new Date())
+  const templateContext = { now: clock, locale: options.locale }
 
   // What each level lists. The top level has one Templates row (searchable as
   // "templates") and never the templates themselves.
@@ -365,7 +385,7 @@ function slashExtensions(options, host) {
   // A submenu row opens its list; anything else is applied to the line.
   const choose = (view, state, command) => {
     if (command.submenu) openTemplates(view, state)
-    else applySlashCommand(view, state, command, host)
+    else applySlashCommand(view, state, command, host, clock)
   }
   const accept = (view) => {
     const state = active(view)

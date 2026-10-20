@@ -418,6 +418,8 @@
 "Important" = "Important";
 "Warning" = "Warning";
 "Caution" = "Caution";
+"Today" = "Today";
+"Now" = "Now";
 "Toggle \"%@\" section" = "Toggle \"%@\" section";
 
 /* Quick Capture */

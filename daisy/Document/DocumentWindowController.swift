@@ -228,15 +228,11 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         Self.nextWindowRequestsTab = false
         let split = MainSplitViewController()
         split.onSelectFile = { [weak self] url in
-            // Tree selections open in a new tab so the current document (and
-            // any unsaved edits) stays put. A window with no file open yet
-            // takes the file itself rather than leaving an empty tab behind.
+            // Tree selections always open in a new tab. This retains untitled
+            // documents and their unsaved edits instead of assigning them the
+            // selected file's identity.
             guard let self, !self.openExternallyIfNeeded(url) else { return }
-            if self.currentFileURL == nil {
-                self.present(url: url, preservingEditMode: true, intent: .normal, fragment: nil)
-            } else {
-                self.openInNewTab(url, startEditing: true)
-            }
+            self.openInNewTab(url, startEditing: true)
         }
         split.onOpenMarkdownLink = { [weak self] url in
             if SettingsModel.shared.opensMarkdownLinksInNewWindows {

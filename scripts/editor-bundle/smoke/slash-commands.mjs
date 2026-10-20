@@ -265,6 +265,24 @@ const slashInsertTemplate = (body, { source = "", locale = "en" } = {}) => {
 }
 
 {
+  const { host, editor } = slashEditor("Due  please", { slashClock: slashVariableClock })
+  editor.insertTextAt("/today", 4, 4)
+  check("/today is offered first", slashLabels()[0] === "Today")
+  slashKey(host, "Enter")
+  check("/today inserts the date in place and keeps the line",
+    editor.getMarkdown() === "Due 2026-10-04 please" && editor.getLinkSelection().from === 14)
+}
+
+{
+  const { host, editor } = slashEditor("- [ ] ", { slashClock: slashVariableClock })
+  editor.insertTextAt("/now", 6, 6)
+  check("/now is offered first", slashLabels()[0] === "Now")
+  slashKey(host, "Enter")
+  check("/now inserts date and time without converting the line",
+    editor.getMarkdown() === "- [ ] 2026-10-04 14:05" && !slashVisible())
+}
+
+{
   const editor = slashInsertTemplate("# {{date}}\n\nNotes: {{cursor}}\nmore")
   check("{{cursor}} is removed from the text", editor.getMarkdown() === "# 2026-10-04\n\nNotes: \nmore")
   check("{{cursor}} puts the caret where it was", editor.getLinkSelection().from === 21)
