@@ -111,13 +111,14 @@ For indexed names, rank exact matches before prefixes and hierarchical segment p
 
 Dates and priorities are set with new slash commands, available on checkbox task lines:
 
-| Command | Submenu | Writes |
+| Command | Opens | Writes |
 | --- | --- | --- |
-| `/due` | Today, Tomorrow, In one week, Choose date, Clear | `due:YYYY-MM-DD` |
-| `/schedule` | Same as `/due` | `scheduled:YYYY-MM-DD` |
-| Priority: High, Priority: Medium, Priority: Low, Priority: None | No submenu; each is its own top-level command | `p:high`, `p:medium`, `p:low`; None removes the field |
+| `/due` (Due Date) | Date picker, starting on the existing date or today | `due:YYYY-MM-DD` |
+| `/schedule` (Schedule) | Same as `/due` | `scheduled:YYYY-MM-DD` |
+| Clear Due Date, Clear Schedule | Nothing; shown only when the task has that date | Removes the field |
+| Priority: High, Priority: Medium, Priority: Low, Priority: None | Nothing; each is its own top-level command | `p:high`, `p:medium`, `p:low`; None removes the field |
 
-The priority commands are listed directly in the slash menu, so `/pri` shows all of them and `/high` finds Priority: High. Each command inserts the field if absent or replaces it if exactly one exists; Clear (dates) or Priority: None removes it. If duplicates exist, require the user to choose an occurrence rather than silently collapsing them. Choose date opens a calendar; show the resolved date before acceptance. Natural-language date parsing is deferred. Add aliases (for example `deadline`, `date`) through the existing slash alias mechanism, and verify the new commands do not displace current top results for common queries.
+The priority commands are listed directly in the slash menu, so `/pri` shows all of them and `/high` finds Priority: High. Each command inserts the field if absent (a priority at the start of the task text, dates at the end) or replaces it in place if exactly one exists; Clear Due Date, Clear Schedule, or Priority: None removes it. If duplicates exist, require the user to choose an occurrence rather than silently collapsing them. The date picker opens directly, without a preset submenu: Enter accepts today, arrow keys move by day or week, Page Up/Down or the month buttons by month, and typing is ignored while the picker is open; show the resolved date before acceptance. Natural-language date parsing is deferred. Add aliases (for example `deadline`, `date`) through the existing slash alias mechanism, and verify the new commands do not displace current top results for common queries.
 
 Opening a submenu or calendar must not commit a partial document edit: cancel restores or preserves the original text; acceptance removes the typed command and applies the field in one transaction. Discard a pending picker result if its document/session is no longer valid.
 
@@ -272,14 +273,20 @@ Unsaved buffers replace, rather than add to, saved-file contributions. Deduplica
 
 ## Rendering and portability
 
-The first implementation may keep metadata literal in both Edit and Read modes. Rich badges are optional follow-up work and must not become necessary to understand the file.
+Valid `due:`, `scheduled:`, and `p:` fields on a checkbox task's marker line render as badges in the editor and in Read mode, through the `task-metadata` render extension (Settings → Extensions → Task metadata):
 
-If badges are introduced, preserve caret editing and accessible text, and explicitly cover Read mode, Quick Look, and exports rather than implying universal styling. Plain-text fallback must always retain meaning.
+- Dates show `YYYY-MM-DD` and a short weekday, with a clock icon for due and a calendar icon for scheduled. A due date before today on an open task is marked overdue.
+- Priorities show as tinted uppercase tags: HIGH (red), MEDIUM (orange), LOW (blue).
+- In the editor, putting the caret on a field (or landing on it with Find) shows its source text for editing, like other live-preview markup. Clicking a badge does the same.
+- Each badge has an accessible name, for example “Due: Friday, October 23, 2026, Overdue”.
+- Quick Look and HTML export never load the badge script and show the literal text. PDF (print) and PNG export switch Read mode back to the literal text.
+
+The Markdown is never changed, and badges are not needed to understand the file: the literal text carries the meaning.
 
 ## Implementation phases
 
 1. **Grammar and extractor:** finalize token boundaries, normalization, priority values, task scope, and duplicate handling; build the single JS extractor and its JavaScriptCore bridge.
-2. **Shared completion controller:** extract slash behavior with regression tests, then add `/due`, `/schedule`, the Priority commands, and current-buffer name suggestions.
+2. **Shared completion controller:** in three parts — 2a extracts slash behavior with no change, 2c adds `/due`, `/schedule`, and the Priority commands, then 2b adds `#`/`@`/`+` suggestions.
 3. **Workspaces:** add Open Workspace…, persisted security-scoped bookmarks, the workspace registry, and file-to-workspace membership.
 4. **Workspace indexing:** add bounded extraction, unsaved overlays, snapshots, filesystem reconciliation, and cache persistence in the app container.
 5. **Integration and documentation:** wire workspace candidates into providers; update README and samples; verify runtime interaction and failure modes.

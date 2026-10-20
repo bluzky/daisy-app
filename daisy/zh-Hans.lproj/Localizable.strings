@@ -405,6 +405,13 @@
 "Mermaid" = "Mermaid";
 "Colorful headings" = "彩色标题";
 "Slash commands" = "斜杠命令";
+"Task metadata" = "任务元数据";
+"Due" = "截止";
+"Scheduled" = "计划";
+"Overdue" = "已逾期";
+"Priority" = "优先级";
+"High" = "高";
+"Low" = "低";
 "Editor" = "编辑器";
 "Lists" = "列表";
 "Blocks" = "块";
@@ -418,6 +425,17 @@
 "Caution" = "小心";
 "Today" = "今天";
 "Now" = "现在";
+"Priority: High" = "优先级：高";
+"Priority: Medium" = "优先级：中";
+"Priority: Low" = "优先级：低";
+"Priority: None" = "优先级：无";
+"Due Date" = "截止日期";
+"Schedule" = "计划日期";
+"Clear Due Date" = "清除截止日期";
+"Clear Schedule" = "清除计划日期";
+"Task" = "任务";
+"Previous Month" = "上个月";
+"Next Month" = "下个月";
 "Toggle \"%@\" section" = "切换“%@”章节";
 
 /* Quick Capture */

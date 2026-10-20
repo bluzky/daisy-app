@@ -1,13 +1,13 @@
 # Workspace metadata implementation plan
 
-Status: Phase 1 complete; Phases 2–6 planned. This plan implements [`workspace-metadata-proposal.md`](workspace-metadata-proposal.md) in independently testable phases. It does not imply a release or version bump.
+Status: Phases 1, 2a, and 2c complete; 2b and 3–6 planned. This plan implements [`workspace-metadata-proposal.md`](workspace-metadata-proposal.md) in independently testable phases. It does not imply a release or version bump.
 
 ## Sequencing
 
 ```text
 1. Grammar and single extractor — complete
         ↓
-2. Shared completion controller
+2. Shared completion controller (2a → 2c → 2b) — 2a and 2c complete
         ↓
 3. Open Workspace
         ↓
@@ -54,11 +54,17 @@ Define one metadata grammar with one implementation, in JavaScript, that both th
 
 ## Phase 2 — Shared completion controller
 
-### Goal
+Phase 2 ships in three parts, run in the order **2a → 2c → 2b**. Each part has passing tests before the next begins. 2c comes before 2b because slash commands reuse the existing `/` trigger, while 2b adds new triggers.
 
-Extract reusable completion behavior without changing slash-command behavior, then add local metadata providers.
+### Phase 2a — Extract the controller
 
-### Tasks
+Status: complete. The controller is `scripts/editor-bundle/src/completion.js`; the slash provider stays in `scripts/editor-bundle/src/slash.js`.
+
+#### Goal
+
+Split the slash menu into a reusable completion controller and a slash provider, with no change in behavior.
+
+#### Tasks
 
 1. Refactor `scripts/editor-bundle/src/slash.js` into generic controller/session code and slash-specific provider code.
 2. Keep existing slash ranking, templates, submenus, insertion transactions, keyboard behavior, CSS compatibility, and smoke coverage intact.
@@ -68,26 +74,68 @@ Extract reusable completion behavior without changing slash-command behavior, th
    - candidate source and ranking;
    - validation and application;
    - optional submenu/calendar presentation.
-4. Add `#`, `@`, and `+` providers backed by live-buffer extraction.
-5. Add top-level slash commands Priority: High, Priority: Medium, Priority: Low, and Priority: None, with no submenu, shown only on checkbox task lines.
-6. Add `/due` and `/schedule` with injected-clock presets, a date chooser, and Clear. All field commands share one application path that inserts, replaces, or removes the field.
-7. Do not add `p:`, `due:`, or `scheduled:` typing triggers.
-8. Add versioned workspace-candidate API in `scripts/editor-bundle/src/api.js`; expose it through `daisy/Features/Editor/EditorHTML.swift` and `daisy/Features/Editor/EditorViewController.swift`.
 
-### Required tests
+#### Required tests
 
-- Existing slash commands, templates, ranking, keyboard navigation, and undo/redo.
+- Existing slash commands, templates, ranking, keyboard navigation, and undo/redo, unchanged.
+
+#### Exit criteria
+
+- Existing slash-command test suite passes without edits to its assertions.
+- No user-visible change.
+
+### Phase 2c — Field slash commands
+
+Status: complete. Field definitions shared with the extractor are in `scripts/editor-bundle/src/task-fields.js`; the single application path is `scripts/editor-bundle/src/task-field-commands.js`; tests are in `scripts/editor-bundle/smoke/task-field-commands.mjs`.
+
+#### Goal
+
+Set priorities and dates from the slash menu on checkbox task lines.
+
+#### Tasks
+
+1. Add top-level slash commands Priority: High, Priority: Medium, Priority: Low, and Priority: None, with no submenu, shown only on checkbox task lines.
+2. Add `/due` and `/schedule`, which open a date picker directly (no preset submenu), plus Clear Due Date and Clear Schedule shown only when the task has that date.
+3. Route all field commands through one application path that inserts, replaces, or removes the field.
+4. Do not add `p:`, `due:`, or `scheduled:` typing triggers.
+
+#### Required tests
+
+- Task-line-only availability, existing-field updates, duplicate-field choice, Clear, and cancel behavior.
+- Date validation and a deterministic picker (today, day/week/month steps) with injected clock.
+- One undoable transaction per accepted value.
+- Unchanged top results for existing slash queries.
+- Task completion preserves metadata; task continuation does not copy dates or priority.
+
+#### Exit criteria
+
+- Field commands work with no workspace index.
+- Values written by commands round-trip through the Phase 1 extractor.
+
+### Phase 2b — Tag, context, and project suggestions
+
+#### Goal
+
+Suggest `#`, `@`, and `+` names while typing, from the current document and from host-supplied workspace candidates.
+
+#### Tasks
+
+1. Add `#`, `@`, and `+` providers backed by live-buffer extraction.
+2. Add the versioned workspace-candidate API in `scripts/editor-bundle/src/api.js`: the host passes a candidate snapshot with a version number, and the editor ignores snapshots older than the one it holds. Test it with fixture snapshots; Swift wiring lands in Phase 4.
+3. Merge live-buffer names with snapshot candidates; the current buffer's names take precedence for its own suggestions.
+
+#### Required tests
+
 - Entire active token gets replaced; one undoable transaction per accepted value.
 - Escape, stale session, empty result, nonempty/multiple selection, and IME composition behavior.
 - Blocked Markdown contexts and heading/list collisions.
-- Date validation and deterministic presets with injected clock.
-- `/due`, `/schedule`, Priority commands: task-line-only availability, existing-field updates, duplicate-field choice, Clear, cancel behavior, and unchanged top results for existing slash queries.
-- Task completion preserves metadata; task continuation does not copy dates, priority, context, or project tokens.
+- Ranking: exact, prefix, hierarchy segment, usage frequency, lexical tie-break; “Use <token>” for unknown names.
+- Stale snapshot versions are ignored.
+- Task continuation does not copy context or project tokens.
 
-### Exit criteria
+#### Exit criteria
 
-- Existing slash-command test suite passes unchanged.
-- Metadata providers work with no workspace index.
+- Suggestions work with no workspace index.
 - No Swift round trip occurs per keystroke.
 
 ## Phase 3 — Open Workspace
@@ -132,10 +180,11 @@ Aggregate saved-file and unsaved-buffer name metadata per resolved workspace.
 5. Track per-file fingerprints, token counts, deterministic display spelling, and aggregate candidate counts.
 6. Publish partial, versioned snapshots while initial scanning runs.
 7. Query in-memory candidates only when user types; never scan filesystem during completion.
-8. Add debounced unsaved-buffer overlays from `EditorViewController` and `daisy/Document/DocumentWindowController+EditSession.swift`.
-9. Replace saved-file contribution with shared unsaved document contribution; restore disk data on discard/close.
-10. Reuse one service across tabs and windows; release watcher/service after idle interval once last consumer closes. Apply an unsaved overlay to every open workspace containing the document.
-11. Add coalesced directory watching and reconcile on focus or lost events.
+8. Send workspace candidate snapshots to editors through the Phase 2b API, exposed via `daisy/Features/Editor/EditorHTML.swift` and `daisy/Features/Editor/EditorViewController.swift`.
+9. Add debounced unsaved-buffer overlays from `EditorViewController` and `daisy/Document/DocumentWindowController+EditSession.swift`.
+10. Replace saved-file contribution with shared unsaved document contribution; restore disk data on discard/close.
+11. Reuse one service across tabs and windows; release watcher/service after idle interval once last consumer closes. Apply an unsaved overlay to every open workspace containing the document.
+12. Add coalesced directory watching and reconcile on focus or lost events.
 
 ### Required tests
 
@@ -192,7 +241,7 @@ Ship coherent behavior with accurate documentation and end-to-end validation.
 2. Display nonblocking indexing/partial-coverage state and disclose scan limits/skipped inaccessible files.
 3. Add "Rebuild Workspace Index" UI/action for the current workspace.
 4. Update `README.md`, samples, and behavior comments only after final behavior exists.
-5. Review Quick Look and export implications before adding any rich metadata badges. Initial release may render literal metadata only.
+5. Task metadata badges render in the editor and Read mode (`task-metadata` render extension); Quick Look and exports stay literal. Re-check this when wiring Phase 6 runtime tests.
 6. Perform runtime tests for keyboard navigation, mouse selection, VoiceOver labels/selection state, date chooser cancel/accept, two-tab overlays, Open Workspace and recent workspaces, Open Folder staying unindexed, overlapping workspaces, stale bookmarks, synced folders (nothing written), large workspaces, and cache corruption.
 
 ### Exit criteria
@@ -219,10 +268,10 @@ Run targeted JS and Swift tests during each phase. Before merge, run all command
 | --- | --- |
 | Index and editor disagree on what is metadata | One JS extractor run in both hosts; bridge tests replay the fixture corpus. |
 | JavaScriptCore throughput limits initial indexing | Bounded context pool; partial snapshots; incremental reparse after the first pass. |
-| Slash refactor regresses mature editor behavior | Preserve existing tests first; extract controller without changing ranking or templates; gate Phase 2 on old smoke suite. |
+| Slash refactor regresses mature editor behavior | Preserve existing tests first; extract controller without changing ranking or templates; ship Phase 2a alone, gated on the unchanged smoke suite. |
 | Indexing surprises users or broadens access | Index only folders chosen through Open Workspace…; no ancestor walk; access only through picker-granted bookmarks. |
 | Workspace files leak into git or sync | Write nothing into workspace folders; keep the cache in the app container. |
 | Multiple tabs double-count metadata | Workspace service owns one document overlay per shared document identity. |
 | SQLite cache corrupts, cannot write, or is purged | Treat cache as untrusted/disposable; transactional store; memory fallback; rebuild on absence. |
 | Filesystem watcher misses changes | Coalesce watcher events and reconcile on focus/lost-event conditions. |
-| Rich presentation harms portability | Keep metadata literal initially; require separate Read mode, Quick Look, export, caret, and accessibility scope before badges. |
+| Rich presentation harms portability | Badges are presentation only: the Markdown is unchanged, Quick Look and exports show literal text, the caret reveals the source, and each badge has an accessible name. |
