@@ -899,17 +899,32 @@ extension MarkdownWebView {
     /// through the content, and it renders screen media — the image keeps the
     /// on-screen palette rather than the print stylesheet's forced light one.
     private func writePNG(to url: URL, completion: @escaping (Error?) -> Void) {
-        webView.createPDF(configuration: WKPDFConfiguration()) { result in
-            switch result {
-            case .failure(let error):
+        // Task metadata badges are an in-app presentation; exports keep the
+        // literal Markdown text (print media handles PDF).
+        let literal = "document.documentElement.toggleAttribute('data-mdp-literal-task-metadata', %@)"
+        webView.evaluateJavaScript(String(format: literal, "true")) { [weak self] _, _ in
+            guard let self else { return }
+            self.webView.createPDF(configuration: WKPDFConfiguration()) { [weak self] result in
+                self?.webView.evaluateJavaScript(String(format: literal, "false"))
+                Self.finishPNG(result, to: url, completion: completion)
+            }
+        }
+    }
+
+    private static func finishPNG(
+        _ result: Result<Data, Error>,
+        to url: URL,
+        completion: @escaping (Error?) -> Void
+    ) {
+        switch result {
+        case .failure(let error):
+            completion(error)
+        case .success(let data):
+            do {
+                try writePNG(fromPDF: data, to: url)
+                completion(nil)
+            } catch {
                 completion(error)
-            case .success(let data):
-                do {
-                    try Self.writePNG(fromPDF: data, to: url)
-                    completion(nil)
-                } catch {
-                    completion(error)
-                }
             }
         }
     }

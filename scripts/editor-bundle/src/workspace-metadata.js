@@ -1,4 +1,10 @@
 import { GFM, parser } from "@lezer/markdown";
+import {
+  PRIORITY_KEY,
+  PRIORITY_VALUES,
+  TASK_DATE_KEYS,
+  isTaskDate,
+} from "./task-fields.js";
 
 // This module deliberately has no CodeMirror view/state or DOM dependency. It
 // is bundled once for native callers and is also imported by editor API code.
@@ -12,8 +18,10 @@ const WHITESPACE = /\s/u;
 // Fields start at the line start or after whitespace, like `#`/`@`/`+`
 // tokens. The leading group captures that boundary so `fieldStart` can point
 // at the key itself.
-const TASK_FIELD =
-  /(^|\s)(?:(due|scheduled):(\d{4}-\d{2}-\d{2})|p:(high|medium|low))(?=$|[\s,;.!?])/gu;
+const TASK_FIELD = new RegExp(
+  String.raw`(^|\s)(?:(${TASK_DATE_KEYS.join("|")}):(\d{4}-\d{2}-\d{2})|${PRIORITY_KEY}:(${PRIORITY_VALUES.join("|")}))(?=$|[\s,;.!?])`,
+  "gu",
+);
 const BLOCKED_NODES = new Set([
   "Autolink",
   "CodeBlock",
@@ -31,16 +39,6 @@ const BLOCKED_NODES = new Set([
 const normalizedKey = (value) =>
   value.normalize("NFKC").toLocaleLowerCase("en-US");
 const isTokenCharacter = (character) => TOKEN_CHARACTER.test(character);
-
-function validDate(value) {
-  const [year, month, day] = value.split("-").map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day));
-  return (
-    date.getUTCFullYear() === year &&
-    date.getUTCMonth() === month - 1 &&
-    date.getUTCDate() === day
-  );
-}
 
 function characterAt(source, offset) {
   const codePoint = source.codePointAt(offset);
@@ -213,8 +211,8 @@ function taskMetadata(source, starts, taskOffset, ranges) {
   for (const field of text.matchAll(TASK_FIELD)) {
     const fieldStart = taskOffset + field.index + field[1].length;
     if (isBlocked(fieldStart, ranges)) continue;
-    if (field[2] === "due" && validDate(field[3])) task.due ??= field[3];
-    else if (field[2] === "scheduled" && validDate(field[3]))
+    if (field[2] === "due" && isTaskDate(field[3])) task.due ??= field[3];
+    else if (field[2] === "scheduled" && isTaskDate(field[3]))
       task.scheduled ??= field[3];
     else if (field[4]) task.priority ??= field[4];
   }
