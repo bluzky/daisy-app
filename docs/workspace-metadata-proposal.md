@@ -21,7 +21,7 @@ Keep Markdown files authoritative. A workspace is a folder containing a `.daisy/
 - Reuse completion infrastructure instead of implementing a separate menu for every prefix.
 - Make future metadata fields possible without introducing a plugin loader now.
 - Reuse indexed suggestions across tabs and app launches.
-- Index only folders the user has made workspaces, and write nothing into the user's folders except the marker that Initialize Workspace creates.
+- Index only folders the user has made workspaces, and write nothing into the user's folders except the marker that Initialize Workspace creates and the metadata pages the user explicitly opens (see the implementation plan, Phase 4.5).
 
 Non-goals for the initial release:
 
@@ -330,7 +330,7 @@ Keep changes independently testable. No release or version bump is implied by th
 - Folder opens without a marker, direct file opens, and the command-line tool never index or write into the folder.
 - Only workspace windows, and tabs, windows, and untitled documents created from them, are bound to a workspace; a file opened from outside joins the workspace of an open window containing it, and otherwise gets buffer-only suggestions; no parent directory is ever walked.
 - Overlapping workspaces index independently; workspace windows on the same root, including symlink aliases, share one index service; symlinks outside the root are not followed.
-- Nothing other than the marker is written inside a workspace folder.
+- Nothing other than the marker and explicitly opened metadata pages is written inside a workspace folder.
 - Cached reopen, incremental updates, rename/deletion, watcher reconciliation, and scan truncation.
 - Cache corruption/version mismatch, system purge, root relocation, path validation, contention, write failure, and cache-only rebuild.
 - Multiple tabs share results without duplicate counts; unsaved overlays supersede cached data.
