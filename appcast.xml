@@ -6,6 +6,37 @@
         <description>Most recent changes to Daisy</description>
         <language>en</language>
         <item>
+            <title>Version 0.10.0</title>
+            <pubDate>Tue, 20 Oct 2026 13:35:59 GMT</pubDate>
+            <sparkle:version>71</sparkle:version>
+            <sparkle:shortVersionString>0.10.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <description>&lt;p&gt;Each workspace now lives in one window with its files as tabs, and Daisy adds links to project files, an Inspector links list and quicker list editing.&lt;/p&gt;
+&lt;h4&gt;Added&lt;/h4&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Workspace tabs.&lt;/strong&gt; Every file you open from a folder becomes a tab in that folder&amp;#x27;s window. A single click in the Files sidebar opens an italic preview tab that the next click replaces; double-click or edit the file to keep it ([#39](https://github.com/bluzky/daisy-app/pull/39)).&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Link to project files.&lt;/strong&gt; Choose *Insert → Link to File* or type &lt;code&gt;/link&lt;/code&gt; in Edit Mode to search the project and insert a relative Markdown link ([#32](https://github.com/bluzky/daisy-app/pull/32)).&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Links in the Inspector.&lt;/strong&gt; The Inspector lists the document&amp;#x27;s links, ready to open or copy ([#32](https://github.com/bluzky/daisy-app/pull/32)).&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Cycle list items with ⌘↩.&lt;/strong&gt; Step a list item to a checklist item, then to a checked item, and back ([#33](https://github.com/bluzky/daisy-app/pull/33)).&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Insert dates with &lt;code&gt;/today&lt;/code&gt; and &lt;code&gt;/now&lt;/code&gt;.&lt;/strong&gt; Type either command to insert the current date, or date and time ([#33](https://github.com/bluzky/daisy-app/pull/33)).&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Shortcut hints in empty windows.&lt;/strong&gt; A window with no file open shows OmniSearch, New File, Open and the sidebar with your current shortcuts ([#34](https://github.com/bluzky/daisy-app/pull/34)).&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Elixir syntax highlighting&lt;/strong&gt; in code blocks and the code editor ([#32](https://github.com/bluzky/daisy-app/pull/32)).&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h4&gt;Changed&lt;/h4&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;One window per workspace.&lt;/strong&gt; Opening a folder brings its window forward if it is already open, and a file opened from Finder joins the window of the workspace that contains it. Merge All Windows keeps workspaces apart ([#34](https://github.com/bluzky/daisy-app/pull/34), [#39](https://github.com/bluzky/daisy-app/pull/39)).&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Files opened directly start in Read Mode.&lt;/strong&gt; A file from Finder, *File → Open*, Open Recent or the command line opens as a preview; outside every open workspace it gets a narrower reading window with the sidebar hidden ([#39](https://github.com/bluzky/daisy-app/pull/39)).&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Inspector toggle.&lt;/strong&gt; Show or hide the Inspector with ⇧⌘I or *View → Inspector* ([#32](https://github.com/bluzky/daisy-app/pull/32)).&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Open documents in tabs setting removed.&lt;/strong&gt; Files now always open as tabs in their workspace&amp;#x27;s window, so the option no longer applied ([#39](https://github.com/bluzky/daisy-app/pull/39)).&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h4&gt;Fixed&lt;/h4&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Formatting a table cell keeps the editor in place.&lt;/strong&gt; Bold, italic and links inside a table cell no longer scroll the editor away ([#32](https://github.com/bluzky/daisy-app/pull/32)).&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Untitled documents keep their text.&lt;/strong&gt; Choosing a file in the sidebar while writing an untitled document opens it in a new tab instead of replacing your text ([#33](https://github.com/bluzky/daisy-app/pull/33)).&lt;/li&gt;
+&lt;/ul&gt;</description>
+            <enclosure url="https://github.com/bluzky/daisy-app/releases/download/v0.10.0/Daisy-0.10.0.dmg" length="14148153" type="application/octet-stream" sparkle:edSignature="YtxfgiNCMNufVuB4FKP6NBsoPXvVuHXlvRvbr67l9mbfqH5KOHRi+2pWYU1H9NxC+MeqLHLBrMTw51taJqODBg==" />
+        </item>
+        <item>
             <title>Version 0.9.1</title>
             <pubDate>Thu, 15 Oct 2026 15:22:25 GMT</pubDate>
             <sparkle:version>70</sparkle:version>
