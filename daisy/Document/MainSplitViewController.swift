@@ -173,6 +173,13 @@ final class MainSplitViewController: NSSplitViewController {
         contentViewController?.clearContent()
     }
 
+    /// Shortcut hints over the empty page of a window with no document.
+    func setShowsEmptyHints(_ shows: Bool) {
+        guard let hints = layeredContentViewController?.emptyHintsView,
+              hints.isHidden == shows else { return }
+        hints.isHidden = !shows
+    }
+
     func prepareToScrollAfterNavigation(to target: NavigationScrollTarget?) {
         contentViewController?.prepareToScrollAfterNavigation(to: target)
     }
@@ -797,7 +804,26 @@ private final class LayeredContentViewController: NSViewController {
             previewViewController.view.topAnchor.constraint(equalTo: container.topAnchor),
             previewViewController.view.bottomAnchor.constraint(equalTo: container.bottomAnchor),
         ])
+
+        // Between the preview and the editor, which is added above the
+        // preview later and so covers it.
+        emptyHintsView.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(emptyHintsView, positioned: .above, relativeTo: previewViewController.view)
+        NSLayoutConstraint.activate([
+            emptyHintsView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            emptyHintsView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            emptyHintsView.topAnchor.constraint(equalTo: container.topAnchor),
+            emptyHintsView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+        ])
     }
+
+    /// Hidden until asked for. Built before the view loads, since the window
+    /// can ask for it first.
+    let emptyHintsView: EmptyWindowHintsView = {
+        let view = EmptyWindowHintsView()
+        view.isHidden = true
+        return view
+    }()
 
     func installEditorOverlay(_ editorViewController: EditorViewController) {
         addChild(editorViewController)
