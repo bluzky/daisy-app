@@ -203,13 +203,6 @@ final class SettingsModel {
         }
     }
 
-    var opensDocumentsInTabs: Bool {
-        didSet {
-            guard !isRestoringExternalValues, opensDocumentsInTabs != oldValue else { return }
-            TabOpeningPolicy.isEnabled = opensDocumentsInTabs
-        }
-    }
-
     var opensMarkdownLinksInNewWindows: Bool {
         didSet {
             guard !isRestoringExternalValues else { return }
@@ -356,7 +349,6 @@ final class SettingsModel {
         textAlignment = TextAlignmentSetting.current
         strictLineBreaks = StrictLineBreaksSetting.current
         isAlwaysOnTop = AlwaysOnTopPolicy.isEnabled
-        opensDocumentsInTabs = TabOpeningPolicy.isEnabled
         launchBehavior = LaunchBehaviorSetting.current
         launchItemPath = LaunchItemStore.displayPath
         quickCaptureEnabled = QuickCaptureController.isEnabled
@@ -422,7 +414,6 @@ final class SettingsModel {
         textAlignment = TextAlignmentSetting.current
         strictLineBreaks = StrictLineBreaksSetting.current
         isAlwaysOnTop = AlwaysOnTopPolicy.isEnabled
-        opensDocumentsInTabs = TabOpeningPolicy.isEnabled
         launchBehavior = LaunchBehaviorSetting.current
         launchItemPath = LaunchItemStore.displayPath
         quickCaptureEnabled = QuickCaptureController.isEnabled

@@ -715,9 +715,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let controllers = NSDocumentController.shared.documents
             .flatMap(\.windowControllers)
             .compactMap { $0 as? DocumentWindowController }
-        if let existing = controllers.first(where: { $0.projectRootURL == root }) {
-            existing.documentWindow.makeKeyAndOrderFront(nil)
-            NSApp.activate()
+        // The frame's selected tab, rather than one hidden behind it.
+        let onFolder = controllers.filter { $0.projectRootURL == root }
+        if let existing = onFolder.first(where: {
+            $0.documentWindow.tabGroup?.selectedWindow === $0.documentWindow
+        }) ?? onFolder.first {
+            // Also shows the Files sidebar, which a single file's frame hides.
+            existing.openFolder(url)
             return existing
         }
         if let controller = activeDocumentWindowController, controller.isBlank {

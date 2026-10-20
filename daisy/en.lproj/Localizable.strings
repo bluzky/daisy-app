@@ -314,8 +314,6 @@
 /* Settings — Windows */
 "Windows" = "Windows";
 "Keeps every Daisy window in front of other apps, including windows you open later. A window in full screen is left alone until it comes back out." = "Keeps every Daisy window in front of other apps, including windows you open later. A window in full screen is left alone until it comes back out.";
-"Open documents in tabs" = "Open documents in tabs";
-"A file opened from Finder joins the front window as a tab instead of getting one of its own — Open in New Window still opens a window." = "A file opened from Finder joins the front window as a tab instead of getting one of its own — Open in New Window still opens a window.";
 
 /* OmniSearch */
 "OmniSearch…" = "OmniSearch…";

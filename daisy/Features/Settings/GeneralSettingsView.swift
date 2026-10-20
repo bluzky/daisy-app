@@ -59,11 +59,6 @@ struct GeneralSettingsView: View {
                     Text(L("Open Markdown links in new windows"))
                     Text(L("Clicking a link to another Markdown file opens it in a separate window. Turn this off to open it in the current window."))
                 }
-
-                Toggle(isOn: $model.opensDocumentsInTabs) {
-                    Text(L("Open documents in tabs"))
-                    Text(L("A file opened from Finder joins the front window as a tab instead of getting one of its own — Open in New Window still opens a window."))
-                }
             } header: {
                 Text(L("Windows"))
             }
