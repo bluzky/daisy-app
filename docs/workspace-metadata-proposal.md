@@ -278,7 +278,7 @@ Treat a cache from disk as untrusted input: validate schema and paths, prevent p
 
 Background reconciliation discovers additions and deletions and compares fingerprints. Modification time and size provide fast checks, not absolute proof of unchanged content. Use hashes when validating uncertain files; provide a full rebuild path.
 
-Publish partial results during initial indexing. Show current-buffer suggestions immediately and indicate “Indexing workspace…” or partial coverage when appropriate. Disclose scan limits and skipped inaccessible files; never present capped results as complete.
+Publish partial results during initial indexing. Show current-buffer suggestions immediately and indicate “Indexing workspace…” or partial coverage when appropriate. Disclose scan limits; never present capped results as complete. Oversized, unreadable, and non-UTF-8 files are left out silently.
 
 Reuse existing discovery exclusions where appropriate, classify eligible Markdown consistently, and add explicit file-size and scan-budget limits. Watchers must coalesce changes and avoid following symlinks outside authorized scope.
 

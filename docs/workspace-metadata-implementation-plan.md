@@ -1,6 +1,6 @@
 # Workspace metadata implementation plan
 
-Status: Phases 1, 2 (2a, 2c, 2b), and 3 complete; 4–6 planned. This plan implements [`workspace-metadata-proposal.md`](workspace-metadata-proposal.md) in independently testable phases. It does not imply a release or version bump.
+Status: Phases 1, 2 (2a, 2c, 2b), 3, and 4 complete; 5–6 planned. This plan implements [`workspace-metadata-proposal.md`](workspace-metadata-proposal.md) in independently testable phases. It does not imply a release or version bump.
 
 ## Sequencing
 
@@ -11,7 +11,7 @@ Status: Phases 1, 2 (2a, 2c, 2b), and 3 complete; 4–6 planned. This plan imple
         ↓
 3. Workspace marker and window scope — complete
         ↓
-4. In-memory workspace index
+4. In-memory workspace index — complete
         ↓
 5. Persistent cache and lifecycle
         ↓
@@ -174,6 +174,14 @@ Make indexing opt-in and window-scoped: a folder window whose root contains `.da
 
 ## Phase 4 — In-memory workspace index
 
+Status: complete. The index is the `WorkspaceMetadataIndex` actor in `daisy/Features/WorkspaceMetadata/WorkspaceMetadataIndex.swift`; FSEvents watching is `WorkspaceDirectoryWatcher.swift` beside it; tests are `tests/swift-tests/Tests/MarkdownHelpersTests/WorkspaceMetadataIndexTests.swift` and `EditorWorkspaceCandidatesTests.swift`. Window binding and unsaved overlays are in `daisy/Document/DocumentWindowController+Workspace.swift`. Notes on what was built:
+
+- One index per canonical root, shared through `acquire`/`release`. It holds a use count, not a weak reference, so it can outlive the last window for `idleReleaseInterval` (60 s) and a reopened window does not rescan.
+- Discovery reuses `ProjectFileIndex.build`, so it uses the same pruned folders, depth and file caps. Files over 1 MiB, unreadable files, and files that are not UTF-8 are left out without being counted. A symlink is indexed under its target's path, so it is counted once, and only when the target is inside the root.
+- Snapshot versions come from one counter shared by all indexes. A window that leaves a workspace sends its editor an empty snapshot, which is always newer than what the editor has.
+- Unsaved text is sent to the index 0.5 s after typing stops, keyed by file and window. Only the most recent buffer for a file counts. When the window has no unsaved changes left (after a save or a discard), the file is read from disk again and the buffer is dropped.
+- The editor page stores the last snapshot it accepted, the same way it stores slash templates, and uses it again for the next document loaded in that page.
+
 ### Goal
 
 Aggregate saved-file and unsaved-buffer name metadata per resolved workspace.
@@ -245,7 +253,7 @@ Ship coherent behavior with accurate documentation and end-to-end validation.
 ### Tasks
 
 1. Subscribe editor completion providers to workspace index snapshots.
-2. Display nonblocking indexing/partial-coverage state and disclose scan limits/skipped inaccessible files.
+2. Display nonblocking indexing/partial-coverage state and disclose scan limits.
 3. Add "Rebuild Workspace Index" UI/action for the current workspace.
 4. Update `README.md`, samples, and behavior comments only after final behavior exists.
 5. Task metadata badges render in the editor and Read mode (`task-metadata` render extension); Quick Look and exports stay literal. Re-check this when wiring Phase 6 runtime tests.

@@ -179,6 +179,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         observeKeymapFirstResponder(in: NSApp.keyWindow)
         guard hasFinishedLaunching else { return }
         DocumentWindowController.refreshWorkspaceStates()
+        WorkspaceMetadataIndex.reconcileAll()
         let model = SettingsModel.shared
         let changed = model.appliedPreset != ThemePreset.applied()
             || model.appearance != AppearanceMode.current

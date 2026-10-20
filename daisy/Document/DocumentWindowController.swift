@@ -59,9 +59,24 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     /// The folder this window was opened on, or inherited from the window
     /// it was opened from. Nil for a window opened on a file, whose navigator
     /// root is only the file's own folder.
-    var folderRootURL: URL?
+    var folderRootURL: URL? {
+        didSet { updateWorkspaceIndexBinding() }
+    }
     /// Whether `folderRootURL` has a workspace marker (see `WorkspaceMarker`).
-    var isWorkspace = false
+    var isWorkspace = false {
+        didSet { updateWorkspaceIndexBinding() }
+    }
+    /// The shared index for `workspaceRootURL`, and what it last published.
+    var workspaceIndex: WorkspaceMetadataIndex?
+    var workspaceCandidates: WorkspaceMetadataSnapshot?
+    var workspaceSnapshotTask: Task<Void, Never>?
+    /// Index updates from this window, run one after another so a restore
+    /// never overtakes the overlay it undoes.
+    var workspaceIndexUpdates: Task<Void, Never>?
+    /// The file whose unsaved text this window has handed to the index.
+    var workspaceOverlayURL: URL?
+    var workspaceOverlayWork: DispatchWorkItem?
+    let workspaceOverlayOwner = UUID()
     /// Fallback for controller-driven untitled content outside an NSDocument.
     let untitledDocumentID = UUID().uuidString
     var backHistory: [HistoryEntry] = []
@@ -116,6 +131,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
             // set it on the window directly.
             setDocumentEdited(hasUnsavedEditorChanges)
             updateTabEditedIndicator()
+            // Saved or discarded: the file speaks for itself again.
+            if !hasUnsavedEditorChanges { restoreWorkspaceOverlay() }
         }
     }
 
@@ -385,6 +402,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         stopAutoSaveTimer()
         autoSaveFeedbackResetWork?.cancel()
         autoSaveFeedbackResetWork = nil
+        releaseWorkspaceIndex()
     }
 
     func windowWillEnterFullScreen(_ notification: Notification) {

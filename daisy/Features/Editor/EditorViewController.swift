@@ -184,6 +184,24 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
         ) { _, _ in }
     }
 
+    /// The workspace names the `#`, `@` and `+` menus offer besides the
+    /// document's own. Kept here and sent again to each fresh page.
+    private var workspaceCandidates: WorkspaceMetadataSnapshot?
+
+    func setWorkspaceCandidates(_ snapshot: WorkspaceMetadataSnapshot?) {
+        guard snapshot != workspaceCandidates else { return }
+        workspaceCandidates = snapshot
+        guard hasLoadedEditorPage else { return }
+        applyWorkspaceCandidates()
+    }
+
+    private func applyWorkspaceCandidates() {
+        guard let workspaceCandidates else { return }
+        webView.evaluateJavaScript(
+            "window.__mdEditor && window.__mdEditor.setWorkspaceCandidates(\(EditorHTML.workspaceCandidatesLiteral(workspaceCandidates)))"
+        ) { _, _ in }
+    }
+
     @objc private func templatesDidChange() {
         guard hasLoadedEditorPage else { return }
         applySlashTemplates()
@@ -548,6 +566,7 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
                 updateUnderPageBackgroundColor()
                 updateObscuredContentInsets()
                 applySlashTemplates()
+                applyWorkspaceCandidates()
                 editorDidBecomeReady?()
             case "cancel":
                 cancelRequested?()
