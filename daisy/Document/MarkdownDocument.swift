@@ -51,7 +51,8 @@ final class MarkdownDocument: NSDocument {
         let sourceController = NSApp.mainWindow?.windowController as? DocumentWindowController
         // Open in New Tab / New Window come from inside a window, so the
         // file keeps that window's project. Plain opens (Finder, ⌘O,
-        // recents) are bound to the file's own folder.
+        // recents) join an open workspace containing the file, or are bound
+        // to the file's own folder.
         let isOpenedFromWindow = DocumentWindowController.nextWindowRequestsTab
             || DocumentWindowController.nextWindowDeclinesTabbing
         let controller = DocumentWindowController()
@@ -66,6 +67,18 @@ final class MarkdownDocument: NSDocument {
             controller.prepareSidebarForUntitledDocument(from: sourceController)
         } else if isOpenedFromWindow, let fileURL {
             controller.inheritProject(from: sourceController, containing: fileURL)
+        }
+        // A file outside the source window's project, or opened from outside
+        // the app, joins the open workspace that contains it.
+        if controller.projectRootURL == nil, let fileURL {
+            controller.bindToOpenWorkspace(containing: fileURL)
+        }
+        if !isOpenedFromWindow, fileURL != nil {
+            controller.opensInReadMode = true
+            // In no open workspace: a frame of its own, set up for reading.
+            if controller.projectRootURL == nil {
+                controller.prepareForSingleFile()
+            }
         }
         controller.display(markdown: markdown, fileURL: fileURL)
     }
