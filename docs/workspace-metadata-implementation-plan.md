@@ -1,6 +1,6 @@
 # Workspace metadata implementation plan
 
-Status: Phases 1 and 2 (2a, 2c, 2b) complete; 3–6 planned. This plan implements [`workspace-metadata-proposal.md`](workspace-metadata-proposal.md) in independently testable phases. It does not imply a release or version bump.
+Status: Phases 1, 2 (2a, 2c, 2b), and 3 complete; 4–6 planned. This plan implements [`workspace-metadata-proposal.md`](workspace-metadata-proposal.md) in independently testable phases. It does not imply a release or version bump.
 
 ## Sequencing
 
@@ -9,7 +9,7 @@ Status: Phases 1 and 2 (2a, 2c, 2b) complete; 3–6 planned. This plan implement
         ↓
 2. Shared completion controller (2a → 2c → 2b) — complete
         ↓
-3. Workspace marker and window scope
+3. Workspace marker and window scope — complete
         ↓
 4. In-memory workspace index
         ↓
@@ -142,24 +142,26 @@ Suggest `#`, `@`, and `+` names while typing, from the current document and from
 
 ## Phase 3 — Workspace marker and window scope
 
+Status: complete. The marker is `daisy/Features/WorkspaceMetadata/WorkspaceMarker.swift` (tests in `tests/swift-tests/Tests/MarkdownHelpersTests/WorkspaceMarkerTests.swift`); window state and the two commands are in `daisy/Document/DocumentWindowController+Workspace.swift`; the menu items are installed by `installWorkspaceMenuItems` in `daisy/App/AppDelegate.swift`. Nothing consumes `workspaceRootURL` yet (Phase 4).
+
 ### Goal
 
 Make indexing opt-in and window-scoped: a folder window whose root contains `.daisy/config.json` is a workspace window, along with the tabs, windows, and untitled documents created from it. Every other way of opening a folder or file keeps today's behavior. Membership never comes from walking a file's parent directories or searching other windows for a containing workspace.
 
 ### Tasks
 
-1. Add `daisy/Features/WorkspaceMetadata/WorkspaceMarker.swift`: `isWorkspace(root:)` checks only `<root>/.daisy/config.json` and parses only its `version`; `initialize(root:)` creates `.daisy/` and writes `{"version": 1}` atomically; `remove(root:)` deletes `.daisy/`. Keep it free of AppKit so it links into `tests/swift-tests`.
+1. Add `daisy/Features/WorkspaceMetadata/WorkspaceMarker.swift`: `isWorkspace(root:)` checks only that `<root>/.daisy/config.json` is a file, without reading it; `initialize(root:)` creates `.daisy/` and writes `{"version": 1}` atomically, keeping an existing marker; `remove(root:)` deletes `config.json`, then `.daisy/` if nothing else is in it. Keep it free of AppKit so it links into `tests/swift-tests`.
 2. In `AppDelegate.openFolder`, after the window takes the folder, set `isWorkspace` on the `DocumentWindowController` from `WorkspaceMarker.isWorkspace(root:)`. This covers File → Open…, Finder, drag and drop, the command-line tool, the OmniSearch and navigator Open Folder… buttons, and Reopen last session; persist nothing new in `LastSessionStore`. Leave the existing window-reuse rules and `SidebarWorkspaceRegistry` in `daisy/Features/Sidebar/SidebarViewController.swift` unchanged. Add no workspace registry.
 3. Expose `workspaceRootURL` from the window: the canonical `projectRootURL` (`SidebarWorkspace.canonicalURL`) when `isWorkspace`, otherwise nil. Phase 4 keys its shared index service on this value. File windows, whose navigator root is the file's parent, are never checked.
-4. Add **File → Initialize Workspace** and **File → Remove Workspace** to `daisy/Base.lproj/MainMenu.xib`. Initialize is enabled in a folder window opened through `openFolder` whose root has no marker; Remove in a workspace window. Each updates every open folder window on that root. A failed write shows an error and changes nothing. Localize new strings in `en.lproj` and `zh-Hans.lproj` (`MainMenu.strings` and `Localizable.strings`).
+4. Add **File → Initialize Workspace** and **File → Remove Workspace** after Open Recent, installed in code by `AppDelegate` like OmniSearch…. Initialize is enabled in a folder window opened through `openFolder` whose root has no marker; Remove in a workspace window. Each updates every open folder window on that root. A failed write shows an error and changes nothing. Localize new strings in `en.lproj/Localizable.strings` and `zh-Hans.lproj/Localizable.strings`.
 5. Carry `isWorkspace` only along the paths that already carry a window's project: `inheritProject(from:containing:)` (Open in New Tab / New Window for a file inside the root) and `prepareSidebarForUntitledDocument(from:)` (new untitled document), both in `daisy/Document/DocumentWindowController+Sidebar.swift`. Plain opens in `daisy/Document/MarkdownDocument.swift` (Finder, ⌘O, Open Recent, drag and drop, command-line tool) never set it.
 6. Re-check the marker when the app becomes active, so a marker deleted or added outside Daisy takes effect without reopening the window.
 7. Ensure folder opens without a marker, file opens, drag and drop, and the command-line tool never set `isWorkspace`, never walk parent directories, and never write into the folder.
 
 ### Required tests
 
-- Marker: present, absent, `.daisy` as a file, unreadable or malformed JSON, unknown version and extra keys; a marker in a parent or a subfolder is not detected.
-- Initialize writes only `.daisy/config.json`; Remove deletes only `.daisy/`; a failed write leaves the folder unchanged.
+- Marker: present, absent, `.daisy` as a file, `config.json` as a folder, malformed or unknown content; a marker in a parent or a subfolder is not detected.
+- Initialize writes only `.daisy/config.json` and keeps an existing one; Remove deletes the marker and keeps other files in `.daisy/`; a failed write leaves the folder unchanged.
 - `workspaceRootURL` canonicalization: symlink aliases and `..` forms give the same root; nested workspaces stay distinct.
 - Membership: Open in New Tab/Window inside the root and untitled documents inherit the workspace; a file opened from outside gets none, even when it lies inside a workspace folder; a file window is never a workspace window.
 - Reopen last session on a folder with a marker gives a workspace window.
@@ -218,7 +220,7 @@ Persist disposable derived index data outside the workspace, with graceful fallb
 4. Validate cache as untrusted input; reject path escapes, corruption, relocated/incompatible roots, and schema/parser mismatch.
 5. Load compatible candidates at workspace open, then reconcile in background. Treat a missing or system-purged cache as a rebuild.
 6. Fall back to in-memory index on cache creation, reading, writing, or contention failure.
-7. Implement the rebuild action, which recreates only that workspace's cache file; at launch, delete cache files not opened for 30 days.
+7. Implement the rebuild action, which recreates only that workspace's cache file; delete the cache file on Remove Workspace; at launch, delete cache files not opened for 30 days.
 8. Re-key or rebuild the cache when a workspace bookmark resolves to a moved root.
 9. Link the system SQLite library in `daisy.xcodeproj/project.pbxproj` and `tests/swift-tests/Package.swift` if needed.
 

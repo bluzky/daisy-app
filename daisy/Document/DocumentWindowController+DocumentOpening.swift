@@ -106,6 +106,8 @@ extension DocumentWindowController {
         }
         (documentWindow.contentViewController as? MainSplitViewController)?
             .openFolder(folderURL, selectedFileURL: currentFileURL)
+        folderRootURL = projectRootURL
+        refreshWorkspaceState()
         documentWindow.makeKeyAndOrderFront(nil)
         NSApp.activate()
         syncSidebarToolbarState()

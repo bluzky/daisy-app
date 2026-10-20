@@ -246,6 +246,7 @@ extension DocumentWindowController {
     private func adoptProject(_ root: URL, from source: DocumentWindowController) {
         guard let split = mainSplit else { return }
         split.setProjectRoot(root)
+        inheritWorkspace(from: source)
         let state = source.sidebarMenuState
         split.setSidebarMode(state.mode)
         if state.sidebarVisible {

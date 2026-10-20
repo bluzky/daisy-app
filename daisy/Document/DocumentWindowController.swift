@@ -56,6 +56,12 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
 
     var currentFileURL: URL?
     var currentMarkdown: String?
+    /// The folder this window was opened on, or inherited from the window
+    /// it was opened from. Nil for a window opened on a file, whose navigator
+    /// root is only the file's own folder.
+    var folderRootURL: URL?
+    /// Whether `folderRootURL` has a workspace marker (see `WorkspaceMarker`).
+    var isWorkspace = false
     /// Fallback for controller-driven untitled content outside an NSDocument.
     let untitledDocumentID = UUID().uuidString
     var backHistory: [HistoryEntry] = []

@@ -142,6 +142,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         installFormatMenu()
         installInsertMenu()
         installSearchForDocumentMenuItem()
+        installWorkspaceMenuItems()
         installFileExportMenuItems()
         installGoMenu()
         installDeveloperToolsMenuItem()
@@ -177,6 +178,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         KeymapStore.shared.checkForExternalChanges()
         observeKeymapFirstResponder(in: NSApp.keyWindow)
         guard hasFinishedLaunching else { return }
+        DocumentWindowController.refreshWorkspaceStates()
         let model = SettingsModel.shared
         let changed = model.appliedPreset != ThemePreset.applied()
             || model.appearance != AppearanceMode.current
@@ -716,6 +718,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             .flatMap(\.windowControllers)
             .compactMap { $0 as? DocumentWindowController }
         if let existing = controllers.first(where: { $0.projectRootURL == root }) {
+            existing.refreshWorkspaceState()
             existing.documentWindow.makeKeyAndOrderFront(nil)
             NSApp.activate()
             return existing
@@ -946,6 +949,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let openIndex = fileMenu.items
             .firstIndex { $0.action == #selector(openDocument(_:)) }
         fileMenu.insertItem(item, at: openIndex.map { $0 + 1 } ?? 0)
+    }
+
+    /// Initialize Workspace and Remove Workspace, after Open Recent. Nil
+    /// targets resolve to the key document window, which knows its folder.
+    private func installWorkspaceMenuItems() {
+        guard let fileMenu = topLevelSubmenu(matching: Self.fileMenuTitles),
+              fileMenu.items.first(where: {
+                  $0.action == #selector(DocumentWindowController.initializeWorkspace(_:))
+              }) == nil,
+              let recentIndex = fileMenu.items.firstIndex(where: {
+                  $0.submenu?.items.contains { $0.action == #selector(NSDocumentController.clearRecentDocuments(_:)) } == true
+              })
+        else { return }
+
+        let items = [
+            NSMenuItem.separator(),
+            NSMenuItem(title: L("Initialize Workspace"),
+                       action: #selector(DocumentWindowController.initializeWorkspace(_:)),
+                       keyEquivalent: ""),
+            NSMenuItem(title: L("Remove Workspace"),
+                       action: #selector(DocumentWindowController.removeWorkspace(_:)),
+                       keyEquivalent: ""),
+        ]
+        for (offset, item) in items.enumerated() {
+            fileMenu.insertItem(item, at: recentIndex + 1 + offset)
+        }
     }
 
     private func installFileExportMenuItems() {
