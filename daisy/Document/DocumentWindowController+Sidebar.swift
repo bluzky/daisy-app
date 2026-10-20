@@ -233,7 +233,7 @@ extension DocumentWindowController {
         syncSidebarToolbarState()
     }
 
-    /// A tab opened for a file inside the source window's project keeps that
+    /// A tab or window opened for a file inside the source window's project keeps that
     /// project and sidebar layout, rather than re-rooting the tree at the
     /// file's own folder.
     func inheritProject(from source: DocumentWindowController?, containing fileURL: URL) {

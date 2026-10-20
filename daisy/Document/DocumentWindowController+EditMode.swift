@@ -67,6 +67,8 @@ extension DocumentWindowController {
     }
 
     func updateEditToolbarItem() {
+        // Runs on every document and edit-mode change, as the hints must.
+        updateEmptyHints()
         guard let editButton else { return }
         applyEditToolbarState(to: editButton)
     }

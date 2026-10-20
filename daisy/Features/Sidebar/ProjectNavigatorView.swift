@@ -244,7 +244,7 @@ final class ProjectNavigatorView: NSView {
             return
         }
         if node.bookmark.isDirectory {
-            documentWindowController?.openFolder(url)
+            (NSApp.delegate as? AppDelegate)?.openFolder(url)
         } else if url != currentFileURL {
             onSelectFile?(url)
         }
