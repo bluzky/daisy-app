@@ -343,12 +343,14 @@
 "What’s New in Daisy %@" = "Daisy %@ 的新功能";
 "Release Notes" = "发布说明";
 "Continue" = "继续";
-"Find any document fast" = "快速查找任意文稿";
-"Press ⌘K and type part of a file name to open it from the current project." = "按下 ⌘K 并输入文件名的一部分，即可打开当前项目中的文件。";
-"Redesigned formatting bar" = "全新设计的格式栏";
-"On macOS 26 and later, the formatting bar uses Liquid Glass, with headings, links, lists, and styles in compact groups." = "在 macOS 26 及更高版本上，格式栏采用 Liquid Glass 设计，标题、链接、列表和样式分组排列，更加紧凑。";
-"Redesigned code blocks" = "全新设计的代码块";
-"Wrap long lines with one click. Code blocks now use rounded cards that show their language." = "一键为长代码行换行。代码块现采用圆角卡片设计，并显示其语言。";
+"Files open as tabs" = "文件以标签页打开";
+"Every file from a folder opens as a tab in its window. Click once to preview, double-click to keep it." = "同一文件夹中的文件都会在其窗口中以标签页打开。单击即可预览，双击即可保留。";
+"Link to project files" = "链接到项目文件";
+"Type /link in Edit Mode to find a file in the project and insert a relative link to it." = "在编辑模式下输入 /link，即可查找项目中的文件并插入指向它的相对链接。";
+"Faster checklists" = "更快的核对清单";
+"Press ⌘↩ on a list item to turn it into a checklist item, check it, and back." = "在列表项上按下 ⌘↩，即可将其变为核对项、勾选它，或恢复原样。";
+"Read files from Finder" = "阅读从“访达”打开的文件";
+"Files opened from Finder start in Read Mode, in a narrower window sized for reading." = "从“访达”打开的文件以阅读模式打开，窗口更窄，更适合阅读。";
 
 /* Reading preferences */
 "Strict line breaks" = "严格换行";

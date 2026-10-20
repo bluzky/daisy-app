@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.10.0] – 2026-10-20
+
+Each workspace now lives in one window with its files as tabs, and Daisy adds links to project files, an Inspector links list and quicker list editing.
+
+### Added
+
+- **Workspace tabs.** Every file you open from a folder becomes a tab in that folder's window. A single click in the Files sidebar opens an italic preview tab that the next click replaces; double-click or edit the file to keep it ([#39](https://github.com/bluzky/daisy-app/pull/39)).
+- **Link to project files.** Choose *Insert → Link to File* or type `/link` in Edit Mode to search the project and insert a relative Markdown link ([#32](https://github.com/bluzky/daisy-app/pull/32)).
+- **Links in the Inspector.** The Inspector lists the document's links, ready to open or copy ([#32](https://github.com/bluzky/daisy-app/pull/32)).
+- **Cycle list items with ⌘↩.** Step a list item to a checklist item, then to a checked item, and back ([#33](https://github.com/bluzky/daisy-app/pull/33)).
+- **Insert dates with `/today` and `/now`.** Type either command to insert the current date, or date and time ([#33](https://github.com/bluzky/daisy-app/pull/33)).
+- **Shortcut hints in empty windows.** A window with no file open shows OmniSearch, New File, Open and the sidebar with your current shortcuts ([#34](https://github.com/bluzky/daisy-app/pull/34)).
+- **Elixir syntax highlighting** in code blocks and the code editor ([#32](https://github.com/bluzky/daisy-app/pull/32)).
+
+### Changed
+
+- **One window per workspace.** Opening a folder brings its window forward if it is already open, and a file opened from Finder joins the window of the workspace that contains it. Merge All Windows keeps workspaces apart ([#34](https://github.com/bluzky/daisy-app/pull/34), [#39](https://github.com/bluzky/daisy-app/pull/39)).
+- **Files opened directly start in Read Mode.** A file from Finder, *File → Open*, Open Recent or the command line opens as a preview; outside every open workspace it gets a narrower reading window with the sidebar hidden ([#39](https://github.com/bluzky/daisy-app/pull/39)).
+- **Inspector toggle.** Show or hide the Inspector with ⇧⌘I or *View → Inspector* ([#32](https://github.com/bluzky/daisy-app/pull/32)).
+- **Open documents in tabs setting removed.** Files now always open as tabs in their workspace's window, so the option no longer applied ([#39](https://github.com/bluzky/daisy-app/pull/39)).
+
+### Fixed
+
+- **Formatting a table cell keeps the editor in place.** Bold, italic and links inside a table cell no longer scroll the editor away ([#32](https://github.com/bluzky/daisy-app/pull/32)).
+- **Untitled documents keep their text.** Choosing a file in the sidebar while writing an untitled document opens it in a new tab instead of replacing your text ([#33](https://github.com/bluzky/daisy-app/pull/33)).
+
+
 ## [0.9.1] – 2026-10-15
 
 Daisy introduces Ember, a warm dark serif theme, and makes Markdown tables smoother to edit and read.
