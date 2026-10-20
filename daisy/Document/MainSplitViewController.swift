@@ -36,6 +36,7 @@ final class MainSplitViewController: NSSplitViewController {
     }
 
     var onSelectFile: ((URL) -> Void)?
+    var onKeepFile: ((URL) -> Void)?
     var onOpenMarkdownLink: ((URL) -> Void)?
     private var sidebarCollapseObservation: NSKeyValueObservation?
 
@@ -55,6 +56,9 @@ final class MainSplitViewController: NSSplitViewController {
         }
         sidebarVC.onSelectFile = { [weak self] url in
             self?.onSelectFile?(url)
+        }
+        sidebarVC.onKeepFile = { [weak self] url in
+            self?.onKeepFile?(url)
         }
         let sidebar = Self.makeSidebarItem(for: sidebarVC, themed: false)
 
