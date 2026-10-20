@@ -343,12 +343,14 @@
 "What’s New in Daisy %@" = "What’s New in Daisy %@";
 "Release Notes" = "Release Notes";
 "Continue" = "Continue";
-"Find any document fast" = "Find any document fast";
-"Press ⌘K and type part of a file name to open it from the current project." = "Press ⌘K and type part of a file name to open it from the current project.";
-"Redesigned formatting bar" = "Redesigned formatting bar";
-"On macOS 26 and later, the formatting bar uses Liquid Glass, with headings, links, lists, and styles in compact groups." = "On macOS 26 and later, the formatting bar uses Liquid Glass, with headings, links, lists, and styles in compact groups.";
-"Redesigned code blocks" = "Redesigned code blocks";
-"Wrap long lines with one click. Code blocks now use rounded cards that show their language." = "Wrap long lines with one click. Code blocks now use rounded cards that show their language.";
+"Files open as tabs" = "Files open as tabs";
+"Every file from a folder opens as a tab in its window. Click once to preview, double-click to keep it." = "Every file from a folder opens as a tab in its window. Click once to preview, double-click to keep it.";
+"Link to project files" = "Link to project files";
+"Type /link in Edit Mode to find a file in the project and insert a relative link to it." = "Type /link in Edit Mode to find a file in the project and insert a relative link to it.";
+"Faster checklists" = "Faster checklists";
+"Press ⌘↩ on a list item to turn it into a checklist item, check it, and back." = "Press ⌘↩ on a list item to turn it into a checklist item, check it, and back.";
+"Read files from Finder" = "Read files from Finder";
+"Files opened from Finder start in Read Mode, in a narrower window sized for reading." = "Files opened from Finder start in Read Mode, in a narrower window sized for reading.";
 
 /* Reading preferences */
 "Strict line breaks" = "Strict line breaks";
