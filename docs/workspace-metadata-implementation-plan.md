@@ -1,6 +1,6 @@
 # Workspace metadata implementation plan
 
-Status: Phases 1 and 2 (2a, 2c, 2b) complete; 3–6 planned. This plan implements [`workspace-metadata-proposal.md`](workspace-metadata-proposal.md) in independently testable phases. It does not imply a release or version bump.
+Status: Phases 1, 2 (2a, 2c, 2b), 3, and 4 complete; 5–6 planned. This plan implements [`workspace-metadata-proposal.md`](workspace-metadata-proposal.md) in independently testable phases. It does not imply a release or version bump.
 
 ## Sequencing
 
@@ -9,9 +9,9 @@ Status: Phases 1 and 2 (2a, 2c, 2b) complete; 3–6 planned. This plan implement
         ↓
 2. Shared completion controller (2a → 2c → 2b) — complete
         ↓
-3. Open Workspace
+3. Workspace marker and window scope — complete
         ↓
-4. In-memory workspace index
+4. In-memory workspace index — complete
         ↓
 5. Persistent cache and lifecycle
         ↓
@@ -140,34 +140,47 @@ Suggest `#`, `@`, and `+` names while typing, from the current document and from
 - Suggestions work with no workspace index.
 - No Swift round trip occurs per keystroke.
 
-## Phase 3 — Open Workspace
+## Phase 3 — Workspace marker and window scope
+
+Status: complete. The marker is `daisy/Features/WorkspaceMetadata/WorkspaceMarker.swift` (tests in `tests/swift-tests/Tests/MarkdownHelpersTests/WorkspaceMarkerTests.swift`); window state and the two commands are in `daisy/Document/DocumentWindowController+Workspace.swift`; the menu items are installed by `installWorkspaceMenuItems` in `daisy/App/AppDelegate.swift`. `indexedWorkspaceRootURL` is the root the Phase 4 index uses.
 
 ### Goal
 
-Make indexing opt-in: only folders opened with **File → Open Workspace…** become workspaces. Every other way of opening a folder or file keeps today's behavior.
+Make indexing opt-in and window-scoped: a folder window whose root contains `.daisy/config.json` is a workspace window, along with the tabs, windows, and untitled documents created from it. A file opened from Finder, ⌘O, or Open Recent joins the frame of an open window whose folder contains it (see `bindToOpenWorkspace` in `daisy/Document/DocumentWindowController+DocumentOpening.swift`), and gets that window's workspace along with its project. Every other way of opening a folder or file keeps today's behavior. Membership never comes from walking a file's parent directories on disk; only open windows are consulted.
 
 ### Tasks
 
-1. Add a **File → Open Workspace…** command that presents the system folder picker; add a recent-workspaces list. Localize new strings in `en.lproj` and `zh-Hans.lproj`.
-2. Persist each workspace as a security-scoped bookmark, reusing the bookmark resolution approach in `daisy/Features/Sidebar/BookmarkStore.swift`. A stale or unresolvable bookmark marks the workspace unavailable and offers re-selection; never fall back to path-only access.
-3. Add `daisy/Features/WorkspaceMetadata/WorkspaceRegistry.swift`, keyed by canonical root (standardized, symlinks resolved), so equivalent opens share one service.
-4. Use the workspace root as the navigator root for workspace windows. Leave `SidebarWorkspaceRegistry` in `daisy/Features/Sidebar/SidebarViewController.swift` and the Open Folder path unchanged.
-5. Resolve membership for directly opened files in `daisy/Document/DocumentWindowController+DocumentOpening.swift`: a file inside open workspaces joins the deepest one; otherwise it gets current-buffer suggestions only.
-6. Ensure Open Folder…, file opens, drag and drop, and the command-line tool never index, walk ancestors, or write into the folder.
+1. Add `daisy/Features/WorkspaceMetadata/WorkspaceMarker.swift`: `isWorkspace(root:)` checks only that `<root>/.daisy/config.json` is a file, without reading it; `initialize(root:)` creates `.daisy/` and writes `{"version": 1}` atomically, keeping an existing marker; `remove(root:)` deletes `config.json`, then `.daisy/` if nothing else is in it. Keep it free of AppKit so it links into `tests/swift-tests`.
+2. In `AppDelegate.openFolder`, after the window takes the folder, set `isWorkspace` on the `DocumentWindowController` from `WorkspaceMarker.isWorkspace(root:)`. This covers File → Open…, Finder, drag and drop, the command-line tool, the OmniSearch and navigator Open Folder… buttons, and Reopen last session; persist nothing new in `LastSessionStore`. Leave the existing window-reuse rules and `SidebarWorkspaceRegistry` in `daisy/Features/Sidebar/SidebarViewController.swift` unchanged. Add no workspace registry.
+3. Expose `indexedWorkspaceRootURL` from the window: the canonical `projectRootURL` (`SidebarWorkspace.canonicalURL`) when `isWorkspace`, otherwise nil. Phase 4 keys its shared index service on this value. File windows, whose navigator root is the file's parent, are never checked.
+4. Add **File → Initialize Workspace** and **File → Remove Workspace** after Open Recent, installed in code by `AppDelegate` like OmniSearch…. Initialize is enabled in a folder window opened through `openFolder` whose root has no marker; Remove in a workspace window. Each updates every open folder window on that root. A failed write shows an error and changes nothing. Localize new strings in `en.lproj/Localizable.strings` and `zh-Hans.lproj/Localizable.strings`.
+5. Carry `isWorkspace` only along the paths that already carry a window's project: `inheritProject(from:containing:)` (Open in New Tab / New Window for a file inside the root) and `prepareSidebarForUntitledDocument(from:)` (new untitled document), both in `daisy/Document/DocumentWindowController+Sidebar.swift`. Plain opens in `daisy/Document/MarkdownDocument.swift` (Finder, ⌘O, Open Recent, drag and drop, command-line tool) go through `bindToOpenWorkspace`, which calls `inheritProject` for the innermost open window containing the file, so they inherit a workspace only from such a window.
+6. Re-check the marker when the app becomes active, so a marker deleted or added outside Daisy takes effect without reopening the window.
+7. Ensure folder opens without a marker, file opens, drag and drop, and the command-line tool never set `isWorkspace`, never walk parent directories, and never write into the folder.
 
 ### Required tests
 
-- Bookmark persistence, restore across launch, and stale-bookmark re-selection.
-- Deepest containing workspace wins; files outside every workspace get no workspace service.
-- Symlink aliases resolve to one service; overlapping workspaces stay independent.
-- Open Folder and direct file opens create no workspace and write nothing.
+- Marker: present, absent, `.daisy` as a file, `config.json` as a folder, malformed or unknown content; a marker in a parent or a subfolder is not detected.
+- Initialize writes only `.daisy/config.json` and keeps an existing one; Remove deletes the marker and keeps other files in `.daisy/`; a failed write leaves the folder unchanged.
+- `indexedWorkspaceRootURL` canonicalization: symlink aliases and `..` forms give the same root; nested workspaces stay distinct.
+- Membership: Open in New Tab/Window inside the root and untitled documents inherit the workspace; a file opened from outside joins the workspace of an open window containing it and gets none when no such window is open; a file window is never a workspace window.
+- Reopen last session on a folder with a marker gives a workspace window.
 
 ### Exit criteria
 
-- One canonical root identifies one shared workspace service.
-- Indexing starts only from Open Workspace…; Open Folder behavior is unchanged.
+- A workspace window comes only from a folder open with a marker at its root, Initialize Workspace, or inheritance from an open workspace window; no code path derives one from a file's location on disk.
+- No workspace registry or new bookmark store.
+- Folder-opening and file-opening behavior is unchanged for folders without a marker.
 
 ## Phase 4 — In-memory workspace index
+
+Status: complete. The index is the `WorkspaceMetadataIndex` actor in `daisy/Features/WorkspaceMetadata/WorkspaceMetadataIndex.swift`; FSEvents watching is `WorkspaceDirectoryWatcher.swift` beside it; tests are `tests/swift-tests/Tests/MarkdownHelpersTests/WorkspaceMetadataIndexTests.swift` and `EditorWorkspaceCandidatesTests.swift`. Window binding and unsaved overlays are in `daisy/Document/DocumentWindowController+Workspace.swift`. Notes on what was built:
+
+- One index per canonical root, shared through `acquire`/`release`. It holds a use count, not a weak reference, so it can outlive the last window for `idleReleaseInterval` (60 s) and a reopened window does not rescan.
+- Discovery reuses `ProjectFileIndex.build`, so it uses the same pruned folders, depth and file caps. Files over 1 MiB, unreadable files, and files that are not UTF-8 are left out without being counted. A symlink is indexed under its target's path, so it is counted once, and only when the target is inside the root.
+- Snapshot versions come from one counter shared by all indexes. A window that leaves a workspace sends its editor an empty snapshot, which is always newer than what the editor has.
+- Unsaved text is sent to the index 0.5 s after typing stops, keyed by file and window. Only the most recent buffer for a file counts. When the window has no unsaved changes left (after a save or a discard), the file is read from disk again and the buffer is dropped.
+- The editor page stores the last snapshot it accepted, the same way it stores slash templates, and uses it again for the next document loaded in that page.
 
 ### Goal
 
@@ -175,7 +188,7 @@ Aggregate saved-file and unsaved-buffer name metadata per resolved workspace.
 
 ### Tasks
 
-1. Add root-scoped actor/service under `daisy/Features/WorkspaceMetadata/WorkspaceMetadataIndex.swift`.
+1. Add root-scoped actor/service under `daisy/Features/WorkspaceMetadata/WorkspaceMetadataIndex.swift`, shared by `indexedWorkspaceRootURL` through a static weak lookup inside the service (this replaces a separate registry).
 2. Reuse Markdown discovery rules, exclusions, caps, and file classification from `daisy/Features/FileSearch/ProjectFileIndex.swift`.
 3. Index only saved Markdown tags, contexts, and projects. Do not index dates or priorities.
 4. Exclude hidden/pruned paths, oversized files, inaccessible files, and symlink targets outside the workspace root. Index overlapping workspaces independently.
@@ -185,7 +198,7 @@ Aggregate saved-file and unsaved-buffer name metadata per resolved workspace.
 8. Send workspace candidate snapshots to editors through the Phase 2b API, exposed via `daisy/Features/Editor/EditorHTML.swift` and `daisy/Features/Editor/EditorViewController.swift`.
 9. Add debounced unsaved-buffer overlays from `EditorViewController` and `daisy/Document/DocumentWindowController+EditSession.swift`.
 10. Replace saved-file contribution with shared unsaved document contribution; restore disk data on discard/close.
-11. Reuse one service across tabs and windows; release watcher/service after idle interval once last consumer closes. Apply an unsaved overlay to every open workspace containing the document.
+11. Reuse one service across the workspace windows on a root; release watcher/service after an idle interval once the last one closes. Apply an unsaved overlay to the workspace of the window editing the document; other workspaces pick up the change on save.
 12. Add coalesced directory watching and reconcile on focus or lost events.
 
 ### Required tests
@@ -215,7 +228,7 @@ Persist disposable derived index data outside the workspace, with graceful fallb
 4. Validate cache as untrusted input; reject path escapes, corruption, relocated/incompatible roots, and schema/parser mismatch.
 5. Load compatible candidates at workspace open, then reconcile in background. Treat a missing or system-purged cache as a rebuild.
 6. Fall back to in-memory index on cache creation, reading, writing, or contention failure.
-7. Implement the rebuild action, which recreates only that workspace's cache file; delete the cache file when a workspace is removed from the recent list.
+7. Implement the rebuild action, which recreates only that workspace's cache file; delete the cache file on Remove Workspace; at launch, delete cache files not opened for 30 days.
 8. Re-key or rebuild the cache when a workspace bookmark resolves to a moved root.
 9. Link the system SQLite library in `daisy.xcodeproj/project.pbxproj` and `tests/swift-tests/Package.swift` if needed.
 
@@ -223,13 +236,13 @@ Persist disposable derived index data outside the workspace, with graceful fallb
 
 - Cached reopen, incompatible schema/parser rebuild, cache corruption, system purge, root relocation, path validation, write failure, contention, and cache-only rebuild.
 - Persistent-cache-disabled fallback.
-- No file is created inside the workspace; cache directory is excluded from watcher feedback.
+- No file other than the marker is created inside the workspace; cache directory is excluded from watcher feedback.
 
 ### Exit criteria
 
 - Cache is optional and disposable.
 - Persistent cache failure never blocks editing or completion.
-- Daisy writes nothing into workspace folders.
+- Daisy writes nothing into workspace folders except the marker.
 
 ## Phase 6 — Integration, docs, and runtime validation
 
@@ -240,11 +253,11 @@ Ship coherent behavior with accurate documentation and end-to-end validation.
 ### Tasks
 
 1. Subscribe editor completion providers to workspace index snapshots.
-2. Display nonblocking indexing/partial-coverage state and disclose scan limits/skipped inaccessible files.
+2. Display nonblocking indexing/partial-coverage state and disclose scan limits.
 3. Add "Rebuild Workspace Index" UI/action for the current workspace.
 4. Update `README.md`, samples, and behavior comments only after final behavior exists.
 5. Task metadata badges render in the editor and Read mode (`task-metadata` render extension); Quick Look and exports stay literal. Re-check this when wiring Phase 6 runtime tests.
-6. Perform runtime tests for keyboard navigation, mouse selection, VoiceOver labels/selection state, date chooser cancel/accept, two-tab overlays, Open Workspace and recent workspaces, Open Folder staying unindexed, overlapping workspaces, stale bookmarks, synced folders (nothing written), large workspaces, and cache corruption.
+6. Perform runtime tests for keyboard navigation, mouse selection, VoiceOver labels/selection state, date chooser cancel/accept, two-tab overlays, Initialize and Remove Workspace, marker detection on every folder-open route including last-session restore, folders without a marker staying unindexed, a Finder-opened file joining an open workspace window that contains it and staying plain when none is open, overlapping workspaces, unresolvable bookmarks, synced folders (nothing but the marker written), large workspaces, and cache corruption.
 
 ### Exit criteria
 
@@ -271,8 +284,9 @@ Run targeted JS and Swift tests during each phase. Before merge, run all command
 | Index and editor disagree on what is metadata | One JS extractor run in both hosts; bridge tests replay the fixture corpus. |
 | JavaScriptCore throughput limits initial indexing | Bounded context pool; partial snapshots; incremental reparse after the first pass. |
 | Slash refactor regresses mature editor behavior | Preserve existing tests first; extract controller without changing ranking or templates; ship Phase 2a alone, gated on the unchanged smoke suite. |
-| Indexing surprises users or broadens access | Index only folders chosen through Open Workspace…; no ancestor walk; access only through picker-granted bookmarks. |
-| Workspace files leak into git or sync | Write nothing into workspace folders; keep the cache in the app container. |
+| Indexing surprises users or broadens access | Index only folder windows whose root has the marker; check only the opened root; workspaces bind to windows, and a file joins one only through an open window; indexing only reads. |
+| A cloned repository's marker starts indexing unasked | The marker can only turn on read-only indexing with local storage; scan limits and progress state bound the cost; Remove Workspace turns it off. |
+| Workspace files leak into git or sync | The marker holds only a version and is safe to commit; keep the cache and all per-user state in the app container. |
 | Multiple tabs double-count metadata | Workspace service owns one document overlay per shared document identity. |
 | SQLite cache corrupts, cannot write, or is purged | Treat cache as untrusted/disposable; transactional store; memory fallback; rebuild on absence. |
 | Filesystem watcher misses changes | Coalesce watcher events and reconcile on focus/lost-event conditions. |

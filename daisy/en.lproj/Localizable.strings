@@ -317,6 +317,8 @@
 
 /* OmniSearch */
 "OmniSearch…" = "OmniSearch…";
+"Initialize Workspace" = "Initialize Workspace";
+"Remove Workspace" = "Remove Workspace";
 "Search files and commands" = "Search files and commands";
 "Link to a file in this project" = "Link to a file in this project";
 "Type a file name to link to" = "Type a file name to link to";

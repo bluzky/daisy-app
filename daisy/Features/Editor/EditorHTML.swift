@@ -868,6 +868,7 @@ nonisolated enum EditorHTML {
             window.onerror = function (message) { post("error: " + message); };
             let editor = null;
             let slashTemplates = [];
+            let workspaceCandidates = null;
             window.__mdLoadEditor = function (markdown, baseHref, codeLanguage) {
                 const isCode = typeof codeLanguage === "string";
                 document.documentElement.toggleAttribute("data-code-mode", isCode);
@@ -921,6 +922,7 @@ nonisolated enum EditorHTML {
                     }
                 );
                 editor.setSlashTemplates(slashTemplates);
+                if (workspaceCandidates) editor.setWorkspaceCandidates(workspaceCandidates);
                 window.__mdEditor = {
                     find: function (query, backwards, options) {
                         return editor.find(query, backwards, options);
@@ -947,6 +949,11 @@ nonisolated enum EditorHTML {
                     setSlashTemplates: function (templates) {
                         slashTemplates = templates;
                         editor.setSlashTemplates(templates);
+                    },
+                    // Kept like the templates; a stale snapshot is refused
+                    // and not kept.
+                    setWorkspaceCandidates: function (snapshot) {
+                        if (editor.setWorkspaceCandidates(snapshot)) workspaceCandidates = snapshot;
                     },
                     isSyntaxReady: function () { return editor.isSyntaxReady(); },
                     replaceMarkdown: function (markdown) { return editor.replaceMarkdown(markdown); },
@@ -985,6 +992,19 @@ nonisolated enum EditorHTML {
             ?? Data("{}".utf8)
         return String(decoding: data, as: UTF8.self)
             .replacingOccurrences(of: "<", with: "\\u003c")
+    }
+
+    /// The argument to the page's `setWorkspaceCandidates`.
+    static func workspaceCandidatesLiteral(_ snapshot: WorkspaceMetadataSnapshot) -> String {
+        func entries(_ kind: WorkspaceMetadataKind) -> [[String: Any]] {
+            snapshot.candidates(kind).map { ["name": $0.name, "count": $0.count] }
+        }
+        return jsonObjectLiteral([
+            "version": snapshot.version,
+            "tags": entries(.tag),
+            "contexts": entries(.context),
+            "projects": entries(.project),
+        ])
     }
 
     static func jsonArrayLiteral(_ array: [Any]) -> String {
