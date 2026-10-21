@@ -2,8 +2,9 @@
 //  DocumentWindowController+Journal.swift
 //  daisy
 //
-//  The workspace journal in a window: the toolbar's Journal calendar and the
-//  Go menu's Today's Journal, Previous Entry and Next Entry. Each works only
+//  The workspace journal in a window: the toolbar's Journal calendar, the
+//  Go menu's Today's Journal, Previous Entry and Next Entry, and Insert ▸
+//  Unfinished Tasks from Earlier Days. Each works only
 //  in a workspace window, and only while the Journal extension is on
 //  (`JournalSetting`); entries live in `journals/` (see `WorkspaceJournal`).
 //
@@ -36,16 +37,25 @@ extension DocumentWindowController {
     }
 
     /// Opens `day`'s entry the way a clicked Markdown link opens, creating it
-    /// first when it has none from the chosen template, if there is one.
+    /// first when it has none from the chosen template, if there is one. A
+    /// new entry for today takes the earlier days' unfinished tasks while
+    /// carry-over is on.
     func openJournal(_ day: JournalDay) {
         guard let root = journalRootURL else {
             NSSound.beep()
             return
         }
         do {
-            let entry = try WorkspaceJournal.openOrCreate(day: day, root: root,
-                                                          contents: newJournalContents(for: day))
-            openMarkdownLink(entry)
+            let isNew = (try WorkspaceJournal.resolve(day: day, root: root)) == nil
+            let carryOver = isNew ? journalCarryOverPlan(for: day, root: root) : nil
+            let entry = try WorkspaceJournal.openOrCreateReportingCreation(
+                day: day, root: root,
+                contents: isNew ? newJournalContents(for: day, carryOver: carryOver?.tasks ?? "") : nil)
+            // Only once the tasks are in the new entry do they leave the old
+            // ones; an entry another writer made first never took them.
+            let unchanged = entry.created ? carryOver.map { JournalCarryOver.apply($0, root: root) } ?? [] : []
+            openMarkdownLink(entry.url)
+            if !unchanged.isEmpty { reportUnremovedCarryOver(from: unchanged) }
         } catch {
             NSAlert(error: error).beginSheetModal(for: documentWindow)
         }
@@ -54,12 +64,78 @@ extension DocumentWindowController {
     /// Read only when the entry is about to be created, so edits to the
     /// template file count straight away. The weekday is in the app's
     /// language, as the slash menu writes it.
-    private func newJournalContents(for day: JournalDay) -> String? {
-        guard let root = journalRootURL,
-              (try? WorkspaceJournal.resolve(day: day, root: root)) == nil else { return nil }
+    private func newJournalContents(for day: JournalDay, carryOver: String) -> String {
         let language = Bundle.main.preferredLocalizations.first ?? "en"
         let template = JournalTemplate.template(named: JournalSetting.templateName, in: TemplateStore.load())
-        return JournalTemplate.contents(for: day, template: template, locale: Locale(identifier: language))
+        return JournalTemplate.contents(for: day, template: template, carryOver: carryOver,
+                                        locale: Locale(identifier: language))
+    }
+
+    /// Today only, so tasks never move back in time.
+    private func journalCarryOverPlan(for day: JournalDay, root: URL) -> JournalCarryOver.Plan? {
+        guard JournalSetting.carryOverEnabled, day == JournalDay(date: Date()) else { return nil }
+        return carryOverPlan(into: day, root: root)
+    }
+
+    /// An entry open with unsaved edits in any window keeps its tasks:
+    /// rewriting it would set the file against the editor.
+    private func carryOverPlan(into day: JournalDay, root: URL) -> JournalCarryOver.Plan? {
+        let edited = Set(Self.allControllers.filter(\.hasPendingEditorChanges)
+            .compactMap { $0.currentFileURL.map(Self.journalPath) })
+        return JournalCarryOver.plan(for: day, lookBack: JournalSetting.carryOverDays, root: root) {
+            edited.contains(Self.journalPath($0))
+        }
+    }
+
+    /// Insert ▸ Unfinished Tasks from Earlier Days: in Edit Mode on today's
+    /// entry, whether or not carry-over is on for new entries.
+    var canInsertCarriedOverTasks: Bool {
+        canFormatMarkdown && journalRootURL != nil && currentJournalDay == JournalDay(date: Date())
+    }
+
+    /// Moves the earlier days' unfinished tasks to the caret, on lines of
+    /// their own. The entry is saved with them before they leave the old
+    /// entries, so a failed save leaves them in both.
+    func insertCarriedOverTasksFromMenu() {
+        guard canInsertCarriedOverTasks, let root = journalRootURL, let day = currentJournalDay,
+              let editor = mainSplit?.editorViewController else {
+            NSSound.beep()
+            return
+        }
+        guard let plan = carryOverPlan(into: day, root: root) else {
+            NSSound.beep()
+            return
+        }
+        editor.fetchLineInsertionPoint { [weak self] point in
+            guard let self, let point else { return }
+            var text = point.atLineStart ? plan.tasks : "\n" + plan.tasks
+            if point.atLineEnd { text.removeLast() }
+            editor.insertMarkdown(text, from: point.from, to: point.to) { [weak self] inserted in
+                guard let self, inserted else { return }
+                self.hasUnsavedEditorChanges = true
+                self.commitEdits(exitAfter: false) { [weak self] saved in
+                    guard let self, saved else { return }
+                    let unchanged = JournalCarryOver.apply(plan, root: root)
+                    if !unchanged.isEmpty { self.reportUnremovedCarryOver(from: unchanged) }
+                }
+            }
+        }
+    }
+
+    private static func journalPath(_ url: URL) -> String {
+        url.resolvingSymlinksInPath().standardizedFileURL.path
+    }
+
+    private func reportUnremovedCarryOver(from days: [JournalDay]) {
+        let alert = NSAlert()
+        alert.messageText = NSLocalizedString("Some unfinished tasks are in two entries",
+                                              comment: "Journal carry-over alert title")
+        alert.informativeText = String(
+            format: NSLocalizedString(
+                "They were copied to today’s entry but couldn’t be removed from %@, which changed or couldn’t be written.",
+                comment: "Journal carry-over alert; %@ lists days"),
+            ListFormatter.localizedString(byJoining: days.map(\.string)))
+        alert.beginSheetModal(for: documentWindow)
     }
 
     private func openAdjacentJournalEntry(_ direction: WorkspaceJournal.Direction) {

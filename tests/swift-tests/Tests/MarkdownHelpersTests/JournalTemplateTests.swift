@@ -35,6 +35,20 @@ final class JournalTemplateTests: XCTestCase {
                        "- \n{{date}} {{nope}} 2026-10-15\n")
     }
 
+    func testCarriedTasksGoWhereTheTemplatePlacesThem() {
+        let tasks = "- [ ] a\n- [ ] b\n"
+        func contents(_ body: String?) -> String {
+            JournalTemplate.contents(for: day, template: body.map { MarkdownTemplate(name: "Journal", body: $0) },
+                                     carryOver: tasks, now: now, calendar: calendar)
+        }
+
+        XCTAssertEqual(contents("# {{date}}\n\n## Carried over\n{{carryover}}\n\n## Notes\n"),
+                       "# 2026-10-15\n\n## Carried over\n- [ ] a\n- [ ] b\n\n## Notes\n")
+        XCTAssertEqual(contents("# {{date}}\n\n## Notes\n"), "# 2026-10-15\n\n## Notes\n\n- [ ] a\n- [ ] b\n")
+        XCTAssertEqual(contents(nil), "# 2026-10-15\n\n- [ ] a\n- [ ] b\n")
+        XCTAssertEqual(self.contents("# {{date}}\n{{carryover}}"), "# 2026-10-15\n")
+    }
+
     func testTrailingBlankSpaceEndsInOneNewline() {
         XCTAssertEqual(contents("## Today\n\n- {{cursor}}\n\n\n"), "## Today\n\n-\n")
     }

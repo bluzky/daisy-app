@@ -60,6 +60,7 @@ enum KeymapCommand: String, CaseIterable, Hashable {
     case formatChecklist = "format.checklist"
     case formatQuote = "format.quote"
     case insertLinkToFile = "insert.linkToFile"
+    case insertCarriedOverTasks = "insert.carriedOverTasks"
 
     case searchSelectPrevious = "search.selectPrevious"
     case searchSelectNext = "search.selectNext"
@@ -83,7 +84,7 @@ enum KeymapCommand: String, CaseIterable, Hashable {
              .formatBold, .formatItalic, .formatStrikethrough,
              .formatInlineCode, .formatLink, .formatBulletList,
              .formatOrderedList, .formatChecklist, .formatQuote,
-             .insertLinkToFile:
+             .insertLinkToFile, .insertCarriedOverTasks:
             .editing
         case .searchSelectPrevious, .searchSelectNext, .searchOpenResult,
              .searchOpenResultInNewTab, .searchOpenResultInNewWindow:
@@ -134,6 +135,7 @@ enum KeymapCommand: String, CaseIterable, Hashable {
         case .formatChecklist: "Checklist"
         case .formatQuote: "Block Quote"
         case .insertLinkToFile: "Link to File…"
+        case .insertCarriedOverTasks: "Unfinished Tasks from Earlier Days"
         case .searchSelectPrevious: "Previous Result"
         case .searchSelectNext: "Next Result"
         case .searchOpenResult: "Open Result"

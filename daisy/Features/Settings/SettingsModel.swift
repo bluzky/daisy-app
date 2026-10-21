@@ -246,6 +246,20 @@ final class SettingsModel {
         }
     }
 
+    var journalCarryOverEnabled: Bool {
+        didSet {
+            guard !isRestoringExternalValues, journalCarryOverEnabled != oldValue else { return }
+            JournalSetting.carryOverEnabled = journalCarryOverEnabled
+        }
+    }
+
+    var journalCarryOverDays: Int {
+        didSet {
+            guard !isRestoringExternalValues, journalCarryOverDays != oldValue else { return }
+            JournalSetting.carryOverDays = journalCarryOverDays
+        }
+    }
+
     /// Template names for the journal picker, re-read with the file.
     var templateNames: [String] = []
 
@@ -383,6 +397,8 @@ final class SettingsModel {
         enabledRenderExtensionIDs = RenderExtensionPreferences.currentConfiguration.enabledIDs
         journalEnabled = JournalSetting.isEnabled
         journalTemplateName = JournalSetting.templateName
+        journalCarryOverEnabled = JournalSetting.carryOverEnabled
+        journalCarryOverDays = JournalSetting.carryOverDays
         sharesAnonymousUsageAnalytics = UsageAnalyticsReporter.isEnabled
         checksForUpdatesAutomatically = updater?.automaticallyChecksForUpdates ?? true
         downloadsUpdatesAutomatically = updater?.automaticallyDownloadsUpdates ?? false
@@ -449,6 +465,8 @@ final class SettingsModel {
         enabledRenderExtensionIDs = RenderExtensionPreferences.currentConfiguration.enabledIDs
         journalEnabled = JournalSetting.isEnabled
         journalTemplateName = JournalSetting.templateName
+        journalCarryOverEnabled = JournalSetting.carryOverEnabled
+        journalCarryOverDays = JournalSetting.carryOverDays
         sharesAnonymousUsageAnalytics = UsageAnalyticsReporter.isEnabled
         if let updater { refreshUpdateSettings(from: updater) }
     }

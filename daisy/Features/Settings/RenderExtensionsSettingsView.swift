@@ -102,10 +102,19 @@ struct RenderExtensionsSettingsView: View {
                      : L("Used when an entry is first created."))
             }
             .disabled(!model.journalEnabled)
+            Toggle(isOn: $model.journalCarryOverEnabled) {
+                Text(L("Carry over unfinished tasks"))
+                Text(L("Today’s new entry takes the unchecked tasks from earlier entries, which lose them."))
+            }
+            .disabled(!model.journalEnabled)
+            Stepper(value: $model.journalCarryOverDays, in: JournalSetting.carryOverDayRange) {
+                LabeledContent(L("Days to look back"), value: "\(model.journalCarryOverDays)")
+            }
+            .disabled(!model.journalEnabled || !model.journalCarryOverEnabled)
         } header: {
             Text(L("Workspace"))
         } footer: {
-            Text(L("The Journal button in the toolbar and the Go menu open one Markdown file per day in the workspace’s journals folder. In a template, {{date}} and {{weekday}} are the entry’s day. With no template, an entry starts with just its date."))
+            Text(L("The Journal button in the toolbar and the Go menu open one Markdown file per day in the workspace’s journals folder. In a template, {{date}} and {{weekday}} are the entry’s day and {{carryover}} places carried-over tasks. With no template, an entry starts with just its date."))
         }
     }
 }

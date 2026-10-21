@@ -14,7 +14,10 @@ caret lands. Write `\{{` for a literal `{{`.
 
 Pick one, such as Journal below, in **Settings → Extensions → New entry
 template** to start each new journal entry in a workspace from it; there
-`{{date}}` and `{{weekday}}` are the entry's day.
+`{{date}}` and `{{weekday}}` are the entry's day, and `{{carryover}}` is where
+unfinished tasks moved from earlier days go when carry-over is on. Journal
+leaves it out, since the slash menu would insert it as typed, so moved tasks
+follow the rest of the entry.
 
 <!-- template: Journal -->
 

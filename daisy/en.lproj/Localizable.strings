@@ -519,5 +519,11 @@
 "%@ (not found)" = "%@ (not found)";
 "Choose a template file in General to use one." = "Choose a template file in General to use one.";
 "Used when an entry is first created." = "Used when an entry is first created.";
-"The Journal button in the toolbar and the Go menu open one Markdown file per day in the workspace’s journals folder. In a template, {{date}} and {{weekday}} are the entry’s day. With no template, an entry starts with just its date." = "The Journal button in the toolbar and the Go menu open one Markdown file per day in the workspace’s journals folder. In a template, {{date}} and {{weekday}} are the entry’s day. With no template, an entry starts with just its date.";
+"The Journal button in the toolbar and the Go menu open one Markdown file per day in the workspace’s journals folder. In a template, {{date}} and {{weekday}} are the entry’s day and {{carryover}} places carried-over tasks. With no template, an entry starts with just its date." = "The Journal button in the toolbar and the Go menu open one Markdown file per day in the workspace’s journals folder. In a template, {{date}} and {{weekday}} are the entry’s day and {{carryover}} places carried-over tasks. With no template, an entry starts with just its date.";
+"Unfinished Tasks from Earlier Days" = "Unfinished Tasks from Earlier Days";
+"Carry over unfinished tasks" = "Carry over unfinished tasks";
+"Today’s new entry takes the unchecked tasks from earlier entries, which lose them." = "Today’s new entry takes the unchecked tasks from earlier entries, which lose them.";
+"Days to look back" = "Days to look back";
+"Some unfinished tasks are in two entries" = "Some unfinished tasks are in two entries";
+"They were copied to today’s entry but couldn’t be removed from %@, which changed or couldn’t be written." = "They were copied to today’s entry but couldn’t be removed from %@, which changed or couldn’t be written.";
 "“%@” in the journals folder is not a file." = "“%@” in the journals folder is not a file.";

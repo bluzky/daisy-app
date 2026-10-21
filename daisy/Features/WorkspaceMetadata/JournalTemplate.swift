@@ -11,7 +11,9 @@
 //  `scripts/editor-bundle/src/slash.js`), except that `{{date}}` and
 //  `{{weekday}}` name the entry's day, which need not be today. `{{time}}`
 //  is the moment the entry is created. `{{cursor}}` has no caret to place in
-//  a new file and is dropped. `\{{` writes `{{`; an unknown name stays as
+//  a new file and is dropped. `{{carryover}}` is where the unfinished tasks
+//  moved from earlier days go (see `JournalCarryOver`); without it they
+//  follow the rest of the entry. `\{{` writes `{{`; an unknown name stays as
 //  typed.
 //
 //  No AppKit, so it links into `tests/swift-tests`.
@@ -27,17 +29,32 @@ nonisolated enum JournalTemplate {
         return templates.first { $0.name == name }
     }
 
-    /// The new entry's text, ending in one newline.
-    static func contents(for day: JournalDay, template: MarkdownTemplate?, now: Date = Date(),
-                         calendar: Calendar = .current, locale: Locale = .current) -> String {
-        guard let template else { return "# \(day.string)\n" }
-        let text = expand(template.body, day: day, now: now, calendar: calendar, locale: locale)
-        let trimmed = text.replacingOccurrences(of: #"\s+$"#, with: "", options: .regularExpression)
-        return trimmed + "\n"
+    /// The new entry's text, ending in one newline. `carryOver` is the
+    /// tasks moved into it, if any.
+    static func contents(for day: JournalDay, template: MarkdownTemplate?, carryOver: String = "",
+                         now: Date = Date(), calendar: Calendar = .current,
+                         locale: Locale = .current) -> String {
+        let tasks = trimmingTrailingSpace(carryOver)
+        guard let template else {
+            return tasks.isEmpty ? "# \(day.string)\n" : "# \(day.string)\n\n\(tasks)\n"
+        }
+        let expanded = expand(template.body, day: day, now: now, calendar: calendar, locale: locale,
+                              carryOver: tasks)
+        var text = trimmingTrailingSpace(expanded.text)
+        if !expanded.placedCarryOver, !tasks.isEmpty {
+            text = text.isEmpty ? tasks : text + "\n\n" + tasks
+        }
+        return text + "\n"
     }
 
-    static func expand(_ body: String, day: JournalDay, now: Date,
-                       calendar: Calendar, locale: Locale) -> String {
+    private static func trimmingTrailingSpace(_ text: String) -> String {
+        text.replacingOccurrences(of: #"\s+$"#, with: "", options: .regularExpression)
+    }
+
+    /// `body` with its variables filled in, and whether it placed
+    /// `{{carryover}}`.
+    static func expand(_ body: String, day: JournalDay, now: Date, calendar: Calendar, locale: Locale,
+                       carryOver: String = "") -> (text: String, placedCarryOver: Bool) {
         let time = DateFormatter()
         time.calendar = calendar
         time.timeZone = calendar.timeZone
@@ -55,12 +72,14 @@ nonisolated enum JournalTemplate {
             "datetime": { "\(day.string) \(time.string(from: now))" },
             "weekday": { weekday.string(from: day.date(in: calendar)) },
             "cursor": { "" },
+            "carryover": { carryOver },
         ]
         guard let pattern = try? NSRegularExpression(pattern: #"\\\{\{|\{\{\s*([A-Za-z]+)\s*\}\}"#) else {
-            return body
+            return (body, false)
         }
         let source = body as NSString
         var text = ""
+        var placedCarryOver = false
         var last = 0
         for match in pattern.matches(in: body, range: NSRange(location: 0, length: source.length)) {
             text += source.substring(with: NSRange(location: last, length: match.range.location - last))
@@ -68,13 +87,14 @@ nonisolated enum JournalTemplate {
             let nameRange = match.range(at: 1)
             if nameRange.location == NSNotFound {
                 text += "{{"
-            } else if let value = values[source.substring(with: nameRange).lowercased()] {
+            } else if case let name = source.substring(with: nameRange).lowercased(), let value = values[name] {
+                if name == "carryover" { placedCarryOver = true }
                 text += value()
             } else {
                 text += source.substring(with: match.range)
             }
         }
         text += source.substring(from: last)
-        return text
+        return (text, placedCarryOver)
     }
 }

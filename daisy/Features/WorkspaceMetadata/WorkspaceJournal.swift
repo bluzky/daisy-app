@@ -7,7 +7,9 @@
 //  entry is created, holding the Journal template or else only
 //  `# YYYY-MM-DD` (see `JournalTemplate`), when the user opens that day
 //  (Today's Journal, or a day picked in the toolbar calendar); listing and
-//  stepping between entries never write.
+//  stepping between entries never write. Creating today's entry can also
+//  rewrite the days before it, to move their unfinished tasks forward (see
+//  `JournalCarryOver`).
 //
 //  No AppKit, so it links into `tests/swift-tests`.
 //
@@ -55,6 +57,14 @@ nonisolated struct JournalDay: Hashable, Comparable, Sendable {
     /// Midnight at the start of the day in `calendar`.
     func date(in calendar: Calendar = .current) -> Date {
         calendar.date(from: DateComponents(year: year, month: month, day: day)) ?? Date()
+    }
+
+    /// The day `count` days later, or earlier when negative.
+    func adding(days count: Int) -> JournalDay {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        guard let date = calendar.date(byAdding: .day, value: count, to: date(in: calendar)) else { return self }
+        return JournalDay(date: date, calendar: calendar)
     }
 
     static func < (lhs: JournalDay, rhs: JournalDay) -> Bool {
@@ -166,7 +176,14 @@ enum WorkspaceJournal {
     /// call made is removed on failure only while empty, so another writer's
     /// entries are never deleted.
     static func openOrCreate(day: JournalDay, root: URL, contents: String? = nil) throws -> URL {
-        if let entry = try resolve(day: day, root: root) { return entry }
+        try openOrCreateReportingCreation(day: day, root: root, contents: contents).url
+    }
+
+    /// `openOrCreate`, also saying whether this call wrote the entry: false
+    /// when it existed, or another writer made it first.
+    static func openOrCreateReportingCreation(day: JournalDay, root: URL,
+                                              contents: String? = nil) throws -> (url: URL, created: Bool) {
+        if let entry = try resolve(day: day, root: root) { return (entry, false) }
         let folder = try journalsFolder(root: root)
         let name = fileName(for: day)
         let data = Data((contents ?? "# \(day.string)\n").utf8)
@@ -193,11 +210,94 @@ enum WorkspaceJournal {
         guard file >= 0 else {
             let code = errno
             // Another writer got there first: open its entry.
-            if code == EEXIST, let existing = try? resolve(day: day, root: root) { return existing }
+            if code == EEXIST, let existing = try? resolve(day: day, root: root) { return (existing, false) }
             removeCreatedFolder()
             throw posixError(code)
         }
-        let written = data.withUnsafeBytes { buffer -> Bool in
+        let written = writeAll(file, data)
+        let code = errno
+        let closed = close(file) == 0
+        guard written, closed else {
+            _ = unlinkat(directory, name, 0)
+            removeCreatedFolder()
+            throw posixError(written ? errno : code)
+        }
+        return (folder.appendingPathComponent(name), true)
+    }
+
+    /// What `day`'s entry holds, read only when it is a regular file in
+    /// `journals/` itself, not a symlink: the entries carry-over may rewrite.
+    static func readEntry(day: JournalDay, root: URL) -> Data? {
+        guard let directory = try? openJournalsFolder(root: root) else { return nil }
+        defer { close(directory) }
+        return readRegularFile(fileName(for: day), in: directory)?.data
+    }
+
+    /// Replaces `day`'s entry with `contents`, only while it still holds
+    /// `expected`; false when it changed. The new text is written beside it
+    /// and renamed over it, keeping its permissions, so a reader never sees
+    /// half of it.
+    static func replaceEntry(day: JournalDay, root: URL, expected: Data, with contents: String) throws -> Bool {
+        let directory = try openJournalsFolder(root: root)
+        defer { close(directory) }
+        let name = fileName(for: day)
+        guard let current = readRegularFile(name, in: directory) else {
+            throw JournalError.notAFile(name)
+        }
+        guard current.data == expected else { return false }
+
+        let temporary = ".\(name).\(UUID().uuidString).tmp"
+        let file = openat(directory, temporary, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC,
+                          current.mode & 0o777)
+        guard file >= 0 else { throw posixError(errno) }
+        let written = writeAll(file, Data(contents.utf8))
+        let code = errno
+        let closed = close(file) == 0
+        guard written, closed, renameat(directory, temporary, directory, name) == 0 else {
+            let failure = written && closed ? errno : code
+            _ = unlinkat(directory, temporary, 0)
+            throw posixError(failure)
+        }
+        return true
+    }
+
+    /// An open descriptor on the existing `journals/`, refused when it
+    /// really is outside the root.
+    private static func openJournalsFolder(root: URL) throws -> Int32 {
+        let folder = try journalsFolder(root: root)
+        let directory = open(folder.path, O_RDONLY | O_DIRECTORY | O_CLOEXEC)
+        guard directory >= 0 else { throw posixError(errno) }
+        guard let opened = path(of: directory), isInside(opened, root: root) else {
+            close(directory)
+            throw JournalError.outsideWorkspace
+        }
+        return directory
+    }
+
+    /// A regular file's contents and permissions, not following a symlink
+    /// and never blocking on a FIFO.
+    private static func readRegularFile(_ name: String, in directory: Int32) -> (data: Data, mode: mode_t)? {
+        let file = openat(directory, name, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC)
+        guard file >= 0 else { return nil }
+        defer { close(file) }
+        var info = stat()
+        guard fstat(file, &info) == 0, info.st_mode & S_IFMT == S_IFREG else { return nil }
+        var data = Data()
+        var buffer = [UInt8](repeating: 0, count: 64 * 1024)
+        while true {
+            let count = read(file, &buffer, buffer.count)
+            if count < 0 {
+                if errno == EINTR { continue }
+                return nil
+            }
+            if count == 0 { break }
+            data.append(buffer, count: count)
+        }
+        return (data, info.st_mode)
+    }
+
+    private static func writeAll(_ file: Int32, _ data: Data) -> Bool {
+        data.withUnsafeBytes { buffer -> Bool in
             var offset = 0
             while offset < buffer.count {
                 let count = write(file, buffer.baseAddress! + offset, buffer.count - offset)
@@ -209,14 +309,6 @@ enum WorkspaceJournal {
             }
             return true
         }
-        let code = errno
-        let closed = close(file) == 0
-        guard written, closed else {
-            _ = unlinkat(directory, name, 0)
-            removeCreatedFolder()
-            throw posixError(written ? errno : code)
-        }
-        return folder.appendingPathComponent(name)
     }
 
     /// `<root>/journals`, refused when it resolves outside the root.

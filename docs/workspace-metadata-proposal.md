@@ -21,7 +21,7 @@ Keep Markdown files authoritative. A workspace is a folder containing a `.daisy/
 - Reuse completion infrastructure instead of implementing a separate menu for every prefix.
 - Make future metadata fields possible without introducing a plugin loader now.
 - Reuse indexed suggestions across tabs and app launches.
-- Index only folders the user has made workspaces, and write nothing into the user's folders except the marker that Initialize Workspace creates the metadata pages the user explicitly opens (see the implementation plan, Phase 4.5), and the journal entries the user explicitly opens (`journals/YYYY-MM-DD.md`, from Today's Journal or the toolbar calendar).
+- Index only folders the user has made workspaces, and write nothing into the user's folders except the marker that Initialize Workspace creates the metadata pages the user explicitly opens (see the implementation plan, Phase 4.5), and the journal entries the user explicitly opens (`journals/YYYY-MM-DD.md`, from Today's Journal or the toolbar calendar), plus, with journal carry-over turned on, the earlier entries whose unfinished tasks move into today's new one.
 
 Non-goals for the initial release:
 
@@ -235,7 +235,7 @@ Store each workspace's index in the app's sandbox container, not in the workspac
 <app container>/Library/Caches/WorkspaceIndex/<root-id>.sqlite
 ```
 
-`<root-id>` is derived from the canonical root path and its volume identifier. Apart from the `.daisy/config.json` marker and the pages and journal entries the user opens, Daisy writes nothing into the workspace folder: no cache, no `.gitignore`, no per-user state. The marker is small, static, and safe to commit or sync; keeping the cache out keeps SQLite out of git, iCloud Drive, Dropbox, and network folders, where synced database files are a known source of corruption. Future shareable workspace settings may be added to `config.json` under a new version; per-user state never goes there.
+`<root-id>` is derived from the canonical root path and its volume identifier. Apart from the `.daisy/config.json` marker, the pages and journal entries the user opens, and the earlier entries journal carry-over takes tasks from, Daisy writes nothing into the workspace folder: no cache, no `.gitignore`, no per-user state. The marker is small, static, and safe to commit or sync; keeping the cache out keeps SQLite out of git, iCloud Drive, Dropbox, and network folders, where synced database files are a known source of corruption. Future shareable workspace settings may be added to `config.json` under a new version; per-user state never goes there.
 
 ### Cache contents
 

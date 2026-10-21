@@ -519,5 +519,11 @@
 "%@ (not found)" = "%@（未找到）";
 "Choose a template file in General to use one." = "请先在“通用”中选取模板文件。";
 "Used when an entry is first created." = "在首次创建日志时使用。";
-"The Journal button in the toolbar and the Go menu open one Markdown file per day in the workspace’s journals folder. In a template, {{date}} and {{weekday}} are the entry’s day. With no template, an entry starts with just its date." = "工具栏中的“日志”按钮和“前往”菜单会打开工作区 journals 文件夹中每天一个的 Markdown 文件。模板中的 {{date}} 和 {{weekday}} 表示该日志的日期。未选模板时，日志只包含日期标题。";
+"The Journal button in the toolbar and the Go menu open one Markdown file per day in the workspace’s journals folder. In a template, {{date}} and {{weekday}} are the entry’s day and {{carryover}} places carried-over tasks. With no template, an entry starts with just its date." = "工具栏中的“日志”按钮和“前往”菜单会打开工作区 journals 文件夹中每天一个的 Markdown 文件。模板中的 {{date}} 和 {{weekday}} 表示该日志的日期，{{carryover}} 表示延续任务的位置。未选模板时，日志只包含日期标题。";
+"Unfinished Tasks from Earlier Days" = "之前几天的未完成任务";
+"Carry over unfinished tasks" = "延续未完成的任务";
+"Today’s new entry takes the unchecked tasks from earlier entries, which lose them." = "新建今天的日志时，会把之前日志中未勾选的任务移过来，并从原日志中删除。";
+"Days to look back" = "回溯天数";
+"Some unfinished tasks are in two entries" = "部分未完成的任务出现在两篇日志中";
+"They were copied to today’s entry but couldn’t be removed from %@, which changed or couldn’t be written." = "这些任务已复制到今天的日志，但无法从 %@ 中删除：该日志已更改或无法写入。";
 "“%@” in the journals folder is not a file." = "journals 文件夹中的“%@”不是文件。";
