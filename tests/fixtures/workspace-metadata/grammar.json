@@ -1,0 +1,355 @@
+[
+  {
+    "name": "visible tokens and task metadata",
+    "source": "# Heading\nWelcome #Roadmap/Q1 @Desk +Daisy\n- [ ] Ship #Release due:2026-02-28 scheduled:2026-02-01 p:high\n- [x] Review @Team +Daisy p:medium",
+    "expected": {
+      "tags": [
+        {
+          "source": "#Roadmap/Q1",
+          "key": "roadmap/q1",
+          "line": 2
+        },
+        {
+          "source": "#Release",
+          "key": "release",
+          "line": 3
+        }
+      ],
+      "contexts": [
+        {
+          "source": "@Desk",
+          "key": "desk",
+          "line": 2
+        },
+        {
+          "source": "@Team",
+          "key": "team",
+          "line": 4
+        }
+      ],
+      "projects": [
+        {
+          "source": "+Daisy",
+          "key": "daisy",
+          "line": 2
+        },
+        {
+          "source": "+Daisy",
+          "key": "daisy",
+          "line": 4
+        }
+      ],
+      "tasks": [
+        {
+          "line": 3,
+          "due": "2026-02-28",
+          "scheduled": "2026-02-01",
+          "priority": "high"
+        },
+        {
+          "line": 4,
+          "due": null,
+          "scheduled": null,
+          "priority": "medium"
+        }
+      ]
+    }
+  },
+  {
+    "name": "markdown constructs do not contribute metadata",
+    "source": "---\ntitle: #hidden\n---\n# Heading\n[link #link](https://example.com/#url)\n![image @image](https://example.com/image.png)\nmail dev@example.com, C#, https://example.com/#fragment\n| tag | #table |\n| --- | --- |\n`+code`\n```\n#fence\n```\n<div>\n@html\n</div>\n\nbefore <span>#inline @inline +inline</span> after\n#Visible @Here +Project",
+    "expected": {
+      "tags": [
+        {
+          "source": "#Visible",
+          "key": "visible",
+          "line": 19
+        }
+      ],
+      "contexts": [
+        {
+          "source": "@Here",
+          "key": "here",
+          "line": 19
+        }
+      ],
+      "projects": [
+        {
+          "source": "+Project",
+          "key": "project",
+          "line": 19
+        }
+      ],
+      "tasks": []
+    }
+  },
+  {
+    "name": "unicode hierarchy normalization and duplicates",
+    "source": "#Café #ＡＢＣ @München/ÖPNV +Проект/Фаза\n#Roadmap/Q1 #Roadmap/Q1",
+    "expected": {
+      "tags": [
+        {
+          "source": "#Café",
+          "key": "café",
+          "line": 1
+        },
+        {
+          "source": "#ＡＢＣ",
+          "key": "abc",
+          "line": 1
+        },
+        {
+          "source": "#Roadmap/Q1",
+          "key": "roadmap/q1",
+          "line": 2
+        },
+        {
+          "source": "#Roadmap/Q1",
+          "key": "roadmap/q1",
+          "line": 2
+        }
+      ],
+      "contexts": [
+        {
+          "source": "@München/ÖPNV",
+          "key": "münchen/öpnv",
+          "line": 1
+        }
+      ],
+      "projects": [
+        {
+          "source": "+Проект/Фаза",
+          "key": "проект/фаза",
+          "line": 1
+        }
+      ],
+      "tasks": []
+    }
+  },
+  {
+    "name": "malformed tokens and task continuation are ignored without rewriting source",
+    "source": "#123 #bad//path #trailing/ #_ @/no +---\n(#ignored), #good @home-office +one_two/three-4\n- [ ] Valid due:2024-02-29 scheduled:2025-01-01 p:high\n- [x] Bad due:2023-02-29 scheduled:2025-13-01 p:urgent\nNot a task due:2025-01-02 p:low\n- [ ] Continuation\n  due:2025-01-02 p:low",
+    "expected": {
+      "tags": [
+        {
+          "source": "#good",
+          "key": "good",
+          "line": 2
+        }
+      ],
+      "contexts": [
+        {
+          "source": "@home-office",
+          "key": "home-office",
+          "line": 2
+        }
+      ],
+      "projects": [
+        {
+          "source": "+one_two/three-4",
+          "key": "one_two/three-4",
+          "line": 2
+        }
+      ],
+      "tasks": [
+        {
+          "line": 3,
+          "due": "2024-02-29",
+          "scheduled": "2025-01-01",
+          "priority": "high"
+        },
+        {
+          "line": 4,
+          "due": null,
+          "scheduled": null,
+          "priority": null
+        },
+        {
+          "line": 6,
+          "due": null,
+          "scheduled": null,
+          "priority": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "metadata tokens require whitespace boundaries and fields use lowercase syntax",
+    "source": "(#hidden) #Visible @Desk +Project\n- [ ] Lowercase due:2025-03-04 scheduled:2025-03-01 p:low DUE:2025-04-01 Scheduled:2025-04-02 P:high\nOrdinary due:2025-05-01 p:medium\n- [ ] Inline `due:2025-06-01 p:high` scheduled:2025-06-02",
+    "expected": {
+      "tags": [
+        {
+          "source": "#Visible",
+          "key": "visible",
+          "line": 1
+        }
+      ],
+      "contexts": [
+        {
+          "source": "@Desk",
+          "key": "desk",
+          "line": 1
+        }
+      ],
+      "projects": [
+        {
+          "source": "+Project",
+          "key": "project",
+          "line": 1
+        }
+      ],
+      "tasks": [
+        {
+          "line": 2,
+          "due": "2025-03-04",
+          "scheduled": "2025-03-01",
+          "priority": "low"
+        },
+        {
+          "line": 4,
+          "due": null,
+          "scheduled": "2025-06-02",
+          "priority": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "list markers and headings stay Markdown",
+    "source": "+ item\n# Heading\n##Heading\n- [ ] Plan +Daisy\n+ +Nested",
+    "expected": {
+      "tags": [],
+      "contexts": [],
+      "projects": [
+        {
+          "source": "+Daisy",
+          "key": "daisy",
+          "line": 4
+        },
+        {
+          "source": "+Nested",
+          "key": "nested",
+          "line": 5
+        }
+      ],
+      "tasks": [
+        {
+          "line": 4,
+          "due": null,
+          "scheduled": null,
+          "priority": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "trailing punctuation is not part of a token",
+    "source": "See #done. Ask @alex, then +ship! (#paren)",
+    "expected": {
+      "tags": [
+        {
+          "source": "#done",
+          "key": "done",
+          "line": 1
+        }
+      ],
+      "contexts": [
+        {
+          "source": "@alex",
+          "key": "alex",
+          "line": 1
+        }
+      ],
+      "projects": [
+        {
+          "source": "+ship",
+          "key": "ship",
+          "line": 1
+        }
+      ],
+      "tasks": []
+    }
+  },
+  {
+    "name": "combining marks stay in the token and decomposed spellings share a key",
+    "source": "#Café #Café @हिन्दी +ไทย",
+    "expected": {
+      "tags": [
+        {
+          "source": "#Café",
+          "key": "café",
+          "line": 1
+        },
+        {
+          "source": "#Café",
+          "key": "café",
+          "line": 1
+        }
+      ],
+      "contexts": [
+        {
+          "source": "@हिन्दी",
+          "key": "हिन्दी",
+          "line": 1
+        }
+      ],
+      "projects": [
+        {
+          "source": "+ไทย",
+          "key": "ไทย",
+          "line": 1
+        }
+      ],
+      "tasks": []
+    }
+  },
+  {
+    "name": "only dashes open frontmatter",
+    "source": "+++\ntitle = 1\n+++\n#toml",
+    "expected": {
+      "tags": [
+        {
+          "source": "#toml",
+          "key": "toml",
+          "line": 4
+        }
+      ],
+      "contexts": [],
+      "projects": [],
+      "tasks": []
+    }
+  },
+  {
+    "name": "frontmatter closes only with dashes",
+    "source": "---\na: 1\n...\n#hidden",
+    "expected": {
+      "tags": [],
+      "contexts": [],
+      "projects": [],
+      "tasks": []
+    }
+  },
+  {
+    "name": "duplicate fields keep the first and fields need a whitespace boundary",
+    "source": "- [ ] Task due:2025-01-02 due:2025-03-04 p:low p:high foo:bar\n- [ ] Glued,due:2025-05-06 x;p:high",
+    "expected": {
+      "tags": [],
+      "contexts": [],
+      "projects": [],
+      "tasks": [
+        {
+          "line": 1,
+          "due": "2025-01-02",
+          "scheduled": null,
+          "priority": "low"
+        },
+        {
+          "line": 2,
+          "due": null,
+          "scheduled": null,
+          "priority": null
+        }
+      ]
+    }
+  }
+]

@@ -17,6 +17,7 @@
 		9AC200010000000000000001 /* Markdown in Frameworks */ = {isa = PBXBuildFile; productRef = 9AC200010000000000000011 /* Markdown */; };
 		9AC200010000000000000002 /* daisy-export in Copy CLI Tool */ = {isa = PBXBuildFile; fileRef = 9AC200010000000000000010 /* daisy-export */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		9AF00000000000000000000E /* mdedit.min.js in Resources */ = {isa = PBXBuildFile; fileRef = 9AF000000000000000000110 /* mdedit.min.js */; };
+		9AF00000000000000000000F /* workspace-metadata.min.js in Resources */ = {isa = PBXBuildFile; fileRef = 9AF000000000000000000111 /* workspace-metadata.min.js */; };
 		9AF000000000000000000003 /* mermaid.min.js in Resources */ = {isa = PBXBuildFile; fileRef = 9AF000000000000000000101 /* mermaid.min.js */; };
 		9AF000000000000000000004 /* LICENSE in Resources */ = {isa = PBXBuildFile; fileRef = 9AF000000000000000000102 /* LICENSE */; };
 		9AF000000000000000000005 /* katex.min.js in Resources */ = {isa = PBXBuildFile; fileRef = 9AF000000000000000000103 /* katex.min.js */; };
@@ -91,6 +92,7 @@
 		9AF000000000000000000109 /* Highlight-LICENSE.txt */ = {isa = PBXFileReference; lastKnownFileType = text; name = "Highlight-LICENSE.txt"; path = "daisy/Vendor/Highlight/Highlight-LICENSE.txt"; sourceTree = "<group>"; };
 		9AF00000000000000000010A /* purify.min.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = purify.min.js; path = daisy/Vendor/DOMPurify/purify.min.js; sourceTree = "<group>"; };
 		9AF000000000000000000110 /* mdedit.min.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = mdedit.min.js; path = daisy/Vendor/CodeMirror/mdedit.min.js; sourceTree = "<group>"; };
+		9AF000000000000000000111 /* workspace-metadata.min.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = workspace-metadata.min.js; path = daisy/Vendor/WorkspaceMetadata/workspace-metadata.min.js; sourceTree = "<group>"; };
 		9AF00000000000000000010B /* DOMPurify-LICENSE.txt */ = {isa = PBXFileReference; lastKnownFileType = text; name = "DOMPurify-LICENSE.txt"; path = "daisy/Vendor/DOMPurify/DOMPurify-LICENSE.txt"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -141,6 +143,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Vendor/CodeMirror/mdedit.min.js,
+				Vendor/WorkspaceMetadata/workspace-metadata.min.js,
 			);
 			target = 9A0207C02FA0ED7C00092060 /* daisy */;
 		};
@@ -210,6 +213,7 @@
 				9A2040010000000000000004 /* Localizable.strings */,
 				9AC100010000000000000004 /* Resources */,
 				9AF000000000000000000110 /* mdedit.min.js */,
+				9AF000000000000000000111 /* workspace-metadata.min.js */,
 				9AF000000000000000000101 /* mermaid.min.js */,
 				9AF000000000000000000102 /* LICENSE */,
 				9AF000000000000000000103 /* katex.min.js */,
@@ -384,6 +388,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				9AF00000000000000000000E /* mdedit.min.js in Resources */,
+				9AF00000000000000000000F /* workspace-metadata.min.js in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -423,10 +428,11 @@
 			);
 			outputPaths = (
 				"$(SRCROOT)/daisy/Vendor/CodeMirror/mdedit.min.js",
+				"$(SRCROOT)/daisy/Vendor/WorkspaceMetadata/workspace-metadata.min.js",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -e\n# Builds the CodeMirror editor bundle (not checked in) when it is missing or\n# older than its sources. See scripts/editor-bundle/package.json.\ncd \"$SRCROOT/scripts/editor-bundle\"\nOUT=\"$SRCROOT/daisy/Vendor/CodeMirror/mdedit.min.js\"\nif [ -f \"$OUT\" ] && [ -z \"$(find src entry-cm.js build.mjs package.json package-lock.json -newer \"$OUT\" -print -quit 2>/dev/null)\" ]; then\n  exit 0\nfi\n# Xcode runs scripts without the user's shell profile; find Node the usual ways.\nif ! command -v node >/dev/null 2>&1; then\n  export PATH=\"$(/bin/zsh -lc 'printf %s \"$PATH\"' 2>/dev/null):$HOME/.asdf/shims:$HOME/.local/share/mise/shims:$HOME/.volta/bin:/opt/homebrew/bin:/usr/local/bin:$PATH\"\nfi\nif ! command -v node >/dev/null 2>&1; then\n  echo \"error: Node.js is required to build the editor bundle (scripts/editor-bundle). Install Node, then build again.\" >&2\n  exit 1\nfi\n[ -d node_modules ] || npm ci\nnpm run build\n";
+			shellScript = "set -e\n# Builds the CodeMirror editor and workspace metadata bundles (not checked in)\n# when either is missing or older than its sources. See\n# scripts/editor-bundle/package.json.\ncd \"$SRCROOT/scripts/editor-bundle\"\nOUT=\"$SRCROOT/daisy/Vendor/CodeMirror/mdedit.min.js\"\nMETADATA_OUT=\"$SRCROOT/daisy/Vendor/WorkspaceMetadata/workspace-metadata.min.js\"\nfresh() {\n  [ -f \"$1\" ] && [ -z \"$(find src entry-cm.js build.mjs package.json package-lock.json -newer \"$1\" -print -quit 2>/dev/null)\" ]\n}\nif fresh \"$OUT\" && fresh \"$METADATA_OUT\"; then\n  exit 0\nfi\n# Xcode runs scripts without the user's shell profile; find Node the usual ways.\nif ! command -v node >/dev/null 2>&1; then\n  export PATH=\"$(/bin/zsh -lc 'printf %s \"$PATH\"' 2>/dev/null):$HOME/.asdf/shims:$HOME/.local/share/mise/shims:$HOME/.volta/bin:/opt/homebrew/bin:/usr/local/bin:$PATH\"\nfi\nif ! command -v node >/dev/null 2>&1; then\n  echo \"error: Node.js is required to build the editor bundle (scripts/editor-bundle). Install Node, then build again.\" >&2\n  exit 1\nfi\n[ -d node_modules ] || npm ci\nnpm run build\n";
 			showEnvVarsInLog = 0;
 		};
 /* End PBXShellScriptBuildPhase section */

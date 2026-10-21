@@ -1,10 +1,11 @@
 {
   "name": "daisy-editor-bundle",
   "private": true,
-  "description": "Builds daisy/Vendor/CodeMirror/mdedit.min.js — the CodeMirror 6 live-preview markdown editor used by edit mode. Run `npm ci && npm run build` after changing entry-cm.js, src/, or bumping deps.",
+  "type": "module",
+  "description": "Builds CodeMirror editor and workspace metadata extractor bundles in daisy/Vendor. Run `npm ci && npm run build` after changing entry-cm.js, src/, or bumping deps.",
   "scripts": {
     "build": "node build.mjs",
-    "test": "npm run build && node clipboard-markdown.test.mjs && node smoke-test.mjs"
+    "test": "npm run build && node workspace-metadata.test.mjs && node clipboard-markdown.test.mjs && node smoke-test.mjs"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6",
@@ -22,6 +23,7 @@
     "@codemirror/view": "^6",
     "@lezer/common": "^1",
     "@lezer/highlight": "^1",
+    "@lezer/markdown": "^1",
     "codemirror-lang-elixir": "4.0.1",
     "codemirror-lang-hcl": "0.1.0"
   },
