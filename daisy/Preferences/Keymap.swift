@@ -19,7 +19,7 @@ enum KeymapCommand: String, CaseIterable, Hashable {
     case viewToggleSidebar = "view.toggleSidebar"
     case viewShowOutline = "view.showOutline"
     case viewShowProjectNavigator = "view.showProjectNavigator"
-    case viewToggleInspector = "view.toggleInspector"
+    case viewToggleTasks = "view.toggleTasks"
     case viewToggleEditMode = "view.toggleEditMode"
     case viewToggleToolbar = "view.toggleToolbar"
     case viewToggleAlwaysOnTop = "view.toggleAlwaysOnTop"
@@ -68,11 +68,16 @@ enum KeymapCommand: String, CaseIterable, Hashable {
     case searchOpenResultInNewTab = "search.openResultInNewTab"
     case searchOpenResultInNewWindow = "search.openResultInNewWindow"
 
+    /// Read-only compatibility names; Settings and conflicts use canonical commands.
+    static let legacyAliases: [String: KeymapCommand] = [
+        "view.toggleInspector": .viewToggleTasks
+    ]
+
     var context: KeymapContext {
         switch self {
         case .fileOmniSearch,
              .viewToggleSidebar, .viewShowOutline,
-             .viewShowProjectNavigator, .viewToggleInspector, .viewToggleEditMode, .viewToggleToolbar,
+             .viewShowProjectNavigator, .viewToggleTasks, .viewToggleEditMode, .viewToggleToolbar,
              .viewToggleAlwaysOnTop, .findFind, .findReplace, .findNext,
              .findPrevious, .findJumpToSelection, .goBack, .goForward,
              .goTodayJournal, .goPreviousJournalEntry, .goNextJournalEntry:
@@ -98,7 +103,7 @@ enum KeymapCommand: String, CaseIterable, Hashable {
         case .viewToggleSidebar: "Toggle Sidebar"
         case .viewShowOutline: "Table of Contents"
         case .viewShowProjectNavigator: "Project Navigator"
-        case .viewToggleInspector: "Inspector"
+        case .viewToggleTasks: "Tasks"
         case .viewToggleEditMode: "Toggle Edit Mode"
         case .viewToggleToolbar: "Show Toolbar"
         case .viewToggleAlwaysOnTop: "Always on Top"
@@ -308,7 +313,18 @@ struct KeymapFile {
             }
         }
 
-        self.root = root
+        // Normalize known command aliases in known sections so Settings removes
+        // their overrides correctly and every subsequent write uses the new ID.
+        self.root = .object(pairs.map { key, value in
+            guard KeymapContext(rawValue: key) != nil, case let .object(entries) = value else {
+                return (key, value)
+            }
+            return (key, .object(entries.map { binding, command in
+                guard case let .string(id) = command,
+                      let alias = KeymapCommand.legacyAliases[id] else { return (binding, command) }
+                return (binding, .string(alias.rawValue))
+            }))
+        })
         self.version = version
         self.isReadOnly = version > Self.supportedVersion
         self.diagnostics = diagnostics + (version > Self.supportedVersion
@@ -410,7 +426,8 @@ struct Keymap {
                     bindings[context]?.removeAll { $0.0 == binding }
                     continue
                 }
-                guard let command = KeymapCommand(rawValue: commandID) else {
+                guard let command = KeymapCommand.legacyAliases[commandID]
+                    ?? KeymapCommand(rawValue: commandID) else {
                     diagnostics.append("Unknown command: \(commandID)")
                     continue
                 }
@@ -458,7 +475,7 @@ struct Keymap {
         .global: pairs([
             ("cmd+k", .fileOmniSearch), ("cmd+l", .viewToggleSidebar),
             ("ctrl+cmd+1", .viewShowOutline), ("ctrl+cmd+2", .viewShowProjectNavigator),
-            ("shift+cmd+i", .viewToggleInspector),
+            ("shift+cmd+i", .viewToggleTasks),
             ("cmd+e", .viewToggleEditMode),
             ("opt+cmd+t", .viewToggleToolbar), ("ctrl+cmd+t", .viewToggleAlwaysOnTop),
             ("cmd+f", .findFind), ("opt+cmd+f", .findReplace), ("cmd+g", .findNext),

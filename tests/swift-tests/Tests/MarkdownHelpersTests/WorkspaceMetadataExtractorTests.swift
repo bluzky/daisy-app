@@ -64,8 +64,11 @@ private struct ExpectedTask: Decodable {
     let due: String?
     let scheduled: String?
     let priority: String?
+    let text: String
+    let checked: Bool
 
     var task: WorkspaceTaskMetadata {
-        WorkspaceTaskMetadata(line: line, due: due, scheduled: scheduled, priority: priority)
+        WorkspaceTaskMetadata(line: line, due: due, scheduled: scheduled, priority: priority,
+                              text: text, checked: checked)
     }
 }

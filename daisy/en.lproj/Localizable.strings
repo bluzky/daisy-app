@@ -145,11 +145,8 @@
 "Forward" = "Forward";
 "Sidebar" = "Sidebar";
 "Sidebar options" = "Sidebar options";
-"Inspector" = "Inspector";
-"Get Info" = "Get Info";
 "Always on Top" = "Always on Top";
 "Keep Daisy windows in front of other apps" = "Keep Daisy windows in front of other apps";
-"Show the inspector" = "Show the inspector";
 "Share" = "Share";
 "Share document" = "Share document";
 "Print" = "Print";
@@ -199,26 +196,9 @@
 "Open As" = "Open As";
 "No editors available" = "No editors available";
 
-/* Inspector */
-"Inspector tab" = "Inspector tab";
-"Document" = "Document";
-"Properties" = "Properties";
-"File Name" = "File Name";
-"Full Path" = "Full Path";
-"Document Type" = "Document Type";
-"Markdown Document" = "Markdown Document";
-"File Size" = "File Size";
-"Words" = "Words";
-"Characters" = "Characters";
-"Lines" = "Lines";
-"Headings" = "Headings";
-"Links" = "Links";
-"No links" = "No links";
+/* Links */
 "Open Link" = "Open Link";
 "Copy Link" = "Copy Link";
-"Images" = "Images";
-"Modified" = "Modified";
-"No frontmatter" = "No frontmatter";
 "Untitled" = "Untitled";
 
 /* Document state and save dialogs */
@@ -527,3 +507,37 @@
 "Some unfinished tasks are in two entries" = "Some unfinished tasks are in two entries";
 "They were copied to today’s entry but couldn’t be removed from %@, which changed or couldn’t be written." = "They were copied to today’s entry but couldn’t be removed from %@, which changed or couldn’t be written.";
 "“%@” in the journals folder is not a file." = "“%@” in the journals folder is not a file.";
+
+/* Tasks sidebar */
+"Tasks" = "Tasks";
+"Show tasks" = "Show tasks";
+"Tasks are available in a workspace." = "Tasks are available in a workspace.";
+"Filter Tasks" = "Filter Tasks";
+"Show Completed" = "Show Completed";
+"Show Overdue" = "Show Overdue";
+"%d due" = "%d due";
+"%d scheduled" = "%d scheduled";
+"%d done" = "%d done";
+"%d open" = "%d open";
+"%d open, %d done" = "%d open, %d done";
+"Today · %@" = "Today · %@";
+"Upcoming · Next %d Days" = "Upcoming · Next %d Days";
+"Back to Today" = "Back to Today";
+"Collapsed" = "Collapsed";
+"Expanded" = "Expanded";
+"Nothing scheduled or due" = "Nothing scheduled or due";
+"Add dates to tasks with /schedule or /due" = "Add dates to tasks with /schedule or /due";
+"Mark task complete" = "Mark task complete";
+"Mark task incomplete" = "Mark task incomplete";
+"Reveal in Files" = "Reveal in Files";
+"Copy Task Text" = "Copy Task Text";
+"due" = "due";
+"scheduled" = "scheduled";
+"Completed “%@”" = "Completed “%@”";
+"Undo" = "Undo";
+"Tasks can’t be changed here." = "Tasks can’t be changed here.";
+"The task couldn’t be changed." = "The task couldn’t be changed.";
+"%@ changed. Open to check it off." = "%@ changed. Open to check it off.";
+"The task’s file is not inside the workspace." = "The task’s file is not inside the workspace.";
+"The workspace folder changed." = "The workspace folder changed.";
+"“%@” is not a regular file." = "“%@” is not a regular file.";

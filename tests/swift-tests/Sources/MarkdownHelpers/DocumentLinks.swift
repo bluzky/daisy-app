@@ -1,1 +1,1 @@
-../../../../daisy/Features/Inspector/DocumentLinks.swift
+../../../../daisy/Document/DocumentLinks.swift

@@ -68,6 +68,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
             updateWorkspaceIndexBinding()
             mainSplit?.setMetadataLinksEnabled(isWorkspace)
             refreshJournalToolbarItem()
+            refreshTasksToggleItem()
             addJournalToolbarItemIfNeeded()
         }
     }
@@ -82,6 +83,11 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     var workspaceOverlayURL: URL?
     var workspaceOverlayWork: DispatchWorkItem?
     let workspaceOverlayOwner = UUID()
+    /// The workspace root's identity when the index was bound, so the Tasks
+    /// sidebar never writes into a root swapped for another directory.
+    var taskRootIdentity: WorkspaceFileWriter.RootIdentity?
+    /// Check-offs from the Tasks sidebar, run one after another.
+    var taskWrites: Task<Void, Never>?
     /// Fallback for controller-driven untitled content outside an NSDocument.
     let untitledDocumentID = UUID().uuidString
     var backHistory: [HistoryEntry] = []
@@ -89,11 +95,12 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     weak var navigationItem: NSToolbarItemGroup?
     private var fileWatcher: FileWatcher?
     private let fullscreenToolbarTheme = FullscreenToolbarTheme()
-    var isInspectorToggleSelected = false
+    var isTasksToggleSelected = false
     weak var openActionsItem: NSMenuToolbarItem?
     weak var openWithItem: NSMenuToolbarItem?
     weak var openInLLMItem: NSMenuToolbarItem?
-    weak var inspectorButton: NSButton?
+    weak var tasksButton: NSButton?
+    weak var tasksItem: NSToolbarItem?
     weak var alwaysOnTopButton: NSButton?
     weak var editButton: NSButton?
     var editorChangeRevision = 0
@@ -672,7 +679,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
 
     /// The currently-open file moved (Finder rename, editor save-as, etc).
     /// Update the open URL and propagate it to the title, recent docs,
-    /// Open With list, sidebar selection, and inspector — without
+    /// Open With list and sidebar selection — without
     /// re-rendering the WebView, since the markdown content didn't change.
     func handleRename(to newURL: URL) {
         guard currentFileURL != nil else { return }

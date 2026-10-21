@@ -212,9 +212,10 @@ Update this document with the answer before building.
    - Paste is plain text only (no rich-text or HTML conversion).
    - Find and Replace keeps working.
    - Save (`⌘S`) writes the raw text. Existing autosave setting applies.
-5. **Chrome.** Outline and inspector panels are hidden for code files, or
-   show an empty state. The window title and toolbar make sense without a
-   preview.
+5. **Chrome.** The outline is hidden for code files, or shows an empty
+   state. The window title and toolbar make sense without a preview. (The
+   right-hand pane, once the inspector, is now the workspace Tasks sidebar,
+   which does not depend on the open file.)
 6. **Router.** The `text` case in `openFile(_:)` stops falling through to the
    system app and opens in the code editor.
 7. **Safety.**

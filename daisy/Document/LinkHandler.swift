@@ -3,8 +3,7 @@
 //  daisy
 //
 //  Opens a link activated in a document window, the same way wherever it was
-//  activated: a click in Read mode, a click in the inspector, or Cmd+click in
-//  the editor. Markdown files open in Daisy, other files in their default
+//  activated: a click in Read mode or Cmd+click in the editor. Markdown files open in Daisy, other files in their default
 //  app, web links through the external-link policy, sections scroll the
 //  preview, and metadata tokens open their workspace page.
 //

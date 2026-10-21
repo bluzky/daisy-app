@@ -145,11 +145,8 @@
 "Forward" = "前进";
 "Sidebar" = "边栏";
 "Sidebar options" = "边栏选项";
-"Inspector" = "检查器";
-"Get Info" = "显示简介";
 "Always on Top" = "始终置顶";
 "Keep Daisy windows in front of other apps" = "让 Daisy 窗口始终显示在其他 App 前面";
-"Show the inspector" = "显示检查器";
 "Share" = "共享";
 "Share document" = "共享文稿";
 "Print" = "打印";
@@ -199,26 +196,9 @@
 "Open As" = "打开方式";
 "No editors available" = "没有可用的编辑器";
 
-/* Inspector */
-"Inspector tab" = "检查器标签页";
-"Document" = "文稿";
-"Properties" = "属性";
-"File Name" = "文件名";
-"Full Path" = "完整路径";
-"Document Type" = "文稿类型";
-"Markdown Document" = "Markdown 文稿";
-"File Size" = "文件大小";
-"Words" = "单词数";
-"Characters" = "字符数";
-"Lines" = "行数";
-"Headings" = "标题";
-"Links" = "链接";
-"No links" = "没有链接";
+/* Links */
 "Open Link" = "打开链接";
 "Copy Link" = "拷贝链接";
-"Images" = "图像";
-"Modified" = "修改日期";
-"No frontmatter" = "无前置元数据";
 "Untitled" = "未命名";
 
 /* Document state and save dialogs */
@@ -527,3 +507,37 @@
 "Some unfinished tasks are in two entries" = "部分未完成的任务出现在两篇日志中";
 "They were copied to today’s entry but couldn’t be removed from %@, which changed or couldn’t be written." = "这些任务已复制到今天的日志，但无法从 %@ 中删除：该日志已更改或无法写入。";
 "“%@” in the journals folder is not a file." = "journals 文件夹中的“%@”不是文件。";
+
+/* Tasks sidebar */
+"Tasks" = "任务";
+"Show tasks" = "显示任务";
+"Tasks are available in a workspace." = "任务仅在工作区中可用。";
+"Filter Tasks" = "筛选任务";
+"Show Completed" = "显示已完成";
+"Show Overdue" = "显示已逾期";
+"%d due" = "%d 项截止";
+"%d scheduled" = "%d 项计划";
+"%d done" = "%d 项已完成";
+"%d open" = "%d 项未完成";
+"%d open, %d done" = "%d 项未完成，%d 项已完成";
+"Today · %@" = "今天 · %@";
+"Upcoming · Next %d Days" = "即将到来 · 未来 %d 天";
+"Back to Today" = "回到今天";
+"Collapsed" = "已折叠";
+"Expanded" = "已展开";
+"Nothing scheduled or due" = "没有计划或截止的任务";
+"Add dates to tasks with /schedule or /due" = "使用 /schedule 或 /due 为任务添加日期";
+"Mark task complete" = "将任务标记为已完成";
+"Mark task incomplete" = "将任务标记为未完成";
+"Reveal in Files" = "在文件中显示";
+"Copy Task Text" = "拷贝任务文本";
+"due" = "截止";
+"scheduled" = "计划";
+"Completed “%@”" = "已完成“%@”";
+"Undo" = "撤销";
+"Tasks can’t be changed here." = "无法在此更改任务。";
+"The task couldn’t be changed." = "无法更改该任务。";
+"%@ changed. Open to check it off." = "%@ 已更改。请打开文件后再勾选。";
+"The task’s file is not inside the workspace." = "任务所在的文件不在工作区内。";
+"The workspace folder changed." = "工作区文件夹已更改。";
+"“%@” is not a regular file." = "“%@”不是普通文件。";

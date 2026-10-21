@@ -104,7 +104,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private weak var outlineMenuItem: NSMenuItem?
     private weak var filesMenuItem: NSMenuItem?
-    private weak var inspectorMenuItem: NSMenuItem?
+    private weak var tasksMenuItem: NSMenuItem?
     private weak var automaticAppearanceMenuItem: NSMenuItem?
     private weak var lightAppearanceMenuItem: NSMenuItem?
     private weak var darkAppearanceMenuItem: NSMenuItem?
@@ -564,8 +564,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         syncSidebarViewMenuState()
     }
 
-    @objc private func toggleInspectorFromMenu(_ sender: Any?) {
-        activeDocumentWindowController?.toggleInspectorFromMenu()
+    @objc private func toggleTasksFromMenu(_ sender: Any?) {
+        activeDocumentWindowController?.toggleTasksFromMenu()
         syncSidebarViewMenuState()
     }
 
@@ -599,10 +599,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case #selector(toggleSidebarFromMenu(_:)),
              #selector(selectOutlineMode(_:)),
              #selector(selectFilesMode(_:)),
-             #selector(toggleInspectorFromMenu(_:)),
              #selector(performFindPanelAction(_:)),
              #selector(performTextFinderAction(_:)):
             return activeDocumentWindowController != nil
+        case #selector(toggleTasksFromMenu(_:)):
+            let controller = activeDocumentWindowController
+            menuItem.toolTip = controller?.isWorkspace == true ? nil : L("Tasks are available in a workspace.")
+            return controller?.canToggleTasks == true
         case #selector(selectAppearanceMode(_:)):
             return ThemePreset.applied().requiredAppearance == nil
         case #selector(selectContentWidthSetting(_:)):
@@ -875,7 +878,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         switch item.action {
         case #selector(DocumentWindowController.searchForDocument(_:)): return .fileOmniSearch
         case #selector(toggleSidebarFromMenu(_:)): return .viewToggleSidebar
-        case #selector(toggleInspectorFromMenu(_:)): return .viewToggleInspector
+        case #selector(toggleTasksFromMenu(_:)): return .viewToggleTasks
         case #selector(selectOutlineMode(_:)): return .viewShowOutline
         case #selector(selectFilesMode(_:)): return .viewShowProjectNavigator
         case #selector(toggleEditModeFromMenu(_:)): return .viewToggleEditMode
@@ -1423,13 +1426,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         filesMenuItem = files
 
         // ⇧⌘I: ⌘I is Italic and ⌥⌘I the Web Inspector.
-        let inspector = makeSidebarViewMenuItem(title: L("Inspector"),
-                                                symbol: "info.circle",
-                                                keyEquivalent: "i",
-                                                modifiers: [.shift, .command],
-                                                action: #selector(toggleInspectorFromMenu(_:)))
-        viewMenu.insertItem(inspector, at: insertIndex + 3)
-        inspectorMenuItem = inspector
+        let tasks = makeSidebarViewMenuItem(title: L("Tasks"),
+                                            symbol: "checklist",
+                                            keyEquivalent: "i",
+                                            modifiers: [.shift, .command],
+                                            action: #selector(toggleTasksFromMenu(_:)))
+        viewMenu.insertItem(tasks, at: insertIndex + 3)
+        tasksMenuItem = tasks
 
         viewMenu.insertItem(.separator(), at: insertIndex + 4)
     }
@@ -1584,10 +1587,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard let state = activeDocumentWindowController?.sidebarMenuState else {
             outlineMenuItem?.state = .off
             filesMenuItem?.state = .off
-            inspectorMenuItem?.state = .off
+            tasksMenuItem?.state = .off
             return
         }
-        inspectorMenuItem?.state = activeDocumentWindowController?.isInspectorVisible == true ? .on : .off
+        tasksMenuItem?.state = activeDocumentWindowController?.isTasksVisible == true ? .on : .off
         outlineMenuItem?.state = (state.sidebarVisible && state.mode == .outline) ? .on : .off
         filesMenuItem?.state = (state.sidebarVisible && state.mode == .files) ? .on : .off
     }

@@ -17,11 +17,20 @@ nonisolated struct WorkspaceMetadataToken: Equatable {
     let line: Int
 }
 
-nonisolated struct WorkspaceTaskMetadata: Equatable {
+nonisolated struct WorkspaceTaskMetadata: Equatable, Sendable {
     let line: Int
     let due: String?
     let scheduled: String?
     let priority: String?
+    /// The marker line without its list marker, checkbox and valid fields.
+    let text: String
+    let checked: Bool
+}
+
+nonisolated struct WorkspaceIndexedTask: Equatable, Sendable, Identifiable {
+    let path: String
+    let task: WorkspaceTaskMetadata
+    var id: String { "\(path)\u{0}\(task.line)" }
 }
 
 /// Executes bundled JavaScript grammar. JavaScriptCore contexts are mutable,
@@ -171,13 +180,16 @@ nonisolated private struct Payload: Decodable {
     }
 
     nonisolated struct Task: Decodable {
+        let text: String
+        let checked: Bool
         let line: Int
         let due: String?
         let scheduled: String?
         let priority: String?
 
         var metadata: WorkspaceTaskMetadata {
-            WorkspaceTaskMetadata(line: line, due: due, scheduled: scheduled, priority: priority)
+            WorkspaceTaskMetadata(line: line, due: due, scheduled: scheduled, priority: priority,
+                                  text: text, checked: checked)
         }
     }
 }
