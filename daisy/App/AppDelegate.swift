@@ -167,6 +167,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         installWhatsNewMenuItem()
         installViewMenuItemIcons()
         QuickCaptureController.shared.applyEnabledSetting()
+        WorkspaceMetadataIndex.purgeStaleCaches()
         hasFinishedLaunching = true
         if !didReceiveOpenURLsDuringLaunch {
             scheduleDocumentPrompt(requiresNoDocuments: true, followsLaunchBehavior: true)
@@ -955,8 +956,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         fileMenu.insertItem(item, at: openIndex.map { $0 + 1 } ?? 0)
     }
 
-    /// Initialize Workspace and Remove Workspace, after Open Recent. Nil
-    /// targets resolve to the key document window, which knows its folder.
+    /// Initialize Workspace, Remove Workspace and Rebuild Workspace Index,
+    /// after Open Recent. Nil targets resolve to the key document window,
+    /// which knows its folder.
     private func installWorkspaceMenuItems() {
         guard let fileMenu = topLevelSubmenu(matching: Self.fileMenuTitles),
               fileMenu.items.first(where: {
@@ -974,6 +976,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                        keyEquivalent: ""),
             NSMenuItem(title: L("Remove Workspace"),
                        action: #selector(DocumentWindowController.removeWorkspace(_:)),
+                       keyEquivalent: ""),
+            NSMenuItem(title: L("Rebuild Workspace Index"),
+                       action: #selector(DocumentWindowController.rebuildWorkspaceIndex(_:)),
                        keyEquivalent: ""),
         ]
         for (offset, item) in items.enumerated() {

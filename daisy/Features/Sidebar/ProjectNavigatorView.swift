@@ -177,6 +177,10 @@ final class ProjectNavigatorView: NSView {
             self, selector: #selector(bookmarksDidChange),
             name: BookmarkStore.didChangeNotification, object: nil
         )
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(workspaceMarkersDidChange),
+            name: WorkspaceMarker.didChangeNotification, object: nil
+        )
 
         NSLayoutConstraint.activate([
             scrollView.topAnchor.constraint(equalTo: topAnchor),
@@ -301,6 +305,14 @@ final class ProjectNavigatorView: NSView {
     private func cancelAllWatchers() {
         for watcher in watchers.values { watcher.cancel() }
         watchers.removeAll()
+    }
+
+    /// Redraws the rows so folders that gained or lost a workspace marker
+    /// change icon; the tree itself is unchanged.
+    @objc private func workspaceMarkersDidChange() {
+        guard outlineView.numberOfRows > 0 else { return }
+        outlineView.reloadData(forRowIndexes: IndexSet(integersIn: 0..<outlineView.numberOfRows),
+                               columnIndexes: IndexSet(integer: 0))
     }
 
     private func handleFolderChange() {
@@ -1279,15 +1291,18 @@ extension ProjectNavigatorView: NSOutlineViewDelegate {
         let name: String
         let iconPath: String
         let isSelectedRow: Bool
+        let folderURL: URL?
         if let node = item as? FileNode {
             name = node.displayName
             iconPath = node.url.path
             let row = outlineView.row(forItem: node)
             isSelectedRow = row >= 0 && row == outlineView.selectedRow
+            folderURL = node.isDirectory ? node.url : nil
         } else if let node = item as? BookmarkNode {
             name = node.displayName
             iconPath = node.url?.path ?? node.bookmark.path
             isSelectedRow = false
+            folderURL = node.bookmark.isDirectory ? node.url : nil
         } else {
             return nil
         }
@@ -1327,7 +1342,11 @@ extension ProjectNavigatorView: NSOutlineViewDelegate {
         cell.textField?.stringValue = name
         let icon = NSWorkspace.shared.icon(forFile: iconPath)
         icon.size = NSSize(width: 16, height: 16)
-        cell.imageView?.image = icon
+        if let folderURL, WorkspaceMarker.isWorkspace(root: folderURL) {
+            cell.imageView?.image = Self.workspaceIcon(folder: icon, accent: themeAccent ?? .controlAccentColor)
+        } else {
+            cell.imageView?.image = icon
+        }
         let isNotPreviewable = (item as? FileNode).map { !$0.isPreviewable } ?? false
         let isMissing = ((item as? BookmarkNode).map { $0.url == nil } ?? false) || isNotPreviewable
         cell.imageView?.alphaValue = isMissing ? 0.4 : 1
@@ -1338,6 +1357,18 @@ extension ProjectNavigatorView: NSOutlineViewDelegate {
             ? (themeAccent ?? .controlAccentColor)
             : (isMissing ? .tertiaryLabelColor : .labelColor)
         return cell
+    }
+
+    /// The `book.pages` symbol in the accent color in place of the folder
+    /// icon, so a workspace stands out from plain folders. Falls back to
+    /// the folder icon if the symbol is missing.
+    private static func workspaceIcon(folder: NSImage, accent: NSColor) -> NSImage {
+        let configuration = NSImage.SymbolConfiguration(pointSize: 13, weight: .regular)
+            .applying(NSImage.SymbolConfiguration(paletteColors: [accent]))
+        let description = NSLocalizedString("Workspace", comment: "Project navigator icon description for a workspace folder")
+        guard let symbol = NSImage(systemSymbolName: "book.pages", accessibilityDescription: description)?
+            .withSymbolConfiguration(configuration) else { return folder }
+        return symbol
     }
 
     private func sectionHeaderCell(title: String, identifier rawIdentifier: String) -> NSView {

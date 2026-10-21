@@ -4,11 +4,14 @@
 //
 //  The tags, contexts and projects of one workspace's saved Markdown files,
 //  with unsaved buffers standing in for their files. One index serves every
-//  workspace window on a root. It only reads the workspace and keeps
-//  everything in memory; completion asks it for nothing, because editors are
-//  handed snapshots. Kept free of AppKit so the helper tests can drive it.
+//  workspace window on a root. It only reads the workspace; what it read is
+//  kept in memory and copied to a `WorkspaceIndexStore` outside the
+//  workspace, so the next open starts from the copy instead of an empty
+//  scan. Completion asks it for nothing, because editors are handed
+//  snapshots. Kept free of AppKit so the helper tests can drive it.
 //
 
+import CryptoKit
 import Foundation
 import Synchronization
 
@@ -74,6 +77,11 @@ nonisolated struct WorkspaceMetadataContribution: Sendable, Equatable {
         add(metadata.projects, as: .project)
     }
 
+    /// `count` more occurrences of `spelling`, as a stored row records them.
+    mutating func add(kind: WorkspaceMetadataKind, key: String, spelling: String, count: Int) {
+        names[kind, default: [:]][key, default: [:]][spelling, default: 0] += count
+    }
+
     private mutating func add(_ tokens: [WorkspaceMetadataToken], as kind: WorkspaceMetadataKind) {
         for token in tokens {
             // Every marker is one character: `#`, `@` or `+`.
@@ -130,10 +138,19 @@ actor WorkspaceMetadataIndex {
 
     nonisolated let root: URL
     private let limits: Limits
+    /// Where the store's file goes; nil keeps everything in memory.
+    private let cacheDirectory: URL?
 
     private nonisolated struct Fingerprint: Sendable, Equatable {
         let modificationDate: Date?
         let size: Int?
+    }
+
+    private nonisolated struct FileEntry: Sendable, Equatable {
+        let fingerprint: Fingerprint
+        /// SHA-256 of the bytes the contribution was extracted from.
+        let hash: Data
+        let contribution: WorkspaceMetadataContribution
     }
 
     private nonisolated struct DiscoveredFile: Sendable {
@@ -143,12 +160,12 @@ actor WorkspaceMetadataIndex {
     }
 
     private nonisolated enum FileRead: Sendable {
-        case parsed(Fingerprint, WorkspaceMetadataContribution)
+        case parsed(FileEntry)
         /// Gone, or too large, unreadable or not UTF-8: it contributes nothing.
         case excluded
     }
 
-    private var files: [String: (fingerprint: Fingerprint, contribution: WorkspaceMetadataContribution)] = [:]
+    private var files: [String: FileEntry] = [:]
     /// Unsaved buffers by file, latest last; the latest stands in for the file.
     private var overlays: [String: [(owner: UUID, contribution: WorkspaceMetadataContribution)]] = [:]
     private var aggregate = WorkspaceMetadataContribution()
@@ -161,13 +178,24 @@ actor WorkspaceMetadataIndex {
 
     private var reconcileTask: Task<Void, Never>?
     private var reconcileRequested = false
+
+    private var store: WorkspaceIndexStore?
+    /// The cache has been read, or given up on, before the first scan.
+    private var isCacheLoaded = false
+    /// Remove Workspace deleted the cache; nothing is written again.
+    private var isCacheDiscarded = false
+    /// Files whose saved entry changed since the store last got them.
+    private var unsavedPaths: Set<String> = []
+    private var flushTask: Task<Void, Never>?
+
     private var watcher: WorkspaceDirectoryWatcher?
     private var subscribers: [UUID: AsyncStream<WorkspaceMetadataSnapshot>.Continuation] = [:]
     private var latest: WorkspaceMetadataSnapshot?
 
-    init(root: URL, limits: Limits = Limits()) {
+    init(root: URL, limits: Limits = Limits(), cacheDirectory: URL? = nil) {
         self.root = Self.canonicalRoot(root)
         self.limits = limits
+        self.cacheDirectory = cacheDirectory
     }
 
     // MARK: - Snapshots
@@ -225,13 +253,22 @@ actor WorkspaceMetadataIndex {
         Task { await reconcile() }
     }
 
-    func stop() {
+    /// Stops watching, then returns once what was pending is saved and the
+    /// store is closed.
+    func stop() async {
         isStopped = true
         watcher?.stop()
         watcher = nil
         reconcileTask?.cancel()
         for continuation in subscribers.values { continuation.finish() }
         subscribers.removeAll()
+        await flushCache()
+        await closeStore()
+    }
+
+    private func closeStore() async {
+        await store?.close()
+        store = nil
     }
 
     private func handle(_ change: WorkspaceDirectoryWatcher.Change) async {
@@ -259,6 +296,10 @@ actor WorkspaceMetadataIndex {
     }
 
     private func runReconcileLoop() async {
+        if !isCacheLoaded {
+            isCacheLoaded = true
+            await loadCache()
+        }
         repeat {
             reconcileRequested = false
             await reconcileOnce()
@@ -283,9 +324,11 @@ actor WorkspaceMetadataIndex {
             await read(batch)
             start += batch.count
             if !isComplete { publish() }
+            scheduleFlush()
         }
         isComplete = true
         publish()
+        scheduleFlush()
     }
 
     /// Re-reads or drops each of these files: saved, created, renamed or
@@ -303,6 +346,7 @@ actor WorkspaceMetadataIndex {
         guard !batch.isEmpty else { return }
         await read(batch)
         publish()
+        scheduleFlush()
     }
 
     private func read(_ batch: [DiscoveredFile]) async {
@@ -313,18 +357,22 @@ actor WorkspaceMetadataIndex {
             generations[file.relativePath] = generation
         }
         let limits = limits
+        // Bytes that hash the same as last time keep their names unread.
+        let known = files
         let results = await withTaskGroup(of: (String, FileRead).self) { group in
             var results: [(String, FileRead)] = []
             var iterator = batch.makeIterator()
+            func addRead(_ file: DiscoveredFile) {
+                let previous = known[file.relativePath]
+                group.addTask { (file.relativePath, await Self.readFile(file.url, limits: limits, previous: previous)) }
+            }
             for _ in 0..<limits.concurrency {
                 guard let file = iterator.next() else { break }
-                group.addTask { (file.relativePath, await Self.readFile(file.url, limits: limits)) }
+                addRead(file)
             }
             while let result = await group.next() {
                 results.append(result)
-                if let file = iterator.next() {
-                    group.addTask { (file.relativePath, await Self.readFile(file.url, limits: limits)) }
-                }
+                if let file = iterator.next() { addRead(file) }
             }
             return results
         }
@@ -335,10 +383,122 @@ actor WorkspaceMetadataIndex {
 
     private func apply(_ result: FileRead, at path: String) {
         switch result {
-        case let .parsed(fingerprint, contribution):
-            setFile((fingerprint, contribution), at: path)
+        case let .parsed(entry):
+            setFile(entry, at: path)
         case .excluded:
             setFile(nil, at: path)
+        }
+    }
+
+    // MARK: - Cache
+
+    /// Whether what the index reads is being saved to the store.
+    var isCachePersistent: Bool { store != nil }
+
+    /// Opens the store and counts every file it holds, as of when the store
+    /// last saw it; the first scan then re-reads only what changed since.
+    /// Nothing is cached when the cache folder is inside the workspace,
+    /// because Daisy writes nothing there but the marker and pages.
+    private func loadCache() async {
+        guard let directory = cacheDirectory, !isCacheDiscarded,
+              !Self.isInside(directory, root: root),
+              let parserVersion = WorkspaceMetadataExtractor.parserVersion else { return }
+        do {
+            let store = try await WorkspaceIndexStore.open(root: root, in: directory, parserVersion: parserVersion)
+            let records = try await store.load()
+            guard !isStopped, !isCacheDiscarded else {
+                await store.close()
+                if isCacheDiscarded { WorkspaceIndexStore.deleteCache(root: root, in: directory) }
+                return
+            }
+            self.store = store
+            // A file read while the store opened is newer than its row.
+            for (path, record) in records where files[path] == nil && readGenerations[path] == nil {
+                setFile(FileEntry(fingerprint: Fingerprint(modificationDate: record.modificationDate, size: record.size),
+                                  hash: record.hash, contribution: record.contribution), at: path)
+                // The store already has it.
+                unsavedPaths.remove(path)
+            }
+            if !records.isEmpty { publish() }
+        } catch {
+            await closeStore()
+        }
+    }
+
+    nonisolated private static func isInside(_ url: URL, root: URL) -> Bool {
+        let components = canonicalRoot(url).pathComponents
+        let rootComponents = root.pathComponents
+        return components.count >= rootComponents.count
+            && Array(components.prefix(rootComponents.count)) == rootComponents
+    }
+
+    /// Saves every changed file, in order, one write at a time. A store
+    /// that fails is dropped and the index carries on in memory.
+    private func scheduleFlush() {
+        guard store != nil, flushTask == nil, !unsavedPaths.isEmpty else { return }
+        flushTask = Task { await runFlushLoop() }
+    }
+
+    private func runFlushLoop() async {
+        while let store, !unsavedPaths.isEmpty {
+            let changes = unsavedPaths.sorted().map { path in
+                (path: path, record: files[path].map {
+                    WorkspaceIndexStore.Record(modificationDate: $0.fingerprint.modificationDate,
+                                               size: $0.fingerprint.size, hash: $0.hash,
+                                               contribution: $0.contribution)
+                })
+            }
+            unsavedPaths.removeAll()
+            do {
+                try await store.write(changes)
+            } catch {
+                if self.store === store { await closeStore() }
+            }
+        }
+        flushTask = nil
+    }
+
+    /// Waits until every change so far is in the store.
+    func flushCache() async {
+        while let running = flushTask { await running.value }
+    }
+
+    /// Deletes this workspace's cache file only and indexes the workspace
+    /// again from nothing, saving a new file. Unsaved buffers still count.
+    /// A store that had failed is tried again.
+    func rebuildCache() async {
+        guard !isStopped else { return }
+        if let running = reconcileTask { await running.value }
+        await flushTask?.value
+        isCacheDiscarded = false
+        if let store {
+            do {
+                try await store.reset()
+            } catch {
+                // Open it again, from nothing, before the scan below.
+                await closeStore()
+                isCacheLoaded = false
+            }
+        } else if let directory = cacheDirectory {
+            WorkspaceIndexStore.deleteCache(root: root, in: directory)
+            isCacheLoaded = false
+        }
+        for path in files.keys { setFile(nil, at: path) }
+        unsavedPaths.removeAll()
+        isComplete = false
+        publish()
+        await reconcile()
+    }
+
+    /// Closes and deletes this workspace's cache, for Remove Workspace, and
+    /// writes no other.
+    func discardCache() async {
+        isCacheDiscarded = true
+        isCacheLoaded = true
+        await flushTask?.value
+        await closeStore()
+        if let directory = cacheDirectory {
+            WorkspaceIndexStore.deleteCache(root: root, in: directory)
         }
     }
 
@@ -368,6 +528,7 @@ actor WorkspaceMetadataIndex {
                                   fingerprint: Fingerprint(modificationDate: nil, size: nil))
         if !isTruncated || files[path] != nil {
             await read([file])
+            scheduleFlush()
         }
         let effective = effectiveContribution(at: path)
         overlays[path]?.removeAll { $0.owner == owner }
@@ -382,9 +543,9 @@ actor WorkspaceMetadataIndex {
         overlays[path]?.last?.contribution ?? files[path]?.contribution
     }
 
-    private func setFile(_ entry: (fingerprint: Fingerprint, contribution: WorkspaceMetadataContribution)?,
-                         at path: String) {
+    private func setFile(_ entry: FileEntry?, at path: String) {
         let effective = effectiveContribution(at: path)
+        if files[path] != entry { unsavedPaths.insert(path) }
         files[path] = entry
         replaceEffective(effective, at: path)
     }
@@ -446,16 +607,21 @@ actor WorkspaceMetadataIndex {
     }
 
     @concurrent
-    nonisolated private static func readFile(_ url: URL, limits: Limits) async -> FileRead {
+    nonisolated private static func readFile(_ url: URL, limits: Limits, previous: FileEntry?) async -> FileRead {
         let keys: Set<URLResourceKey> = [.contentModificationDateKey, .fileSizeKey, .isRegularFileKey]
         guard let values = try? url.resourceValues(forKeys: keys),
               values.isRegularFile == true else { return .excluded }
         guard let size = values.fileSize, size <= limits.maximumFileSize,
-              let data = try? Data(contentsOf: url),
-              let markdown = String(data: data, encoding: .utf8),
+              let data = try? Data(contentsOf: url) else { return .excluded }
+        let fingerprint = Fingerprint(modificationDate: values.contentModificationDate, size: size)
+        let hash = Data(SHA256.hash(data: data))
+        if let previous, previous.hash == hash {
+            return .parsed(FileEntry(fingerprint: fingerprint, hash: hash, contribution: previous.contribution))
+        }
+        guard let markdown = String(data: data, encoding: .utf8),
               let metadata = WorkspaceMetadataExtractor.extract(markdown) else { return .excluded }
-        return .parsed(Fingerprint(modificationDate: values.contentModificationDate, size: size),
-                       WorkspaceMetadataContribution(metadata))
+        return .parsed(FileEntry(fingerprint: fingerprint, hash: hash,
+                                 contribution: WorkspaceMetadataContribution(metadata)))
     }
 
     @concurrent
@@ -471,6 +637,9 @@ extension WorkspaceMetadataIndex {
     /// reopening a window does not rescan.
     @MainActor static var idleReleaseInterval: Duration = .seconds(60)
 
+    /// Where acquired indexes keep their caches; nil keeps them in memory.
+    @MainActor static var cacheDirectory: URL? = WorkspaceIndexStore.defaultDirectory
+
     @MainActor private static var entries: [URL: (index: WorkspaceMetadataIndex, users: Int, generation: Int)] = [:]
 
     /// The index for `root`, started, shared with every other user of the
@@ -481,7 +650,7 @@ extension WorkspaceMetadataIndex {
             entries[key] = (entry.index, entry.users + 1, entry.generation + 1)
             return entry.index
         }
-        let index = WorkspaceMetadataIndex(root: key)
+        let index = WorkspaceMetadataIndex(root: key, cacheDirectory: cacheDirectory)
         entries[key] = (index, 1, 0)
         Task { await index.start() }
         return index
@@ -507,6 +676,29 @@ extension WorkspaceMetadataIndex {
     /// Indexes still held, by canonical root. For tests.
     @MainActor static func existingIndex(root: URL) -> WorkspaceMetadataIndex? {
         entries[canonicalRoot(root)]?.index
+    }
+
+    /// Deletes the workspace's cache, through its index when one is held,
+    /// for Remove Workspace.
+    @MainActor static func discardCache(root: URL) {
+        let key = canonicalRoot(root)
+        if let index = entries[key]?.index {
+            Task { await index.discardCache() }
+        } else if let directory = cacheDirectory {
+            Task.detached(priority: .utility) { WorkspaceIndexStore.deleteCache(root: key, in: directory) }
+        }
+    }
+
+    /// Rebuilds the cache of the workspace on `root`, if it is indexed.
+    @MainActor static func rebuildCache(root: URL) {
+        guard let index = entries[canonicalRoot(root)]?.index else { return }
+        Task { await index.rebuildCache() }
+    }
+
+    /// Deletes caches of workspaces not opened for 30 days, at launch.
+    @MainActor static func purgeStaleCaches() {
+        guard let directory = cacheDirectory else { return }
+        Task.detached(priority: .background) { WorkspaceIndexStore.purgeStaleCaches(in: directory) }
     }
 
     /// Reconciles every index, as when Daisy becomes active again.

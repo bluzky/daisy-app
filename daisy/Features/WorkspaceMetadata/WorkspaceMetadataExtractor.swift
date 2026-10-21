@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import JavaScriptCore
 
@@ -36,6 +37,15 @@ nonisolated enum WorkspaceMetadataExtractor {
         pool = EnginePool(source: source)
     }
 
+    /// SHA-256 of the extractor script, nil when it is missing. A cache of
+    /// extracted names is valid only for the script that extracted them.
+    static var parserVersion: String? {
+        lock.lock()
+        defer { lock.unlock() }
+        loadBundledPoolIfNeeded()
+        return pool?.version
+    }
+
     /// Nil when the bundle is missing or the script fails. Callers must not
     /// treat that as a file with no metadata, or an index would cache it.
     static func extract(_ markdown: String) -> WorkspaceMetadata? {
@@ -47,18 +57,24 @@ nonisolated enum WorkspaceMetadataExtractor {
 
     private static func withEngine<Result>(_ body: (Engine) -> Result?) -> Result? {
         lock.lock()
-        if pool == nil, let source = VendorResource.string(
-            "workspace-metadata.min", ext: "js", subdir: "Vendor/WorkspaceMetadata"
-        ) {
-            pool = EnginePool(source: source)
-        }
+        loadBundledPoolIfNeeded()
         let activePool = pool
         lock.unlock()
         return activePool?.withEngine(body)
     }
 
+    /// Call holding `lock`.
+    private static func loadBundledPoolIfNeeded() {
+        if pool == nil, let source = VendorResource.string(
+            "workspace-metadata.min", ext: "js", subdir: "Vendor/WorkspaceMetadata"
+        ) {
+            pool = EnginePool(source: source)
+        }
+    }
+
     private final class EnginePool: @unchecked Sendable {
         private let source: String
+        let version: String
         private let maximumCount = min(4, max(1, ProcessInfo.processInfo.activeProcessorCount))
         private let condition = NSCondition()
         private var available: [Engine] = []
@@ -66,6 +82,7 @@ nonisolated enum WorkspaceMetadataExtractor {
 
         init(source: String) {
             self.source = source
+            version = SHA256.hash(data: Data(source.utf8)).map { String(format: "%02x", $0) }.joined()
         }
 
         func withEngine<Result>(_ body: (Engine) -> Result?) -> Result? {

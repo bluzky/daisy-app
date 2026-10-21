@@ -319,6 +319,13 @@
 "OmniSearch…" = "OmniSearch…";
 "Initialize Workspace" = "初始化工作区";
 "Remove Workspace" = "移除工作区";
+"Rebuild Workspace Index" = "重建工作区索引";
+"Workspace" = "工作区";
+
+/* Metadata suggestions */
+"Indexing workspace…" = "正在索引工作区…";
+"Some files are not indexed: the workspace is over the file limit." = "部分文件未编入索引：工作区超出了文件数量上限。";
+
 "Search files and commands" = "搜索文件和命令";
 "Link to a file in this project" = "链接到此项目中的文件";
 "Type a file name to link to" = "输入要链接的文件名";

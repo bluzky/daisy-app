@@ -59,6 +59,8 @@ import { addDays, addMonths, formatLocalDate, parseLocalDate } from "./dates.js"
 //   text(key, fallback)    Localized interface text ("previousMonth", "nextMonth").
 //   levelLabel(level, session)
 //                          Back-row text shown at the top of a submenu.
+//   footer(level, session) Status text under the rows, or null for none. It is
+//                          not a row: it cannot be selected or accepted.
 export function completionExtensions(provider) {
   const prefix = `cm-md-${provider.classPrefix}`
   const dataKey = (name) => `${provider.classPrefix}${name}`
@@ -127,7 +129,8 @@ export function completionExtensions(provider) {
         if (effect.is(move)) index = (index + effect.value + items.length) % items.length
         else if (effect.is(pick)) index = Math.max(0, Math.min(effect.value, items.length - 1))
       }
-      return { ...trigger, items, index, dismissed, level, base, filter: query }
+      const footer = provider.footer ? provider.footer(level, trigger) : null
+      return { ...trigger, items, index, dismissed, level, base, filter: query, footer }
     },
   })
 
@@ -243,7 +246,7 @@ export function completionExtensions(provider) {
       }
       const key = state.calendar
         ? `${state.level}|calendar|${state.date}`
-        : `${state.level}|${state.query}|${state.items.map((item) => item.id).join(",")}`
+        : `${state.level}|${state.query}|${state.items.map((item) => item.id).join(",")}|${state.footer || ""}`
       if (this.key !== key || this.dom.hidden) this.rebuild(state)
       this.key = key
       let selected = null
@@ -316,6 +319,11 @@ export function completionExtensions(provider) {
         if (item.submenu && item.chevron !== false) row.appendChild(make("span", `${prefix}-chevron`, "›"))
         this.dom.appendChild(row)
       })
+      if (state.footer) {
+        const footer = make("div", `${prefix}-footer`, state.footer)
+        footer.setAttribute("role", "status")
+        this.dom.appendChild(footer)
+      }
       this.dom.scrollTop = 0
     }
 
