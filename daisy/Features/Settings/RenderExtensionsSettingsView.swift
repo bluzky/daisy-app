@@ -60,10 +60,52 @@ struct RenderExtensionsSettingsView: View {
             } footer: {
                 Text(L("These settings apply to document windows and Quick Look previews. Extensions marked Preview & Editor also apply in editor mode."))
             }
+
+            journalSection
         }
         .formStyle(.grouped)
         .onAppear {
             model.refreshFromExternalSources()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: TemplateStore.didChangeNotification)) { _ in
+            model.refreshTemplates()
+        }
+    }
+
+    /// The Journal extension: on or off, and the template new entries use.
+    private var journalSection: some View {
+        Section {
+            Toggle(isOn: $model.journalEnabled) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(L("Journal"))
+                    Text(L("Workspace windows"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            LabeledContent {
+                Picker("", selection: $model.journalTemplateName) {
+                    Text(L("None")).tag(String?.none)
+                    if let name = model.journalTemplateName, !model.templateNames.contains(name) {
+                        Text(String(format: L("%@ (not found)"), name)).tag(String?.some(name))
+                    }
+                    ForEach(model.templateNames, id: \.self) { name in
+                        Text(name).tag(String?.some(name))
+                    }
+                }
+                .labelsHidden()
+                .fixedSize()
+            } label: {
+                Text(L("New entry template"))
+                Text(model.templateFilePath == nil
+                     ? L("Choose a template file in General to use one.")
+                     : L("Used when an entry is first created."))
+            }
+            .disabled(!model.journalEnabled)
+        } header: {
+            Text(L("Workspace"))
+        } footer: {
+            Text(L("The Journal button in the toolbar and the Go menu open one Markdown file per day in the workspace’s journals folder. In a template, {{date}} and {{weekday}} are the entry’s day. With no template, an entry starts with just its date."))
         }
     }
 }

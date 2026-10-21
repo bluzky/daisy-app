@@ -33,6 +33,9 @@ enum KeymapCommand: String, CaseIterable, Hashable {
 
     case goBack = "go.back"
     case goForward = "go.forward"
+    case goTodayJournal = "go.todayJournal"
+    case goPreviousJournalEntry = "go.previousJournalEntry"
+    case goNextJournalEntry = "go.nextJournalEntry"
 
     case goLineUp = "go.lineUp"
     case goLineDown = "go.lineDown"
@@ -70,7 +73,8 @@ enum KeymapCommand: String, CaseIterable, Hashable {
              .viewToggleSidebar, .viewShowOutline,
              .viewShowProjectNavigator, .viewToggleInspector, .viewToggleEditMode, .viewToggleToolbar,
              .viewToggleAlwaysOnTop, .findFind, .findReplace, .findNext,
-             .findPrevious, .findJumpToSelection, .goBack, .goForward:
+             .findPrevious, .findJumpToSelection, .goBack, .goForward,
+             .goTodayJournal, .goPreviousJournalEntry, .goNextJournalEntry:
             .global
         case .goLineUp, .goLineDown, .goPageUp, .goPageDown,
              .goPreviousItem, .goNextItem, .goTop, .goBottom:
@@ -105,6 +109,9 @@ enum KeymapCommand: String, CaseIterable, Hashable {
         case .findJumpToSelection: "Jump to Selection"
         case .goBack: "Back"
         case .goForward: "Forward"
+        case .goTodayJournal: "Today’s Journal"
+        case .goPreviousJournalEntry: "Previous Journal Entry"
+        case .goNextJournalEntry: "Next Journal Entry"
         case .goLineUp: "Up"
         case .goLineDown: "Down"
         case .goPageUp: "Page Up"
@@ -454,7 +461,9 @@ struct Keymap {
             ("opt+cmd+t", .viewToggleToolbar), ("ctrl+cmd+t", .viewToggleAlwaysOnTop),
             ("cmd+f", .findFind), ("opt+cmd+f", .findReplace), ("cmd+g", .findNext),
             ("shift+cmd+g", .findPrevious), ("cmd+j", .findJumpToSelection),
-            ("cmd+[", .goBack), ("cmd+]", .goForward)
+            ("cmd+[", .goBack), ("cmd+]", .goForward),
+            ("shift+cmd+j", .goTodayJournal),
+            ("opt+cmd+left", .goPreviousJournalEntry), ("opt+cmd+right", .goNextJournalEntry)
         ]),
         .reading: pairs([
             ("up", .goLineUp), ("down", .goLineDown), ("pageup", .goPageUp),

@@ -176,7 +176,8 @@ final class SettingsModel {
 
     func refreshTemplates() {
         templateFilePath = TemplateStore.fileDisplayPath
-        templateCount = TemplateStore.load().count
+        templateNames = TemplateStore.load().map(\.name)
+        templateCount = templateNames.count
     }
 
     var launchBehavior: LaunchBehaviorSetting {
@@ -228,6 +229,25 @@ final class SettingsModel {
     }
 
     var enabledRenderExtensionIDs: Set<String>
+
+    var journalEnabled: Bool {
+        didSet {
+            guard !isRestoringExternalValues, journalEnabled != oldValue else { return }
+            appDelegate?.applyJournalEnabledSetting(journalEnabled)
+        }
+    }
+
+    /// The template new journal entries start from, by name; nil for none.
+    /// A plain stored default, read each time an entry is created.
+    var journalTemplateName: String? {
+        didSet {
+            guard !isRestoringExternalValues, journalTemplateName != oldValue else { return }
+            JournalSetting.templateName = journalTemplateName
+        }
+    }
+
+    /// Template names for the journal picker, re-read with the file.
+    var templateNames: [String] = []
 
     func setThemeColor(_ color: NSColor, slot: ThemeColorSlot, scheme: ThemeColorScheme) {
         var colors = themeColors
@@ -355,10 +375,14 @@ final class SettingsModel {
         quickCaptureShortcut = QuickCaptureShortcut.current()
         quickCaptureFolderPath = QuickCaptureStore.folderDisplayPath
         templateFilePath = TemplateStore.fileDisplayPath
-        templateCount = TemplateStore.load().count
+        let names = TemplateStore.load().map(\.name)
+        templateNames = names
+        templateCount = names.count
         opensMarkdownLinksInNewWindows = UserDefaults.standard.bool(forKey: "MarkdownPreview.opensMarkdownLinksInNewWindows")
         themeColors = ThemeColorsSetting.current
         enabledRenderExtensionIDs = RenderExtensionPreferences.currentConfiguration.enabledIDs
+        journalEnabled = JournalSetting.isEnabled
+        journalTemplateName = JournalSetting.templateName
         sharesAnonymousUsageAnalytics = UsageAnalyticsReporter.isEnabled
         checksForUpdatesAutomatically = updater?.automaticallyChecksForUpdates ?? true
         downloadsUpdatesAutomatically = updater?.automaticallyDownloadsUpdates ?? false
@@ -423,6 +447,8 @@ final class SettingsModel {
         opensMarkdownLinksInNewWindows = UserDefaults.standard.bool(forKey: "MarkdownPreview.opensMarkdownLinksInNewWindows")
         themeColors = ThemeColorsSetting.current
         enabledRenderExtensionIDs = RenderExtensionPreferences.currentConfiguration.enabledIDs
+        journalEnabled = JournalSetting.isEnabled
+        journalTemplateName = JournalSetting.templateName
         sharesAnonymousUsageAnalytics = UsageAnalyticsReporter.isEnabled
         if let updater { refreshUpdateSettings(from: updater) }
     }

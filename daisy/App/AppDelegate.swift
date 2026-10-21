@@ -112,6 +112,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private weak var normalContentWidthMenuItem: NSMenuItem?
     private weak var fullContentWidthMenuItem: NSMenuItem?
     private var keymapMenuItems: [KeymapCommand: NSMenuItem] = [:]
+    /// The Go menu's journal items and their trailing separator, hidden while
+    /// the Journal extension is off.
+    private var journalMenuItems: [NSMenuItem] = []
     private var firstResponderObservation: NSKeyValueObservation?
     private var isDocumentPromptScheduled = false
     private var documentPromptScheduleGeneration = 0
@@ -415,6 +418,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     /// Re-render open documents with a fresh extension snapshot. Quick Look
     /// reads same app-group value when it creates its next preview.
+    /// Turns the Journal extension on or off: the Go menu's journal items
+    /// and every window's toolbar calendar.
+    func applyJournalEnabledSetting(_ enabled: Bool) {
+        guard enabled != JournalSetting.isEnabled else { return }
+        JournalSetting.isEnabled = enabled
+        journalMenuItems.forEach { $0.isHidden = !enabled }
+        documentWindowControllers.forEach { $0.applyJournalEnabledSetting() }
+    }
+
     func applyRenderExtensionPreferences(_ enabledIDs: Set<String>) {
         let current = RenderExtensionPreferences.currentConfiguration.enabledIDs
         guard enabledIDs != current else { return }
@@ -878,6 +890,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case #selector(DocumentWindowController.toggleAlwaysOnTop(_:)): return .viewToggleAlwaysOnTop
         case #selector(DocumentWindowController.goBackInHistory(_:)): return .goBack
         case #selector(DocumentWindowController.goForwardInHistory(_:)): return .goForward
+        case #selector(DocumentWindowController.openTodayJournal(_:)): return .goTodayJournal
+        case #selector(DocumentWindowController.openPreviousJournalEntry(_:)): return .goPreviousJournalEntry
+        case #selector(DocumentWindowController.openNextJournalEntry(_:)): return .goNextJournalEntry
         case #selector(insertLinkToFileFromMenu(_:)): return .insertLinkToFile
         case #selector(NSResponder.scrollLineUp(_:)): return .goLineUp
         case #selector(NSResponder.scrollLineDown(_:)): return .goLineDown
@@ -1084,6 +1099,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                               symbol: "chevron.forward"))
 
         menu.addItem(.separator())
+
+        // Workspace journal; enabled by the key window (see
+        // DocumentWindowController+Journal.swift).
+        journalMenuItems = [
+            makeItem("Today’s Journal",
+                     action: #selector(DocumentWindowController.openTodayJournal(_:)),
+                     keyEquivalent: "j",
+                     modifiers: [.command, .shift],
+                     symbol: "calendar"),
+            makeItem("Previous Journal Entry",
+                     action: #selector(DocumentWindowController.openPreviousJournalEntry(_:)),
+                     keyEquivalent: arrow(NSLeftArrowFunctionKey),
+                     modifiers: [.command, .option],
+                     symbol: "chevron.left.circle"),
+            makeItem("Next Journal Entry",
+                     action: #selector(DocumentWindowController.openNextJournalEntry(_:)),
+                     keyEquivalent: arrow(NSRightArrowFunctionKey),
+                     modifiers: [.command, .option],
+                     symbol: "chevron.right.circle"),
+            .separator(),
+        ]
+        journalMenuItems.forEach(menu.addItem)
+        journalMenuItems.forEach { $0.isHidden = !JournalSetting.isEnabled }
 
         menu.addItem(makeItem("Up",
                               action: #selector(NSResponder.scrollLineUp(_:)),

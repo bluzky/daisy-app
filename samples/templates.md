@@ -12,6 +12,20 @@ Variables are filled in when a template is inserted: `{{date}}`, `{{time}}`,
 `{{datetime}}` and `{{weekday}}`. `{{cursor}}` isn't inserted; it marks where the
 caret lands. Write `\{{` for a literal `{{`.
 
+Pick one, such as Journal below, in **Settings → Extensions → New entry
+template** to start each new journal entry in a workspace from it; there
+`{{date}}` and `{{weekday}}` are the entry's day.
+
+<!-- template: Journal -->
+
+# {{date}} — {{weekday}}
+
+## Plan
+
+- [ ] {{cursor}}
+
+## Notes
+
 <!-- template: Meeting notes -->
 
 # Meeting — {{date}} ({{weekday}})

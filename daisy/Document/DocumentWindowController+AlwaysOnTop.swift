@@ -70,6 +70,9 @@ extension DocumentWindowController {
         if let isEnabled = validateWorkspaceMenuItem(menuItem) {
             return isEnabled
         }
+        if let isEnabled = validateJournalMenuItem(menuItem) {
+            return isEnabled
+        }
         syncSidebarToolbarState()
         return true
     }

@@ -28,6 +28,7 @@ extension NSToolbarItem.Identifier {
     static let editDocument = NSToolbarItem.Identifier("EditDocument")
     static let navigation = NSToolbarItem.Identifier("Navigation")
     static let alwaysOnTop = NSToolbarItem.Identifier("AlwaysOnTop")
+    static let journalCalendar = NSToolbarItem.Identifier("JournalCalendar")
 }
 
 private extension Array where Element == NSToolbarItem.Identifier {
@@ -107,7 +108,8 @@ extension DocumentWindowController {
             .copyMarkdown,
             .themesAndSettings,
             .zoom,
-            .alwaysOnTop
+            .alwaysOnTop,
+            .journalCalendar
         ]
         if hasLLMTargetsAvailable {
             identifiers.insertAfterOpenActions(.openInLLM)
@@ -201,6 +203,7 @@ extension DocumentWindowController {
         case .copyMarkdown: return makeCopyItem()
         case .zoom: return makeZoomItem()
         case .themesAndSettings: return makeThemesAndSettingsItem()
+        case .journalCalendar: return makeJournalCalendarItem(willBeInsertedIntoToolbar: flag)
         default: return nil
         }
     }
@@ -559,6 +562,10 @@ extension DocumentWindowController {
     /// However the popover went away — Escape, an outside click, the toolbar
     /// button again, or Customize — the key monitor goes with it.
     func popoverDidClose(_ notification: Notification) {
+        if let popover = notification.object as? NSPopover, popover === journalCalendarPopover {
+            journalCalendarPopoverDidClose()
+            return
+        }
         themesPopoverEscapeMonitor.stop()
         // Dropped rather than kept for reuse: holding it retains the hosting
         // controller and the whole card gallery for the window's lifetime,
