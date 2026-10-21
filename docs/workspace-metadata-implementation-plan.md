@@ -1,6 +1,6 @@
 # Workspace metadata implementation plan
 
-Status: Phases 1, 2 (2a, 2c, 2b), 3, and 4 complete; 4.5, 5 and 6 planned. This plan implements [`workspace-metadata-proposal.md`](workspace-metadata-proposal.md) in independently testable phases. It does not imply a release or version bump.
+Status: Phases 1, 2 (2a, 2c, 2b), 3, 4, and 4.5 complete; 5–6 planned. This plan implements [`workspace-metadata-proposal.md`](workspace-metadata-proposal.md) in independently testable phases. It does not imply a release or version bump.
 
 ## Sequencing
 
@@ -13,7 +13,7 @@ Status: Phases 1, 2 (2a, 2c, 2b), 3, and 4 complete; 4.5, 5 and 6 planned. This 
         ↓
 4. In-memory workspace index — complete
         ↓
-4.5 Metadata links and pages
+4.5 Metadata links and pages — complete
         ↓
 5. Persistent cache and lifecycle
         ↓
@@ -218,6 +218,11 @@ Aggregate saved-file and unsaved-buffer name metadata per resolved workspace.
 
 ## Phase 4.5 — Metadata links and pages
 
+Status: complete. Pages are `daisy/Features/WorkspaceMetadata/WorkspacePage.swift`; every link opens through `LinkHandler.open` (`daisy/Document/LinkHandler.swift`) with a `LinkTarget` (`daisy/Document/LinkTarget.swift`); Read mode is the `metadata-links` render extension in `daisy/Rendering/MarkdownRenderExtension.swift`; the editor is `scripts/editor-bundle/src/metadata-links.js` (module and Settings toggle "Metadata links") and `scripts/editor-bundle/src/link-open.js` (Cmd+click). Tests are `WorkspacePageTests.swift`, the `metadata-links` cases in `MarkdownRenderExtensionTests.swift`, and `scripts/editor-bundle/smoke/metadata-links.mjs`. Differences from the tasks below:
+
+- Read mode sends a clicked token to the host as an `openMetadata` bridge message instead of a `daisy-metadata:` link, so tokens are never `<a>` elements and add no link annotations to PDFs. The script wraps tokens only while the page has `data-mdp-workspace`, and removes the wrapping when it is cleared.
+- The editor does not open `#section` links on Cmd+click: the preview they would scroll is hidden while editing.
+
 ### Goal
 
 Make each tag, context, and project in a workspace window a link to its page: a Markdown file in the workspace's `pages/` folder, created on first open. Read mode opens it with a click; the editor opens it, and any Markdown link, with Cmd+click.
@@ -238,7 +243,7 @@ Make each tag, context, and project in a workspace window a link to its page: a 
 3. **Read mode:** add a `metadata-links` render extension next to `TaskMetadataExtension` in `daisy/Rendering/MarkdownRenderExtension.swift`. Enable it only when the render context has a workspace root. Its script wraps `#`/`@`/`+` tokens in `<a class="mdp-metadata-link" href="daisy-metadata:…">` and skips the same literal content as `taskMetadataScript` (code, links, `kbd`, KaTeX, Mermaid). It mirrors the rules in `metadata-names.js`. `activateLink` turns the `daisy-metadata` scheme into `.metadata`, and the link context menu leaves out "Copy Link" for it.
 4. **Editor, metadata:** in a workspace window, give `#`/`@`/`+` tokens a link-style mark decoration, taken from the extractor's ranges. A plain click still places the caret. Cmd+click on a token sends a new `openLink` bridge message to `EditorViewController` and prevents CodeMirror's default Cmd+click (adding a cursor). The host turns the decoration on and off with the window's workspace state, in the same way `setWorkspaceCandidates` is driven.
 5. **Editor, Markdown links:** Cmd+click on a `Link` node that has a URL, or on an autolink or bare URL, sends `openLink` with the raw destination. Swift builds the `Link` with `DocumentLink.target(relativeTo:)`, as the inspector does, and calls `LinkHandler.open`. This works in every window, workspace or not. Cmd+click anywhere else keeps today's behavior.
-6. While Cmd is held over a link or token, show the pointer cursor and an underline. Hovering without Cmd changes nothing.
+6. Hovering a link or token in the editor underlines it; while Cmd is held, it also shows the pointer cursor.
 7. Localize the new strings (the error for a failed page write, and accessible names) in `en.lproj` and `zh-Hans.lproj`.
 
 ### Required tests

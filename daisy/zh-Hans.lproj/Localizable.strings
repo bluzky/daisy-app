@@ -409,6 +409,9 @@
 "Slash commands" = "斜杠命令";
 "Task metadata" = "任务元数据";
 "Metadata suggestions" = "元数据建议";
+"Metadata links" = "元数据链接";
+"“%@” is not a tag, context or project." = "“%@”不是标签、情境或项目。";
+"The pages folder is outside the workspace." = "pages 文件夹位于工作区之外。";
 "Due" = "截止";
 "Scheduled" = "计划";
 "Overdue" = "已逾期";

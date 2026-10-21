@@ -10,7 +10,7 @@ final class MarkdownRenderExtensionTests: XCTestCase {
       MarkdownHTML.renderExtensions.map(\.id),
       [
         "highlight", "callout", "katex", "mermaid", "colorful-headings",
-        "task-metadata", "slash-commands", "metadata-completion"
+        "task-metadata", "metadata-links", "slash-commands", "metadata-completion"
       ]
     )
     let orders = MarkdownHTML.renderExtensions.map(\.order)
@@ -54,6 +54,12 @@ final class MarkdownRenderExtensionTests: XCTestCase {
         ),
         .init(
           titleKey: "Task metadata",
+          descriptionKey: nil,
+          defaultEnabled: true,
+          userToggleable: true
+        ),
+        .init(
+          titleKey: "Metadata links",
           descriptionKey: nil,
           defaultEnabled: true,
           userToggleable: true
@@ -263,8 +269,8 @@ final class MarkdownRenderExtensionTests: XCTestCase {
     XCTAssertEqual(
       state,
       [
-        "mermaid": true, "colorful-headings": true, "task-metadata": true, "slash-commands": true,
-        "metadata-completion": true
+        "mermaid": true, "colorful-headings": true, "task-metadata": true, "metadata-links": true,
+        "slash-commands": true, "metadata-completion": true
       ]
     )
   }
@@ -276,8 +282,8 @@ final class MarkdownRenderExtensionTests: XCTestCase {
     XCTAssertEqual(
       MarkdownHTML.editorExtensionState(configuration: configuration),
       [
-        "mermaid": false, "colorful-headings": true, "task-metadata": true, "slash-commands": true,
-        "metadata-completion": true
+        "mermaid": false, "colorful-headings": true, "task-metadata": true, "metadata-links": true,
+        "slash-commands": true, "metadata-completion": true
       ]
     )
   }
@@ -414,6 +420,69 @@ final class MarkdownRenderExtensionTests: XCTestCase {
     let quickLook = MarkdownHTML.render(markdown: "- [ ] Buy due:2026-10-20", vendorLoading: .inline)
     XCTAssertFalse(quickLook.html.contains("mdp-task-field'"))
     XCTAssertFalse(quickLook.scriptAssetIDs.contains("task-metadata"))
+  }
+
+  func testMetadataLinksActivateOnlyForTokens() throws {
+    let links = try XCTUnwrap(MarkdownHTML.renderExtensions.first { $0.id == "metadata-links" })
+    XCTAssertEqual(links.editor?.moduleID, "metadata-links")
+    for markdown in ["#review", "Ask @alex", "Ship +daisy", "a\n#tag"] {
+      XCTAssertTrue(links.isActive(in: .init(html: "", markdown: markdown)), markdown)
+    }
+    for markdown in ["# Heading", "+ item", "name@example.com", "C#", "Plain text"] {
+      XCTAssertFalse(links.isActive(in: .init(html: "", markdown: markdown)), markdown)
+    }
+    // Quick Look and HTML export never load the script.
+    XCTAssertTrue(links.assets(mode: .inline).bodyJS.isEmpty)
+    XCTAssertEqual(links.assets(mode: .lazy).scriptAssetIDs, ["metadata-links"])
+  }
+
+  @MainActor
+  func testReadModeLinksTokensOnlyInAWorkspace() async throws {
+    let rendered = MarkdownHTML.render(
+      markdown: """
+      Plan #review with @alex for +daisy and #area/sub, **#bold** C#x `#code` [#text](x.md)
+
+      # Heading #inline
+
+      | #cell |
+      | --- |
+      """,
+      vendorLoading: .lazy
+    )
+    XCTAssertTrue(rendered.scriptAssetIDs.contains("metadata-links"))
+    let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 900, height: 600))
+    webView.loadHTMLString(rendered.html, baseURL: nil)
+    let deadline = Date().addingTimeInterval(10)
+    while webView.isLoading && Date() < deadline { try await Task.sleep(for: .milliseconds(50)) }
+    let tokens = """
+    Array.from(document.querySelectorAll('.mdp-metadata-link')).map(l => l.textContent).join('|')
+    """
+    func evaluate(_ script: String) async throws -> String? {
+      try await webView.evaluateJavaScript(script) as? String
+    }
+    var outside: String?
+    while Date() < deadline {
+      outside = try await evaluate("window.MdPreview && window.MdPreview.reapplyExtensions ? (\(tokens)) : null")
+      if outside != nil { break }
+      try await Task.sleep(for: .milliseconds(50))
+    }
+    XCTAssertEqual(outside, "", "no links outside a workspace")
+
+    let inside = try await evaluate("""
+    document.documentElement.setAttribute('data-mdp-workspace', '');
+    window.MdPreview.reapplyExtensions();
+    \(tokens)
+    """)
+    XCTAssertEqual(inside, "#review|@alex|+daisy|#area/sub|#inline")
+    let text = try await evaluate("document.querySelector('p').textContent")
+    XCTAssertTrue(text?.hasPrefix("Plan #review with @alex for +daisy and #area/sub, #bold C#x #code #text") == true)
+
+    let left = try await evaluate("""
+    document.documentElement.removeAttribute('data-mdp-workspace');
+    window.MdPreview.reapplyExtensions();
+    (\(tokens)) + '/' + document.querySelector('p').textContent.startsWith('Plan #review with')
+    """)
+    XCTAssertEqual(left, "/true", "leaving the workspace restores the text")
   }
 
   func testTaskMetadataPrintsTheLiteralText() {

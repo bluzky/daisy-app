@@ -37,7 +37,6 @@ final class MainSplitViewController: NSSplitViewController {
 
     var onSelectFile: ((URL) -> Void)?
     var onKeepFile: ((URL) -> Void)?
-    var onOpenMarkdownLink: ((URL) -> Void)?
     private var sidebarCollapseObservation: NSKeyValueObservation?
 
     override func viewDidLoad() {
@@ -93,34 +92,33 @@ final class MainSplitViewController: NSSplitViewController {
         contentViewController?.activeHeadingDidChange = { [weak self] headingID in
             self?.sidebarViewController?.setActiveHeading(headingID)
         }
-        contentViewController?.localMarkdownLinkActivated = { [weak self] url in
-            self?.onOpenMarkdownLink?(url)
+        contentViewController?.linkActivated = { [weak self] link in
+            self?.openLink(link)
         }
         inspectorViewController?.onOpenLink = { [weak self] link, documentURL in
-            self?.openInspectorLink(link, from: documentURL)
+            self?.openLink(link.target(relativeTo: documentURL))
         }
     }
 
-    /// Opens a link picked in the inspector the way clicking it in the
-    /// preview does: Markdown files in Daisy, other files in their default
-    /// app, web links through the external-link policy.
-    private func openInspectorLink(_ link: DocumentLink, from documentURL: URL?) {
-        switch link.target(relativeTo: documentURL) {
-        case .external(let url):
-            ExternalLinkOpener.open(url, window: view.window)
-        case .file(let url, let fragment):
-            guard FileKind.classify(url) == .markdown else {
-                NSWorkspace.shared.open(url)
-                return
-            }
-            var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
-            components?.fragment = fragment
-            onOpenMarkdownLink?(components?.url ?? url)
-        case .section(let id):
-            contentViewController?.scrollToFragment(id)
-        case nil:
+    /// Nil is a link that cannot be resolved, such as a relative path in a
+    /// document that has not been saved.
+    func openLink(_ link: LinkTarget?) {
+        guard let link, let controller = view.window?.windowController as? DocumentWindowController else {
             NSSound.beep()
+            return
         }
+        LinkHandler.open(link, in: controller)
+    }
+
+    func scrollToFragment(_ id: String) {
+        contentViewController?.scrollToFragment(id)
+    }
+
+    /// Metadata tokens link to their workspace pages, in the preview and the
+    /// editor; set for workspace windows.
+    func setMetadataLinksEnabled(_ enabled: Bool) {
+        contentViewController?.metadataLinksEnabled = enabled
+        cachedEditorViewController?.setMetadataLinksEnabled(enabled)
     }
 
     func showSnapshot(_ prefetch: DocumentSnapshotCache.Prefetch) {

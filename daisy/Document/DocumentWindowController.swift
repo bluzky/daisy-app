@@ -64,7 +64,10 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     }
     /// Whether `folderRootURL` has a workspace marker (see `WorkspaceMarker`).
     var isWorkspace = false {
-        didSet { updateWorkspaceIndexBinding() }
+        didSet {
+            updateWorkspaceIndexBinding()
+            mainSplit?.setMetadataLinksEnabled(isWorkspace)
+        }
     }
     /// The shared index for `indexedWorkspaceRootURL`, and what it last published.
     var workspaceIndex: WorkspaceMetadataIndex?
@@ -306,13 +309,6 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         split.onKeepFile = { [weak self] url in
             self?.keepTab(showing: url)
         }
-        split.onOpenMarkdownLink = { [weak self] url in
-            if SettingsModel.shared.opensMarkdownLinksInNewWindows {
-                self?.openInNewWindow(url)
-            } else {
-                self?.present(url: url)
-            }
-        }
         documentWindow.contentViewController = split
         documentWindow.setContentSize(NSSize(width: 1100, height: 720))
         documentWindow.center()
@@ -510,6 +506,16 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
             if !(opensInReadMode && FileKind.classify(fileURL) == .markdown) {
                 enterEditMode()
             }
+        }
+    }
+
+    /// Opens a Markdown file a link points to, in this window or a new one
+    /// as Settings say.
+    func openMarkdownLink(_ url: URL) {
+        if SettingsModel.shared.opensMarkdownLinksInNewWindows {
+            openInNewWindow(url)
+        } else {
+            present(url: url)
         }
     }
 

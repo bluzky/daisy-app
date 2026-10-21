@@ -98,9 +98,19 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
     var contentDidReplace: (() -> Void)?
     var taskCheckboxToggled: ((Int, Bool) -> Void)?
     var zoomDidChange: ((CGFloat) -> Void)?
-    var fragmentLinkActivated: ((String) -> Void)?
     var pointerDocumentYDidChange: ((CGFloat) -> Void)?
-    var localMarkdownLinkActivated: ((URL) -> Void)?
+    #if !QUICK_LOOK_EXTENSION
+    /// A link the user activated, for `LinkHandler` to open.
+    var linkActivated: ((LinkTarget) -> Void)?
+    /// Whether `#tag`, `@context` and `+project` read as links: true in a
+    /// workspace window. Kept on the page as `data-mdp-workspace`.
+    var metadataLinksEnabled = false {
+        didSet {
+            guard metadataLinksEnabled != oldValue, isPageReady else { return }
+            applyMetadataLinksState()
+        }
+    }
+    #endif
     var scrollDidChange: (() -> Void)?
     private let assetScheme = MarkdownAssetScheme()
     private var currentAssetBase: URL?
@@ -517,6 +527,15 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         ) { _, _ in }
     }
 
+    #if !QUICK_LOOK_EXTENSION
+    private func applyMetadataLinksState() {
+        webView.evaluateJavaScript("""
+        document.documentElement.toggleAttribute('data-mdp-workspace', \(metadataLinksEnabled));
+        window.MdPreview && window.MdPreview.reapplyExtensions && window.MdPreview.reapplyExtensions();
+        """) { _, _ in }
+    }
+    #endif
+
     func applyThemeColors() {
         let css = Self.currentThemeOverrides()?.css ?? ""
         webView.evaluateJavaScript(
@@ -548,6 +567,11 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         case "pointerPosition":
             guard let value = dict["value"] as? NSNumber else { return }
             pointerDocumentYDidChange?(CGFloat(truncating: value))
+        #if !QUICK_LOOK_EXTENSION
+        case "openMetadata":
+            guard let token = dict["token"] as? String else { return }
+            linkActivated?(.metadata(token))
+        #endif
         case "linkContextMenu":
             guard let raw = dict["url"] as? String, let url = URL(string: raw) else { return }
             showLinkContextMenu(url)
@@ -1467,24 +1491,34 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
     }
 
     private func activateLink(_ url: URL) {
-            if let fragment = sameDocumentFragmentID(from: url) {
-                fragmentLinkActivated?(fragment)
-            } else if url.scheme == MarkdownAssetScheme.scheme,
-               currentAssetBase != nil,
-               // `/__vendor/` is a reserved namespace served from the app
-               // bundle by the scheme handler — never a filesystem path, so
-               // clicks on authored vendor links stay inert.
-               !url.path.hasPrefix(MarkdownAssetScheme.vendorPathPrefix),
-               let resolved = MarkdownAssetResolution.fileURL(for: url) {
-                if Self.isMarkdownDocument(resolved) {
-                    // fileURL(for:) works on the path alone and drops `#section`.
-                    localMarkdownLinkActivated?(Self.reattachingFragment(of: url, to: resolved))
-                } else {
-                    NSWorkspace.shared.open(resolved)
-                }
-            } else if url.scheme != MarkdownAssetScheme.scheme {
-                ExternalLinkOpener.open(url, window: window)
-            }
+        #if QUICK_LOOK_EXTENSION
+        // Quick Look has no window to open a document or section in.
+        guard sameDocumentFragmentID(from: url) == nil else { return }
+        if let resolved = assetFileURL(for: url) {
+            if !Self.isMarkdownDocument(resolved) { NSWorkspace.shared.open(resolved) }
+        } else if url.scheme != MarkdownAssetScheme.scheme {
+            ExternalLinkOpener.open(url, window: window)
+        }
+        #else
+        if let fragment = sameDocumentFragmentID(from: url) {
+            linkActivated?(.section(fragment))
+        } else if let resolved = assetFileURL(for: url) {
+            // fileURL(for:) works on the path alone and drops `#section`.
+            linkActivated?(.file(resolved, fragment: url.fragment(percentEncoded: false)))
+        } else if url.scheme != MarkdownAssetScheme.scheme {
+            linkActivated?(.external(url))
+        }
+        #endif
+    }
+
+    /// The local file an asset-scheme link points to. `/__vendor/` is a
+    /// reserved namespace served from the app bundle by the scheme handler,
+    /// never a filesystem path, so authored vendor links stay inert.
+    private func assetFileURL(for url: URL) -> URL? {
+        guard url.scheme == MarkdownAssetScheme.scheme,
+              currentAssetBase != nil,
+              !url.path.hasPrefix(MarkdownAssetScheme.vendorPathPrefix) else { return nil }
+        return MarkdownAssetResolution.fileURL(for: url)
     }
 
     private func showLinkContextMenu(_ source: URL) {
@@ -1583,6 +1617,7 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         // colors changed mid-flight, the navigation just installed stale
         // CSS. Re-assert the current theme on the fresh page.
         applyThemeColors()
+        if metadataLinksEnabled { applyMetadataLinksState() }
         #endif
         contentDidReplace?()
     }

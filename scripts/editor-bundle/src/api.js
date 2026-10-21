@@ -24,6 +24,8 @@ import { obsidianHighlight } from "./obsidian-highlight.js"
 import { codeCardWidth } from "./code-card-width.js"
 import { activeCodeBlock, anchoredPointerSelection, pointerPreview, stablePointerPreview } from "./pointer.js"
 import { readWorkspaceCandidates, workspaceCandidatesChanged } from "./metadata-completion.js"
+import { metadataLinksChanged } from "./metadata-links.js"
+import { linkOpening, openLinkAt } from "./link-open.js"
 import { slashTemplatesChanged } from "./slash.js"
 import { tableEditors } from "./table/editors.js"
 import { escapedTableCell } from "./table/model.js"
@@ -48,7 +50,7 @@ window.MDEditor = {
     const moduleCompartments = new Map()
     const moduleEnabled = new Map()
     // Handed to every module: the callbacks the page gave this editor.
-    const moduleHost = { callbacks: callbacks || {}, slashTemplates: [], workspaceCandidates: null }
+    const moduleHost = { callbacks: callbacks || {}, slashTemplates: [], workspaceCandidates: null, metadataLinks: false }
     const moduleOptions = (id) => (callbacks && callbacks.extensionOptions && callbacks.extensionOptions[id]) || {}
     for (const module of editorModules.values()) {
       const enabled = editorModuleEnabled(callbacks && callbacks.extensionState, module.id)
@@ -103,6 +105,7 @@ window.MDEditor = {
           stablePointerPreview,
           codeCardWidth,
           anchoredPointerSelection,
+          linkOpening(callbacks),
           ...moduleExtensions,
           tableEditors,
           tableFormattingSelection,
@@ -581,6 +584,15 @@ window.MDEditor = {
         moduleHost.workspaceCandidates = next
         view.dispatch({ effects: workspaceCandidatesChanged.of(null) })
         return true
+      },
+      // Whether `#tag`, `@context` and `+project` read as links and open
+      // their page on Cmd+click: true in a workspace window.
+      // What Cmd+click at `pos` does: sends the link there to `onOpenLink`
+      // and returns it, or returns null.
+      openLinkAt: (pos) => openLinkAt(view, pos, callbacks),
+      setMetadataLinks: (enabled) => {
+        moduleHost.metadataLinks = enabled === true
+        view.dispatch({ effects: metadataLinksChanged.of(moduleHost.metadataLinks) })
       },
       setExtensionState: (state) => {
         const effects = []

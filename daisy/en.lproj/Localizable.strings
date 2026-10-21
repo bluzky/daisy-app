@@ -409,6 +409,9 @@
 "Slash commands" = "Slash commands";
 "Task metadata" = "Task metadata";
 "Metadata suggestions" = "Metadata suggestions";
+"Metadata links" = "Metadata links";
+"“%@” is not a tag, context or project." = "“%@” is not a tag, context or project.";
+"The pages folder is outside the workspace." = "The pages folder is outside the workspace.";
 "Due" = "Due";
 "Scheduled" = "Scheduled";
 "Overdue" = "Overdue";

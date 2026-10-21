@@ -69,7 +69,12 @@ final class ContentViewController: NSViewController {
 
     var activeHeadingDidChange: ((Int?) -> Void)?
     var zoomDidChange: ((CGFloat) -> Void)?
-    var localMarkdownLinkActivated: ((URL) -> Void)?
+    var linkActivated: ((LinkTarget) -> Void)?
+    /// Metadata tokens read as links to their workspace pages.
+    var metadataLinksEnabled: Bool {
+        get { webView.metadataLinksEnabled }
+        set { webView.metadataLinksEnabled = newValue }
+    }
     /// Fires once after a pending source scroll anchor (prepared via
     /// `prepareToRestoreSourceScrollAnchor`) has been applied to a fresh
     /// render. The edit-mode overlay uses it to hold its visibility swap until
@@ -108,9 +113,6 @@ final class ContentViewController: NSViewController {
             (self?.view.window?.windowController as? DocumentWindowController)?
                 .toggleTaskCheckbox(onLine: line, checked: checked)
         }
-        webView.fragmentLinkActivated = { [weak self] fragment in
-            self?.scrollToElement(id: fragment)
-        }
         webView.pointerDocumentYDidChange = { [weak self] y in
             guard let self,
                   UserDefaults.standard.bool(forKey: "MarkdownPreview.outlineFollowsPointer") else { return }
@@ -118,8 +120,8 @@ final class ContentViewController: NSViewController {
             self.sticky = nil
             self.notifyActiveHeading(self.pointerHeadingID)
         }
-        webView.localMarkdownLinkActivated = { [weak self] url in
-            self?.localMarkdownLinkActivated?(url)
+        webView.linkActivated = { [weak self] link in
+            self?.linkActivated?(link)
         }
         webView.zoomDidChange = { [weak self] zoom in
             self?.zoomDidChange?(zoom)
