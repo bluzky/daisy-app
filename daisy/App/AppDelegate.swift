@@ -112,6 +112,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private weak var normalContentWidthMenuItem: NSMenuItem?
     private weak var fullContentWidthMenuItem: NSMenuItem?
     private var keymapMenuItems: [KeymapCommand: NSMenuItem] = [:]
+    /// The Go and Insert menus' journal items and their separators, hidden
+    /// while the Journal extension is off.
+    private var journalMenuItems: [NSMenuItem] = []
     private var firstResponderObservation: NSKeyValueObservation?
     private var isDocumentPromptScheduled = false
     private var documentPromptScheduleGeneration = 0
@@ -415,6 +418,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     /// Re-render open documents with a fresh extension snapshot. Quick Look
     /// reads same app-group value when it creates its next preview.
+    /// Turns the Journal extension on or off: the Go menu's journal items
+    /// and every window's toolbar calendar.
+    func applyJournalEnabledSetting(_ enabled: Bool) {
+        guard enabled != JournalSetting.isEnabled else { return }
+        JournalSetting.isEnabled = enabled
+        journalMenuItems.forEach { $0.isHidden = !enabled }
+        documentWindowControllers.forEach { $0.applyJournalEnabledSetting() }
+    }
+
     func applyRenderExtensionPreferences(_ enabledIDs: Set<String>) {
         let current = RenderExtensionPreferences.currentConfiguration.enabledIDs
         guard enabledIDs != current else { return }
@@ -608,6 +620,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return activeDocumentWindowController?.canFormatMarkdown ?? false
         case #selector(insertLinkToFileFromMenu(_:)):
             return activeDocumentWindowController?.canInsertLinkToFile ?? false
+        case #selector(insertCarriedOverTasksFromMenu(_:)):
+            return activeDocumentWindowController?.canInsertCarriedOverTasks ?? false
         default:
             return true
         }
@@ -878,7 +892,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case #selector(DocumentWindowController.toggleAlwaysOnTop(_:)): return .viewToggleAlwaysOnTop
         case #selector(DocumentWindowController.goBackInHistory(_:)): return .goBack
         case #selector(DocumentWindowController.goForwardInHistory(_:)): return .goForward
+        case #selector(DocumentWindowController.openTodayJournal(_:)): return .goTodayJournal
+        case #selector(DocumentWindowController.openPreviousJournalEntry(_:)): return .goPreviousJournalEntry
+        case #selector(DocumentWindowController.openNextJournalEntry(_:)): return .goNextJournalEntry
         case #selector(insertLinkToFileFromMenu(_:)): return .insertLinkToFile
+        case #selector(insertCarriedOverTasksFromMenu(_:)): return .insertCarriedOverTasks
         case #selector(NSResponder.scrollLineUp(_:)): return .goLineUp
         case #selector(NSResponder.scrollLineDown(_:)): return .goLineDown
         case #selector(NSResponder.scrollPageUp(_:)): return .goPageUp
@@ -1084,6 +1102,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                               symbol: "chevron.forward"))
 
         menu.addItem(.separator())
+
+        // Workspace journal; enabled by the key window (see
+        // DocumentWindowController+Journal.swift).
+        let goJournalItems: [NSMenuItem] = [
+            makeItem("Today’s Journal",
+                     action: #selector(DocumentWindowController.openTodayJournal(_:)),
+                     keyEquivalent: "j",
+                     modifiers: [.command, .shift],
+                     symbol: "calendar"),
+            makeItem("Previous Journal Entry",
+                     action: #selector(DocumentWindowController.openPreviousJournalEntry(_:)),
+                     keyEquivalent: arrow(NSLeftArrowFunctionKey),
+                     modifiers: [.command, .option],
+                     symbol: "chevron.left.circle"),
+            makeItem("Next Journal Entry",
+                     action: #selector(DocumentWindowController.openNextJournalEntry(_:)),
+                     keyEquivalent: arrow(NSRightArrowFunctionKey),
+                     modifiers: [.command, .option],
+                     symbol: "chevron.right.circle"),
+            .separator(),
+        ]
+        goJournalItems.forEach(menu.addItem)
+        goJournalItems.forEach { $0.isHidden = !JournalSetting.isEnabled }
+        journalMenuItems += goJournalItems
 
         menu.addItem(makeItem("Up",
                               action: #selector(NSResponder.scrollLineUp(_:)),
@@ -1479,6 +1521,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(item("Link to File…", symbol: "link", action: #selector(insertLinkToFileFromMenu(_:))))
         menu.addItem(item("Code Block", symbol: "curlybraces.square", action: #selector(insertCodeBlockFromMenu(_:))))
         menu.addItem(item("Table", symbol: "tablecells", action: #selector(insertTableFromMenu(_:))))
+        // Journal entries only; hidden with the Journal extension.
+        let carryOverItems: [NSMenuItem] = [
+            .separator(),
+            item("Unfinished Tasks from Earlier Days", symbol: "arrow.uturn.forward.square",
+                 action: #selector(insertCarriedOverTasksFromMenu(_:))),
+        ]
+        carryOverItems.forEach(menu.addItem)
+        carryOverItems.forEach { $0.isHidden = !JournalSetting.isEnabled }
+        journalMenuItems += carryOverItems
 
         let rootItem = NSMenuItem(title: insertTitle, action: nil, keyEquivalent: "")
         rootItem.submenu = menu
@@ -1502,6 +1553,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func insertTableFromMenu(_ sender: Any?) {
         activeDocumentWindowController?.insertTableFromMenu()
+    }
+
+    @objc private func insertCarriedOverTasksFromMenu(_ sender: Any?) {
+        activeDocumentWindowController?.insertCarriedOverTasksFromMenu()
     }
 
     @objc private func formatMarkdownFromMenu(_ sender: NSMenuItem) {
