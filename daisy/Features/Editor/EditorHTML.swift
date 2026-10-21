@@ -1015,6 +1015,8 @@ nonisolated enum EditorHTML {
         }
         return jsonObjectLiteral([
             "version": snapshot.version,
+            "indexing": !snapshot.isComplete,
+            "truncated": snapshot.isTruncated,
             "tags": entries(.tag),
             "contexts": entries(.context),
             "projects": entries(.project),

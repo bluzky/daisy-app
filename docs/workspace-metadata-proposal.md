@@ -1,6 +1,6 @@
 # Workspace metadata and completion proposal
 
-Status: Proposed. This document describes planned behavior, not currently shipped features.
+Status: Implemented, apart from the runtime test pass in the [implementation plan](workspace-metadata-implementation-plan.md) (Phase 6). README.md describes the behavior for readers; this document keeps the design reasoning.
 
 ## Summary
 
@@ -114,7 +114,7 @@ Implemented in the editor (`scripts/editor-bundle/src/metadata-completion.js`, S
 - Filtering uses the text before the caret; accepting replaces the whole token, including name characters after the caret, and leaves the caret after the name. No space is added.
 - Rows show the marker and the name; use counts only order them. The token being typed is left out of the current document's names, so a half-typed name never suggests itself.
 - The current document's names come from the shared extractor. When a name also appears in the workspace snapshot, the document's most used spelling is shown and the larger of the two counts is used, because the snapshot already counts the saved copy of this document.
-- The host sends workspace names with `setWorkspaceCandidates({ version, tags, contexts, projects })`, each kind a list of `{ name, count }` without the marker. A snapshot with a lower version than the one held is ignored; invalid names are dropped.
+- The host sends workspace names with `setWorkspaceCandidates({ version, indexing, truncated, tags, contexts, projects })`, each kind a list of `{ name, count }` without the marker. A snapshot with a lower version than the one held is ignored; invalid names are dropped. While `indexing` or `truncated` is true, the menu notes under its rows that the workspace is still being indexed or is over the file limit.
 
 ### Dates and priorities
 

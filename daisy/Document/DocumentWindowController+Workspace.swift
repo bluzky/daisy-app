@@ -32,6 +32,7 @@ extension DocumentWindowController {
         where root == nil || controller.folderRootURL == root {
             controller.refreshWorkspaceState()
         }
+        NotificationCenter.default.post(name: WorkspaceMarker.didChangeNotification, object: nil)
     }
 
     @objc func initializeWorkspace(_ sender: Any?) {
@@ -59,6 +60,15 @@ extension DocumentWindowController {
             NSAlert(error: error).beginSheetModal(for: documentWindow)
         }
         Self.refreshWorkspaceStates(onRoot: root)
+    }
+
+    /// Indexes the workspace again from nothing, replacing its cache file.
+    @objc func rebuildWorkspaceIndex(_ sender: Any?) {
+        guard let root = indexedWorkspaceRootURL else {
+            NSSound.beep()
+            return
+        }
+        WorkspaceMetadataIndex.rebuildCache(root: root)
     }
 
     // MARK: - Index
@@ -147,6 +157,8 @@ extension DocumentWindowController {
             return folderRootURL != nil && !isWorkspace
         case #selector(removeWorkspace(_:)):
             return isWorkspace
+        case #selector(rebuildWorkspaceIndex(_:)):
+            return workspaceIndex != nil
         default:
             return nil
         }

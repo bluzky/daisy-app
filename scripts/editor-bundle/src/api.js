@@ -575,9 +575,10 @@ window.MDEditor = {
         view.dispatch({ effects: slashTemplatesChanged.of(null) })
       },
       // Workspace names for `#`, `@` and `+` suggestions, as
-      // `{ version, tags, contexts, projects }` with `[{ name, count }]` per
-      // kind (names without their marker). A snapshot older than the one held
-      // is ignored; returns whether this one was taken.
+      // `{ version, indexing, truncated, tags, contexts, projects }` with
+      // `[{ name, count }]` per kind (names without their marker). `indexing`
+      // and `truncated` add a note under the suggestions. A snapshot older
+      // than the one held is ignored; returns whether this one was taken.
       setWorkspaceCandidates: (snapshot) => {
         const next = readWorkspaceCandidates(snapshot, moduleHost.workspaceCandidates)
         if (!next) return false
