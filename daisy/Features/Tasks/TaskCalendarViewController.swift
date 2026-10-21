@@ -28,6 +28,9 @@ final class TaskCalendarStore: ObservableObject {
     @Published var filter: TaskFilter {
         didSet { Self.saveFilter(filter) }
     }
+    @Published var span: CalendarSpan {
+        didSet { UserDefaults.standard.set(span.rawValue, forKey: Self.spanKey) }
+    }
     /// States checked from the sidebar that the index has not caught up with.
     @Published private(set) var overrides: [String: Bool] = [:]
     /// Tasks checked within their grace period, still shown struck through.
@@ -55,6 +58,7 @@ final class TaskCalendarStore: ObservableObject {
         month = today.month
         focusedDay = today
         filter = Self.loadFilter()
+        span = UserDefaults.standard.string(forKey: Self.spanKey).flatMap(CalendarSpan.init(rawValue:)) ?? .month
     }
 
     var input: TaskCalendarModel.Input {
@@ -184,6 +188,7 @@ final class TaskCalendarStore: ObservableObject {
     // MARK: - Filter
 
     private static let filterKey = "TasksSidebar.filter"
+    private static let spanKey = "TasksSidebar.span"
 
     private static func loadFilter() -> TaskFilter {
         let stored = UserDefaults.standard.dictionary(forKey: filterKey) ?? [:]
@@ -205,6 +210,12 @@ final class TaskCalendarStore: ObservableObject {
 
 final class TaskCalendarViewController: NSViewController {
     let store = TaskCalendarStore()
+
+    /// The pane reads the theme accent while drawing, and nothing it
+    /// observes moves when the theme changes, so redraw it.
+    func themeColorsDidChange() {
+        store.objectWillChange.send()
+    }
 
     var onOpenTask: ((WorkspaceIndexedTask, Bool) -> Void)? {
         get { store.onOpenTask }

@@ -10,9 +10,17 @@
 //  caller draws its own markers under the day number. Clicking a day, or
 //  Return on the focused one, calls `open`. Arrow keys move between days,
 //  across months too; the focused day is outlined only once they are used.
+//  In `.week` the grid is the focused day's week alone and the arrows step
+//  a week at a time.
 //
 
 import SwiftUI
+
+/// How much of the calendar the grid shows.
+enum CalendarSpan: String, CaseIterable {
+    case month
+    case week
+}
 
 struct MonthCalendarView<Marker: View>: View {
     let today: JournalDay
@@ -22,6 +30,7 @@ struct MonthCalendarView<Marker: View>: View {
     @Binding var month: Int
     @Binding var focusedDay: JournalDay
     let accent: Color
+    var span: CalendarSpan = .month
     /// Cells grow to fill the width when true, never below `cellSize`.
     var stretches = false
     /// The Journal popover takes focus as it opens; the sidebar does not.
@@ -62,24 +71,28 @@ struct MonthCalendarView<Marker: View>: View {
 
     private var header: some View {
         HStack(spacing: 4) {
-            Button { showMonth(offset: -1) } label: {
+            Button { step(-1) } label: {
                 Image(systemName: "chevron.left")
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.borderless)
-            .accessibilityLabel(Text(NSLocalizedString("Previous Month", comment: "Journal calendar button")))
+            .accessibilityLabel(Text(span == .week
+                ? NSLocalizedString("Previous Week", comment: "Calendar button")
+                : NSLocalizedString("Previous Month", comment: "Journal calendar button")))
 
             Text(monthTitle)
                 .font(.headline)
                 .frame(maxWidth: .infinity)
                 .accessibilityAddTraits(.isHeader)
 
-            Button { showMonth(offset: 1) } label: {
+            Button { step(1) } label: {
                 Image(systemName: "chevron.right")
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.borderless)
-            .accessibilityLabel(Text(NSLocalizedString("Next Month", comment: "Journal calendar button")))
+            .accessibilityLabel(Text(span == .week
+                ? NSLocalizedString("Next Week", comment: "Calendar button")
+                : NSLocalizedString("Next Month", comment: "Journal calendar button")))
         }
     }
 
@@ -110,7 +123,9 @@ struct MonthCalendarView<Marker: View>: View {
     // MARK: - Grid
 
     private var grid: some View {
-        let cells = Self.monthCells(year: year, month: month, calendar: calendar)
+        let cells = span == .week
+            ? Self.weekCells(containing: focusedDay, calendar: calendar)
+            : Self.monthCells(year: year, month: month, calendar: calendar)
         return VStack(spacing: 2) {
             ForEach(0..<(cells.count / 7), id: \.self) { row in
                 HStack(spacing: 0) {
@@ -148,16 +163,26 @@ struct MonthCalendarView<Marker: View>: View {
         }
     }
 
+    /// The week that holds `day`, from the reader's first weekday.
+    static func weekCells(containing day: JournalDay, calendar: Calendar) -> [JournalDay] {
+        let date = day.date(in: calendar)
+        let leading = (calendar.component(.weekday, from: date) - calendar.firstWeekday + 7) % 7
+        return (0..<7).compactMap { index in
+            calendar.date(byAdding: .day, value: index - leading, to: date)
+                .map { JournalDay(date: $0, calendar: calendar) }
+        }
+    }
+
     private func dayCell(_ day: JournalDay) -> some View {
         let isToday = day == today
         let isSelected = day == selected
-        let isOutside = day.year != year || day.month != month
+        let isOutside = span == .month && (day.year != year || day.month != month)
         let isFocused = showsFocus && gridFocused && day == focusedDay && !isSelected
         let fill: Color = isSelected ? accent
             : hoveredDay == day ? Color.primary.opacity(0.06) : Color.clear
         return Button {
             focusedDay = day
-            if isOutside {
+            if day.year != year || day.month != month {
                 year = day.year
                 month = day.month
             }
@@ -194,6 +219,10 @@ struct MonthCalendarView<Marker: View>: View {
     }
 
     // MARK: - Navigation
+
+    private func step(_ offset: Int) {
+        if span == .week { moveFocus(days: offset * 7) } else { showMonth(offset: offset) }
+    }
 
     private func showMonth(offset: Int) {
         let total = year * 12 + (month - 1) + offset

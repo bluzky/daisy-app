@@ -429,6 +429,11 @@
 "Task" = "任务";
 "Previous Month" = "上个月";
 "Next Month" = "下个月";
+"Previous Week" = "上一周";
+"Next Week" = "下一周";
+"Calendar View" = "日历视图";
+"Month" = "月";
+"Week" = "周";
 "Toggle \"%@\" section" = "切换“%@”章节";
 
 /* Quick Capture */
@@ -522,7 +527,6 @@
 "%d open, %d done" = "%d 项未完成，%d 项已完成";
 "Today · %@" = "今天 · %@";
 "Upcoming · Next %d Days" = "即将到来 · 未来 %d 天";
-"Back to Today" = "回到今天";
 "Collapsed" = "已折叠";
 "Expanded" = "已展开";
 "Nothing scheduled or due" = "没有计划或截止的任务";

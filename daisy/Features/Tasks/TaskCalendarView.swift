@@ -4,8 +4,8 @@
 //
 //  The Agenda sidebar's content: header and filter menu, the month grid with
 //  a dot on each day that has scheduled or due tasks, and the list. Today
-//  shows Overdue, Today and Upcoming; another day shows its Due
-//  and Scheduled tasks. Rows open their file at the task when clicked and
+//  shows Overdue, Today and Upcoming; another day lists its due tasks, then
+//  its scheduled ones. Rows open their file at the task when clicked and
 //  check the task off from the checkbox.
 //
 
@@ -50,10 +50,43 @@ struct TaskCalendarView: View {
                 .foregroundStyle(Color(nsColor: .secondaryLabelColor))
                 .accessibilityAddTraits(.isHeader)
             Spacer()
-            if store.isWorkspace { filterMenu }
+            if store.isWorkspace {
+                spanPicker
+                filterMenu
+            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+    }
+
+    /// Month | Week, drawn here rather than as a segmented `Picker`, which
+    /// AppKit always fills with the system accent.
+    private var spanPicker: some View {
+        HStack(spacing: 0) {
+            spanSegment(.month, NSLocalizedString("Month", comment: "Agenda calendar span"))
+            spanSegment(.week, NSLocalizedString("Week", comment: "Agenda calendar span"))
+        }
+        .padding(2)
+        .background(RoundedRectangle(cornerRadius: 7).fill(Color.primary.opacity(0.06)))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(Text(NSLocalizedString("Calendar View", comment: "Agenda month/week picker")))
+    }
+
+    private func spanSegment(_ span: CalendarSpan, _ title: String) -> some View {
+        let isSelected = store.span == span
+        return Button {
+            store.span = span
+        } label: {
+            Text(title)
+                .font(.subheadline.weight(isSelected ? .semibold : .regular))
+                .foregroundStyle(isSelected ? Color.white : Color.primary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 2)
+                .background(RoundedRectangle(cornerRadius: 5).fill(isSelected ? accent : Color.clear))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     private var filterMenu: some View {
@@ -84,6 +117,7 @@ struct TaskCalendarView: View {
             month: $store.month,
             focusedDay: $store.focusedDay,
             accent: accent,
+            span: store.span,
             stretches: true,
             focusesOnAppear: false,
             marker: { day in dayMarkers(markers[day]) },
@@ -233,31 +267,10 @@ struct TaskCalendarView: View {
         if groups.isEmpty {
             emptyDay
         }
+        // Rows as under Today: the kind on each one, Due first.
         ForEach(groups) { group in
-            let title = if case .due = group.kind {
-                NSLocalizedString("Due", comment: "Tasks sidebar subsection")
-            } else {
-                NSLocalizedString("Scheduled", comment: "Tasks sidebar subsection")
-            }
-            Text(title)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 12)
-                .padding(.top, 6)
-                .padding(.bottom, 2)
-            ForEach(group.rows) { row in rowView(row, detail: .path) }
+            ForEach(group.rows) { row in rowView(row, detail: .kind) }
         }
-        HStack {
-            Spacer()
-            Button {
-                store.showToday()
-            } label: {
-                Label(NSLocalizedString("Back to Today", comment: "Tasks sidebar button"),
-                      systemImage: "arrow.uturn.backward")
-            }
-            .buttonStyle(.borderless)
-        }
-        .padding(12)
     }
 
     private func section(_ group: TaskGroup, title: String, titleColor: Color = .secondary,
@@ -325,12 +338,10 @@ struct TaskCalendarView: View {
     // MARK: - Rows
 
     enum RowDetail {
-        /// "scheduled · file", for today.
+        /// "scheduled · file", for today and a chosen day.
         case kind
         /// "Oct 18 · file", for Overdue and Upcoming.
         case date
-        /// The workspace path, under a day's Due or Scheduled heading.
-        case path
     }
 
     private func rowView(_ row: TaskRow, detail: RowDetail) -> some View {
@@ -427,17 +438,13 @@ struct TaskCalendarView: View {
             text = "\(row.kind == .due ? NSLocalizedString("due", comment: "Tasks row date kind") : NSLocalizedString("scheduled", comment: "Tasks row date kind")) · \(file)"
         case .date:
             text = "\(shortDate(row.date)) · \(file)"
-        case .path:
-            text = row.task.path
         }
         return HStack(spacing: 4) {
-            if detail != .path {
-                Image(systemName: row.kind == .due ? "clock" : "calendar")
-                    .foregroundStyle(isOverdue ? Color.red : Color.secondary)
-                    .accessibilityLabel(Text(row.kind == .due
-                        ? NSLocalizedString("Due", comment: "Tasks sidebar subsection")
-                        : NSLocalizedString("Scheduled", comment: "Tasks sidebar subsection")))
-            }
+            Image(systemName: row.kind == .due ? "clock" : "calendar")
+                .foregroundStyle(isOverdue ? Color.red : Color.secondary)
+                .accessibilityLabel(Text(row.kind == .due
+                    ? NSLocalizedString("Due", comment: "Tasks sidebar subsection")
+                    : NSLocalizedString("Scheduled", comment: "Tasks sidebar subsection")))
             Text(text)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)

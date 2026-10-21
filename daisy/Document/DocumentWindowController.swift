@@ -361,6 +361,14 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         // The find bar paints the page backgrounds; a theme edit changes those
         // colors without an appearance flip, so force a redraw.
         findBarOverlay?.needsDisplay = true
+        // Toggles whose on state is drawn in the theme accent. An on button
+        // repaints its fill only when the state changes, so step it through.
+        for case let button? in [tasksButton, alwaysOnTopButton] {
+            button.bezelColor = Self.makeThemeAccent()
+            let state = button.state
+            button.state = .off
+            button.state = state
+        }
     }
 
     /// Tint the window using the current theme while preserving native chrome.

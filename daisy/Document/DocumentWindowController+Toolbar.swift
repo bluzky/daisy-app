@@ -289,10 +289,22 @@ extension DocumentWindowController {
         let button = NSButton(image: image, target: self, action: action)
         button.setButtonType(.pushOnPushOff)
         button.isBordered = true
+        // The on state takes the theme accent, as the sidebars' selection does.
+        button.bezelColor = Self.makeThemeAccent()
         item.view = button
         item.label = label
         item.paletteLabel = label
         return (item, button)
+    }
+
+    /// The theme's link color for each appearance, or the system accent
+    /// without a theme override. A new color every call: a button handed
+    /// the color it already has keeps what it drew before.
+    static func makeThemeAccent() -> NSColor {
+        NSColor(name: nil) { appearance in
+            let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+            return ThemeColorsSetting.current.color(.linkColor, isDark ? .dark : .light) ?? .controlAccentColor
+        }
     }
 
     private func makeTasksItem(willBeInsertedIntoToolbar: Bool) -> NSToolbarItem {

@@ -429,6 +429,11 @@
 "Task" = "Task";
 "Previous Month" = "Previous Month";
 "Next Month" = "Next Month";
+"Previous Week" = "Previous Week";
+"Next Week" = "Next Week";
+"Calendar View" = "Calendar View";
+"Month" = "Month";
+"Week" = "Week";
 "Toggle \"%@\" section" = "Toggle \"%@\" section";
 
 /* Quick Capture */
@@ -522,7 +527,6 @@
 "%d open, %d done" = "%d open, %d done";
 "Today · %@" = "Today · %@";
 "Upcoming · Next %d Days" = "Upcoming · Next %d Days";
-"Back to Today" = "Back to Today";
 "Collapsed" = "Collapsed";
 "Expanded" = "Expanded";
 "Nothing scheduled or due" = "Nothing scheduled or due";

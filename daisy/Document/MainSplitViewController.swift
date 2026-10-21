@@ -445,6 +445,7 @@ final class MainSplitViewController: NSSplitViewController {
         contentViewController?.applyThemeColors()
         cachedEditorViewController?.applyThemeColors()
         sidebarViewController?.refreshRowTextColors()
+        taskCalendarViewController?.themeColorsDidChange()
     }
 
     private static func makeSidebarItem(for viewController: SidebarViewController,
