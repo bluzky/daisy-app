@@ -527,7 +527,7 @@ extension SidebarViewController: NSOutlineViewDelegate {
 
             let textField = NSTextField(labelWithString: "")
             textField.translatesAutoresizingMaskIntoConstraints = false
-            textField.font = NSFont.systemFont(ofSize: 12, weight: .semibold)
+            textField.font = NSFont.systemFont(ofSize: 13, weight: .semibold)
             textField.textColor = .secondaryLabelColor
             textField.lineBreakMode = .byTruncatingMiddle
             textField.cell?.usesSingleLineMode = true

@@ -1380,7 +1380,7 @@ extension ProjectNavigatorView: NSOutlineViewDelegate {
         cell.identifier = identifier
         let textField = NSTextField(labelWithString: title)
         textField.translatesAutoresizingMaskIntoConstraints = false
-        textField.font = .systemFont(ofSize: 11, weight: .semibold)
+        textField.font = .systemFont(ofSize: 12, weight: .semibold)
         textField.textColor = .secondaryLabelColor
         cell.addSubview(textField)
         cell.textField = textField

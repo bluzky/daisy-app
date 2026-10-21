@@ -2,11 +2,11 @@
 //  TaskCalendarView.swift
 //  daisy
 //
-//  The Tasks sidebar's content: header and filter menu, the month grid with
-//  a dot for scheduled and a triangle for due tasks on each day, and the
-//  list. Today shows Overdue, Today and Upcoming; another day shows its Due
+//  The Agenda sidebar's content: header and filter menu, the month grid with
+//  a dot on each day that has scheduled or due tasks, and the list. Today
+//  shows Overdue, Today and Upcoming; another day shows its Due
 //  and Scheduled tasks. Rows open their file at the task when clicked and
-//  check the task off from the circle.
+//  check the task off from the checkbox.
 //
 
 import SwiftUI
@@ -44,8 +44,10 @@ struct TaskCalendarView: View {
 
     private var header: some View {
         HStack {
-            Text(NSLocalizedString("Tasks", comment: "Tasks sidebar title"))
-                .font(.headline)
+            Text(NSLocalizedString("Agenda", comment: "Tasks sidebar title"))
+                // As the Files sidebar's section headers.
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Color(nsColor: .secondaryLabelColor))
                 .accessibilityAddTraits(.isHeader)
             Spacer()
             if store.isWorkspace { filterMenu }
@@ -77,7 +79,7 @@ struct TaskCalendarView: View {
         let markers = TaskCalendarModel.markers(store.input, today: store.today)
         return MonthCalendarView(
             today: store.today,
-            selected: store.selectedDay,
+            selected: store.selectedDay ?? store.today,
             year: $store.year,
             month: $store.month,
             focusedDay: $store.focusedDay,
@@ -91,22 +93,16 @@ struct TaskCalendarView: View {
         .padding(12)
     }
 
+    /// One dot per day: red when something due is overdue, the accent while
+    /// any task is open, hollow once they are all done.
     @ViewBuilder
     private func dayMarkers(_ markers: TaskDayMarkers?) -> some View {
-        HStack(spacing: 2) {
-            if let markers, markers.openScheduled + markers.doneScheduled > 0 {
-                if markers.openScheduled > 0 {
-                    Circle().fill(accent).frame(width: 4, height: 4)
-                } else {
-                    Circle().strokeBorder(Color.secondary, lineWidth: 1).frame(width: 4, height: 4)
-                }
-            }
-            if let markers, markers.openDue + markers.doneDue > 0 {
-                if markers.openDue > 0 {
-                    DueTriangle().fill(markers.isOverdue ? Color.red : accent).frame(width: 5, height: 4)
-                } else {
-                    DueTriangle().stroke(Color.secondary, lineWidth: 1).frame(width: 5, height: 4)
-                }
+        if let markers {
+            let open = markers.openScheduled + markers.openDue
+            if open > 0 {
+                Circle().fill(markers.isOverdue ? Color.red : accent).frame(width: 4, height: 4)
+            } else if markers.doneScheduled + markers.doneDue > 0 {
+                Circle().strokeBorder(Color.secondary, lineWidth: 1).frame(width: 4, height: 4)
             }
         }
     }
@@ -225,7 +221,7 @@ struct TaskCalendarView: View {
         HStack {
             Text(day.date(in: MonthCalendarView<EmptyView>.calendar)
                 .formatted(.dateTime.weekday(.wide).month(.wide).day()).uppercased())
-                .font(.caption.weight(.semibold))
+                .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.secondary)
             Spacer()
             countLabel(open: groups.reduce(0) { $0 + $1.openCount }, done: groups.reduce(0) { $0 + $1.doneCount })
@@ -244,7 +240,8 @@ struct TaskCalendarView: View {
                 NSLocalizedString("Scheduled", comment: "Tasks sidebar subsection")
             }
             Text(title)
-                .font(.callout.weight(.semibold))
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
                 .padding(.horizontal, 12)
                 .padding(.top, 6)
                 .padding(.bottom, 2)
@@ -275,7 +272,7 @@ struct TaskCalendarView: View {
                         .font(.caption2.weight(.semibold))
                         .frame(width: 10)
                     Text(title.uppercased())
-                        .font(.caption.weight(.semibold))
+                        .font(.subheadline.weight(.semibold))
                         .foregroundStyle(titleColor)
                     Spacer()
                     countLabel(open: group.openCount, done: group.doneCount)
@@ -300,7 +297,7 @@ struct TaskCalendarView: View {
     private func countLabel(open: Int, done: Int) -> some View {
         if open + done > 0 {
             Text(done > 0 ? "\(open) · \(done)✓" : "\(open)")
-                .font(.caption.monospacedDigit())
+                .font(.subheadline.monospacedDigit())
                 .foregroundStyle(.secondary)
                 .accessibilityLabel(Text(done > 0
                     ? String(format: NSLocalizedString("%d open, %d done", comment: "Tasks sidebar count"), open, done)
@@ -314,9 +311,9 @@ struct TaskCalendarView: View {
                 .font(.title2)
                 .foregroundStyle(.secondary)
             Text(NSLocalizedString("Nothing scheduled or due", comment: "Tasks sidebar empty day"))
-                .font(.callout)
+                .font(.body)
             Text(NSLocalizedString("Add dates to tasks with /schedule or /due", comment: "Tasks sidebar empty day hint"))
-                .font(.caption)
+                .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
         }
@@ -345,8 +342,7 @@ struct TaskCalendarView: View {
                 focusedRowID = row.id
                 store.toggle(row)
             } label: {
-                Image(systemName: row.checked ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(row.checked ? accent : Color.secondary)
+                TaskCheckbox(checked: row.checked, accent: accent)
             }
             .buttonStyle(.plain)
             .accessibilityLabel(Text(row.checked
@@ -362,7 +358,7 @@ struct TaskCalendarView: View {
                 detailLine(row, detail)
                 if let error {
                     Text(error)
-                        .font(.caption)
+                        .font(.subheadline)
                         .foregroundStyle(.red)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -370,7 +366,7 @@ struct TaskCalendarView: View {
             Spacer(minLength: 4)
             priority(task.task.priority)
             Image(systemName: "arrow.up.right")
-                .font(.caption)
+                .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .opacity(isHighlighted ? 1 : 0)
                 .accessibilityHidden(true)
@@ -447,7 +443,7 @@ struct TaskCalendarView: View {
                 .lineLimit(1)
                 .truncationMode(.middle)
         }
-        .font(.caption)
+        .font(.subheadline)
     }
 
     @ViewBuilder
@@ -510,7 +506,7 @@ struct TaskCalendarView: View {
             Image(systemName: "checklist")
                 .font(.largeTitle)
                 .foregroundStyle(.secondary)
-            Text(NSLocalizedString("Tasks are available in a workspace.", comment: "Tasks sidebar outside a workspace"))
+            Text(NSLocalizedString("The agenda is available in a workspace.", comment: "Tasks sidebar outside a workspace"))
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
             if store.canInitializeWorkspace, store.onInitializeWorkspace != nil {
@@ -524,14 +520,40 @@ struct TaskCalendarView: View {
     }
 }
 
-/// The due marker: a small upward triangle.
-private struct DueTriangle: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.move(to: CGPoint(x: rect.midX, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
-        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
-        path.closeSubpath()
-        return path
+/// The rendered Markdown checkbox (`.task-list-item-checkbox`): a rounded
+/// square in the separator color, filled with the accent and a white tick
+/// when checked.
+private struct TaskCheckbox: View {
+    let checked: Bool
+    let accent: Color
+    @ScaledMetric(relativeTo: .body) private var size: CGFloat = 14
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: size / 4)
+            .fill(checked ? accent : Color.clear)
+            .overlay {
+                RoundedRectangle(cornerRadius: size / 4)
+                    .strokeBorder(checked ? accent : Color(nsColor: .separatorColor), lineWidth: 1.5)
+            }
+            .overlay {
+                if checked { Tick().stroke(.white, style: StrokeStyle(lineWidth: size / 8, lineCap: .round, lineJoin: .round)) }
+            }
+            .frame(width: size, height: size)
+            // Centred on the title's capitals, as in the preview.
+            .alignmentGuide(.firstTextBaseline) { $0.height * 0.83 }
+    }
+
+    /// The preview's tick path, `M4.4 8.4 L7 11 L11.6 5.4` on a 16-unit box.
+    private struct Tick: Shape {
+        func path(in rect: CGRect) -> Path {
+            func point(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+                CGPoint(x: rect.minX + rect.width * x / 16, y: rect.minY + rect.height * y / 16)
+            }
+            var path = Path()
+            path.move(to: point(4.4, 8.4))
+            path.addLine(to: point(7, 11))
+            path.addLine(to: point(11.6, 5.4))
+            return path
+        }
     }
 }

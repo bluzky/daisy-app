@@ -509,9 +509,9 @@
 "“%@” in the journals folder is not a file." = "journals 文件夹中的“%@”不是文件。";
 
 /* Tasks sidebar */
-"Tasks" = "任务";
-"Show tasks" = "显示任务";
-"Tasks are available in a workspace." = "任务仅在工作区中可用。";
+"Agenda" = "日程";
+"Show agenda" = "显示日程";
+"The agenda is available in a workspace." = "日程仅在工作区中可用。";
 "Filter Tasks" = "筛选任务";
 "Show Completed" = "显示已完成";
 "Show Overdue" = "显示已逾期";

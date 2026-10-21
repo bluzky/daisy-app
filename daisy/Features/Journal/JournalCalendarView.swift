@@ -3,8 +3,9 @@
 //  daisy
 //
 //  The month grid in the toolbar's Journal popover. Days that already have
-//  an entry carry a dot and today is ringed, both in the theme's accent (its
-//  link color). Clicking a day, or Return on the focused one, opens it,
+//  an entry carry a dot in the theme's accent (its link color), and the day
+//  the arrow keys are on is filled with it, as in the editor's date picker;
+//  today is bold. Clicking a day, or Return on the focused one, opens it,
 //  creating its entry when it has none. The grid itself is
 //  `MonthCalendarView`, shared with the Tasks sidebar.
 //
@@ -45,6 +46,7 @@ struct JournalCalendarView: View {
     var body: some View {
         MonthCalendarView(
             today: today,
+            selected: focusedDay,
             year: $year,
             month: $month,
             focusedDay: $focusedDay,

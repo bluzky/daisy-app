@@ -103,7 +103,7 @@ enum KeymapCommand: String, CaseIterable, Hashable {
         case .viewToggleSidebar: "Toggle Sidebar"
         case .viewShowOutline: "Table of Contents"
         case .viewShowProjectNavigator: "Project Navigator"
-        case .viewToggleTasks: "Tasks"
+        case .viewToggleTasks: "Agenda"
         case .viewToggleEditMode: "Toggle Edit Mode"
         case .viewToggleToolbar: "Show Toolbar"
         case .viewToggleAlwaysOnTop: "Always on Top"

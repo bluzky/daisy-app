@@ -4,10 +4,12 @@
 //
 //  The month grid shared by the toolbar's Journal popover and the Tasks
 //  sidebar: a header with the month and its arrows, the weekday row, and the
-//  days, with today ringed in the accent. Each caller draws its own markers
-//  under the day number. Clicking a day, or Return on the focused one, calls
-//  `open`. Arrow keys move between days, across months too; the focused day
-//  is outlined only once they are used.
+//  days. It follows the editor's date picker (`/schedule`, `/due`): rounded
+//  cells, today in bold, the selected day filled in the accent, and the
+//  neighbouring months' days dimmed so every month shows six weeks. Each
+//  caller draws its own markers under the day number. Clicking a day, or
+//  Return on the focused one, calls `open`. Arrow keys move between days,
+//  across months too; the focused day is outlined only once they are used.
 //
 
 import SwiftUI
@@ -30,9 +32,10 @@ struct MonthCalendarView<Marker: View>: View {
 
     /// Set by the first arrow key, so a mouse user sees no focused day.
     @State private var showsFocus = false
+    @State private var hoveredDay: JournalDay?
     @FocusState private var gridFocused: Bool
 
-    static var cellSize: CGFloat { 30 }
+    static var cellSize: CGFloat { 32 }
 
     /// Gregorian, because dates are ISO days, but with the reader's first
     /// weekday and language.
@@ -61,6 +64,7 @@ struct MonthCalendarView<Marker: View>: View {
         HStack(spacing: 4) {
             Button { showMonth(offset: -1) } label: {
                 Image(systemName: "chevron.left")
+                    .foregroundStyle(.secondary)
             }
             .buttonStyle(.borderless)
             .accessibilityLabel(Text(NSLocalizedString("Previous Month", comment: "Journal calendar button")))
@@ -72,6 +76,7 @@ struct MonthCalendarView<Marker: View>: View {
 
             Button { showMonth(offset: 1) } label: {
                 Image(systemName: "chevron.right")
+                    .foregroundStyle(.secondary)
             }
             .buttonStyle(.borderless)
             .accessibilityLabel(Text(NSLocalizedString("Next Month", comment: "Journal calendar button")))
@@ -94,7 +99,7 @@ struct MonthCalendarView<Marker: View>: View {
         return HStack(spacing: 0) {
             ForEach(Array(ordered.enumerated()), id: \.offset) { _, symbol in
                 Text(symbol)
-                    .font(.caption)
+                    .font(.subheadline.weight(.medium))
                     .foregroundStyle(.secondary)
                     .modifier(CellWidth(stretches: stretches))
             }
@@ -110,13 +115,7 @@ struct MonthCalendarView<Marker: View>: View {
             ForEach(0..<(cells.count / 7), id: \.self) { row in
                 HStack(spacing: 0) {
                     ForEach(0..<7, id: \.self) { column in
-                        if let day = cells[row * 7 + column] {
-                            dayCell(day)
-                        } else {
-                            Color.clear
-                                .frame(height: Self.cellSize)
-                                .modifier(CellWidth(stretches: stretches))
-                        }
+                        dayCell(cells[row * 7 + column])
                     }
                 }
             }
@@ -137,48 +136,59 @@ struct MonthCalendarView<Marker: View>: View {
         }
     }
 
-    /// The month's days in weeks, nil-padded to whole rows.
-    static func monthCells(year: Int, month: Int, calendar: Calendar) -> [JournalDay?] {
+    /// Six weeks around the month, the days before and after it included.
+    static func monthCells(year: Int, month: Int, calendar: Calendar) -> [JournalDay] {
         guard let first = JournalDay(year: year, month: month, day: 1) else { return [] }
-        let weekday = calendar.component(.weekday, from: first.date(in: calendar))
+        let start = first.date(in: calendar)
+        let weekday = calendar.component(.weekday, from: start)
         let leading = (weekday - calendar.firstWeekday + 7) % 7
-        let count = JournalDay.daysInMonth(year: year, month: month)
-        var cells: [JournalDay?] = Array(repeating: nil, count: leading)
-        cells += (1...count).map { JournalDay(year: year, month: month, day: $0) }
-        cells += Array(repeating: nil, count: (7 - cells.count % 7) % 7)
-        return cells
+        return (0..<42).compactMap { index in
+            calendar.date(byAdding: .day, value: index - leading, to: start)
+                .map { JournalDay(date: $0, calendar: calendar) }
+        }
     }
 
     private func dayCell(_ day: JournalDay) -> some View {
         let isToday = day == today
         let isSelected = day == selected
-        let isFocused = showsFocus && gridFocused && day == focusedDay
+        let isOutside = day.year != year || day.month != month
+        let isFocused = showsFocus && gridFocused && day == focusedDay && !isSelected
+        let fill: Color = isSelected ? accent
+            : hoveredDay == day ? Color.primary.opacity(0.06) : Color.clear
         return Button {
             focusedDay = day
+            if isOutside {
+                year = day.year
+                month = day.month
+            }
             open(day)
         } label: {
             ZStack {
-                Circle()
-                    .fill(isSelected ? accent : Color.clear)
-                Circle()
-                    .strokeBorder(isToday && !isSelected ? accent : Color.clear, lineWidth: 1.5)
-                Text("\(day.day)")
-                    .font(.system(size: 12, weight: isToday || isSelected ? .semibold : .regular).monospacedDigit())
-                    .foregroundStyle(isSelected ? Color.white : Color.primary)
-                marker(day)
-                    .offset(y: 9)
-            }
-            .frame(width: Self.cellSize - 4, height: Self.cellSize - 4)
-            .background(
-                RoundedRectangle(cornerRadius: 6)
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(fill)
+                RoundedRectangle(cornerRadius: 8)
                     .strokeBorder(isFocused ? accent.opacity(0.6) : Color.clear, lineWidth: 1)
-                    .frame(width: Self.cellSize, height: Self.cellSize)
-            )
-            .frame(height: Self.cellSize)
+                Text("\(day.day)")
+                    .font(.system(size: 13, weight: isToday ? .bold : .regular).monospacedDigit())
+                    .foregroundStyle(isSelected ? Color.white : isOutside ? Color.secondary : Color.primary)
+                    .offset(y: -2)
+                // White on the filled cell, so an accent marker stays visible.
+                marker(day)
+                    .frame(height: 4)
+                    .saturation(isSelected ? 0 : 1)
+                    .brightness(isSelected ? 1 : 0)
+                    .offset(y: 10)
+            }
+            .opacity(isOutside && !isSelected ? 0.6 : 1)
+            // Square however wide the column grows.
+            .frame(width: Self.cellSize, height: Self.cellSize)
             .modifier(CellWidth(stretches: stretches))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .onHover { hovering in
+            if hovering { hoveredDay = day } else if hoveredDay == day { hoveredDay = nil }
+        }
         .accessibilityLabel(Text(accessibilityLabel(day)))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
@@ -202,7 +212,7 @@ struct MonthCalendarView<Marker: View>: View {
     }
 }
 
-/// A fixed 30 pt column, or one sharing the row's width with its siblings.
+/// A fixed 32 pt column, or one sharing the row's width with its siblings.
 private struct CellWidth: ViewModifier {
     let stretches: Bool
 

@@ -604,7 +604,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return activeDocumentWindowController != nil
         case #selector(toggleTasksFromMenu(_:)):
             let controller = activeDocumentWindowController
-            menuItem.toolTip = controller?.isWorkspace == true ? nil : L("Tasks are available in a workspace.")
+            menuItem.toolTip = controller?.isWorkspace == true ? nil : L("The agenda is available in a workspace.")
             return controller?.canToggleTasks == true
         case #selector(selectAppearanceMode(_:)):
             return ThemePreset.applied().requiredAppearance == nil
@@ -1426,7 +1426,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         filesMenuItem = files
 
         // ⇧⌘I: ⌘I is Italic and ⌥⌘I the Web Inspector.
-        let tasks = makeSidebarViewMenuItem(title: L("Tasks"),
+        let tasks = makeSidebarViewMenuItem(title: L("Agenda"),
                                             symbol: "checklist",
                                             keyEquivalent: "i",
                                             modifiers: [.shift, .command],

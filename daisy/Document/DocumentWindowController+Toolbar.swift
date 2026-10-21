@@ -299,10 +299,10 @@ extension DocumentWindowController {
         let (item, button) = makeToggleButtonItem(
             identifier: .tasks,
             image: tasksImage(),
-            label: NSLocalizedString("Tasks", comment: "Tasks toolbar item label"),
+            label: NSLocalizedString("Agenda", comment: "Tasks toolbar item label"),
             action: #selector(toggleTasksAction(_:))
         )
-        item.paletteLabel = NSLocalizedString("Tasks", comment: "Tasks toolbar item label")
+        item.paletteLabel = NSLocalizedString("Agenda", comment: "Tasks toolbar item label")
         item.autovalidates = false
         item.isEnabled = isWorkspace
         button.isEnabled = isWorkspace
@@ -599,7 +599,7 @@ extension DocumentWindowController {
 
     private func tasksImage() -> NSImage {
         let image = NSImage(systemSymbolName: "checklist",
-                            accessibilityDescription: NSLocalizedString("Tasks", comment: "Tasks toolbar image")) ?? NSImage()
+                            accessibilityDescription: NSLocalizedString("Agenda", comment: "Tasks toolbar image")) ?? NSImage()
         image.isTemplate = true
         return image
     }
@@ -629,8 +629,8 @@ extension DocumentWindowController {
 
     private var tasksToggleToolTip: String {
         isWorkspace
-            ? NSLocalizedString("Show tasks", comment: "Tasks toolbar item tooltip")
-            : NSLocalizedString("Tasks are available in a workspace.", comment: "Tasks unavailable tooltip")
+            ? NSLocalizedString("Show agenda", comment: "Tasks toolbar item tooltip")
+            : NSLocalizedString("The agenda is available in a workspace.", comment: "Tasks unavailable tooltip")
     }
 
     func refreshTasksToggleItem() {

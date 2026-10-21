@@ -509,9 +509,9 @@
 "“%@” in the journals folder is not a file." = "“%@” in the journals folder is not a file.";
 
 /* Tasks sidebar */
-"Tasks" = "Tasks";
-"Show tasks" = "Show tasks";
-"Tasks are available in a workspace." = "Tasks are available in a workspace.";
+"Agenda" = "Agenda";
+"Show agenda" = "Show agenda";
+"The agenda is available in a workspace." = "The agenda is available in a workspace.";
 "Filter Tasks" = "Filter Tasks";
 "Show Completed" = "Show Completed";
 "Show Overdue" = "Show Overdue";
