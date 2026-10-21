@@ -9,6 +9,7 @@ final class MainSplitViewController: NSSplitViewController {
 
     /// Also read by `WhatsNewWindow` as a sign of earlier use.
     static let didSeedKey = "MainSplitView.didSeedInitialState"
+    private static let didSeedTasksPaneKey = "MainSplitView.didSeedTasksPane"
     /// Keeps the pane picker and sidebar toggle visible beside the window controls.
     private static let minimumSidebarWidth: CGFloat = 230
 
@@ -38,6 +39,7 @@ final class MainSplitViewController: NSSplitViewController {
     var onSelectFile: ((URL) -> Void)?
     var onKeepFile: ((URL) -> Void)?
     private var sidebarCollapseObservation: NSKeyValueObservation?
+    private var tasksCollapseObservation: NSKeyValueObservation?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -64,15 +66,21 @@ final class MainSplitViewController: NSSplitViewController {
         let content = NSSplitViewItem(viewController: LayeredContentViewController())
         content.minimumThickness = 420
 
-        let inspector = NSSplitViewItem(inspectorWithViewController: InspectorViewController())
-        inspector.minimumThickness = 270
-        inspector.maximumThickness = 500
-        inspector.isCollapsed = true
-        inspector.canCollapseFromWindowResize = false
+        let tasks = NSSplitViewItem(inspectorWithViewController: TaskCalendarViewController())
+        tasks.minimumThickness = 270
+        tasks.maximumThickness = 500
+        tasks.isCollapsed = true
+        tasks.canCollapseFromWindowResize = false
 
         addSplitViewItem(sidebar)
         addSplitViewItem(content)
-        addSplitViewItem(inspector)
+        addSplitViewItem(tasks)
+
+        tasksCollapseObservation = tasks.observe(\.isCollapsed, options: [.new]) { [weak self] _, _ in
+            DispatchQueue.main.async { [weak self] in
+                self?.syncTasksPaneVisibility()
+            }
+        }
 
         sidebarCollapseObservation = sidebar.observe(\.isCollapsed, options: [.new]) { [weak self] _, _ in
             DispatchQueue.main.async { [weak self] in
@@ -95,9 +103,7 @@ final class MainSplitViewController: NSSplitViewController {
         contentViewController?.linkActivated = { [weak self] link in
             self?.openLink(link)
         }
-        inspectorViewController?.onOpenLink = { [weak self] link, documentURL in
-            self?.openLink(link.target(relativeTo: documentURL))
-        }
+
     }
 
     /// Nil is a link that cannot be resolved, such as a relative path in a
@@ -132,7 +138,7 @@ final class MainSplitViewController: NSSplitViewController {
 
     /// `showsPreview` is false for a code file, which is not Markdown: its
     /// preview and outline get an empty document, so `# comment` lines do not
-    /// become headings. The inspector still counts the real text.
+    /// become headings.
     func display(markdown: String,
                  showsPreview: Bool = true,
                  fileName: String,
@@ -147,7 +153,7 @@ final class MainSplitViewController: NSSplitViewController {
             documentID: documentID
         )
         sidebarViewController?.display(markdown: previewMarkdown, fileName: fileName, fileURL: url)
-        inspectorViewController?.display(metadata: DocumentMetadata.make(url: url, markdown: markdown))
+
     }
 
     /// URL-only refresh after a rename. Skips the content re-render so
@@ -156,7 +162,7 @@ final class MainSplitViewController: NSSplitViewController {
     func openFileURLDidChange(_ newURL: URL, markdown: String) {
         contentViewController?.sourceFileURLDidChange(newURL)
         sidebarViewController?.openFileURLDidChange(newURL)
-        inspectorViewController?.display(metadata: DocumentMetadata.make(url: newURL, markdown: markdown))
+
     }
 
     func openFolder(_ folderURL: URL, selectedFileURL: URL?) {
@@ -329,16 +335,57 @@ final class MainSplitViewController: NSSplitViewController {
         return true
     }
 
-    var isInspectorVisible: Bool {
+    var isTasksVisible: Bool {
         !(splitViewItems.last?.isCollapsed ?? true)
     }
 
+    /// An edit session is closing: its buffer has been or is being committed.
+    var isEditorExitInProgress: Bool { isEditorExiting }
+
+    /// Runs `completion` once the editor has finished closing, or now.
+    func afterEditorExit(_ completion: @escaping () -> Void) {
+        if isEditorExiting {
+            pendingExitCompletions.append(completion)
+        } else {
+            completion()
+        }
+    }
+
     @discardableResult
-    func toggleInspector() -> Bool {
-        guard let inspector = splitViewItems.last else { return false }
-        let shouldShow = inspector.isCollapsed
-        inspector.animator().isCollapsed = !shouldShow
+    func toggleTasks() -> Bool {
+        guard let tasks = splitViewItems.last else { return false }
+        let shouldShow = tasks.isCollapsed
+        tasks.animator().isCollapsed = !shouldShow
+        taskCalendarViewController?.setPaneVisible(shouldShow)
         return shouldShow
+    }
+
+    /// Brings a task's line to the top of whichever view shows the document,
+    /// once it has rendered. An editor still preparing lands on it as it is
+    /// revealed; the line is dropped if that takes longer than a few seconds.
+    func scrollToTaskLine(_ line: Int) {
+        if let editor = editorViewController, !isEditorPreparing {
+            editor.applyScrollProgress(0, sourceAnchor: SourceScrollAnchor(sourcePosition: CGFloat(line), topGap: 0)) {}
+            return
+        }
+        // Only for an editor on its way; otherwise a later ⌘E would jump
+        // back here instead of opening where the reader is.
+        let editorPending = isEditorPreparing
+            || (view.window?.windowController as? DocumentWindowController)?.pendingEditModeURL != nil
+        pendingTaskLine = editorPending ? (line, Date().addingTimeInterval(3)) : nil
+        contentViewController?.scrollToSourceLineWhenReady(line)
+    }
+
+    func revealFileInSidebar(_ url: URL) {
+        setSidebarMode(.files)
+        showSidebar()
+        sidebarViewController?.revealFile(url)
+        (view.window?.windowController as? DocumentWindowController)?.syncSidebarToolbarState()
+    }
+
+    private func syncTasksPaneVisibility() {
+        taskCalendarViewController?.setPaneVisible(isTasksVisible)
+        (view.window?.windowController as? DocumentWindowController)?.refreshTasksToggleItem()
     }
 
     var isSidebarVisible: Bool {
@@ -398,6 +445,7 @@ final class MainSplitViewController: NSSplitViewController {
         contentViewController?.applyThemeColors()
         cachedEditorViewController?.applyThemeColors()
         sidebarViewController?.refreshRowTextColors()
+        taskCalendarViewController?.themeColorsDidChange()
     }
 
     private static func makeSidebarItem(for viewController: SidebarViewController,
@@ -448,6 +496,8 @@ final class MainSplitViewController: NSSplitViewController {
     private var pendingPreviewScrollProgress: CGFloat = 0
     private var shouldAutofocusEditor = false
     private var pendingAppendedEntry: String?
+    /// A task line to open at, from the Tasks sidebar, with its deadline.
+    private var pendingTaskLine: (line: Int, deadline: Date)?
 
     var isEditingDocument: Bool {
         isEditorPreparing || isEditorVisible || isEditorExiting
@@ -619,6 +669,12 @@ final class MainSplitViewController: NSSplitViewController {
     private func revealEditorIfPrepared(_ editorVC: EditorViewController) {
         guard isEditorPreparing, isEditorDOMReady, isSourceScrollAnchorResolved else { return }
         let generation = editModeGeneration
+        if let pending = pendingTaskLine {
+            pendingTaskLine = nil
+            if pending.deadline > Date() {
+                pendingSourceScrollAnchor = SourceScrollAnchor(sourcePosition: CGFloat(pending.line), topGap: 0)
+            }
+        }
         // CodeMirror and the preview source lookup complete independently.
         // Apply the exact line only after both are ready, then reveal after a
         // display cycle so no empty editor frame is exposed.
@@ -765,17 +821,24 @@ final class MainSplitViewController: NSSplitViewController {
         splitViewItems.dropFirst().first?.viewController as? LayeredContentViewController
     }
 
-    private var inspectorViewController: InspectorViewController? {
-        splitViewItems.last?.viewController as? InspectorViewController
+    var taskCalendarViewController: TaskCalendarViewController? {
+        splitViewItems.last?.viewController as? TaskCalendarViewController
     }
 
     override func viewDidAppear() {
         super.viewDidAppear()
         defer {
+            syncTasksPaneVisibility()
             (view.window?.windowController as? DocumentWindowController)?.syncSidebarToolbarState()
         }
 
         let defaults = UserDefaults.standard
+        // Run after split autosave restoration, independently of the old sidebar seed.
+        // A previously open Inspector must not opt the user into the Tasks pane.
+        if !defaults.bool(forKey: Self.didSeedTasksPaneKey) {
+            splitViewItems.last?.isCollapsed = true
+            defaults.set(true, forKey: Self.didSeedTasksPaneKey)
+        }
         guard !defaults.bool(forKey: Self.didSeedKey) else { return }
 
         // Seed the expanded width so the toolbar toggle opens to a sensible size,

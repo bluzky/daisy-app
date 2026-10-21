@@ -3,7 +3,7 @@
 //  daisy
 //
 //  What activating a link opens, whichever view it was activated in: the
-//  Read mode preview, the inspector's Links section or the editor.
+//  Read mode preview or the editor.
 //  `LinkHandler.open` takes it from there.
 //
 

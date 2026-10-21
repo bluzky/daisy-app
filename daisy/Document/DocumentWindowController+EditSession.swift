@@ -580,7 +580,10 @@ extension DocumentWindowController {
         }
     }
 
-    func toggleTaskCheckbox(onLine sourceLine: Int, checked: Bool) {
+    /// `completion` gets the saved text, or nil when nothing was saved: the
+    /// line is not a task, the save was cancelled, or the file was reloaded.
+    func toggleTaskCheckbox(onLine sourceLine: Int, checked: Bool,
+                            completion: ((String?) -> Void)? = nil) {
         guard !isEditing,
               let baseline = currentMarkdown,
               let updated = TaskCheckboxSource.settingChecked(
@@ -588,6 +591,7 @@ extension DocumentWindowController {
               ),
               updated != baseline else {
             rerenderCurrentPreview()
+            completion?(nil)
             return
         }
 
@@ -595,15 +599,20 @@ extension DocumentWindowController {
         saveEditedMarkdown(updated, diskState: diskState) { [weak self] result in
             guard let self else { return }
             let markdown: String
+            let saved: String?
             switch result {
             case .saved:
                 markdown = updated
+                saved = updated
             case let .reloaded(externalMarkdown):
                 markdown = externalMarkdown
+                saved = nil
             case .cancelled:
                 self.rerenderCurrentPreview()
+                completion?(nil)
                 return
             }
+            defer { completion?(saved) }
             // Read Mode can be previewing an unsaved editor draft. A saved or
             // reloaded result replaces that session, including its disk baseline.
             self.editorDraftMarkdown = nil

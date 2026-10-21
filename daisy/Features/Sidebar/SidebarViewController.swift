@@ -226,6 +226,16 @@ final class SidebarViewController: NSViewController {
         display(markdown: markdown, fileName: name, fileURL: nil)
     }
 
+    /// Selects `url` in the Files tree without opening it, for the Tasks
+    /// sidebar's Reveal in Files. The open file is selected again the next
+    /// time a document is shown.
+    func revealFile(_ url: URL) {
+        loadViewIfNeeded()
+        setMode(.files)
+        refreshNavigatorIfNeeded()
+        projectNavigator.setCurrentFile(SidebarWorkspace.canonicalURL(url))
+    }
+
     /// Update the tracked file URL after a rename — keeps the navigator
     /// selection on the open file without rebuilding the TOC.
     func openFileURLDidChange(_ newURL: URL) {
@@ -517,7 +527,7 @@ extension SidebarViewController: NSOutlineViewDelegate {
 
             let textField = NSTextField(labelWithString: "")
             textField.translatesAutoresizingMaskIntoConstraints = false
-            textField.font = NSFont.systemFont(ofSize: 12, weight: .semibold)
+            textField.font = NSFont.systemFont(ofSize: 13, weight: .semibold)
             textField.textColor = .secondaryLabelColor
             textField.lineBreakMode = .byTruncatingMiddle
             textField.cell?.usesSingleLineMode = true

@@ -68,6 +68,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
             updateWorkspaceIndexBinding()
             mainSplit?.setMetadataLinksEnabled(isWorkspace)
             refreshJournalToolbarItem()
+            refreshTasksToggleItem()
             addJournalToolbarItemIfNeeded()
         }
     }
@@ -82,6 +83,11 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     var workspaceOverlayURL: URL?
     var workspaceOverlayWork: DispatchWorkItem?
     let workspaceOverlayOwner = UUID()
+    /// The workspace root's identity when the index was bound, so the Tasks
+    /// sidebar never writes into a root swapped for another directory.
+    var taskRootIdentity: WorkspaceFileWriter.RootIdentity?
+    /// Check-offs from the Tasks sidebar, run one after another.
+    var taskWrites: Task<Void, Never>?
     /// Fallback for controller-driven untitled content outside an NSDocument.
     let untitledDocumentID = UUID().uuidString
     var backHistory: [HistoryEntry] = []
@@ -89,11 +95,12 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     weak var navigationItem: NSToolbarItemGroup?
     private var fileWatcher: FileWatcher?
     private let fullscreenToolbarTheme = FullscreenToolbarTheme()
-    var isInspectorToggleSelected = false
+    var isTasksToggleSelected = false
     weak var openActionsItem: NSMenuToolbarItem?
     weak var openWithItem: NSMenuToolbarItem?
     weak var openInLLMItem: NSMenuToolbarItem?
-    weak var inspectorButton: NSButton?
+    weak var tasksButton: NSButton?
+    weak var tasksItem: NSToolbarItem?
     weak var alwaysOnTopButton: NSButton?
     weak var editButton: NSButton?
     var editorChangeRevision = 0
@@ -354,6 +361,14 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         // The find bar paints the page backgrounds; a theme edit changes those
         // colors without an appearance flip, so force a redraw.
         findBarOverlay?.needsDisplay = true
+        // Toggles whose on state is drawn in the theme accent. An on button
+        // repaints its fill only when the state changes, so step it through.
+        for case let button? in [tasksButton, alwaysOnTopButton] {
+            button.bezelColor = Self.makeThemeAccent()
+            let state = button.state
+            button.state = .off
+            button.state = state
+        }
     }
 
     /// Tint the window using the current theme while preserving native chrome.
@@ -672,7 +687,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
 
     /// The currently-open file moved (Finder rename, editor save-as, etc).
     /// Update the open URL and propagate it to the title, recent docs,
-    /// Open With list, sidebar selection, and inspector — without
+    /// Open With list and sidebar selection — without
     /// re-rendering the WebView, since the markdown content didn't change.
     func handleRename(to newURL: URL) {
         guard currentFileURL != nil else { return }

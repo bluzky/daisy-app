@@ -366,6 +366,24 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
         }
     }
 
+    /// Checks or unchecks a task as one undoable edit of its marker, for the
+    /// Tasks sidebar. Completion gets the line used and the updated buffer,
+    /// or nil when the editor isn't ready or the task can't be found.
+    func setTaskChecked(line: Int, checked: Bool, text: String,
+                        completion: @escaping ((line: Int, changed: Bool, markdown: String)?) -> Void) {
+        let script = "window.__mdEditor ? window.__mdEditor.setTaskChecked(\(line), \(checked), \(EditorHTML.jsStringLiteral(text))) : null"
+        webView.evaluateJavaScript(script) { value, _ in
+            guard let result = value as? [String: Any],
+                  let line = (result["line"] as? NSNumber)?.intValue,
+                  let changed = result["changed"] as? Bool,
+                  let markdown = result["markdown"] as? String else {
+                completion(nil)
+                return
+            }
+            completion((line, changed, markdown))
+        }
+    }
+
     func find(_ query: String,
               backwards: Bool = false,
               options: SearchOptions = SearchOptions(),

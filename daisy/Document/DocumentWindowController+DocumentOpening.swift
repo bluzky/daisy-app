@@ -13,15 +13,17 @@ extension DocumentWindowController {
         let appURL: URL
     }
 
-    func openInNewTab(_ fileURL: URL, startEditing: Bool = false, asPreview: Bool = false) {
+    /// `opened` gets the window showing the file, new or already open.
+    func openInNewTab(_ fileURL: URL, startEditing: Bool = false, asPreview: Bool = false,
+                      opened: ((DocumentWindowController) -> Void)? = nil) {
         Self.markNextWindowAsTab()
         Self.nextWindowIsPreview = asPreview
-        openDocumentWindow(for: fileURL, startEditing: startEditing) {
+        openDocumentWindow(for: fileURL, startEditing: startEditing, opened: opened, completion: {
             // If the document was already open, no window was created and
             // the override wasn't consumed — don't let it leak to the next one.
             Self.nextWindowRequestsTab = false
             Self.nextWindowIsPreview = false
-        }
+        })
     }
 
     /// A single click in the Files sidebar, as in VS Code: the file's own
@@ -113,11 +115,11 @@ extension DocumentWindowController {
 
     func openInNewWindow(_ fileURL: URL, startEditing: Bool = false) {
         Self.markNextWindowAsSeparate()
-        openDocumentWindow(for: fileURL, startEditing: startEditing) {
+        openDocumentWindow(for: fileURL, startEditing: startEditing, completion: {
             // If the document was already open, no window was created and
             // the override wasn't consumed — don't let it leak to the next one.
             Self.nextWindowDeclinesTabbing = false
-        }
+        })
     }
 
     /// Hands a file Daisy does not edit to the system's default app. Returns
@@ -138,6 +140,7 @@ extension DocumentWindowController {
     }
 
     private func openDocumentWindow(for fileURL: URL, startEditing: Bool = false,
+                                    opened: ((DocumentWindowController) -> Void)? = nil,
                                     completion: (() -> Void)? = nil) {
         if openExternallyIfNeeded(fileURL) {
             completion?()
@@ -157,6 +160,9 @@ extension DocumentWindowController {
                let controller = document?.windowControllers.first as? DocumentWindowController,
                let split = controller.documentWindow.contentViewController as? MainSplitViewController {
                 split.scrollToAnchorWhenReady(fragment)
+            }
+            if let controller = document?.windowControllers.first as? DocumentWindowController {
+                opened?(controller)
             }
             guard let self, let error else { return }
             NSAlert(error: error).beginSheetModal(for: self.documentWindow)
