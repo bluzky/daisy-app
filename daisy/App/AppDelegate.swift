@@ -167,6 +167,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         installWhatsNewMenuItem()
         installViewMenuItemIcons()
         QuickCaptureController.shared.applyEnabledSetting()
+        WorkspaceMetadataIndex.purgeStaleCaches()
         hasFinishedLaunching = true
         if !didReceiveOpenURLsDuringLaunch {
             scheduleDocumentPrompt(requiresNoDocuments: true, followsLaunchBehavior: true)

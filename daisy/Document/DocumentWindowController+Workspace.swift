@@ -54,6 +54,7 @@ extension DocumentWindowController {
         }
         do {
             try WorkspaceMarker.remove(root: root)
+            WorkspaceMetadataIndex.discardCache(root: root)
         } catch {
             NSAlert(error: error).beginSheetModal(for: documentWindow)
         }

@@ -1,6 +1,6 @@
 # Workspace metadata implementation plan
 
-Status: Phases 1, 2 (2a, 2c, 2b), 3, 4, and 4.5 complete; 5–6 planned. This plan implements [`workspace-metadata-proposal.md`](workspace-metadata-proposal.md) in independently testable phases. It does not imply a release or version bump.
+Status: Phases 1, 2 (2a, 2c, 2b), 3, 4, 4.5, and 5 complete; 6 planned. This plan implements [`workspace-metadata-proposal.md`](workspace-metadata-proposal.md) in independently testable phases. It does not imply a release or version bump.
 
 ## Sequencing
 
@@ -15,7 +15,7 @@ Status: Phases 1, 2 (2a, 2c, 2b), 3, 4, and 4.5 complete; 5–6 planned. This pl
         ↓
 4.5 Metadata links and pages — complete
         ↓
-5. Persistent cache and lifecycle
+5. Persistent cache and lifecycle — complete
         ↓
 6. Integration, documentation, runtime validation
 ```
@@ -260,6 +260,16 @@ Make each tag, context, and project in a workspace window a link to its page: a 
 - Nothing is written into the workspace except the marker and pages the user explicitly opens.
 
 ## Phase 5 — SQLite cache in the app container
+
+Status: complete. The store is the `WorkspaceIndexStore` actor in `daisy/Features/WorkspaceMetadata/WorkspaceIndexStore.swift`, the only file with SQLite calls; `WorkspaceMetadataIndex` loads it before its first scan and saves changed files to it. The parser version is the SHA-256 of the extractor script (`WorkspaceMetadataExtractor.parserVersion`). Tests are `tests/swift-tests/Tests/MarkdownHelpersTests/WorkspaceIndexStoreTests.swift`. Differences from the tasks below:
+
+- Aggregates are not stored. They are summed from the per-file rows on load, so they cannot disagree with them.
+- A file whose size or date changed but whose SHA-256 matches its row keeps its names without running the extractor.
+- A moved root is rebuilt, not re-keyed: its path gives it a new `<root-id>`, and a file copied to that id names the old root, so it is rejected. The old file is deleted by the 30-day purge.
+- A cache folder inside the workspace is not used, so the cache never produces watcher events.
+- A store that fails or is held by another connection past 200 ms is dropped for the life of that index, which carries on in memory. `rebuildCache` tries again. After Remove Workspace, an index that is still held writes no cache until it is released.
+- `WorkspaceMetadataIndex.rebuildCache(root:)` is the rebuild action; the menu item and indexing status are Phase 6.
+- No project or package change was needed: `import SQLite3` links the system library.
 
 ### Goal
 
