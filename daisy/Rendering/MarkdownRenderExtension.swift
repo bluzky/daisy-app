@@ -194,6 +194,7 @@ nonisolated extension MarkdownHTML {
     MermaidExtension(),
     ColorfulHeadersExtension(),
     TaskMetadataExtension(),
+    MetadataLinksExtension(),
     SlashCommandsExtension(),
     MetadataCompletionExtension()
   ])
@@ -785,6 +786,147 @@ nonisolated extension MarkdownHTML {
   /// from the document and the workspace (`metadata-completion.js` in the
   /// editor bundle). This declares the toggle and the menu styling. It never
   /// touches rendered output.
+  /// `#tag`, `@context` and `+project` tokens as links to their workspace
+  /// page. Read mode wraps each token in `.mdp-metadata-link`; it reads as a
+  /// link and opens on click only while the page has `data-mdp-workspace`,
+  /// which the host sets on workspace windows. The editor module styles the
+  /// tokens the same way and opens them with Cmd+click. Quick Look and HTML
+  /// export never load the script.
+  struct MetadataLinksExtension: MarkdownRenderExtension {
+    let id = "metadata-links"
+    let descriptor = RenderExtensionDescriptor(
+      titleKey: "Metadata links",
+      descriptionKey: nil,
+      defaultEnabled: true,
+      userToggleable: true
+    )
+    let order = 210
+    let editor: (any EditorCapability)? = EditorModule(
+      moduleID: "metadata-links",
+      css: MarkdownHTML.metadataLinksStylesheet
+    )
+
+    func isActive(in context: RenderContext) -> Bool {
+      context.markdown.contains(Self.tokenPattern)
+    }
+
+    func assets(mode: VendorLoading) -> RenderAssets {
+      guard mode == .lazy else { return RenderAssets() }
+      return RenderAssets(
+        css: MarkdownHTML.metadataLinksStylesheet,
+        bodyJS: MarkdownHTML.metadataLinksScript,
+        scriptAssetIDs: [id]
+      )
+    }
+
+    nonisolated(unsafe) private static let tokenPattern = /(?:^|\s)[#@+][\p{L}\p{N}_\-]/
+  }
+
+  /// Read mode half of `metadata-links`. The token rules match
+  /// `scripts/editor-bundle/src/metadata-names.js`; the character before a
+  /// token is taken from the source it renders, so `**#tag**` (after `*`)
+  /// stays text, as it does for the extractor.
+  static let metadataLinksScript = #"""
+    <script>
+    (function() {
+      const TOKEN = /(^|\s)([#@+])([\p{L}\p{N}_-][\p{L}\p{M}\p{N}_\-\/]*)/gu;
+      const LETTER = /\p{L}/u;
+      const SKIP = 'code, pre, a, kbd, script, style, table, svg, .md-frontmatter, .mdp-metadata-link, .mdp-task-field, .katex, .mermaid';
+      const INLINE = /^(STRONG|B|EM|I|DEL|S|MARK|SPAN|SUB|SUP|U)$/;
+      const isWorkspace = () => document.documentElement.hasAttribute('data-mdp-workspace');
+      const valid = (name) => LETTER.test(name) && name.split('/').every(Boolean);
+      // The source character before a text node: whitespace at a block
+      // start, a line break or a checkbox; Markdown punctuation next to
+      // inline formatting, code and other elements.
+      function previousCharacter(node) {
+        const sibling = node.previousSibling;
+        if (sibling) {
+          if (sibling.nodeType === Node.TEXT_NODE) return sibling.nodeValue.slice(-1) || ' ';
+          return sibling.nodeName === 'BR' || sibling.nodeName === 'INPUT' ? ' ' : 'x';
+        }
+        return INLINE.test(node.parentNode.nodeName) ? 'x' : ' ';
+      }
+      function wrap(root) {
+        const nodes = [];
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, {
+          acceptNode(node) {
+            if (node.nodeType === Node.TEXT_NODE) return NodeFilter.FILTER_ACCEPT;
+            return node.matches(SKIP) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_SKIP;
+          }
+        });
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+          if (/[#@+]/.test(node.nodeValue)) nodes.push(node);
+        }
+        for (const node of nodes) {
+          const text = node.nodeValue;
+          const before = previousCharacter(node);
+          const parts = [];
+          let last = 0;
+          TOKEN.lastIndex = 0;
+          for (let match; (match = TOKEN.exec(text));) {
+            if (match.index === 0 && !match[1] && !/\s/.test(before)) continue;
+            if (!valid(match[3])) continue;
+            const start = match.index + match[1].length;
+            const end = match.index + match[0].length;
+            parts.push(text.slice(last, start));
+            // No `data-mdp-ext`, like task fields: a kept node would sit
+            // beside the fresh text after a Read mode morph.
+            const link = document.createElement('span');
+            link.className = 'mdp-metadata-link';
+            link.setAttribute('role', 'link');
+            link.tabIndex = 0;
+            link.textContent = text.slice(start, end);
+            parts.push(link);
+            last = end;
+          }
+          if (!parts.length) continue;
+          parts.push(text.slice(last));
+          node.replaceWith(...parts);
+        }
+      }
+      function unwrap(root) {
+        for (const link of root.querySelectorAll('.mdp-metadata-link')) {
+          const parent = link.parentNode;
+          link.replaceWith(document.createTextNode(link.textContent));
+          parent.normalize();
+        }
+      }
+      function open(event) {
+        const link = event.target.closest && event.target.closest('.mdp-metadata-link');
+        if (!link || !isWorkspace()) return;
+        event.preventDefault();
+        event.stopPropagation();
+        try {
+          window.webkit.messageHandlers.mdPreviewHost.postMessage({ kind: 'openMetadata', token: link.textContent });
+        } catch (e) {}
+      }
+      document.addEventListener('click', open, true);
+      document.addEventListener('keydown', (event) => { if (event.key === 'Enter') open(event); }, true);
+      window.MdPreview?.registerExtension({
+        id: 'metadata-links',
+        render(root) { isWorkspace() ? wrap(root) : unwrap(root); }
+      });
+    })();
+    </script>
+    """#
+
+  /// Shared by Read mode and the editor; tokens look like links only in a
+  /// workspace window (`data-mdp-workspace` in Read mode, `cm-metadata-links`
+  /// on the editor).
+  static let metadataLinksStylesheet = """
+    :root[data-mdp-workspace] .mdp-metadata-link,
+    .cm-metadata-links .cm-md-metadata-link {
+      color: var(--link);
+    }
+    .cm-metadata-links .cm-md-metadata-link:hover { text-decoration: underline; }
+    .cm-mod-held.cm-metadata-links .cm-md-metadata-link:hover { cursor: pointer; }
+    :root[data-mdp-workspace] .mdp-metadata-link { cursor: pointer; }
+    :root[data-mdp-workspace] .mdp-metadata-link:hover { text-decoration: underline; }
+    @media print {
+      :root[data-mdp-workspace] .mdp-metadata-link { color: inherit; }
+    }
+    """
+
   struct MetadataCompletionExtension: MarkdownRenderExtension {
     let id = "metadata-completion"
     let descriptor = RenderExtensionDescriptor(
