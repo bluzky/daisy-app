@@ -386,13 +386,15 @@ final class FileSearchPanelController: NSViewController {
         rankTask?.cancel()
         if !hasSearchQuery {
             apply((try? FileSearchResults.rows(query: query, recentURLs: recentURLs, snapshot: nil,
-                                               commands: commands, offersCreate: offersCreate)) ?? [],
+                                               root: projectRoot, commands: commands,
+                                               offersCreate: offersCreate)) ?? [],
                   for: query)
             return
         }
+        let root = projectRoot
         rankTask = Task { [weak self] in
             guard let ranked = try? await Self.rank(query: query, recentURLs: recentURLs,
-                                                    snapshot: snapshot, commands: commands,
+                                                    snapshot: snapshot, root: root, commands: commands,
                                                     offersCreate: offersCreate),
                   let self, !Task.isCancelled else { return }
             self.apply(ranked, for: query)
@@ -402,10 +404,11 @@ final class FileSearchPanelController: NSViewController {
     @concurrent
     private nonisolated static func rank(query: String,
                                          recentURLs: [URL], snapshot: ProjectFileIndex.Snapshot?,
+                                         root: URL?,
                                          commands: [FileSearchResults.CommandCandidate],
                                          offersCreate: Bool) async throws -> [FileSearchResults.Row] {
         try FileSearchResults.rows(query: query, recentURLs: recentURLs, snapshot: snapshot,
-                                   commands: commands, offersCreate: offersCreate)
+                                   root: root, commands: commands, offersCreate: offersCreate)
     }
 
     private func apply(_ ranked: [FileSearchResults.Row], for query: String) {

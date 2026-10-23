@@ -24,6 +24,29 @@ final class FileSearchResultsTests: XCTestCase {
         XCTAssertNil(rows[1].entry?.projectRoot)
     }
 
+    func testHistoryInsideTheWorkspaceShowsItsPathFromTheWorkspace() throws {
+        let inside = root.appendingPathComponent("notes/journals/2026-10-23.md")
+        let outside = URL(fileURLWithPath: "/elsewhere/other.md")
+        let rows = try FileSearchResults.rows(query: "", recentURLs: [inside, outside], snapshot: nil, root: root)
+        XCTAssertEqual(rows[1].entry?.candidate.relativePath, "notes/journals/2026-10-23.md")
+        XCTAssertEqual(rows[1].entry?.projectRoot, root)
+        XCTAssertEqual(rows[2].entry?.candidate.relativePath, "/elsewhere/other.md")
+        XCTAssertNil(rows[2].entry?.projectRoot)
+        // Matching runs on the shown path, not the folders above the workspace.
+        XCTAssertEqual(try FileSearchResults.rows(query: "project", recentURLs: [inside], snapshot: nil, root: root), [])
+    }
+
+    func testHistoryOutsideTheWorkspaceShortensHomeAndICloudDrive() {
+        let home = "/Users/someone"
+        XCTAssertEqual(FileSearchResults.displayPath(
+            URL(fileURLWithPath: home + "/Library/Mobile Documents/com~apple~CloudDocs/notes/a.md"), home: home),
+            "iCloud Drive/notes/a.md")
+        XCTAssertEqual(FileSearchResults.displayPath(URL(fileURLWithPath: home + "/Desktop/a.md"), home: home),
+                       "~/Desktop/a.md")
+        XCTAssertEqual(FileSearchResults.displayPath(URL(fileURLWithPath: "/Volumes/Disk/a.md"), home: home),
+                       "/Volumes/Disk/a.md")
+    }
+
     func testHistorySearchWithoutProjectAndClearedHistory() throws {
         let recent = URL(fileURLWithPath: "/outside/notes.md")
         XCTAssertEqual(try FileSearchResults.rows(query: "outside/notes", recentURLs: [recent], snapshot: nil).last?.entry?.url, recent)

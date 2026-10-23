@@ -308,10 +308,11 @@ final class ContentViewController: NSViewController {
         webView.exportPDF(from: window)
     }
 
-    func exportHTML() {
+    /// `markdown` overrides the rendered source, for Edit Mode's newer buffer.
+    func exportHTML(markdown: String? = nil) {
         guard let window = view.window, let source = exportSource else { return }
         webView.exportHTML(
-            markdown: source.markdown,
+            markdown: markdown ?? source.markdown,
             sourceURL: source.sourceURL,
             assetBaseURL: source.assetBaseURL,
             from: window
@@ -327,10 +328,11 @@ final class ContentViewController: NSViewController {
         )
     }
 
-    func exportWord() {
+    /// `markdown` overrides the rendered source, for Edit Mode's newer buffer.
+    func exportWord(markdown: String? = nil) {
         guard let window = view.window, let source = exportSource else { return }
         webView.exportWord(
-            markdown: source.markdown,
+            markdown: markdown ?? source.markdown,
             sourceURL: source.sourceURL,
             assetBaseURL: source.assetBaseURL,
             from: window

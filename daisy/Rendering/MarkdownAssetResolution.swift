@@ -56,15 +56,25 @@ nonisolated enum MarkdownAssetResolution {
 
     // MARK: - Image storage helpers
 
-    /// Directory for images pasted into a Markdown file.
-    static func picturesDirectory(forMarkdownFile fileURL: URL) -> URL {
+    /// Directory for images and files pasted or inserted into a Markdown file.
+    static func assetsDirectory(forMarkdownFile fileURL: URL) -> URL {
+        siblingDirectory(forMarkdownFile: fileURL, suffix: "assets")
+    }
+
+    /// Where older versions stored pasted images. Still recognised so those
+    /// images keep their rename sheet.
+    static func legacyPicturesDirectory(forMarkdownFile fileURL: URL) -> URL {
+        siblingDirectory(forMarkdownFile: fileURL, suffix: "pictures")
+    }
+
+    private static func siblingDirectory(forMarkdownFile fileURL: URL, suffix: String) -> URL {
         let stem = fileURL.deletingPathExtension().lastPathComponent
         return fileURL.deletingLastPathComponent()
-            .appendingPathComponent("\(stem)-pictures", isDirectory: true)
+            .appendingPathComponent("\(stem)-\(suffix)", isDirectory: true)
     }
 
     /// Returns the next integer name without reusing a number already present
-    /// in the pictures directory, regardless of its image extension.
+    /// in the assets directory, regardless of its image extension.
     static func nextIntegerFileName(
         in directory: URL,
         extension fileExtension: String
@@ -79,7 +89,7 @@ nonisolated enum MarkdownAssetResolution {
     }
 
     static func savePastedImage(_ data: Data, forMarkdownFile fileURL: URL) throws -> URL {
-        let directory = picturesDirectory(forMarkdownFile: fileURL)
+        let directory = assetsDirectory(forMarkdownFile: fileURL)
         try FileManager.default.createDirectory(
             at: directory,
             withIntermediateDirectories: true,
@@ -117,9 +127,10 @@ nonisolated enum MarkdownAssetResolution {
         return candidate
     }
 
-    /// Copies a chosen image into the pictures directory, keeping its name.
-    static func importImage(from source: URL, forMarkdownFile fileURL: URL) throws -> URL {
-        let directory = picturesDirectory(forMarkdownFile: fileURL)
+    /// Copies a chosen or pasted file into the assets directory, keeping
+    /// its name.
+    static func importFile(from source: URL, forMarkdownFile fileURL: URL) throws -> URL {
+        let directory = assetsDirectory(forMarkdownFile: fileURL)
         try FileManager.default.createDirectory(
             at: directory,
             withIntermediateDirectories: true,
@@ -134,11 +145,23 @@ nonisolated enum MarkdownAssetResolution {
     /// with brackets escaped so it cannot end the label early.
     static func imageMarkdown(for imageURL: URL, from markdownFile: URL) -> String? {
         guard let path = markdownPath(for: imageURL, from: markdownFile) else { return nil }
-        let label = imageURL.deletingPathExtension().lastPathComponent
+        let label = escapedLabel(imageURL.deletingPathExtension().lastPathComponent)
+        return "![\(label)](\(path))"
+    }
+
+    /// Markdown link for a non-image file: the full file name is the link
+    /// text, so the reader can tell a `.pdf` from a `.zip`.
+    static func fileLinkMarkdown(for fileURL: URL, from markdownFile: URL) -> String? {
+        guard let path = markdownPath(for: fileURL, from: markdownFile) else { return nil }
+        return "[\(escapedLabel(fileURL.lastPathComponent))](\(path))"
+    }
+
+    /// Escapes brackets so a file name cannot end a link label early.
+    private static func escapedLabel(_ name: String) -> String {
+        name
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "[", with: "\\[")
             .replacingOccurrences(of: "]", with: "\\]")
-        return "![\(label)](\(path))"
     }
 
     /// Returns a URL-safe relative Markdown destination.

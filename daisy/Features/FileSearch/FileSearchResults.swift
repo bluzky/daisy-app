@@ -80,9 +80,31 @@ nonisolated enum FileSearchResults {
         return String(trimmed.dropFirst())
     }
 
+    /// A path outside the workspace, shortened for display and matching:
+    /// iCloud Drive and the home folder stand in for their full locations.
+    static func displayPath(_ url: URL, home: String = realHomeDirectory) -> String {
+        let path = url.standardizedFileURL.path
+        let iCloud = home + "/Library/Mobile Documents/com~apple~CloudDocs"
+        if path.hasPrefix(iCloud + "/") { return "iCloud Drive" + path.dropFirst(iCloud.count) }
+        if path.hasPrefix(home + "/") { return "~" + path.dropFirst(home.count) }
+        return path
+    }
+
+    /// The user's home folder; in the sandbox `NSHomeDirectory()` is the
+    /// app's container instead.
+    static let realHomeDirectory: String = {
+        if let entry = getpwuid(getuid()), let directory = entry.pointee.pw_dir {
+            return URL(fileURLWithPath: String(cString: directory)).standardizedFileURL.path
+        }
+        return NSHomeDirectory()
+    }()
+
+    /// `root` is the window's workspace: recent files inside it show their
+    /// path from that folder, like the workspace's own results.
     static func rows(query: String,
                      recentURLs: [URL],
                      snapshot: ProjectFileIndex.Snapshot?,
+                     root: URL? = nil,
                      commands: [CommandCandidate] = [],
                      offersCreate: Bool = true) throws -> [Row] {
         if let commandQuery = commandQuery(query) {
@@ -91,8 +113,14 @@ nonisolated enum FileSearchResults {
         }
 
         let blank = query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        let recent = recentURLs.map {
-            Entry(url: $0, candidate: .init(relativePath: $0.path), projectRoot: nil)
+        let rootPath = root.map { resolvedIdentity($0).path + "/" }
+        let recent = recentURLs.map { url -> Entry in
+            let path = resolvedIdentity(url).path
+            if let root, let rootPath, path.hasPrefix(rootPath) {
+                return Entry(url: url, candidate: .init(relativePath: String(path.dropFirst(rootPath.count))),
+                             projectRoot: root)
+            }
+            return Entry(url: url, candidate: .init(relativePath: displayPath(url)), projectRoot: nil)
         }
         let rankedRecent = blank ? Array(recent.indices) :
             try FileSearchMatcher.rankCancellably(query: query, candidates: recent.map(\.candidate))

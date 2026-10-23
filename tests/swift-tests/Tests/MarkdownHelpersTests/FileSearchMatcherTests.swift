@@ -91,12 +91,19 @@ final class FileSearchMatcherTests: XCTestCase {
 
     // MARK: - Names beat paths
 
-    func testAQueryWithoutASlashIsTestedAgainstTheNameOnly() {
-        // `docs` names a directory here, not a file. Matching it would fill the
-        // palette with every file under that directory, which is not what the
-        // reader asked for.
-        XCTAssertNil(FileSearchMatcher.match(query: "docs", against: candidate("docs/guide.md")))
-        XCTAssertEqual(ranked("docs", ["docs/guide.md", "docs.md"]), ["docs.md"])
+    func testAQueryWithoutASlashFallsBackToTheWholePathBelowNameMatches() throws {
+        // `docs` names a directory here: its files still match, through the
+        // path, but after every file whose name matches.
+        let match = try XCTUnwrap(FileSearchMatcher.match(query: "docs", against: candidate("docs/guide.md")))
+        XCTAssertTrue(match.nameRanges.isEmpty)
+        XCTAssertEqual(match.pathRanges, [0..<4])
+        XCTAssertEqual(ranked("docs", ["docs/guide.md", "docs.md"]), ["docs.md", "docs/guide.md"])
+        XCTAssertEqual(ranked("guide", ["guides/a.md", "docs/guide.md"]), ["docs/guide.md", "guides/a.md"])
+    }
+
+    func testWordsTypedApartMatchAcrossFolders() {
+        XCTAssertNotNil(score("vifon meeting", "partners/KV/vifon/meeting/Meeting - get requirement.md"))
+        XCTAssertNil(FileSearchMatcher.match(query: "vifon zzz", against: candidate("partners/vifon/meeting.md")))
     }
 
     func testASlashLetsTheQueryReachTheDirectory() {
@@ -161,7 +168,9 @@ final class FileSearchMatcherTests: XCTestCase {
     func testInteriorWhitespaceStillHasToMatch() {
         // File names contain spaces, so a space is a character, not a separator.
         XCTAssertNotNil(score("rel notes", "release notes.md"))
-        XCTAssertNil(FileSearchMatcher.match(query: "rel notes", against: candidate("release-notes.md")))
+        // Without the space, only the whole-path fallback matches, below it.
+        XCTAssertEqual(ranked("rel notes", ["release-notes.md", "release notes.md"]),
+                       ["release notes.md", "release-notes.md"])
     }
 
     // MARK: - Unicode
