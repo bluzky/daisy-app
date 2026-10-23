@@ -14,10 +14,10 @@ const indentEvent = new dom.window.KeyboardEvent("keydown", {
   cancelable: true,
 })
 indentationContent?.dispatchEvent(indentEvent)
-check("Tab nests selected list items under their preceding sibling",
+check("Tab nests selected list items at their preceding sibling's text column",
   indentEvent.defaultPrevented
     && indentationEditor.getMarkdown()
-      === "- Parent\n    - Alpha\n    - Beta")
+      === "- Parent\n  - Alpha\n  - Beta")
 const outdentEvent = new dom.window.KeyboardEvent("keydown", {
   key: "Tab",
   code: "Tab",
@@ -38,9 +38,9 @@ indentationContent?.dispatchEvent(new dom.window.KeyboardEvent("keydown", {
   cancelable: true,
 }))
 check("Tab nests the current list item when there is no selection",
-  indentationEditor.getMarkdown() === "- Parent\n    - Alpha\n- Beta")
-check("active bullet source reserves the rendered marker width",
-  indentationHost.querySelector(".cm-md-bullet-source")?.textContent === "-")
+  indentationEditor.getMarkdown() === "- Parent\n  - Alpha\n- Beta")
+check("the caret's list line keeps its rendered bullet",
+  indentationHost.querySelectorAll(".cm-md-bullet").length === 3)
 check("nested list layout uses semantic depth instead of source-space width",
   indentationHost.querySelector(".cm-md-list-depth-2") != null)
 check("nested list source indentation does not occupy rendered layout",
@@ -57,15 +57,25 @@ indentationContent?.dispatchEvent(new dom.window.KeyboardEvent("keydown", {
   bubbles: true,
   cancelable: true,
 }))
-check("repeated Tab does not impose a maximum list indentation depth",
-  indentationEditor.getMarkdown() === "- Parent\n            - Alpha\n- Beta")
+check("Tab on an item without a previous sibling leaves it in place",
+  indentationEditor.getMarkdown() === "- Parent\n  - Alpha\n- Beta")
+indentationEditor.destroy()
+
+// Authored source can still nest deeper than the parser reads as a list.
+const deepHost = dom.window.document.createElement("div")
+dom.window.document.body.appendChild(deepHost)
+const deepEditor = dom.window.MDEditor.create(
+  deepHost, "- Parent\n            - Alpha\n- Beta", {})
+const deepContent = deepHost.querySelector(".cm-content")
+deepContent?.focus()
+deepEditor.select(23)
 check("deeply indented list source keeps list geometry across the parser boundary",
-  indentationHost.querySelector(".cm-md-list-depth-4.cm-md-list-item") != null
-    && indentationHost.querySelector(".cm-md-list-depth-4.cm-md-codeblock") == null)
+  deepHost.querySelector(".cm-md-list-depth-4.cm-md-list-item") != null
+    && deepHost.querySelector(".cm-md-list-depth-4.cm-md-codeblock") == null)
 check("deeply indented list source keeps normal list-item spacing",
-  indentationHost.querySelector(".cm-md-list-depth-4.cm-md-list-item-gap") != null)
+  deepHost.querySelector(".cm-md-list-depth-4.cm-md-list-item-gap") != null)
 for (let step = 0; step < 3; step++) {
-  indentationContent?.dispatchEvent(new dom.window.KeyboardEvent("keydown", {
+  deepContent?.dispatchEvent(new dom.window.KeyboardEvent("keydown", {
     key: "Tab",
     code: "Tab",
     shiftKey: true,
@@ -74,8 +84,8 @@ for (let step = 0; step < 3; step++) {
   }))
 }
 check("repeated Shift-Tab returns a deeply indented list item to its original depth",
-  indentationEditor.getMarkdown() === "- Parent\n- Alpha\n- Beta")
-indentationEditor.destroy()
+  deepEditor.getMarkdown() === "- Parent\n- Alpha\n- Beta")
+deepEditor.destroy()
 
 const bracketCases = [
   ["paragraph", "Hello", 5, "(", ")", "Hello()", "Hello(x)"],
@@ -199,8 +209,8 @@ for (const [label, source] of [
     bubbles: true,
     cancelable: true,
   }))
-  check(`Tab indents a first ${label} list item`,
-    listEditor.getMarkdown() === `    ${source}`)
+  check(`Tab leaves a first ${label} list item in place`,
+    listEditor.getMarkdown() === source)
   content?.dispatchEvent(new dom.window.KeyboardEvent("keydown", {
     key: "Tab",
     code: "Tab",
@@ -208,7 +218,7 @@ for (const [label, source] of [
     bubbles: true,
     cancelable: true,
   }))
-  check(`Shift-Tab restores a first ${label} list item`,
+  check(`Shift-Tab leaves a top-level ${label} list item in place`,
     listEditor.getMarkdown() === source)
   listEditor.destroy()
 }
@@ -302,4 +312,78 @@ const cycleEditor = (source) => {
   editor.select(5, 5)
   press()
   check("Cmd+Enter outside a list leaves the line's text alone", !editor.getMarkdown().startsWith("- "))
+}
+
+// Line start (Home; Cmd-Left on macOS) stops after a rendered list marker, so
+// typed text lands in the item instead of in front of its source marker.
+for (const [label, source, textStart] of [
+  ["a task", "- [ ] Buy milk", 6],
+  ["a nested task", "  - [x] Done", 8],
+  ["a bullet", "- Buy milk", 2],
+  ["a numbered item", "12. Buy milk", 4],
+]) {
+  const host = dom.window.document.createElement("div")
+  dom.window.document.body.appendChild(host)
+  const editor = dom.window.MDEditor.create(host, source, {})
+  const content = host.querySelector(".cm-content")
+  content.focus()
+  editor.select(source.length)
+  const home = (shiftKey = false) => content.dispatchEvent(new dom.window.KeyboardEvent("keydown", {
+    key: "Home", code: "Home", shiftKey, bubbles: true, cancelable: true,
+  }))
+  home()
+  check(`Home on ${label} stops after the rendered marker`,
+    editor.getLinkSelection().from === textStart)
+  home()
+  check(`Home again on ${label} stays after the marker`,
+    editor.getLinkSelection().from === textStart)
+  editor.insert("X")
+  check(`typing after Home on ${label} goes into the item text`,
+    editor.getMarkdown() === source.slice(0, textStart) + "X" + source.slice(textStart))
+  editor.select(editor.getMarkdown().length)
+  home(true)
+  const selection = editor.getLinkSelection()
+  check(`Shift-Home on ${label} selects only the item text`,
+    selection.from === textStart && selection.to === editor.getMarkdown().length)
+  editor.destroy()
+}
+{
+  const host = dom.window.document.createElement("div")
+  dom.window.document.body.appendChild(host)
+  const editor = dom.window.MDEditor.create(host, "- Parent\n- Alpha", {})
+  host.querySelector(".cm-content").focus()
+  editor.select(12)
+  check("the caret's list line keeps the rendered bullet instead of raw source",
+    host.querySelectorAll(".cm-md-bullet").length === 2)
+  editor.destroy()
+}
+
+// A marker renders only once the space after it is typed.
+for (const [label, typed, rendered] of [
+  ["a bullet", "-", ".cm-md-bullet"],
+  ["a numbered item", "1.", ".cm-md-ordered"],
+  ["a task", "- [ ]", ".cm-md-task-marker"],
+]) {
+  const host = dom.window.document.createElement("div")
+  dom.window.document.body.appendChild(host)
+  const editor = dom.window.MDEditor.create(host, "Intro\n\n", {})
+  host.querySelector(".cm-content").focus()
+  editor.select(7)
+  for (const character of typed) editor.insert(character)
+  check(`typing ${label} marker leaves it as source`,
+    host.querySelector(rendered) == null && editor.getMarkdown() === "Intro\n\n" + typed)
+  editor.insert(" ")
+  check(`the space after ${label} marker renders it`, host.querySelector(rendered) != null)
+  editor.select(0)
+  editor.destroy()
+}
+{
+  const host = dom.window.document.createElement("div")
+  dom.window.document.body.appendChild(host)
+  const editor = dom.window.MDEditor.create(host, "-\n\nText", {})
+  host.querySelector(".cm-content").focus()
+  editor.select(editor.getMarkdown().length)
+  check("a bare marker the caret is not on still renders",
+    host.querySelector(".cm-md-bullet") != null)
+  editor.destroy()
 }

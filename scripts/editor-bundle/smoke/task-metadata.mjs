@@ -104,7 +104,9 @@ for (const [name, source] of [
   editor.insertTextAt("/high", 15, 15)
   host.querySelector(".cm-content").dispatchEvent(
     new dom.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }))
-  editor.select(0, 0)
+  // Park the caret off the field (line start now lands after the checkbox,
+  // right where the field begins).
+  editor.select(editor.getMarkdown().length)
   check("a field written by a slash command renders as a badge", texts(host).join() === "HIGH")
   editor.destroy()
 }

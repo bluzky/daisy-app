@@ -289,7 +289,7 @@ final class MainSplitViewController: NSSplitViewController {
     }
 
     @IBAction func exportMarkdownAsHTML(_ sender: Any?) {
-        contentViewController?.exportHTML()
+        withCurrentMarkdown { [weak self] in self?.contentViewController?.exportHTML(markdown: $0) }
     }
 
     @IBAction func exportMarkdownAsPNG(_ sender: Any?) {
@@ -297,7 +297,18 @@ final class MainSplitViewController: NSSplitViewController {
     }
 
     @IBAction func exportMarkdownAsWord(_ sender: Any?) {
-        contentViewController?.exportWord()
+        withCurrentMarkdown { [weak self] in self?.contentViewController?.exportWord(markdown: $0) }
+    }
+
+    /// The Markdown to export: Edit Mode's buffer while editing, since the
+    /// preview only re-renders on leaving Edit Mode, so its source is the text
+    /// as it was when editing began. nil means the rendered source.
+    private func withCurrentMarkdown(_ export: @escaping (String?) -> Void) {
+        guard let editor = editorViewController, !isEditorPreparing else {
+            export(nil)
+            return
+        }
+        editor.fetchMarkdown { export($0) }
     }
 
     /// The document's current text size, for the toolbar popover's scale.

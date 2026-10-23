@@ -96,23 +96,6 @@ export function dispatchBlockChanges(view, changes) {
   })
 }
 
-export function orderedList(view) {
-  const pattern = /^\d+\.\s/
-  const changes = eachSelectedLine(view.state, (lines) => {
-    const all = lines.every((line) => pattern.test(line.text))
-    let i = 1
-    return lines.map((line) => {
-      if (all) {
-        const m = line.text.match(pattern)
-        return { from: line.from, to: line.from + m[0].length, insert: "" }
-      }
-      return pattern.test(line.text) ? null : { from: line.from, insert: `${i++}. ` }
-    }).filter(Boolean)
-  })
-  if (changes.length) dispatchBlockChanges(view, changes)
-  return true
-}
-
 function selectedListLines(state) {
   const selection = state.selection.main
   const start = state.doc.lineAt(selection.from).number
@@ -120,38 +103,11 @@ function selectedListLines(state) {
   return Array.from({ length: end - start + 1 }, (_, index) => state.doc.line(start + index))
 }
 
-export function listPrefix(text) {
-  const match = /^([ \t]*(?:>[ \t]*)*)(?:([-+*]|\d+[.)])([ \t]+)(\[[ xX]\][ \t]+)?)?/.exec(text)
-  return {
-    prefix: match[0], indent: match[1],
-    style: !match[2] ? 'none' : match[4] ? 'task' : /^\d/.test(match[2]) ? 'ordered' : 'bullet',
-  }
-}
-
 export function enclosingNode(state, position, names) {
   for (let node = syntaxTree(state).resolve(position, 1); node; node = node.parent) {
     if (names.includes(node.name)) return node
   }
   return null
-}
-
-export function editableListLines(state) {
-  return selectedListLines(state).filter(line =>
-    !/^[ \t>]*$/.test(line.text)
-    && !enclosingNode(state, line.from + line.text.search(/\S/), ['FencedCode', 'CodeBlock']))
-}
-
-export function applyListStyle(view, style) {
-  if (!['none', 'bullet', 'ordered', 'task'].includes(style)) return false
-  const changes = editableListLines(view.state).map((line, index) => {
-    const current = listPrefix(line.text)
-    if (current.style === style) return null
-    const marker = style === 'none' ? '' : style === 'bullet' ? '- ' : style === 'task' ? '- [ ] ' : `${index + 1}. `
-    return { from: line.from, to: line.from + current.prefix.length, insert: current.indent + marker }
-  }).filter(Boolean)
-  if (changes.length) dispatchBlockChanges(view, changes)
-  view.focus()
-  return true
 }
 
 export function setHeading(level) {

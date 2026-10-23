@@ -2,7 +2,7 @@ import { Decoration } from "@codemirror/view"
 import { LanguageDescription } from "@codemirror/language"
 import { highlightTree, tags as t } from "@lezer/highlight"
 import { codeHighlight } from "../code-highlight.js"
-import { HEADING_LINE, METRICS, SEPARATOR_BLOCKS, activeBulletDeco, activeOrderedDeco, blockGapLine, blockSeparatorLine, bulletDeco, codeLine, codeLineFirst, codeLineLast, codeScrollText, collapsedLine, completedTaskLine, emphasisMark, fenceMark, frontmatterDelim, frontmatterFirstLine, frontmatterLastLine, frontmatterLine, headingAfterBlankLine, headingMarker, headingPrefix, hiddenCodeFenceSource, hiddenHeadingSource, hide, highlightMark, hrDeco, imageLine, inactiveHeadingLine, linkMark, listContinuationLine, listDepthLine, listItemGapLine, listItemLine, markdownListMarker, orderedDeco, quoteLine, ruleLine, setextMarkerLine, setextSource, strikethroughMark, strongMark, tableLine, taskLine, urlMark } from "../decoration-parts.js"
+import { HEADING_LINE, METRICS, SEPARATOR_BLOCKS, blockGapLine, blockSeparatorLine, bulletDeco, codeLine, codeLineFirst, codeLineLast, codeScrollText, collapsedLine, completedTaskLine, emphasisMark, fenceMark, frontmatterDelim, frontmatterFirstLine, frontmatterLastLine, frontmatterLine, headingAfterBlankLine, headingMarker, headingPrefix, hiddenCodeFenceSource, hiddenHeadingSource, hide, highlightMark, hrDeco, imageLine, inactiveHeadingLine, linkMark, listContinuationLine, listDepthLine, listItemGapLine, listItemLine, markdownListMarker, orderedDeco, quoteLine, ruleLine, setextMarkerLine, setextSource, strikethroughMark, strongMark, tableLine, taskLine, urlMark } from "../decoration-parts.js"
 import { fencedCodeDetails } from "../fenced-code.js"
 import { currentFindTouches } from "../find.js"
 import { codeLanguages } from "../languages.js"
@@ -67,6 +67,10 @@ export function buildDecorations(view, detectedCodeCache) {
   // Keep its source editable until the caret has left the brackets.
   const editingTaskMarker = (bracket) => sourceCaret != null
     && sourceCaret > bracket && sourceCaret < bracket + 3
+  // A marker that ends its line with the caret right after it is still being
+  // typed (`-`, `1.`, `- [ ]`). It renders once the space after it is typed.
+  const typingMarker = (end) => sourceCaret === end
+    && end === state.doc.lineAt(end).to
   const decoratedLines = new Set()
   const listDepthPositions = new Set()
   const lineOnce = (pos, deco) => {
@@ -122,23 +126,13 @@ export function buildDecorations(view, detectedCodeCache) {
     if (isTask) {
       const task = line.text.slice(markerTo - line.from).match(/^[ \t]*\[([ xX])\][ \t]?/)
       const bracket = markerTo + task[0].indexOf('[')
-      if (editingTaskMarker(bracket)) return
+      if (editingTaskMarker(bracket) || typingMarker(bracket + 3)) return
       lineOnce(line.from, taskLine)
       if (task[1] !== ' ') lineOnce(line.from, completedTaskLine)
       ranges.push(Decoration.replace({ widget: new TaskCheckboxWidget(bracket + 1, task[1] !== ' ') })
         .range(markerFrom, markerTo + task[0].length))
-    } else if (/^[-+*]$/.test(marker)) {
-      if (touchesLineOf(markerFrom)) {
-        ranges.push(activeBulletDeco.range(markerFrom, markerTo))
-        if (separator.length > 0) {
-          ranges.push(hide.range(markerTo, markerTo + separator.length))
-        }
-      } else {
-        ranges.push(bulletDeco.range(
-          markerFrom,
-          markerTo + separator.length
-        ))
-      }
+    } else if (/^[-+*]$/.test(marker) && !typingMarker(markerTo)) {
+      ranges.push(bulletDeco.range(markerFrom, markerTo + separator.length))
     }
   }
   // The renderer shrinks the final source blank line of a run to blankGap
@@ -464,9 +458,16 @@ export function buildDecorations(view, detectedCodeCache) {
           }
           return
         }
+        // `<https://…>` reads as a link; its brackets show only while the
+        // caret is in it.
+        if (name === "Autolink") {
+          ranges.push(linkMark.range(node.from, node.to))
+          return
+        }
         if (name === "LinkMark") {
           const parent = node.node.parent
-          if (parent && parent.name === "Link" && parent.getChild("URL")
+          if (parent && (parent.name === "Autolink"
+              || (parent.name === "Link" && parent.getChild("URL")))
               && !touches(parent.from, parent.to)) {
             ranges.push(hide.range(node.from, node.to))
           }
@@ -480,6 +481,10 @@ export function buildDecorations(view, detectedCodeCache) {
             } else {
               ranges.push(urlMark.range(node.from, node.to))
             }
+          } else if (parent && !["Autolink", "LinkReference"].includes(parent.name)) {
+            // A bare URL, `www.` address or email address in text (GFM
+            // autolinks) reads as a link, as in Read Mode.
+            ranges.push(linkMark.range(node.from, node.to))
           }
           return
         }
@@ -517,7 +522,7 @@ export function buildDecorations(view, detectedCodeCache) {
           }
           if ((!isFirstItem || isNested) && !preserveBlankBefore) lineOnce(node.from, listItemGapLine)
           eachLine(node.from, node.to, listItemLine)
-          if (/^[ \t]*[-+*][ \t]+\[[xX]\](?:[ \t]|$)/.test(state.doc.sliceString(node.from, itemLine.to))) {
+          if (/^[ \t]*(?:[-+*]|\d{1,9}[.)])[ \t]+\[[xX]\](?:[ \t]|$)/.test(state.doc.sliceString(node.from, itemLine.to))) {
             // Nested lists own their completion state. Keep the parent's
             // continuation paragraphs styled, including those after a sublist.
             let from = node.from
@@ -566,29 +571,29 @@ export function buildDecorations(view, detectedCodeCache) {
           if (isTask && /^[-+*]$/.test(mark)) {
             const task = line.text.slice(node.to - line.from).match(/^[ \t]*\[([ xX])\][ \t]?/)
             const bracket = node.to + task[0].indexOf('[')
-            if (editingTaskMarker(bracket)) return
+            if (editingTaskMarker(bracket) || typingMarker(bracket + 3)) return
             lineOnce(line.from, taskLine)
             ranges.push(Decoration.replace({ widget: new TaskCheckboxWidget(bracket + 1, task[1] !== ' ') })
               .range(node.from, node.to + task[0].length))
+          } else if (isTask) {
+            // A numbered task keeps its number in the marker box and shows
+            // the checkbox at the start of the text.
+            const task = line.text.slice(node.to - line.from).match(/^([ \t]*)\[([ xX])\][ \t]?/)
+            const bracket = node.to + task[1].length
+            if (editingTaskMarker(bracket) || typingMarker(bracket + 3)) return
+            ranges.push(orderedDeco(mark).range(node.from, bracket))
+            ranges.push(Decoration.replace({ widget: new TaskCheckboxWidget(bracket + 1, task[2] !== ' ', true) })
+              .range(bracket, node.to + task[0].length))
+          } else if (typingMarker(node.to)) {
+            // Left as source until the space after it is typed.
           } else if ((mark === "-" || mark === "*" || mark === "+") && !isTask) {
-            // Both forms occupy the same fixed-width hanging box. Keep the
-            // active dash editable, but hide its source separator so the dash
-            // can sit at the rendered bullet position without moving text.
+            // The marker stays rendered on the caret's line too, like a
+            // task checkbox; the caret steps over it as one unit.
             const after = state.doc.sliceString(node.to, node.to + 1)
-            if (touchesLineOf(node.from)) {
-              ranges.push(activeBulletDeco.range(node.from, node.to))
-              if (after === " ") ranges.push(hide.range(node.to, node.to + 1))
-            } else {
-              ranges.push(bulletDeco.range(node.from, node.to + (after === " " ? 1 : 0)))
-            }
+            ranges.push(bulletDeco.range(node.from, node.to + (after === " " ? 1 : 0)))
           } else if (/^\d+[.)]$/.test(mark) && !isTask) {
             const after = state.doc.sliceString(node.to, node.to + 1)
-            if (touchesLineOf(node.from)) {
-              ranges.push(activeOrderedDeco.range(node.from, node.to))
-              if (after === " ") ranges.push(hide.range(node.to, node.to + 1))
-            } else {
-              ranges.push(orderedDeco(mark).range(node.from, node.to + (after === " " ? 1 : 0)))
-            }
+            ranges.push(orderedDeco(mark).range(node.from, node.to + (after === " " ? 1 : 0)))
           }
           return
         }
