@@ -40,6 +40,12 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
         case metadata(String)
     }
     var linkActivated: ((LinkRequest) -> Void)?
+    /// The document's `tasks`/`notes` blocks, each time they change.
+    var queryBlocksRequested: (([QueryBlockRequest]) -> Void)?
+    /// A result row clicked in a query block: path and line.
+    var queryResultOpened: ((String, Int) -> Void)?
+    /// A task's checkbox in a query block: path, line and the new state.
+    var queryTaskToggled: ((String, Int, Bool) -> Void)?
 
     private(set) var hasChanges = false
 
@@ -199,6 +205,15 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
     /// Whether metadata tokens read as links (workspace windows). Kept here
     /// and sent again to each fresh page, like the candidates.
     private var metadataLinksEnabled = false
+
+    /// Shows `results` in place of their blocks; nil shows every block as code.
+    func showQueryResults(_ results: [QueryBlockResult]?) {
+        guard hasLoadedEditorPage else { return }
+        let json = results.flatMap { try? JSONEncoder().encode($0) }.flatMap { String(data: $0, encoding: .utf8) }
+        webView.evaluateJavaScript(
+            "window.__mdEditor && window.__mdEditor.setQueryResults(\(json ?? "null"))"
+        ) { _, _ in }
+    }
 
     func setMetadataLinksEnabled(_ enabled: Bool) {
         guard enabled != metadataLinksEnabled else { return }
@@ -681,6 +696,16 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
             } else if let destination = payload["destination"] as? String, !destination.isEmpty {
                 linkActivated?(.destination(destination))
             }
+        case "runQueries":
+            guard let queries = payload["queries"] as? [[String: Any]] else { return }
+            queryBlocksRequested?(queries.compactMap(QueryBlockRequest.init(message:)))
+        case "openQueryResult":
+            guard let path = payload["path"] as? String, let line = payload["line"] as? Int, line > 0 else { return }
+            queryResultOpened?(path, line)
+        case "queryTaskCheckbox":
+            guard let path = payload["path"] as? String, let line = payload["line"] as? Int, line > 0,
+                  let checked = payload["checked"] as? Bool else { return }
+            queryTaskToggled?(path, line, checked)
         case "imageClick":
             guard let source = payload["src"] as? String,
                   let url = URL(string: source),

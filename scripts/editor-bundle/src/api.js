@@ -26,6 +26,7 @@ import { codeCardWidth } from "./code-card-width.js"
 import { activeCodeBlock, anchoredPointerSelection, pointerPreview, stablePointerPreview } from "./pointer.js"
 import { readWorkspaceCandidates, workspaceCandidatesChanged } from "./metadata-completion.js"
 import { metadataLinksChanged } from "./metadata-links.js"
+import { queryResultsChanged, readQueryResults } from "./query-blocks.js"
 import { linkOpening, openLinkAt } from "./link-open.js"
 import { slashTemplatesChanged } from "./slash.js"
 import { tableEditors } from "./table/editors.js"
@@ -51,7 +52,8 @@ window.MDEditor = {
     const moduleCompartments = new Map()
     const moduleEnabled = new Map()
     // Handed to every module: the callbacks the page gave this editor.
-    const moduleHost = { callbacks: callbacks || {}, slashTemplates: [], workspaceCandidates: null, metadataLinks: false }
+    const moduleHost = { callbacks: callbacks || {}, slashTemplates: [], workspaceCandidates: null, metadataLinks: false,
+      queryResults: new Map() }
     const moduleOptions = (id) => (callbacks && callbacks.extensionOptions && callbacks.extensionOptions[id]) || {}
     for (const module of editorModules.values()) {
       const enabled = editorModuleEnabled(callbacks && callbacks.extensionState, module.id)
@@ -633,6 +635,13 @@ window.MDEditor = {
       // What Cmd+click at `pos` does: sends the link there to `onOpenLink`
       // and returns it, or returns null.
       openLinkAt: (pos) => openLinkAt(view, pos, callbacks),
+      // Results for the document's ```tasks and ```notes blocks, as
+      // `[{ id, source, problems, rows, empty }]`, replacing the ones held;
+      // null clears them, so every block shows as code again.
+      setQueryResults: (list) => {
+        moduleHost.queryResults = readQueryResults(list)
+        view.dispatch({ effects: queryResultsChanged.of(moduleHost.queryResults) })
+      },
       setMetadataLinks: (enabled) => {
         moduleHost.metadataLinks = enabled === true
         view.dispatch({ effects: metadataLinksChanged.of(moduleHost.metadataLinks) })

@@ -154,7 +154,8 @@ final class WorkspaceIndexStoreTests: XCTestCase {
         try await cacheThenSwapInPlace()
         try sql("""
             INSERT INTO files (path, modified, size, hash) VALUES ('../outside.md', NULL, 1, zeroblob(32));
-            INSERT INTO tokens (path, kind, key, spelling, count) VALUES ('../outside.md', 0, 'secret', 'secret', 1);
+            INSERT INTO tokens (path, line, kind, key, spelling, excerpt)
+            VALUES ('../outside.md', 1, 0, 'secret', 'secret', '#secret');
             """, at: cacheURL())
 
         let reopened = await cached()
@@ -164,7 +165,7 @@ final class WorkspaceIndexStoreTests: XCTestCase {
     func testMalformedRowsRejectTheCache() async throws {
         let rows = [
             "UPDATE tokens SET kind = 9",
-            "UPDATE tokens SET count = 0",
+            "UPDATE tokens SET line = 0",
             "UPDATE files SET hash = x'00'",
             "INSERT INTO files (path, modified, size, hash) VALUES ('/etc/x.md', NULL, 1, zeroblob(32))",
         ]
@@ -179,11 +180,8 @@ final class WorkspaceIndexStoreTests: XCTestCase {
 
     func testImpossibleTokenRowsRejectTheCache() async throws {
         let rows = [
-            // A token twice, which would add its count twice.
-            "INSERT INTO tokens SELECT * FROM tokens",
-            // Counts that would overflow once added up.
-            "UPDATE tokens SET count = 9223372036854775807",
-            "UPDATE tokens SET count = \(WorkspaceIndexStore.maximumOccurrencesPerFile + 1)",
+            "UPDATE tokens SET kind = 'tag'",
+            "UPDATE tokens SET excerpt = 'a' || char(10) || 'b'",
             "UPDATE tokens SET spelling = 'two words'",
             "UPDATE tokens SET spelling = '#alpha'",
             "UPDATE tokens SET spelling = 'a//b'",
@@ -422,7 +420,8 @@ final class WorkspaceIndexStoreTests: XCTestCase {
         let reopened = await cached()
         let tasks = await reopened.tasks()
         XCTAssertEqual(tasks, [WorkspaceIndexedTask(path: "a.md", task: WorkspaceTaskMetadata(
-            line: 1, due: "2026-10-23", scheduled: nil, priority: "high", text: "alpha", checked: false))])
+            line: 1, due: "2026-10-23", scheduled: nil, priority: "high", text: "alpha", checked: false,
+            source: "alpha due:2026-10-23 p:high"))])
         let revision = await reopened.taskRevision
         XCTAssertGreaterThan(revision, 0, "a cache load signals tasks")
     }
@@ -439,11 +438,15 @@ final class WorkspaceIndexStoreTests: XCTestCase {
         let rows = [
             "UPDATE tasks SET line = 0",
             "UPDATE tasks SET checked = 2",
-            "UPDATE tasks SET due = '2026-02-30'",
-            "UPDATE tasks SET scheduled = 7",
-            "UPDATE tasks SET priority = 'urgent'",
+            "UPDATE attributes SET text = '2026-02-30' WHERE key = 'due'",
+            "UPDATE attributes SET text = 7 WHERE key = 'due'",
+            "UPDATE attributes SET text = 'urgent' WHERE key = 'priority'",
+            "UPDATE attributes SET key = 'other' WHERE key = 'priority'",
+            "UPDATE attributes SET task_line = 9 WHERE key = 'due'",
+            "INSERT INTO attributes SELECT * FROM attributes WHERE key = 'due'",
             "UPDATE tasks SET text = 'a' || char(10) || 'b'",
             "UPDATE tasks SET text = x'41'",
+            "UPDATE tasks SET source = 'a' || char(10) || 'b'",
         ]
         for row in rows {
             try await cacheTaskThenSwapInPlace()
@@ -459,11 +462,94 @@ final class WorkspaceIndexStoreTests: XCTestCase {
         try await cacheTaskThenSwapInPlace()
         try sql("""
             PRAGMA foreign_keys = OFF;
-            INSERT INTO tasks (path, line, text, checked) VALUES ('ghost.md', 1, 'ghost', 0)
+            INSERT INTO tasks (path, line, text, checked, source) VALUES ('ghost.md', 1, 'ghost', 0, 'ghost')
             """, at: cacheURL())
         let reopened = await cached()
         let texts = await reopened.tasks().map(\.task.text)
         XCTAssertEqual(texts, ["bravo"])
+    }
+
+    func testOlderSchemaCachesAreRebuilt() async throws {
+        for schema in ["2", "3"] {
+            try await cacheTaskThenSwapInPlace()
+            try sql("UPDATE meta SET value = '\(schema)' WHERE key = 'schema'", at: cacheURL())
+            let reopened = await cached()
+            let texts = await reopened.tasks().map(\.task.text)
+            XCTAssertEqual(texts, ["bravo"], "schema \(schema)")
+            await reopened.stop()
+        }
+    }
+
+    // MARK: - Records
+
+    /// Every part of a record: frontmatter values of each type, frontmatter
+    /// and body tokens, links in and out of the root, tasks with fields.
+    private let recordMarkdown = """
+        ---
+        title: Plan
+        rating: 4.5
+        draft: false
+        due: 2026-03-01
+        parent: "[Up](index.md)"
+        tags: [work, area/sub]
+        reviewers:
+          - Ana
+          - 2
+        empty: []
+        ---
+        Body #work @desk +daisy [b](notes/b.md) [out](../../outside.md)
+        - [ ] Ship +daisy [spec](spec.md#part) due:2026-03-02 scheduled:2026-03-01 p:high
+        - [x] Done
+        """
+
+    func testRecordsRoundTripThroughTheCache() async throws {
+        try write(recordMarkdown, to: "docs/a.md")
+        let first = await cached()
+        let fresh = await first.run(WorkspaceQuery(source: .files))
+        await first.stop()
+
+        let reopened = await cached()
+        let loaded = await reopened.run(WorkspaceQuery(source: .files))
+        XCTAssertEqual(loaded, fresh)
+        guard case let .file(record)? = loaded.first else { return XCTFail("no record") }
+        XCTAssertEqual(record.attributes["parent"]?.value,
+                       .link(destination: "index.md", target: "docs/index.md", text: "[Up](index.md)"))
+        XCTAssertEqual(record.attributes["empty"]?.value, .list([]))
+        XCTAssertEqual(record.links.map(\.target), ["docs/notes/b.md", nil, "docs/spec.md"])
+        XCTAssertEqual(record.tasks.first?.tokens.map(\.source), ["+daisy"])
+        XCTAssertEqual(record.tasks.first?.due, "2026-03-02")
+        XCTAssertEqual(record.tasks.first?.source,
+                       "Ship +daisy [spec](spec.md#part) due:2026-03-02 scheduled:2026-03-01 p:high")
+    }
+
+    func testMalformedRecordRowsRejectTheCache() async throws {
+        let rows = [
+            "UPDATE links SET target = '../outside.md' WHERE target IS NOT NULL",
+            "UPDATE links SET destination = ''",
+            "UPDATE attributes SET target = '/etc/passwd' WHERE type = 'link'",
+            "UPDATE attributes SET type = 'blob' WHERE key = 'title'",
+            "UPDATE attributes SET text = '2026-13-01' WHERE key = 'due' AND task_line IS NULL",
+            "UPDATE attributes SET num = 2 WHERE key = 'draft'",
+            "UPDATE attributes SET item = 5 WHERE key = 'reviewers' AND item = 1",
+            "DELETE FROM attributes WHERE key = 'reviewers' AND item IS NULL",
+            "INSERT INTO attributes SELECT * FROM attributes WHERE key = 'title'",
+        ]
+        for row in rows {
+            WorkspaceIndexStore.deleteCache(root: root, in: cache)
+            try write(recordMarkdown, to: "a.md")
+            let first = await cached()
+            await first.stop()
+            // Same size and date: only a rejected cache explains a re-read.
+            try write(recordMarkdown.replacingOccurrences(of: "title: Plan", with: "title: Done"), to: "a.md")
+            try sql(row, at: cacheURL())
+            let reopened = await cached()
+            let titles = await reopened.run(WorkspaceQuery(source: .files)).compactMap { match -> String? in
+                guard case let .file(record) = match else { return nil }
+                return record.attributes["title"]?.value.text
+            }
+            XCTAssertEqual(titles, ["Done"], row)
+            await reopened.stop()
+        }
     }
 
     func testSafeRelativePaths() {

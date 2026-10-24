@@ -30,6 +30,31 @@ function formatDate(locale, date, options) {
   catch (_) { return new Intl.DateTimeFormat("en", options).format(date) }
 }
 
+// English fallbacks merged with the host's labels.
+export const taskBadgeLabels = (options) => ({ ...DEFAULT_LABELS, ...options })
+
+// One `.mdp-task-badge`: `key` is `due`, `scheduled` or `p`. Also drawn by
+// query block results (`query-blocks.js`).
+export function taskBadgeElement(document, key, value, overdue, labels) {
+  const element = document.createElement("span")
+  element.className = `mdp-task-badge mdp-task-badge-${key === "p" ? "priority" : key}`
+  element.setAttribute("role", "img")
+  if (key === "p") {
+    const text = labels[value]
+    element.classList.add(`mdp-task-badge-${value}`)
+    element.textContent = text.toLocaleUpperCase(labels.locale || undefined)
+    element.setAttribute("aria-label", `${labels.priority}: ${text}`)
+    return element
+  }
+  const date = parseLocalDate(value)
+  if (overdue) element.classList.add("mdp-task-badge-overdue")
+  element.innerHTML = `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[key]}</svg>`
+  element.appendChild(document.createTextNode(`${value} ${formatDate(labels.locale, date, { weekday: "short" })}`))
+  element.setAttribute("aria-label", `${labels[key]}: ${formatDate(labels.locale, date, { dateStyle: "full" })}`
+    + (overdue ? `, ${labels.overdue}` : ""))
+  return element
+}
+
 class TaskBadgeWidget extends WidgetType {
   constructor(key, value, overdue, labels) {
     super()
@@ -44,24 +69,7 @@ class TaskBadgeWidget extends WidgetType {
   }
 
   toDOM(view) {
-    const element = view.dom.ownerDocument.createElement("span")
-    const { labels, key, value } = this
-    element.className = `mdp-task-badge mdp-task-badge-${key === "p" ? "priority" : key}`
-    element.setAttribute("role", "img")
-    if (key === "p") {
-      const text = labels[value]
-      element.classList.add(`mdp-task-badge-${value}`)
-      element.textContent = text.toLocaleUpperCase(labels.locale || undefined)
-      element.setAttribute("aria-label", `${labels.priority}: ${text}`)
-      return element
-    }
-    const date = parseLocalDate(value)
-    if (this.overdue) element.classList.add("mdp-task-badge-overdue")
-    element.innerHTML = `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[key]}</svg>`
-    element.appendChild(view.dom.ownerDocument.createTextNode(`${value} ${formatDate(labels.locale, date, { weekday: "short" })}`))
-    element.setAttribute("aria-label", `${labels[key]}: ${formatDate(labels.locale, date, { dateStyle: "full" })}`
-      + (this.overdue ? `, ${labels.overdue}` : ""))
-    return element
+    return taskBadgeElement(view.dom.ownerDocument, this.key, this.value, this.overdue, this.labels)
   }
 
   // Let clicks through so the caret lands on the field and reveals it.
@@ -105,7 +113,7 @@ function badges(view, labels, clock) {
 }
 
 function taskMetadataExtensions(options, host) {
-  const labels = { ...DEFAULT_LABELS, ...options }
+  const labels = taskBadgeLabels(options)
   const clock = () => (host.callbacks && host.callbacks.slashClock ? host.callbacks.slashClock() : new Date())
   const plugin = ViewPlugin.fromClass(class {
     constructor(view) { this.decorations = badges(view, labels, clock) }
