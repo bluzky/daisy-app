@@ -21,7 +21,7 @@ actor WorkspaceIndexStore {
         let size: Int?
         /// SHA-256 of the file's bytes.
         let hash: Data
-        let contribution: WorkspaceMetadataContribution
+        let record: WorkspaceFileRecord
     }
 
     /// The file cannot be used; the index carries on in memory.
@@ -33,15 +33,15 @@ actor WorkspaceIndexStore {
     }
 
     /// Bump when the tables change; an older file is rebuilt.
-    nonisolated static let schemaVersion = 2
+    nonisolated static let schemaVersion = 4
     /// Files saved per transaction, so a write never holds the file long.
     nonisolated static let transactionSize = 256
     /// How long a write waits for another connection before giving up.
     nonisolated static let busyTimeoutMilliseconds: Int32 = 200
-    /// The most occurrences one file's rows may add up to. The index reads
-    /// files of at most 1 MiB, and each occurrence takes a marker and a
-    /// character, so a real file stays far below this; capped, no sum of
-    /// counts across files can overflow.
+    /// The most rows of one kind one file may have. The index reads files of
+    /// at most 1 MiB, and each token takes a marker and a character, so a
+    /// real file stays far below this; capped, no sum of counts across files
+    /// can overflow.
     nonisolated static let maximumOccurrencesPerFile = 1 << 20
     /// A cache nobody opened for this long is deleted at launch.
     nonisolated static let staleInterval: TimeInterval = 30 * 24 * 60 * 60
@@ -194,7 +194,8 @@ actor WorkspaceIndexStore {
         guard try query(database, "PRAGMA quick_check", { text($0, 0) }) == ["ok"] else { return false }
         let tables = try query(database, "SELECT name FROM sqlite_master WHERE type = 'table'") { text($0, 0) }
         guard !tables.isEmpty else { return true }
-        guard Set(tables.compactMap { $0 }) == ["meta", "files", "tokens", "tasks"] else { return false }
+        guard Set(tables.compactMap { $0 }) == ["meta", "files", "attributes", "tokens", "links", "tasks"]
+        else { return false }
         let rows = try query(database, "SELECT key, value FROM meta") { (text($0, 0), text($0, 1)) }
         let meta = Dictionary(rows.compactMap { key, value in key.flatMap { key in value.map { (key, $0) } } }) {
             first, _ in first
@@ -215,22 +216,47 @@ actor WorkspaceIndexStore {
                 size INTEGER,
                 hash BLOB NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS attributes (
+                path TEXT NOT NULL REFERENCES files(path) ON DELETE CASCADE,
+                task_line INTEGER,
+                key TEXT NOT NULL,
+                spelling TEXT NOT NULL,
+                line INTEGER NOT NULL,
+                item INTEGER,
+                type TEXT NOT NULL,
+                text TEXT,
+                num REAL,
+                destination TEXT,
+                target TEXT
+            );
+            CREATE INDEX IF NOT EXISTS attributes_by_path ON attributes(path);
+            CREATE INDEX IF NOT EXISTS attributes_by_text ON attributes(key, text);
+            CREATE INDEX IF NOT EXISTS attributes_by_number ON attributes(key, num);
             CREATE TABLE IF NOT EXISTS tokens (
                 path TEXT NOT NULL REFERENCES files(path) ON DELETE CASCADE,
+                line INTEGER NOT NULL,
                 kind INTEGER NOT NULL,
                 key TEXT NOT NULL,
                 spelling TEXT NOT NULL,
-                count INTEGER NOT NULL
+                excerpt TEXT NOT NULL
             );
             CREATE INDEX IF NOT EXISTS tokens_by_path ON tokens(path);
+            CREATE INDEX IF NOT EXISTS tokens_by_key ON tokens(kind, key);
+            CREATE TABLE IF NOT EXISTS links (
+                path TEXT NOT NULL REFERENCES files(path) ON DELETE CASCADE,
+                line INTEGER NOT NULL,
+                destination TEXT NOT NULL,
+                target TEXT,
+                excerpt TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS links_by_path ON links(path);
+            CREATE INDEX IF NOT EXISTS links_by_target ON links(target);
             CREATE TABLE IF NOT EXISTS tasks (
                 path TEXT NOT NULL REFERENCES files(path) ON DELETE CASCADE,
                 line INTEGER NOT NULL,
                 text TEXT NOT NULL,
                 checked INTEGER NOT NULL,
-                due TEXT,
-                scheduled TEXT,
-                priority TEXT
+                source TEXT NOT NULL
             );
             CREATE INDEX IF NOT EXISTS tasks_by_path ON tasks(path);
             """)
@@ -249,64 +275,197 @@ actor WorkspaceIndexStore {
     // MARK: - Reading and writing
 
     /// Every saved file, by workspace-relative path. A row that could not
-    /// have come from the index (a path leaving the root, an unknown kind,
-    /// a spelling that is not a name, a key with spaces or control
-    /// characters, a token twice, a count below one or over
-    /// `maximumOccurrencesPerFile` in all, a malformed hash) means the file
-    /// cannot be trusted: the cache is emptied and nothing is returned.
+    /// have come from the index means the file cannot be trusted: the cache
+    /// is emptied and nothing is returned. That is a path leaving the root,
+    /// an unknown kind or type, a spelling that is not a name, a key with
+    /// spaces or control characters, text with a line break, a line below
+    /// one, a link target leaving the root, an impossible date or priority,
+    /// a task field with no task, an attribute twice, more than
+    /// `maximumOccurrencesPerFile` rows of a kind for a file, a malformed
+    /// hash, or rows for a file that is not there.
     func load() throws -> [String: Record] {
+        do {
+            return try loadRecords()
+        } catch let error as StoreError {
+            throw error
+        } catch {
+            return try discardContents()
+        }
+    }
+
+    /// A row that fails a check.
+    private struct Untrusted: Error {}
+
+    private func loadRecords() throws -> [String: Record] {
         let database = try connection()
-        let rows = try Self.query(database, "SELECT path, modified, size, hash FROM files") { statement in
+        let fileRows = try Self.query(database, "SELECT path, modified, size, hash FROM files") { statement in
             (Self.text(statement, 0), Self.double(statement, 1), Self.int(statement, 2), Self.blob(statement, 3))
         }
-        let tokens = try Self.query(database, "SELECT path, kind, key, spelling, count FROM tokens") { statement in
-            (Self.text(statement, 0), Self.int(statement, 1), Self.text(statement, 2),
-             Self.text(statement, 3), Self.int(statement, 4))
-        }
-        let taskRows = try Self.query(database, """
-            SELECT path, line, text, checked, due, scheduled, priority FROM tasks ORDER BY path, line, rowid
-            """) { statement in
-            (Self.text(statement, 0), Self.int(statement, 1), Self.text(statement, 2), Self.int(statement, 3),
-             Self.optionalText(statement, 4), Self.optionalText(statement, 5), Self.optionalText(statement, 6))
-        }
-        var contributions: [String: WorkspaceMetadataContribution] = [:]
-        var occurrences: [String: Int] = [:]
-        var tasks: [String: [WorkspaceTaskMetadata]] = [:]
-        for (path, line, text, checked, due, scheduled, priority) in taskRows {
-            guard let path, let line, line > 0, let text, !text.contains("\n"), !text.contains("\r"),
-                  let checked, checked == 0 || checked == 1,
-                  let due, let scheduled, let priority,
-                  due.map(Self.isTaskDate) ?? true, scheduled.map(Self.isTaskDate) ?? true,
-                  priority.map(["high", "medium", "low"].contains) ?? true,
-                  tasks[path, default: []].count < Self.maximumOccurrencesPerFile
-            else { return try discardContents() }
-            tasks[path, default: []].append(WorkspaceTaskMetadata(line: line, due: due, scheduled: scheduled,
-                                                                  priority: priority, text: text,
-                                                                  checked: checked == 1))
-        }
-        var seen: Set<[String]> = []
-        for (path, kind, key, spelling, count) in tokens {
-            guard let path, let kind = kind.flatMap(Self.kind(_:)), let key, Self.isKey(key),
-                  let spelling, Self.isName(spelling), let count, count > 0,
-                  count <= Self.maximumOccurrencesPerFile - occurrences[path, default: 0],
-                  seen.insert([path, String(Self.code(kind)), key, spelling]).inserted
-            else { return try discardContents() }
-            occurrences[path, default: 0] += count
-            contributions[path, default: WorkspaceMetadataContribution()]
-                .add(kind: kind, key: key, spelling: spelling, count: count)
-        }
-        var records: [String: Record] = [:]
-        for (path, modified, size, hash) in rows {
+        var records: [String: WorkspaceFileRecord] = [:]
+        var files: [String: (modified: Double?, size: Int?, hash: Data)] = [:]
+        for (path, modified, size, hash) in fileRows {
             guard let path, Self.isSafeRelativePath(path), let hash, hash.count == SHA256.byteCount,
-                  size.map({ $0 >= 0 }) ?? true else { return try discardContents() }
-            var contribution = contributions.removeValue(forKey: path) ?? WorkspaceMetadataContribution()
-            contribution.tasks = tasks.removeValue(forKey: path) ?? []
-            records[path] = Record(modificationDate: modified.map(Date.init(timeIntervalSinceReferenceDate:)),
-                                   size: size, hash: hash, contribution: contribution)
+                  size.map({ $0 >= 0 }) ?? true else { throw Untrusted() }
+            files[path] = (modified, size, hash)
+            records[path] = WorkspaceFileRecord(path: path)
         }
-        // Tokens or tasks for a file that is not there.
-        guard contributions.isEmpty, tasks.isEmpty else { return try discardContents() }
-        return records
+        func check(_ path: String?, _ rows: inout [String: Int]) throws -> String {
+            guard let path, records[path] != nil else { throw Untrusted() }
+            rows[path, default: 0] += 1
+            guard rows[path, default: 0] <= Self.maximumOccurrencesPerFile else { throw Untrusted() }
+            return path
+        }
+
+        var tokenRows: [String: Int] = [:]
+        for row in try Self.query(database, "SELECT path, line, kind, key, spelling, excerpt FROM tokens ORDER BY rowid", {
+            (Self.text($0, 0), Self.int($0, 1), Self.int($0, 2), Self.text($0, 3), Self.text($0, 4), Self.text($0, 5))
+        }) {
+            let path = try check(row.0, &tokenRows)
+            guard let line = row.1, line > 0, let kind = row.2.flatMap(Self.kind(_:)), let key = row.3,
+                  Self.isKey(key), let spelling = row.4, Self.isName(spelling), let excerpt = row.5,
+                  Self.isOneLine(excerpt) else { throw Untrusted() }
+            records[path]?.tokens.append(WorkspaceTokenOccurrence(kind: kind, source: kind.marker + spelling,
+                                                                  key: key, line: line, excerpt: excerpt))
+        }
+
+        var linkRows: [String: Int] = [:]
+        for row in try Self.query(database, "SELECT path, line, destination, target, excerpt FROM links ORDER BY rowid", {
+            (Self.text($0, 0), Self.int($0, 1), Self.text($0, 2), Self.optionalText($0, 3), Self.text($0, 4))
+        }) {
+            let path = try check(row.0, &linkRows)
+            guard let line = row.1, line > 0, let destination = row.2, !destination.isEmpty,
+                  Self.isOneLine(destination), let target = row.3, target.map(Self.isSafeRelativePath) ?? true,
+                  let excerpt = row.4, Self.isOneLine(excerpt) else { throw Untrusted() }
+            records[path]?.links.append(WorkspaceLinkOccurrence(destination: destination, target: target,
+                                                                line: line, excerpt: excerpt))
+        }
+
+        var taskRows: [String: Int] = [:]
+        var tasks: [String: [Int: (text: String, checked: Bool, source: String)]] = [:]
+        var taskOrder: [String: [Int]] = [:]
+        for row in try Self.query(database, "SELECT path, line, text, checked, source FROM tasks ORDER BY rowid", {
+            (Self.text($0, 0), Self.int($0, 1), Self.text($0, 2), Self.int($0, 3), Self.text($0, 4))
+        }) {
+            let path = try check(row.0, &taskRows)
+            guard let line = row.1, line > 0, let text = row.2, Self.isOneLine(text),
+                  let checked = row.3, checked == 0 || checked == 1,
+                  let source = row.4, Self.isOneLine(source),
+                  tasks[path]?[line] == nil else { throw Untrusted() }
+            tasks[path, default: [:]][line] = (text, checked == 1, source)
+            taskOrder[path, default: []].append(line)
+        }
+
+        var attributeRows: [String: Int] = [:]
+        var fields: [String: [Int: [String: String]]] = [:]
+        var values: [String: [String: (spelling: String, line: Int, value: WorkspaceAttributeValue?)]] = [:]
+        var items: [String: [String: [Int: WorkspaceAttributeValue]]] = [:]
+        for row in try Self.query(database, """
+            SELECT path, task_line, key, spelling, line, item, type, text, num, destination, target
+            FROM attributes ORDER BY rowid
+            """, {
+            (Self.text($0, 0), Self.optionalInt($0, 1), Self.text($0, 2), Self.text($0, 3), Self.int($0, 4),
+             Self.optionalInt($0, 5), Self.text($0, 6), Self.optionalText($0, 7), Self.optionalDouble($0, 8),
+             Self.optionalText($0, 9), Self.optionalText($0, 10))
+        }) {
+            let path = try check(row.0, &attributeRows)
+            guard let taskLine = row.1, let key = row.2, Self.isAttributeKey(key), let spelling = row.3,
+                  Self.isAttributeKey(spelling), let line = row.4, line > 0, let item = row.5,
+                  let type = row.6, let text = row.7, let number = row.8, let destination = row.9,
+                  let target = row.10 else { throw Untrusted() }
+            if let taskLine {
+                // A task's field, as the extractor reads it from the task line.
+                guard tasks[path]?[taskLine] != nil, line == taskLine, item == nil, let text,
+                      fields[path]?[taskLine]?[key] == nil else { throw Untrusted() }
+                switch (key, type) {
+                case ("due", "date"), ("scheduled", "date"):
+                    guard JournalDay(string: text) != nil else { throw Untrusted() }
+                case ("priority", "text"):
+                    guard ["high", "medium", "low"].contains(text) else { throw Untrusted() }
+                default:
+                    throw Untrusted()
+                }
+                fields[path, default: [:]][taskLine, default: [:]][key] = text
+                continue
+            }
+            guard let value = try Self.attributeValue(type: type, text: text, number: number,
+                                                      destination: destination, target: target)
+            else {
+                // A list's own row; its items follow with `item` set.
+                guard type == "list", item == nil, text == nil, values[path]?[key] == nil else { throw Untrusted() }
+                values[path, default: [:]][key] = (spelling, line, nil)
+                continue
+            }
+            if let item {
+                guard item >= 0, values[path]?[key]?.value == nil, values[path]?[key] != nil,
+                      items[path]?[key]?[item] == nil else { throw Untrusted() }
+                items[path, default: [:]][key, default: [:]][item] = value
+            } else {
+                guard values[path]?[key] == nil else { throw Untrusted() }
+                values[path, default: [:]][key] = (spelling, line, value)
+            }
+        }
+
+        for (path, keys) in values {
+            for (key, entry) in keys {
+                let value: WorkspaceAttributeValue
+                if let scalar = entry.value {
+                    value = scalar
+                } else {
+                    let listed = items[path]?[key] ?? [:]
+                    guard listed.keys.sorted() == Array(0..<listed.count) else { throw Untrusted() }
+                    value = .list(listed.keys.sorted().compactMap { listed[$0] })
+                }
+                records[path]?.attributes[key] = WorkspaceMetadataAttribute(key: key, spelling: entry.spelling,
+                                                                            line: entry.line, value: value)
+            }
+        }
+        for (path, lines) in taskOrder {
+            let tokens = records[path]?.tokens ?? []
+            records[path]?.tasks = lines.map { line in
+                let task = tasks[path]![line]!
+                let field = fields[path]?[line] ?? [:]
+                return WorkspaceTaskMetadata(line: line, due: field["due"], scheduled: field["scheduled"],
+                                             priority: field["priority"], text: task.text, checked: task.checked,
+                                             tokens: tokens.filter { $0.line == line }, source: task.source)
+            }
+        }
+        var result: [String: Record] = [:]
+        for (path, file) in files {
+            result[path] = Record(modificationDate: file.modified.map(Date.init(timeIntervalSinceReferenceDate:)),
+                                  size: file.size, hash: file.hash, record: records[path]!)
+        }
+        return result
+    }
+
+    /// A scalar value from a row, or nil for a list's own row.
+    nonisolated private static func attributeValue(type: String, text: String?, number: Double?,
+                                                   destination: String?, target: String?) throws
+        -> WorkspaceAttributeValue? {
+        if let text, !isOneLine(text) { throw Untrusted() }
+        switch type {
+        case "list":
+            return nil
+        case "text":
+            guard let text, number == nil, destination == nil, target == nil else { throw Untrusted() }
+            return .text(text)
+        case "number":
+            guard let text, let number, number.isFinite, destination == nil, target == nil else { throw Untrusted() }
+            return .number(number, text: text)
+        case "bool":
+            guard let text, let number, number == 0 || number == 1, destination == nil,
+                  target == nil else { throw Untrusted() }
+            return .bool(number == 1, text: text)
+        case "date":
+            guard let text, let day = JournalDay(string: text), number == nil, destination == nil,
+                  target == nil else { throw Untrusted() }
+            return .date(day)
+        case "link":
+            guard let text, number == nil, let destination, !destination.isEmpty,
+                  target.map(isSafeRelativePath) ?? true else { throw Untrusted() }
+            return .link(destination: destination, target: target, text: text)
+        default:
+            throw Untrusted()
+        }
     }
 
     /// Saves or, for nil, forgets each file, a bounded transaction at a time.
@@ -319,44 +478,105 @@ actor WorkspaceIndexStore {
                 for (path, record) in chunk where Self.isSafeRelativePath(path) {
                     try Self.run(database, "DELETE FROM files WHERE path = ?") { Self.bind($0, 1, path) }
                     guard let record else { continue }
-                    try Self.run(database, "INSERT INTO files (path, modified, size, hash) VALUES (?, ?, ?, ?)") {
-                        Self.bind($0, 1, path)
-                        Self.bind($0, 2, record.modificationDate?.timeIntervalSinceReferenceDate)
-                        Self.bind($0, 3, record.size)
-                        Self.bind($0, 4, record.hash)
-                    }
-                    for (kind, keys) in record.contribution.names {
-                        for (key, spellings) in keys {
-                            for (spelling, count) in spellings {
-                                try Self.run(database, """
-                                    INSERT INTO tokens (path, kind, key, spelling, count) VALUES (?, ?, ?, ?, ?)
-                                    """) {
-                                    Self.bind($0, 1, path)
-                                    Self.bind($0, 2, Self.code(kind))
-                                    Self.bind($0, 3, key)
-                                    Self.bind($0, 4, spelling)
-                                    Self.bind($0, 5, count)
-                                }
-                            }
-                        }
-                    }
-                    for task in record.contribution.tasks {
-                        try Self.run(database, """
-                            INSERT INTO tasks (path, line, text, checked, due, scheduled, priority)
-                            VALUES (?, ?, ?, ?, ?, ?, ?)
-                            """) {
-                            Self.bind($0, 1, path)
-                            Self.bind($0, 2, task.line)
-                            Self.bind($0, 3, task.text)
-                            Self.bind($0, 4, task.checked ? 1 : 0)
-                            Self.bind($0, 5, task.due)
-                            Self.bind($0, 6, task.scheduled)
-                            Self.bind($0, 7, task.priority)
-                        }
-                    }
+                    try Self.insert(record, at: path, into: database)
                 }
             }
             start += chunk.count
+        }
+    }
+
+    nonisolated private static func insert(_ record: Record, at path: String, into database: OpaquePointer) throws {
+        try run(database, "INSERT INTO files (path, modified, size, hash) VALUES (?, ?, ?, ?)") {
+            bind($0, 1, path)
+            bind($0, 2, record.modificationDate?.timeIntervalSinceReferenceDate)
+            bind($0, 3, record.size)
+            bind($0, 4, record.hash)
+        }
+        let file = record.record
+        for token in file.tokens {
+            try run(database, """
+                INSERT INTO tokens (path, line, kind, key, spelling, excerpt) VALUES (?, ?, ?, ?, ?, ?)
+                """) {
+                bind($0, 1, path)
+                bind($0, 2, token.line)
+                bind($0, 3, code(token.kind))
+                bind($0, 4, token.key)
+                bind($0, 5, token.spelling)
+                bind($0, 6, token.excerpt)
+            }
+        }
+        for link in file.links {
+            try run(database, "INSERT INTO links (path, line, destination, target, excerpt) VALUES (?, ?, ?, ?, ?)") {
+                bind($0, 1, path)
+                bind($0, 2, link.line)
+                bind($0, 3, link.destination)
+                bind($0, 4, link.target)
+                bind($0, 5, link.excerpt)
+            }
+        }
+        for task in file.tasks {
+            try run(database, "INSERT INTO tasks (path, line, text, checked, source) VALUES (?, ?, ?, ?, ?)") {
+                bind($0, 1, path)
+                bind($0, 2, task.line)
+                bind($0, 3, task.text)
+                bind($0, 4, task.checked ? 1 : 0)
+                bind($0, 5, task.source)
+            }
+            for (key, value) in [("due", task.due), ("scheduled", task.scheduled), ("priority", task.priority)] {
+                guard let value else { continue }
+                try insertAttribute(path: path, taskLine: task.line, key: key, spelling: key, line: task.line,
+                                    item: nil, value: .text(value),
+                                    type: key == "priority" ? "text" : "date", into: database)
+            }
+        }
+        for attribute in file.attributes.values.sorted(by: { $0.line < $1.line }) {
+            if case let .list(values) = attribute.value {
+                try insertAttribute(path: path, taskLine: nil, key: attribute.key, spelling: attribute.spelling,
+                                    line: attribute.line, item: nil, value: nil, type: "list", into: database)
+                for (item, value) in values.enumerated() {
+                    try insertAttribute(path: path, taskLine: nil, key: attribute.key, spelling: attribute.spelling,
+                                        line: attribute.line, item: item, value: value, type: nil, into: database)
+                }
+            } else {
+                try insertAttribute(path: path, taskLine: nil, key: attribute.key, spelling: attribute.spelling,
+                                    line: attribute.line, item: nil, value: attribute.value, type: nil,
+                                    into: database)
+            }
+        }
+    }
+
+    /// One `attributes` row. `type` overrides the value's own, for task fields
+    /// stored as text.
+    nonisolated private static func insertAttribute(path: String, taskLine: Int?, key: String, spelling: String,
+                                                    line: Int, item: Int?, value: WorkspaceAttributeValue?,
+                                                    type: String?, into database: OpaquePointer) throws {
+        var columns: (type: String, text: String?, number: Double?, destination: String?, target: String?)
+        switch value {
+        case nil: columns = ("list", nil, nil, nil, nil)
+        case let .text(text)?: columns = ("text", text, nil, nil, nil)
+        case let .number(number, text)?: columns = ("number", text, number, nil, nil)
+        case let .bool(bool, text)?: columns = ("bool", text, bool ? 1 : 0, nil, nil)
+        case let .date(day)?: columns = ("date", day.string, nil, nil, nil)
+        case let .link(destination, target, text)?: columns = ("link", text, nil, destination, target)
+        // The extractor never nests lists.
+        case .list?: return
+        }
+        if let type { columns.type = type }
+        try run(database, """
+            INSERT INTO attributes (path, task_line, key, spelling, line, item, type, text, num, destination, target)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """) {
+            bind($0, 1, path)
+            bind($0, 2, taskLine)
+            bind($0, 3, key)
+            bind($0, 4, spelling)
+            bind($0, 5, line)
+            bind($0, 6, item)
+            bind($0, 7, columns.type)
+            bind($0, 8, columns.text)
+            bind($0, 9, columns.number)
+            bind($0, 10, columns.destination)
+            bind($0, 11, columns.target)
         }
     }
 
@@ -404,6 +624,16 @@ actor WorkspaceIndexStore {
               !value.split(separator: "/", omittingEmptySubsequences: false).contains(where: \.isEmpty)
         else { return false }
         return true
+    }
+
+    /// No line break or other control character.
+    nonisolated static func isOneLine(_ value: String) -> Bool {
+        !value.unicodeScalars.contains { $0.properties.generalCategory == .control }
+    }
+
+    /// A frontmatter key, as written or normalized: not empty, one line.
+    nonisolated static func isAttributeKey(_ value: String) -> Bool {
+        !value.isEmpty && isOneLine(value)
     }
 
     /// A lookup key: the extractor's NFKC lowercase form of a name, which
@@ -548,8 +778,16 @@ actor WorkspaceIndexStore {
         return text(statement, column).map(Optional.some)
     }
 
-    nonisolated private static func isTaskDate(_ value: String) -> Bool {
-        JournalDay(string: value) != nil
+    /// Outer nil is a malformed column; inner nil is SQL NULL.
+    nonisolated private static func optionalInt(_ statement: OpaquePointer, _ column: Int32) -> Int?? {
+        if sqlite3_column_type(statement, column) == SQLITE_NULL { return .some(nil) }
+        return int(statement, column).map(Optional.some)
+    }
+
+    /// Outer nil is a malformed column; inner nil is SQL NULL.
+    nonisolated private static func optionalDouble(_ statement: OpaquePointer, _ column: Int32) -> Double?? {
+        if sqlite3_column_type(statement, column) == SQLITE_NULL { return .some(nil) }
+        return double(statement, column).map(Optional.some)
     }
 
     nonisolated private static func int(_ statement: OpaquePointer, _ column: Int32) -> Int? {

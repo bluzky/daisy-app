@@ -16,7 +16,7 @@
 
 import Foundation
 
-enum WorkspacePage {
+nonisolated enum WorkspacePage {
     static let folderName = "pages"
 
     enum PageError: LocalizedError {

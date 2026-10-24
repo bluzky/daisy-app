@@ -7,36 +7,42 @@
         {
           "source": "#Roadmap/Q1",
           "key": "roadmap/q1",
-          "line": 2
+          "line": 2,
+          "excerpt": "Welcome #Roadmap/Q1 @Desk +Daisy"
         },
         {
           "source": "#Release",
           "key": "release",
-          "line": 3
+          "line": 3,
+          "excerpt": "- [ ] Ship #Release due:2026-02-28 scheduled:2026-02-01 p:high"
         }
       ],
       "contexts": [
         {
           "source": "@Desk",
           "key": "desk",
-          "line": 2
+          "line": 2,
+          "excerpt": "Welcome #Roadmap/Q1 @Desk +Daisy"
         },
         {
           "source": "@Team",
           "key": "team",
-          "line": 4
+          "line": 4,
+          "excerpt": "- [x] Review @Team +Daisy p:medium"
         }
       ],
       "projects": [
         {
           "source": "+Daisy",
           "key": "daisy",
-          "line": 2
+          "line": 2,
+          "excerpt": "Welcome #Roadmap/Q1 @Desk +Daisy"
         },
         {
           "source": "+Daisy",
           "key": "daisy",
-          "line": 4
+          "line": 4,
+          "excerpt": "- [x] Review @Team +Daisy p:medium"
         }
       ],
       "tasks": [
@@ -46,7 +52,17 @@
           "checked": false,
           "due": "2026-02-28",
           "scheduled": "2026-02-01",
-          "priority": "high"
+          "priority": "high",
+          "tokens": [
+            {
+              "kind": "tags",
+              "source": "#Release",
+              "key": "release",
+              "line": 3,
+              "excerpt": "- [ ] Ship #Release due:2026-02-28 scheduled:2026-02-01 p:high"
+            }
+          ],
+          "source": "Ship #Release due:2026-02-28 scheduled:2026-02-01 p:high"
         },
         {
           "line": 4,
@@ -54,9 +70,28 @@
           "checked": true,
           "due": null,
           "scheduled": null,
-          "priority": "medium"
+          "priority": "medium",
+          "tokens": [
+            {
+              "kind": "contexts",
+              "source": "@Team",
+              "key": "team",
+              "line": 4,
+              "excerpt": "- [x] Review @Team +Daisy p:medium"
+            },
+            {
+              "kind": "projects",
+              "source": "+Daisy",
+              "key": "daisy",
+              "line": 4,
+              "excerpt": "- [x] Review @Team +Daisy p:medium"
+            }
+          ],
+          "source": "Review @Team +Daisy p:medium"
         }
-      ]
+      ],
+      "attributes": [],
+      "links": []
     }
   },
   {
@@ -67,24 +102,29 @@
         {
           "source": "#Visible",
           "key": "visible",
-          "line": 19
+          "line": 19,
+          "excerpt": "#Visible @Here +Project"
         }
       ],
       "contexts": [
         {
           "source": "@Here",
           "key": "here",
-          "line": 19
+          "line": 19,
+          "excerpt": "#Visible @Here +Project"
         }
       ],
       "projects": [
         {
           "source": "+Project",
           "key": "project",
-          "line": 19
+          "line": 19,
+          "excerpt": "#Visible @Here +Project"
         }
       ],
-      "tasks": []
+      "tasks": [],
+      "attributes": [],
+      "links": []
     }
   },
   {
@@ -95,39 +135,47 @@
         {
           "source": "#Café",
           "key": "café",
-          "line": 1
+          "line": 1,
+          "excerpt": "#Café #ＡＢＣ @München/ÖPNV +Проект/Фаза"
         },
         {
           "source": "#ＡＢＣ",
           "key": "abc",
-          "line": 1
+          "line": 1,
+          "excerpt": "#Café #ＡＢＣ @München/ÖPNV +Проект/Фаза"
         },
         {
           "source": "#Roadmap/Q1",
           "key": "roadmap/q1",
-          "line": 2
+          "line": 2,
+          "excerpt": "#Roadmap/Q1 #Roadmap/Q1"
         },
         {
           "source": "#Roadmap/Q1",
           "key": "roadmap/q1",
-          "line": 2
+          "line": 2,
+          "excerpt": "#Roadmap/Q1 #Roadmap/Q1"
         }
       ],
       "contexts": [
         {
           "source": "@München/ÖPNV",
           "key": "münchen/öpnv",
-          "line": 1
+          "line": 1,
+          "excerpt": "#Café #ＡＢＣ @München/ÖPNV +Проект/Фаза"
         }
       ],
       "projects": [
         {
           "source": "+Проект/Фаза",
           "key": "проект/фаза",
-          "line": 1
+          "line": 1,
+          "excerpt": "#Café #ＡＢＣ @München/ÖPNV +Проект/Фаза"
         }
       ],
-      "tasks": []
+      "tasks": [],
+      "attributes": [],
+      "links": []
     }
   },
   {
@@ -138,21 +186,24 @@
         {
           "source": "#good",
           "key": "good",
-          "line": 2
+          "line": 2,
+          "excerpt": "(#ignored), #good @home-office +one_two/three-4"
         }
       ],
       "contexts": [
         {
           "source": "@home-office",
           "key": "home-office",
-          "line": 2
+          "line": 2,
+          "excerpt": "(#ignored), #good @home-office +one_two/three-4"
         }
       ],
       "projects": [
         {
           "source": "+one_two/three-4",
           "key": "one_two/three-4",
-          "line": 2
+          "line": 2,
+          "excerpt": "(#ignored), #good @home-office +one_two/three-4"
         }
       ],
       "tasks": [
@@ -162,7 +213,9 @@
           "checked": false,
           "due": "2024-02-29",
           "scheduled": "2025-01-01",
-          "priority": "high"
+          "priority": "high",
+          "tokens": [],
+          "source": "Valid due:2024-02-29 scheduled:2025-01-01 p:high"
         },
         {
           "line": 4,
@@ -170,7 +223,9 @@
           "checked": true,
           "due": null,
           "scheduled": null,
-          "priority": null
+          "priority": null,
+          "tokens": [],
+          "source": "Bad due:2023-02-29 scheduled:2025-13-01 p:urgent due:0000-01-01"
         },
         {
           "line": 6,
@@ -178,9 +233,13 @@
           "checked": false,
           "due": null,
           "scheduled": null,
-          "priority": null
+          "priority": null,
+          "tokens": [],
+          "source": "Continuation"
         }
-      ]
+      ],
+      "attributes": [],
+      "links": []
     }
   },
   {
@@ -191,21 +250,24 @@
         {
           "source": "#Visible",
           "key": "visible",
-          "line": 1
+          "line": 1,
+          "excerpt": "(#hidden) #Visible @Desk +Project"
         }
       ],
       "contexts": [
         {
           "source": "@Desk",
           "key": "desk",
-          "line": 1
+          "line": 1,
+          "excerpt": "(#hidden) #Visible @Desk +Project"
         }
       ],
       "projects": [
         {
           "source": "+Project",
           "key": "project",
-          "line": 1
+          "line": 1,
+          "excerpt": "(#hidden) #Visible @Desk +Project"
         }
       ],
       "tasks": [
@@ -215,7 +277,9 @@
           "checked": false,
           "due": "2025-03-04",
           "scheduled": "2025-03-01",
-          "priority": "low"
+          "priority": "low",
+          "tokens": [],
+          "source": "Lowercase due:2025-03-04 scheduled:2025-03-01 p:low DUE:2025-04-01 Scheduled:2025-04-02 P:high"
         },
         {
           "line": 4,
@@ -223,9 +287,13 @@
           "checked": false,
           "due": null,
           "scheduled": "2025-06-02",
-          "priority": null
+          "priority": null,
+          "tokens": [],
+          "source": "Inline `due:2025-06-01 p:high` scheduled:2025-06-02"
         }
-      ]
+      ],
+      "attributes": [],
+      "links": []
     }
   },
   {
@@ -238,12 +306,14 @@
         {
           "source": "+Daisy",
           "key": "daisy",
-          "line": 4
+          "line": 4,
+          "excerpt": "- [ ] Plan +Daisy"
         },
         {
           "source": "+Nested",
           "key": "nested",
-          "line": 5
+          "line": 5,
+          "excerpt": "+ +Nested"
         }
       ],
       "tasks": [
@@ -253,9 +323,21 @@
           "checked": false,
           "due": null,
           "scheduled": null,
-          "priority": null
+          "priority": null,
+          "tokens": [
+            {
+              "kind": "projects",
+              "source": "+Daisy",
+              "key": "daisy",
+              "line": 4,
+              "excerpt": "- [ ] Plan +Daisy"
+            }
+          ],
+          "source": "Plan +Daisy"
         }
-      ]
+      ],
+      "attributes": [],
+      "links": []
     }
   },
   {
@@ -266,24 +348,29 @@
         {
           "source": "#done",
           "key": "done",
-          "line": 1
+          "line": 1,
+          "excerpt": "See #done. Ask @alex, then +ship! (#paren)"
         }
       ],
       "contexts": [
         {
           "source": "@alex",
           "key": "alex",
-          "line": 1
+          "line": 1,
+          "excerpt": "See #done. Ask @alex, then +ship! (#paren)"
         }
       ],
       "projects": [
         {
           "source": "+ship",
           "key": "ship",
-          "line": 1
+          "line": 1,
+          "excerpt": "See #done. Ask @alex, then +ship! (#paren)"
         }
       ],
-      "tasks": []
+      "tasks": [],
+      "attributes": [],
+      "links": []
     }
   },
   {
@@ -294,29 +381,35 @@
         {
           "source": "#Café",
           "key": "café",
-          "line": 1
+          "line": 1,
+          "excerpt": "#Café #Café @हिन्दी +ไทย"
         },
         {
           "source": "#Café",
           "key": "café",
-          "line": 1
+          "line": 1,
+          "excerpt": "#Café #Café @हिन्दी +ไทย"
         }
       ],
       "contexts": [
         {
           "source": "@हिन्दी",
           "key": "हिन्दी",
-          "line": 1
+          "line": 1,
+          "excerpt": "#Café #Café @हिन्दी +ไทย"
         }
       ],
       "projects": [
         {
           "source": "+ไทย",
           "key": "ไทย",
-          "line": 1
+          "line": 1,
+          "excerpt": "#Café #Café @हिन्दी +ไทย"
         }
       ],
-      "tasks": []
+      "tasks": [],
+      "attributes": [],
+      "links": []
     }
   },
   {
@@ -327,12 +420,15 @@
         {
           "source": "#toml",
           "key": "toml",
-          "line": 4
+          "line": 4,
+          "excerpt": "#toml"
         }
       ],
       "contexts": [],
       "projects": [],
-      "tasks": []
+      "tasks": [],
+      "attributes": [],
+      "links": []
     }
   },
   {
@@ -342,7 +438,20 @@
       "tags": [],
       "contexts": [],
       "projects": [],
-      "tasks": []
+      "tasks": [],
+      "attributes": [
+        {
+          "key": "a",
+          "spelling": "a",
+          "line": 2,
+          "value": {
+            "type": "number",
+            "text": "1",
+            "number": 1
+          }
+        }
+      ],
+      "links": []
     }
   },
   {
@@ -359,7 +468,9 @@
           "checked": false,
           "due": "2025-01-02",
           "scheduled": null,
-          "priority": "low"
+          "priority": "low",
+          "tokens": [],
+          "source": "Task due:2025-01-02 due:2025-03-04 p:low p:high foo:bar"
         },
         {
           "line": 2,
@@ -367,9 +478,13 @@
           "checked": false,
           "due": null,
           "scheduled": null,
-          "priority": null
+          "priority": null,
+          "tokens": [],
+          "source": "Glued,due:2025-05-06 x;p:high"
         }
-      ]
+      ],
+      "attributes": [],
+      "links": []
     }
   },
   {
@@ -386,7 +501,9 @@
           "checked": false,
           "due": "2026-10-23",
           "scheduled": null,
-          "priority": null
+          "priority": null,
+          "tokens": [],
+          "source": "Quoted  reply due:2026-10-23"
         },
         {
           "line": 2,
@@ -394,7 +511,9 @@
           "checked": false,
           "due": null,
           "scheduled": null,
-          "priority": null
+          "priority": null,
+          "tokens": [],
+          "source": "Parent"
         },
         {
           "line": 3,
@@ -402,9 +521,586 @@
           "checked": true,
           "due": null,
           "scheduled": "2026-10-20",
-          "priority": "low"
+          "priority": "low",
+          "tokens": [],
+          "source": "Nested p:low scheduled:2026-10-20"
+        }
+      ],
+      "attributes": [],
+      "links": []
+    }
+  },
+  {
+    "name": "frontmatter values are typed attributes",
+    "source": "---\ntitle: Weekly \"sync\"\nstatus: 'in review'\nrating: 4.5\ncount: -3\ndraft: false\nPublished: True\ndue: 2026-02-28\nbad-date: 2026-02-30\nempty:\nnull-value: ~\nparent: \"[Up](../index.md)\"\nnested:\n  child: 1\nblock: |\n  text\nafter: kept # a comment\nTitle: duplicate keeps the first\n---\nBody #tag",
+    "expected": {
+      "tags": [
+        {
+          "source": "#tag",
+          "key": "tag",
+          "line": 20,
+          "excerpt": "Body #tag"
+        }
+      ],
+      "contexts": [],
+      "projects": [],
+      "tasks": [],
+      "attributes": [
+        {
+          "key": "title",
+          "spelling": "title",
+          "line": 2,
+          "value": {
+            "type": "text",
+            "text": "Weekly \"sync\""
+          }
+        },
+        {
+          "key": "status",
+          "spelling": "status",
+          "line": 3,
+          "value": {
+            "type": "text",
+            "text": "in review"
+          }
+        },
+        {
+          "key": "rating",
+          "spelling": "rating",
+          "line": 4,
+          "value": {
+            "type": "number",
+            "text": "4.5",
+            "number": 4.5
+          }
+        },
+        {
+          "key": "count",
+          "spelling": "count",
+          "line": 5,
+          "value": {
+            "type": "number",
+            "text": "-3",
+            "number": -3
+          }
+        },
+        {
+          "key": "draft",
+          "spelling": "draft",
+          "line": 6,
+          "value": {
+            "type": "bool",
+            "text": "false",
+            "bool": false
+          }
+        },
+        {
+          "key": "published",
+          "spelling": "Published",
+          "line": 7,
+          "value": {
+            "type": "bool",
+            "text": "True",
+            "bool": true
+          }
+        },
+        {
+          "key": "due",
+          "spelling": "due",
+          "line": 8,
+          "value": {
+            "type": "date",
+            "text": "2026-02-28",
+            "date": "2026-02-28"
+          }
+        },
+        {
+          "key": "bad-date",
+          "spelling": "bad-date",
+          "line": 9,
+          "value": {
+            "type": "text",
+            "text": "2026-02-30"
+          }
+        },
+        {
+          "key": "parent",
+          "spelling": "parent",
+          "line": 12,
+          "value": {
+            "type": "link",
+            "text": "[Up](../index.md)",
+            "destination": "../index.md"
+          }
+        },
+        {
+          "key": "after",
+          "spelling": "after",
+          "line": 17,
+          "value": {
+            "type": "text",
+            "text": "kept"
+          }
+        }
+      ],
+      "links": []
+    }
+  },
+  {
+    "name": "frontmatter lists, flow and block",
+    "source": "---\naliases: [one, \"two, three\", 4]\nreviewers:\n  - Ana\n  - 'Bo' # comment\n  -\nempty-list: []\n---\n",
+    "expected": {
+      "tags": [],
+      "contexts": [],
+      "projects": [],
+      "tasks": [],
+      "attributes": [
+        {
+          "key": "aliases",
+          "spelling": "aliases",
+          "line": 2,
+          "value": {
+            "type": "list",
+            "text": "one, two, three, 4",
+            "items": [
+              {
+                "type": "text",
+                "text": "one"
+              },
+              {
+                "type": "text",
+                "text": "two, three"
+              },
+              {
+                "type": "number",
+                "text": "4",
+                "number": 4
+              }
+            ]
+          }
+        },
+        {
+          "key": "reviewers",
+          "spelling": "reviewers",
+          "line": 3,
+          "value": {
+            "type": "list",
+            "text": "Ana, Bo",
+            "items": [
+              {
+                "type": "text",
+                "text": "Ana"
+              },
+              {
+                "type": "text",
+                "text": "Bo"
+              }
+            ]
+          }
+        },
+        {
+          "key": "empty-list",
+          "spelling": "empty-list",
+          "line": 7,
+          "value": {
+            "type": "list",
+            "text": "",
+            "items": []
+          }
+        }
+      ],
+      "links": []
+    }
+  },
+  {
+    "name": "frontmatter tags contexts and projects become tokens on their lines",
+    "source": "---\ntags: [Work, \"#Home\", 2026, \"not a name\", area/sub]\ncontexts:\n  - phone\n  - \"@desk\"\nprojects: Daisy\nTags: ignored-duplicate\nnotes: \"#not-a-tag\"\n---\n# Doc\nBody #work @phone +daisy",
+    "expected": {
+      "tags": [
+        {
+          "source": "#Work",
+          "key": "work",
+          "line": 2,
+          "excerpt": "tags: [Work, \"#Home\", 2026, \"not a name\", area/sub]"
+        },
+        {
+          "source": "#Home",
+          "key": "home",
+          "line": 2,
+          "excerpt": "tags: [Work, \"#Home\", 2026, \"not a name\", area/sub]"
+        },
+        {
+          "source": "#area/sub",
+          "key": "area/sub",
+          "line": 2,
+          "excerpt": "tags: [Work, \"#Home\", 2026, \"not a name\", area/sub]"
+        },
+        {
+          "source": "#work",
+          "key": "work",
+          "line": 11,
+          "excerpt": "Body #work @phone +daisy"
+        }
+      ],
+      "contexts": [
+        {
+          "source": "@phone",
+          "key": "phone",
+          "line": 4,
+          "excerpt": "- phone"
+        },
+        {
+          "source": "@desk",
+          "key": "desk",
+          "line": 5,
+          "excerpt": "- \"@desk\""
+        },
+        {
+          "source": "@phone",
+          "key": "phone",
+          "line": 11,
+          "excerpt": "Body #work @phone +daisy"
+        }
+      ],
+      "projects": [
+        {
+          "source": "+Daisy",
+          "key": "daisy",
+          "line": 6,
+          "excerpt": "projects: Daisy"
+        },
+        {
+          "source": "+daisy",
+          "key": "daisy",
+          "line": 11,
+          "excerpt": "Body #work @phone +daisy"
+        }
+      ],
+      "tasks": [],
+      "attributes": [
+        {
+          "key": "tags",
+          "spelling": "tags",
+          "line": 2,
+          "value": {
+            "type": "list",
+            "text": "Work, #Home, 2026, not a name, area/sub",
+            "items": [
+              {
+                "type": "text",
+                "text": "Work"
+              },
+              {
+                "type": "text",
+                "text": "#Home"
+              },
+              {
+                "type": "number",
+                "text": "2026",
+                "number": 2026
+              },
+              {
+                "type": "text",
+                "text": "not a name"
+              },
+              {
+                "type": "text",
+                "text": "area/sub"
+              }
+            ]
+          }
+        },
+        {
+          "key": "contexts",
+          "spelling": "contexts",
+          "line": 3,
+          "value": {
+            "type": "list",
+            "text": "phone, @desk",
+            "items": [
+              {
+                "type": "text",
+                "text": "phone"
+              },
+              {
+                "type": "text",
+                "text": "@desk"
+              }
+            ]
+          }
+        },
+        {
+          "key": "projects",
+          "spelling": "projects",
+          "line": 6,
+          "value": {
+            "type": "text",
+            "text": "Daisy"
+          }
+        },
+        {
+          "key": "notes",
+          "spelling": "notes",
+          "line": 8,
+          "value": {
+            "type": "text",
+            "text": "#not-a-tag"
+          }
+        }
+      ],
+      "links": []
+    }
+  },
+  {
+    "name": "frontmatter value starting with # is a YAML comment",
+    "source": "---\ntags: #inline\nprojects: [a] # comment\n---\n",
+    "expected": {
+      "tags": [],
+      "contexts": [],
+      "projects": [
+        {
+          "source": "+a",
+          "key": "a",
+          "line": 3,
+          "excerpt": "projects: [a] # comment"
+        }
+      ],
+      "tasks": [],
+      "attributes": [
+        {
+          "key": "projects",
+          "spelling": "projects",
+          "line": 3,
+          "value": {
+            "type": "list",
+            "text": "a",
+            "items": [
+              {
+                "type": "text",
+                "text": "a"
+              }
+            ]
+          }
+        }
+      ],
+      "links": []
+    }
+  },
+  {
+    "name": "inline links to local files",
+    "source": "See [a](notes/a.md), [up](../b.md#part), [abs](/tmp/c.md), [home](~/d.md)\n[space](<my file.md>) [encoded](my%20file.md \"title\") [file](file:///tmp/e.md) [drive](C:/f.md)\n[web](https://example.com) [mail](mailto:a@example.com) [section](#heading) [empty]()\n<https://example.com/auto.md> ![image](image.md) [ref][r] [[wiki]] bare.md\n\n[r]: ref.md",
+    "expected": {
+      "tags": [],
+      "contexts": [],
+      "projects": [],
+      "tasks": [],
+      "attributes": [],
+      "links": [
+        {
+          "destination": "notes/a.md",
+          "line": 1,
+          "excerpt": "See [a](notes/a.md), [up](../b.md#part), [abs](/tmp/c.md), [home](~/d.md)"
+        },
+        {
+          "destination": "../b.md#part",
+          "line": 1,
+          "excerpt": "See [a](notes/a.md), [up](../b.md#part), [abs](/tmp/c.md), [home](~/d.md)"
+        },
+        {
+          "destination": "/tmp/c.md",
+          "line": 1,
+          "excerpt": "See [a](notes/a.md), [up](../b.md#part), [abs](/tmp/c.md), [home](~/d.md)"
+        },
+        {
+          "destination": "~/d.md",
+          "line": 1,
+          "excerpt": "See [a](notes/a.md), [up](../b.md#part), [abs](/tmp/c.md), [home](~/d.md)"
+        },
+        {
+          "destination": "my file.md",
+          "line": 2,
+          "excerpt": "[space](<my file.md>) [encoded](my%20file.md \"title\") [file](file:///tmp/e.md) [drive](C:/f.md)"
+        },
+        {
+          "destination": "my%20file.md",
+          "line": 2,
+          "excerpt": "[space](<my file.md>) [encoded](my%20file.md \"title\") [file](file:///tmp/e.md) [drive](C:/f.md)"
+        },
+        {
+          "destination": "file:///tmp/e.md",
+          "line": 2,
+          "excerpt": "[space](<my file.md>) [encoded](my%20file.md \"title\") [file](file:///tmp/e.md) [drive](C:/f.md)"
+        },
+        {
+          "destination": "C:/f.md",
+          "line": 2,
+          "excerpt": "[space](<my file.md>) [encoded](my%20file.md \"title\") [file](file:///tmp/e.md) [drive](C:/f.md)"
         }
       ]
+    }
+  },
+  {
+    "name": "links in code, tables, html and frontmatter are blocked",
+    "source": "---\nlink: [x](front.md)\n---\n`[code](code.md)`\n\n```\n[fence](fence.md)\n```\n\n| [cell](cell.md) | b |\n| --- | --- |\n\n<div>\n[html](html.md)\n</div>\n\n[kept](kept.md)",
+    "expected": {
+      "tags": [],
+      "contexts": [],
+      "projects": [],
+      "tasks": [],
+      "attributes": [
+        {
+          "key": "link",
+          "spelling": "link",
+          "line": 2,
+          "value": {
+            "type": "text",
+            "text": "[x](front.md)"
+          }
+        }
+      ],
+      "links": [
+        {
+          "destination": "kept.md",
+          "line": 17,
+          "excerpt": "[kept](kept.md)"
+        }
+      ]
+    }
+  },
+  {
+    "name": "tasks carry their line's tokens and links",
+    "source": "- [ ] Call @phone about +daisy #urgent [spec](spec.md) due:2026-03-01\n- [x] No tokens [ref](ref.md)\n  - [ ] Nested #child\n\n#outside",
+    "expected": {
+      "tags": [
+        {
+          "source": "#urgent",
+          "key": "urgent",
+          "line": 1,
+          "excerpt": "- [ ] Call @phone about +daisy #urgent [spec](spec.md) due:2026-03-01"
+        },
+        {
+          "source": "#child",
+          "key": "child",
+          "line": 3,
+          "excerpt": "- [ ] Nested #child"
+        },
+        {
+          "source": "#outside",
+          "key": "outside",
+          "line": 5,
+          "excerpt": "#outside"
+        }
+      ],
+      "contexts": [
+        {
+          "source": "@phone",
+          "key": "phone",
+          "line": 1,
+          "excerpt": "- [ ] Call @phone about +daisy #urgent [spec](spec.md) due:2026-03-01"
+        }
+      ],
+      "projects": [
+        {
+          "source": "+daisy",
+          "key": "daisy",
+          "line": 1,
+          "excerpt": "- [ ] Call @phone about +daisy #urgent [spec](spec.md) due:2026-03-01"
+        }
+      ],
+      "tasks": [
+        {
+          "line": 1,
+          "text": "Call @phone about +daisy #urgent [spec](spec.md)",
+          "checked": false,
+          "due": "2026-03-01",
+          "scheduled": null,
+          "priority": null,
+          "tokens": [
+            {
+              "kind": "tags",
+              "source": "#urgent",
+              "key": "urgent",
+              "line": 1,
+              "excerpt": "- [ ] Call @phone about +daisy #urgent [spec](spec.md) due:2026-03-01"
+            },
+            {
+              "kind": "contexts",
+              "source": "@phone",
+              "key": "phone",
+              "line": 1,
+              "excerpt": "- [ ] Call @phone about +daisy #urgent [spec](spec.md) due:2026-03-01"
+            },
+            {
+              "kind": "projects",
+              "source": "+daisy",
+              "key": "daisy",
+              "line": 1,
+              "excerpt": "- [ ] Call @phone about +daisy #urgent [spec](spec.md) due:2026-03-01"
+            }
+          ],
+          "source": "Call @phone about +daisy #urgent [spec](spec.md) due:2026-03-01"
+        },
+        {
+          "line": 2,
+          "text": "No tokens [ref](ref.md)",
+          "checked": true,
+          "due": null,
+          "scheduled": null,
+          "priority": null,
+          "tokens": [],
+          "source": "No tokens [ref](ref.md)"
+        },
+        {
+          "line": 3,
+          "text": "Nested #child",
+          "checked": false,
+          "due": null,
+          "scheduled": null,
+          "priority": null,
+          "tokens": [
+            {
+              "kind": "tags",
+              "source": "#child",
+              "key": "child",
+              "line": 3,
+              "excerpt": "- [ ] Nested #child"
+            }
+          ],
+          "source": "Nested #child"
+        }
+      ],
+      "attributes": [],
+      "links": [
+        {
+          "destination": "spec.md",
+          "line": 1,
+          "excerpt": "- [ ] Call @phone about +daisy #urgent [spec](spec.md) due:2026-03-01"
+        },
+        {
+          "destination": "ref.md",
+          "line": 2,
+          "excerpt": "- [x] No tokens [ref](ref.md)"
+        }
+      ]
+    }
+  },
+  {
+    "name": "long lines give a shortened excerpt",
+    "source": "#long word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word",
+    "expected": {
+      "tags": [
+        {
+          "source": "#long",
+          "key": "long",
+          "line": 1,
+          "excerpt": "#long word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word…"
+        }
+      ],
+      "contexts": [],
+      "projects": [],
+      "tasks": [],
+      "attributes": [],
+      "links": []
     }
   }
 ]

@@ -110,6 +110,13 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
             applyMetadataLinksState()
         }
     }
+    /// The `tasks`/`notes` blocks on the page, each time they change; an
+    /// empty list when there are none, or the page left the workspace.
+    var queryBlocksRequested: (([QueryBlockRequest]) -> Void)?
+    /// A result row the user clicked: root-relative path and line.
+    var queryResultOpened: ((String, Int) -> Void)?
+    /// A task's checkbox in a result: path, line and the new state.
+    var queryTaskToggled: ((String, Int, Bool) -> Void)?
     #endif
     var scrollDidChange: (() -> Void)?
     private let assetScheme = MarkdownAssetScheme()
@@ -528,6 +535,13 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
     }
 
     #if !QUICK_LOOK_EXTENSION
+    /// Shows `results` in place of their blocks.
+    func showQueryResults(_ results: [QueryBlockResult]) {
+        guard let data = try? JSONEncoder().encode(results),
+              let json = String(data: data, encoding: .utf8) else { return }
+        webView.evaluateJavaScript("window.MdPreview && window.MdPreview.queryResults && window.MdPreview.queryResults(\(json));") { _, _ in }
+    }
+
     private func applyMetadataLinksState() {
         webView.evaluateJavaScript("""
         document.documentElement.toggleAttribute('data-mdp-workspace', \(metadataLinksEnabled));
@@ -571,6 +585,16 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         case "openMetadata":
             guard let token = dict["token"] as? String else { return }
             linkActivated?(.metadata(token))
+        case "runQueries":
+            guard let queries = dict["queries"] as? [[String: Any]] else { return }
+            queryBlocksRequested?(queries.compactMap(QueryBlockRequest.init(message:)))
+        case "openQueryResult":
+            guard let path = dict["path"] as? String, let line = dict["line"] as? Int, line > 0 else { return }
+            queryResultOpened?(path, line)
+        case "queryTaskCheckbox":
+            guard let path = dict["path"] as? String, let line = dict["line"] as? Int, line > 0,
+                  let checked = dict["checked"] as? Bool else { return }
+            queryTaskToggled?(path, line, checked)
         #endif
         case "linkContextMenu":
             guard let raw = dict["url"] as? String, let url = URL(string: raw) else { return }

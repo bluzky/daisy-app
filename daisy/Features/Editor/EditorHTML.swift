@@ -912,6 +912,15 @@ nonisolated enum EditorHTML {
                         onOpenLink: function (link) {
                             post({ kind: "openLink", token: link.token, destination: link.destination });
                         },
+                        onRunQueries: function (queries) {
+                            post({ kind: "runQueries", queries: queries });
+                        },
+                        onOpenQueryResult: function (row) {
+                            post({ kind: "openQueryResult", path: row.path, line: row.line });
+                        },
+                        onQueryTaskCheckbox: function (row) {
+                            post({ kind: "queryTaskCheckbox", path: row.path, line: row.line, checked: row.checked });
+                        },
                         // Preview block margins (MarkdownHTML design tokens):
                         // the bundle sizes blank-separator lines from these.
                         spacing: {
@@ -964,6 +973,10 @@ nonisolated enum EditorHTML {
                     setMetadataLinks: function (enabled) {
                         metadataLinks = enabled === true;
                         editor.setMetadataLinks(metadataLinks);
+                    },
+                    // Not kept: a fresh page sends its queries again.
+                    setQueryResults: function (results) {
+                        editor.setQueryResults(results);
                     },
                     isSyntaxReady: function () { return editor.isSyntaxReady(); },
                     replaceMarkdown: function (markdown) { return editor.replaceMarkdown(markdown); },

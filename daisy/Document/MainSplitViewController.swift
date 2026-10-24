@@ -122,6 +122,18 @@ final class MainSplitViewController: NSSplitViewController {
 
     /// Metadata tokens link to their workspace pages, in the preview and the
     /// editor; set for workspace windows.
+    func showQueryResults(_ results: [QueryBlockResult], in target: QueryBlockTarget) {
+        switch target {
+        case .preview: contentViewController?.showQueryResults(results)
+        case .editor: cachedEditorViewController?.showQueryResults(results)
+        }
+    }
+
+    /// Shows the editor's query blocks as code again.
+    func clearEditorQueryResults() {
+        cachedEditorViewController?.showQueryResults(nil)
+    }
+
     func setMetadataLinksEnabled(_ enabled: Bool) {
         contentViewController?.metadataLinksEnabled = enabled
         cachedEditorViewController?.setMetadataLinksEnabled(enabled)

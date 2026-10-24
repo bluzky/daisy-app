@@ -95,9 +95,11 @@ extension DocumentWindowController {
             }
         }
         if hasUnsavedEditorChanges { scheduleWorkspaceOverlay() }
+        restartQueryBlocks()
     }
 
     func releaseWorkspaceIndex() {
+        stopQueryBlocks()
         mainSplit?.taskCalendarViewController?.bind(index: nil)
         taskRootIdentity = nil
         restoreWorkspaceOverlay()
