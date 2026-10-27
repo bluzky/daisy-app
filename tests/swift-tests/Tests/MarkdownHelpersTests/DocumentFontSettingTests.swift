@@ -39,8 +39,8 @@ final class DocumentFontSettingTests: XCTestCase {
     }
 
     // Every stack has to end in a generic family, or macOS's per-script cascade
-    // has nothing to fall back to for text the named faces don't cover — the
-    // zh-Hans localisation being the case that would break first.
+    // has nothing to fall back to for text the named faces don't cover —
+    // Chinese or Japanese text in a document being the case that would break first.
     func testEveryStackEndsInAGenericFamily() {
         let generics = ["serif", "sans-serif", "monospace"]
         for setting in DocumentFontSetting.allCases {

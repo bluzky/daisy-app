@@ -79,7 +79,6 @@
 		9A02092F2FA10D4C00092060 /* Quartz.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Quartz.framework; path = System/Library/Frameworks/Quartz.framework; sourceTree = SDKROOT; };
 		9A0209A02FA1100100092060 /* Version.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Version.xcconfig; sourceTree = "<group>"; };
 		9A2040010000000000000002 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = daisy/en.lproj/Localizable.strings; sourceTree = "<group>"; };
-		9A2040010000000000000003 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "daisy/zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
 		9AC100010000000000000002 /* bin/daisy */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = "bin/daisy"; sourceTree = "<group>"; };
 		9AC200010000000000000010 /* daisy-export */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "daisy-export"; sourceTree = BUILT_PRODUCTS_DIR; };
 		9AF000000000000000000101 /* mermaid.min.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = mermaid.min.js; path = daisy/Vendor/Mermaid/mermaid.min.js; sourceTree = "<group>"; };
@@ -362,7 +361,6 @@
 			knownRegions = (
 				en,
 				Base,
-				"zh-Hans",
 			);
 			mainGroup = 9A0207B82FA0ED7C00092060;
 			minimizedProjectReferenceProxies = 1;
@@ -479,7 +477,6 @@
 			isa = PBXVariantGroup;
 			children = (
 				9A2040010000000000000002 /* en */,
-				9A2040010000000000000003 /* zh-Hans */,
 			);
 			name = Localizable.strings;
 			sourceTree = "<group>";
