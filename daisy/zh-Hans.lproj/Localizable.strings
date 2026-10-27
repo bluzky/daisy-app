@@ -411,6 +411,30 @@
 "OR needs a term on each side." = "OR 两侧都需要查询条件。";
 "No file has “%@”. Did you mean “%@”?" = "没有文件包含“%@”。你是否想输入“%@”？";
 "No file has “%@”." = "没有文件包含“%@”。";
+"“%@”: use $view:list or $view:table." = "“%@”：请使用 $view:list 或 $view:table。";
+"“%@”: a block takes this option once." = "“%@”：此选项在一个查询块中只能使用一次。";
+"“%@”: columns show with $view:table." = "“%@”：列仅在 $view:table 中显示。";
+"“%@” is for tasks blocks." = "“%@”仅适用于 tasks 查询块。";
+"“%@”: done and text are columns, not groups." = "“%@”：done 和 text 只能作为列，不能用于分组。";
+"“%@” is not a display option. Use $group:, $view: or $columns:." = "“%@”不是显示选项。请使用 $group:、$view: 或 $columns:。";
+"Title" = "标题";
+"File" = "文件";
+"Projects" = "项目";
+"Contexts" = "情境";
+"Tags" = "标签";
+"Folder" = "文件夹";
+"Path" = "路径";
+"Name" = "名称";
+"Modified" = "修改日期";
+"Created" = "创建日期";
+"Size" = "大小";
+"No project" = "无项目";
+"No context" = "无情境";
+"No tag" = "无标签";
+"No due date" = "无截止日期";
+"No scheduled date" = "无计划日期";
+"No priority" = "无优先级";
+"No %@" = "无 %@";
 "“%@” is not a tag, context or project." = "“%@”不是标签、情境或项目。";
 "The pages folder is outside the workspace." = "pages 文件夹位于工作区之外。";
 "Due" = "截止";
@@ -559,3 +583,16 @@
 "The task’s file is not inside the workspace." = "任务所在的文件不在工作区内。";
 "The workspace folder changed." = "工作区文件夹已更改。";
 "“%@” is not a regular file." = "“%@”不是普通文件。";
+
+/* References sidebar */
+"References" = "引用";
+"Show references" = "显示引用";
+"References are available in a workspace." = "引用仅在工作区中可用。";
+"Linked" = "链接";
+"Mentions" = "提及";
+"No references" = "没有引用";
+"Files that link to this one, or use the tag, context or project whose page it is, appear here." = "链接到此文件，或使用以此文件为页面的标签、情境或项目的文件，会显示在这里。";
+"No saved file" = "没有已存储的文件";
+"Open a file in the workspace to see what refers to it." = "打开工作区中的文件，查看哪些文件引用了它。";
+"Not in the workspace index" = "不在工作区索引中";
+"Only Markdown files inside the workspace folder are indexed." = "只有工作区文件夹内的 Markdown 文件会被索引。";

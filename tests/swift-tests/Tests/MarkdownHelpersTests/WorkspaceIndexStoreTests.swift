@@ -154,8 +154,8 @@ final class WorkspaceIndexStoreTests: XCTestCase {
         try await cacheThenSwapInPlace()
         try sql("""
             INSERT INTO files (path, modified, size, hash) VALUES ('../outside.md', NULL, 1, zeroblob(32));
-            INSERT INTO tokens (path, line, kind, key, spelling, excerpt)
-            VALUES ('../outside.md', 1, 0, 'secret', 'secret', '#secret');
+            INSERT INTO tokens (path, line, kind, key, spelling, excerpt, frontmatter)
+            VALUES ('../outside.md', 1, 0, 'secret', 'secret', '#secret', 0);
             """, at: cacheURL())
 
         let reopened = await cached()
@@ -470,7 +470,7 @@ final class WorkspaceIndexStoreTests: XCTestCase {
     }
 
     func testOlderSchemaCachesAreRebuilt() async throws {
-        for schema in ["2", "3"] {
+        for schema in ["2", "3", "4"] {
             try await cacheTaskThenSwapInPlace()
             try sql("UPDATE meta SET value = '\(schema)' WHERE key = 'schema'", at: cacheURL())
             let reopened = await cached()
@@ -517,6 +517,7 @@ final class WorkspaceIndexStoreTests: XCTestCase {
         XCTAssertEqual(record.attributes["empty"]?.value, .list([]))
         XCTAssertEqual(record.links.map(\.target), ["docs/notes/b.md", nil, "docs/spec.md"])
         XCTAssertEqual(record.tasks.first?.tokens.map(\.source), ["+daisy"])
+        XCTAssertEqual(record.frontmatterTokens.map(\.source), ["#work", "#area/sub"])
         XCTAssertEqual(record.tasks.first?.due, "2026-03-02")
         XCTAssertEqual(record.tasks.first?.source,
                        "Ship +daisy [spec](spec.md#part) due:2026-03-02 scheduled:2026-03-01 p:high")
@@ -533,6 +534,7 @@ final class WorkspaceIndexStoreTests: XCTestCase {
             "UPDATE attributes SET item = 5 WHERE key = 'reviewers' AND item = 1",
             "DELETE FROM attributes WHERE key = 'reviewers' AND item IS NULL",
             "INSERT INTO attributes SELECT * FROM attributes WHERE key = 'title'",
+            "UPDATE tokens SET frontmatter = 2",
         ]
         for row in rows {
             WorkspaceIndexStore.deleteCache(root: root, in: cache)

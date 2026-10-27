@@ -33,7 +33,7 @@ actor WorkspaceIndexStore {
     }
 
     /// Bump when the tables change; an older file is rebuilt.
-    nonisolated static let schemaVersion = 4
+    nonisolated static let schemaVersion = 5
     /// Files saved per transaction, so a write never holds the file long.
     nonisolated static let transactionSize = 256
     /// How long a write waits for another connection before giving up.
@@ -238,7 +238,8 @@ actor WorkspaceIndexStore {
                 kind INTEGER NOT NULL,
                 key TEXT NOT NULL,
                 spelling TEXT NOT NULL,
-                excerpt TEXT NOT NULL
+                excerpt TEXT NOT NULL,
+                frontmatter INTEGER NOT NULL
             );
             CREATE INDEX IF NOT EXISTS tokens_by_path ON tokens(path);
             CREATE INDEX IF NOT EXISTS tokens_by_key ON tokens(kind, key);
@@ -317,15 +318,20 @@ actor WorkspaceIndexStore {
         }
 
         var tokenRows: [String: Int] = [:]
-        for row in try Self.query(database, "SELECT path, line, kind, key, spelling, excerpt FROM tokens ORDER BY rowid", {
-            (Self.text($0, 0), Self.int($0, 1), Self.int($0, 2), Self.text($0, 3), Self.text($0, 4), Self.text($0, 5))
+        for row in try Self.query(database, """
+            SELECT path, line, kind, key, spelling, excerpt, frontmatter FROM tokens ORDER BY rowid
+            """, {
+            (Self.text($0, 0), Self.int($0, 1), Self.int($0, 2), Self.text($0, 3), Self.text($0, 4), Self.text($0, 5),
+             Self.int($0, 6))
         }) {
             let path = try check(row.0, &tokenRows)
             guard let line = row.1, line > 0, let kind = row.2.flatMap(Self.kind(_:)), let key = row.3,
                   Self.isKey(key), let spelling = row.4, Self.isName(spelling), let excerpt = row.5,
-                  Self.isOneLine(excerpt) else { throw Untrusted() }
+                  Self.isOneLine(excerpt), let frontmatter = row.6, frontmatter == 0 || frontmatter == 1
+            else { throw Untrusted() }
             records[path]?.tokens.append(WorkspaceTokenOccurrence(kind: kind, source: kind.marker + spelling,
-                                                                  key: key, line: line, excerpt: excerpt))
+                                                                  key: key, line: line, excerpt: excerpt,
+                                                                  frontmatter: frontmatter == 1))
         }
 
         var linkRows: [String: Int] = [:]
@@ -495,7 +501,8 @@ actor WorkspaceIndexStore {
         let file = record.record
         for token in file.tokens {
             try run(database, """
-                INSERT INTO tokens (path, line, kind, key, spelling, excerpt) VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO tokens (path, line, kind, key, spelling, excerpt, frontmatter)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """) {
                 bind($0, 1, path)
                 bind($0, 2, token.line)
@@ -503,6 +510,7 @@ actor WorkspaceIndexStore {
                 bind($0, 4, token.key)
                 bind($0, 5, token.spelling)
                 bind($0, 6, token.excerpt)
+                bind($0, 7, token.frontmatter ? 1 : 0)
             }
         }
         for link in file.links {

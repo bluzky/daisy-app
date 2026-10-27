@@ -147,6 +147,27 @@ final class WorkspaceQueryTests: XCTestCase {
         XCTAssertEqual(try run(.files, .attribute("file.name", .equal, .text("b.md"))), ["b.md"])
     }
 
+    func testTitleIsTheFrontmatterTitleOrTheFileName() throws {
+        let records = [
+            try record("---\ntitle: Weekly Plan\n---\n- [ ] Call", at: "notes/plan.md"),
+            try record("---\ntitle: \"\"\n---\nEmpty title", at: "empty.md"),
+            try record("No frontmatter", at: "Ideas.md"),
+        ]
+        func run(_ source: WorkspaceQuery.Source, _ filter: WorkspacePredicate,
+                 sort: [WorkspaceSortKey] = []) -> [String] {
+            paths(WorkspaceQuery(source: source, filter: filter, sort: sort).evaluate(records))
+        }
+        XCTAssertEqual(run(.files, .and([]), sort: [WorkspaceSortKey(key: "title")]),
+                       ["empty.md", "Ideas.md", "notes/plan.md"], "empty, Ideas, Weekly Plan")
+        XCTAssertEqual(run(.files, .attribute("title", .equal, .text("ideas"))), ["Ideas.md"])
+        XCTAssertEqual(run(.files, .hasAttribute("title")), ["Ideas.md", "empty.md", "notes/plan.md"],
+                       "every file has a title")
+        XCTAssertEqual(run(.tasks, .attribute("title", .equal, .text("weekly plan"))), ["notes/plan.md:4"],
+                       "a task reads its file's title")
+        XCTAssertEqual(records[0].title, "Weekly Plan")
+        XCTAssertEqual(records[1].title, "empty", "an empty title falls back to the file name")
+    }
+
     func testTaskPredicates() throws {
         XCTAssertEqual(try run(.tasks, .checked(false)), ["b.md:6", "projects/a.md:9", "projects/a.md:11"])
         XCTAssertEqual(try run(.tasks, .hasToken(.project, key: "daisy", includingDescendants: false)),
@@ -160,6 +181,28 @@ final class WorkspaceQueryTests: XCTestCase {
         XCTAssertEqual(try run(.tasks, .attribute("status", .equal, .text("active"))),
                        ["projects/a.md:9", "projects/a.md:10", "projects/a.md:11"])
         XCTAssertEqual(try run(.tasks, .textContains("call")), ["projects/a.md:9"])
+    }
+
+    func testTasksHaveTheirFileFrontmatterTokens() async throws {
+        let all = ["projects/a.md:9", "projects/a.md:10", "projects/a.md:11"]
+        XCTAssertEqual(try run(.tasks, .hasToken(.tag, key: "area/sub", includingDescendants: false)), all)
+        XCTAssertEqual(try run(.tasks, .hasToken(.tag, key: "area", includingDescendants: true)), all)
+        XCTAssertEqual(try run(.tasks, .hasToken(.tag, key: "area", includingDescendants: false)), [],
+                       "a name in the body is not the file's")
+        XCTAssertEqual(try run(.tasks, .not(.hasToken(.tag, key: "area/sub", includingDescendants: false))),
+                       ["b.md:6"])
+        let task = try record("---\ntags: [work]\n---\n- [ ] Call", at: "a.md").tasks.first
+        XCTAssertEqual(task?.tokens, [], "a task's own tokens stay its line's")
+
+        let a = try write("---\ntags: [work]\n---\n- [ ] Call", to: "a.md")
+        let index = WorkspaceMetadataIndex(root: root)
+        await index.reconcile()
+        let work = WorkspaceQuery(source: .tasks, filter: .hasToken(.tag, key: "work", includingDescendants: false))
+        let saved = paths(await index.run(work))
+        XCTAssertEqual(saved, ["a.md:4"])
+        await index.setOverlay("---\ntags: [home]\n---\n- [ ] Call", for: a, owner: UUID())
+        let edited = paths(await index.run(work))
+        XCTAssertEqual(edited, [], "an unsaved frontmatter edit counts")
     }
 
     func testBooleanLogic() throws {
@@ -202,6 +245,54 @@ final class WorkspaceQueryTests: XCTestCase {
         XCTAssertEqual(references, ["a.md", "b.md", "c.md"])
         let none = paths(await index.references(to: "a.md"))
         XCTAssertEqual(none, [])
+    }
+
+    func testReferenceListGroupsLinksAndMentionsByFileAndLine() async throws {
+        try write("# #Area/Sub\n[self](%23area--sub.md) #area/sub", to: "pages/#area--sub.md")
+        try write("---\ntags: [area/sub]\n---\nUses #AREA/sub\n\nNothing\nAgain #area/sub #area/sub",
+                  to: "a.md")
+        try write("[p](../pages/%23area--sub.md) and #area/sub\n[again](../pages/%23area--sub.md)",
+                  to: "notes/b.md")
+        try write("Child #area/sub/deeper, other [x](a.md)", to: "c.md")
+        let index = WorkspaceMetadataIndex(root: root)
+        await index.reconcile()
+
+        let page = await index.referenceList(to: "pages/#area--sub.md")
+        XCTAssertEqual(page.linked, [
+            .init(path: "notes/b.md", occurrences: [
+                .init(line: 1, excerpt: "[p](../pages/%23area--sub.md) and #area/sub"),
+                .init(line: 2, excerpt: "[again](../pages/%23area--sub.md)"),
+            ]),
+        ])
+        XCTAssertEqual(page.mentions.map(\.path), ["a.md", "notes/b.md"],
+                       "a descendant token is not a mention, and the page never lists itself")
+        XCTAssertEqual(page.mentions[0].occurrences.map(\.line), [2, 4, 7],
+                       "frontmatter tags count; two tokens on one line make one row")
+        XCTAssertEqual(page.mentions[1].occurrences.map(\.line), [1])
+
+        let file = await index.referenceList(to: "a.md")
+        XCTAssertEqual(file.linked.map(\.path), ["c.md"])
+        XCTAssertEqual(file.mentions, [], "only a page has mentions")
+
+        let url = root.appending(path: "notes/b.md")
+        let byURL = await index.referenceList(toFile: url)
+        XCTAssertEqual(byURL, WorkspaceReferences())
+        let outside = await index.referenceList(toFile: root.deletingLastPathComponent().appending(path: "x.md"))
+        XCTAssertNil(outside, "a file the index doesn't cover has no list")
+    }
+
+    func testReferenceListFollowsOverlays() async throws {
+        let a = try write("Nothing yet", to: "a.md")
+        try write("# Target", to: "t.md")
+        let index = WorkspaceMetadataIndex(root: root)
+        await index.reconcile()
+        let owner = UUID()
+        await index.setOverlay("See [t](t.md)", for: a, owner: owner)
+        let added = await index.referenceList(to: "t.md")
+        XCTAssertEqual(added.linked.map(\.path), ["a.md"])
+        await index.restoreDiskContribution(for: a, owner: owner)
+        let removed = await index.referenceList(to: "t.md")
+        XCTAssertTrue(removed.isEmpty)
     }
 
     // MARK: - Index
@@ -261,6 +352,77 @@ final class WorkspaceQueryTests: XCTestCase {
         guard case .task? = matches[QueryBlocks.key(path: "notes/plan.md", line: 4)] else {
             return XCTFail("a task row maps back to its task")
         }
+    }
+
+    func testQueryBlocksGroupRows() async throws {
+        try write("---\nprojects: [Site]\n---\n- [ ] Both +Daisy due:2026-03-02 p:low\n- [ ] Only site",
+                  to: "notes/a.md")
+        try write("- [ ] Ship +daisy due:2026-03-01 p:high\n- [ ] Loose p:medium\n- [x] Done +daisy", to: "b.md")
+        let index = WorkspaceMetadataIndex(root: root)
+        await index.reconcile()
+        func groups(_ text: String) async -> [String] {
+            let (results, _) = await QueryBlocks.results(for: [QueryBlockRequest(id: "g", source: .tasks, text: text)],
+                                                         index: index)
+            return results[0].groups.map { group in
+                "\(group.label?.text ?? "-")/\(group.kind): " + group.rows.map(\.text).joined(separator: ",")
+            }
+        }
+        let byProject = await groups("is:open $group:project")
+        XCTAssertEqual(byProject, ["+daisy/names: Ship +daisy,Both +Daisy", "+Site/names: Both +Daisy,Only site",
+                                   "No project/none: Loose"],
+                       "one group per name, ignoring case, with frontmatter names; a row in each of its groups")
+        let byPriority = await groups("is:open $group:p")
+        XCTAssertEqual(byPriority, ["high/p: Ship +daisy", "medium/p: Loose", "low/p: Both +Daisy",
+                                    "No priority/none: Only site"], "priority from high to low")
+        let byDue = await groups("is:open $group:due sort:-text")
+        XCTAssertEqual(byDue, ["2026-03-01/due: Ship +daisy", "2026-03-02/due: Both +Daisy",
+                               "No due date/none: Only site,Loose"],
+                       "groups in date order; rows keep the query's order inside them")
+        let limited = await groups("is:open $group:due sort:-text limit:2")
+        XCTAssertEqual(limited, ["2026-03-01/due: Ship +daisy", "No due date/none: Only site"],
+                       "limit caps the rows before grouping")
+        let byFile = await groups("$group:file")
+        XCTAssertEqual(byFile.map { $0.components(separatedBy: ":")[0] }, ["a/value", "b/value"])
+        func details(_ text: String, _ source: QueryBlockRequest.Source = .tasks) async -> [String] {
+            let (results, _) = await QueryBlocks.results(for: [QueryBlockRequest(id: "d", source: source, text: text)],
+                                                         index: index)
+            return results[0].rows.map(\.detail)
+        }
+        let byFileDetails = await details("is:open $group:file")
+        XCTAssertEqual(byFileDetails, ["", "", "", ""], "a file header leaves the row's file out")
+        let byProjectDetails = await details("is:open $group:project")
+        XCTAssertEqual(Set(byProjectDetails), ["a", "b"], "other groups keep it")
+        let byFolderDetails = await details("$group:folder", .notes)
+        XCTAssertEqual(byFolderDetails, ["", ""], "a folder header leaves a note's folder out")
+        let ungrouped = await groups("is:done")
+        XCTAssertEqual(ungrouped, ["-/none: Done +daisy"], "no $group: gives one group without a label")
+    }
+
+    func testQueryBlockTablesFillTheirCells() async throws {
+        try write("---\npartner: [Acme, Globex]\nparent: \"[Up](index.md)\"\n---\n- [ ] Ship +daisy due:2026-03-01",
+                  to: "notes/a.md")
+        let index = WorkspaceMetadataIndex(root: root)
+        await index.reconcile()
+        let request = QueryBlockRequest(id: "t", source: .tasks,
+                                        text: "$columns:done,text,due,p,project,partner,parent,file,folder")
+        let (results, _) = await QueryBlocks.results(for: [request], index: index)
+        let result = try XCTUnwrap(results.first)
+        XCTAssertEqual(result.view, "table")
+        XCTAssertEqual(result.columns.map(\.kind), ["done", "text", "due", "p", "names", "value", "value", "value",
+                                                    "value"])
+        XCTAssertEqual(result.columns.map(\.label), ["Done", "Task", "Due", "Priority", "Projects", "partner",
+                                                     "parent", "File", "Folder"])
+        let cells = try XCTUnwrap(result.rows.first?.cells)
+        XCTAssertEqual(cells.map { $0.map(\.text) }, [[], [], ["2026-03-01"], [], ["+daisy"], ["Acme", "Globex"],
+                                                       ["Up"], ["a"], ["notes"]])
+        XCTAssertEqual(cells[6].first?.path, "notes/index.md", "a link value opens its file")
+        XCTAssertEqual(cells[7].first?.path, "notes/a.md")
+
+        let list = await QueryBlocks.results(for: [QueryBlockRequest(id: "l", source: .tasks, text: "is:open")],
+                                             index: index).results[0]
+        XCTAssertEqual(list.view, "list")
+        XCTAssertEqual(list.columns, [])
+        XCTAssertNil(list.rows.first?.cells, "a list has no cells")
     }
 
     func testTasksRunOnTheQuery() async throws {

@@ -509,21 +509,11 @@ struct TaskCalendarView: View {
     }
 
     private var noWorkspace: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "checklist")
-                .font(.largeTitle)
-                .foregroundStyle(.secondary)
-            Text(NSLocalizedString("The agenda is available in a workspace.", comment: "Tasks sidebar outside a workspace"))
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
-            if store.canInitializeWorkspace, store.onInitializeWorkspace != nil {
-                Button(NSLocalizedString("Initialize Workspace", comment: "Tasks sidebar button")) {
-                    store.onInitializeWorkspace?()
-                }
-            }
-        }
-        .padding(24)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        NoWorkspaceView(symbol: "checklist",
+                        message: NSLocalizedString("The agenda is available in a workspace.",
+                                                   comment: "Tasks sidebar outside a workspace"),
+                        canInitializeWorkspace: store.canInitializeWorkspace,
+                        onInitializeWorkspace: store.onInitializeWorkspace)
     }
 }
 
@@ -546,6 +536,9 @@ private struct TaskCheckbox: View {
                 if checked { Tick().stroke(.white, style: StrokeStyle(lineWidth: size / 8, lineCap: .round, lineJoin: .round)) }
             }
             .frame(width: size, height: size)
+            // An unchecked box is a clear fill, which takes no clicks: they
+            // would fall through to the row and open the task instead.
+            .contentShape(Rectangle().inset(by: -4))
             // Centred on the title's capitals, as in the preview.
             .alignmentGuide(.firstTextBaseline) { $0.height * 0.83 }
     }

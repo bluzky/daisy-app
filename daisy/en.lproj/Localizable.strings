@@ -411,6 +411,30 @@
 "OR needs a term on each side." = "OR needs a term on each side.";
 "No file has “%@”. Did you mean “%@”?" = "No file has “%@”. Did you mean “%@”?";
 "No file has “%@”." = "No file has “%@”.";
+"“%@”: use $view:list or $view:table." = "“%@”: use $view:list or $view:table.";
+"“%@”: a block takes this option once." = "“%@”: a block takes this option once.";
+"“%@”: columns show with $view:table." = "“%@”: columns show with $view:table.";
+"“%@” is for tasks blocks." = "“%@” is for tasks blocks.";
+"“%@”: done and text are columns, not groups." = "“%@”: done and text are columns, not groups.";
+"“%@” is not a display option. Use $group:, $view: or $columns:." = "“%@” is not a display option. Use $group:, $view: or $columns:.";
+"Title" = "Title";
+"File" = "File";
+"Projects" = "Projects";
+"Contexts" = "Contexts";
+"Tags" = "Tags";
+"Folder" = "Folder";
+"Path" = "Path";
+"Name" = "Name";
+"Modified" = "Modified";
+"Created" = "Created";
+"Size" = "Size";
+"No project" = "No project";
+"No context" = "No context";
+"No tag" = "No tag";
+"No due date" = "No due date";
+"No scheduled date" = "No scheduled date";
+"No priority" = "No priority";
+"No %@" = "No %@";
 "“%@” is not a tag, context or project." = "“%@” is not a tag, context or project.";
 "The pages folder is outside the workspace." = "The pages folder is outside the workspace.";
 "Due" = "Due";
@@ -559,3 +583,16 @@
 "The task’s file is not inside the workspace." = "The task’s file is not inside the workspace.";
 "The workspace folder changed." = "The workspace folder changed.";
 "“%@” is not a regular file." = "“%@” is not a regular file.";
+
+/* References sidebar */
+"References" = "References";
+"Show references" = "Show references";
+"References are available in a workspace." = "References are available in a workspace.";
+"Linked" = "Linked";
+"Mentions" = "Mentions";
+"No references" = "No references";
+"Files that link to this one, or use the tag, context or project whose page it is, appear here." = "Files that link to this one, or use the tag, context or project whose page it is, appear here.";
+"No saved file" = "No saved file";
+"Open a file in the workspace to see what refers to it." = "Open a file in the workspace to see what refers to it.";
+"Not in the workspace index" = "Not in the workspace index";
+"Only Markdown files inside the workspace folder are indexed." = "Only Markdown files inside the workspace folder are indexed.";

@@ -202,8 +202,14 @@ actor WorkspaceMetadataIndex {
     /// Answers `query` over each file's effective record: its unsaved buffer
     /// when it has one, otherwise what was read from disk.
     func run(_ query: WorkspaceQuery, calendar: Calendar = .current) -> [WorkspaceQueryMatch] {
+        run(query, fields: [], calendar: calendar).map(\.match)
+    }
+
+    /// The same, each match with the values of `fields`.
+    func run(_ query: WorkspaceQuery, fields: [WorkspaceQueryField],
+             calendar: Calendar = .current) -> [WorkspaceQueryRow] {
         let records = Set(files.keys).union(overlays.keys).sorted().compactMap(effectiveRecord(at:))
-        return query.evaluate(records, info: { path in
+        return query.evaluate(records, fields: fields, info: { path in
             WorkspaceFileInfo(modified: self.files[path]?.fingerprint.modificationDate,
                               created: self.createdDates[path],
                               size: self.files[path]?.fingerprint.size)
@@ -221,11 +227,32 @@ actor WorkspaceMetadataIndex {
 
     /// Files that link to `path`, or use the token whose page it is.
     func references(to path: String) -> [WorkspaceQueryMatch] {
-        var tokens: [(kind: WorkspaceMetadataKind, key: String)] = []
-        for kind in WorkspaceMetadataKind.allCases {
-            for key in (aggregate.names[kind] ?? [:]).keys.sorted() { tokens.append((kind, key)) }
+        run(.references(to: path, tokens: indexedTokens))
+    }
+
+    /// What the References panel lists for `path`: the matches of
+    /// `references(to:)` with the lines that link to it or use its page's
+    /// token.
+    func referenceList(to path: String) -> WorkspaceReferences {
+        let pageTokens = WorkspaceQuery.pageTokens(of: path, among: indexedTokens)
+        let records = run(.references(to: path, pageTokens: pageTokens)).compactMap { match in
+            if case let .file(record) = match { return record }
+            return nil
         }
-        return run(.references(to: path, tokens: tokens))
+        return WorkspaceReferences(to: path, records: records, pageTokens: pageTokens)
+    }
+
+    /// The references to the file at `url`, or nil when the index does not
+    /// cover it: outside the root, hidden, pruned or not Markdown.
+    func referenceList(toFile url: URL) -> WorkspaceReferences? {
+        relativePath(of: url).map(referenceList(to:))
+    }
+
+    /// Every indexed name, by kind and key.
+    private var indexedTokens: [(kind: WorkspaceMetadataKind, key: String)] {
+        WorkspaceMetadataKind.allCases.flatMap { kind in
+            (aggregate.names[kind] ?? [:]).keys.sorted().map { (kind: kind, key: $0) }
+        }
     }
 
     /// Tells subscribers, with a new revision, whenever any file's effective
