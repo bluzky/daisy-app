@@ -5,6 +5,7 @@ import { completionExtensions } from "./completion.js"
 import { formatLocalDate, parseLocalDate } from "./dates.js"
 import { PRIORITY_KEY, TASK_DATE_KEYS, isTaskDate } from "./task-fields.js"
 import { taskFieldChange, taskLine } from "./task-field-commands.js"
+import { startMove } from "./move-block.js"
 
 // Slash commands: typing `/` at the start of a line or after a space opens a
 // menu of blocks; picking one converts that line. Labels come from the host
@@ -16,6 +17,7 @@ const SLASH_GROUPS = [
   { id: "blocks", label: "Blocks" },
   { id: "insert", label: "Insert" },
   { id: "task", label: "Task" },
+  { id: "actions", label: "Actions" },
 ]
 
 // An existing block marker on the converted line is replaced, not stacked.
@@ -66,13 +68,16 @@ const SLASH_ICONS = {
   schedule: '<rect x="3.5" y="4.5" width="13" height="12" rx="2"/><path d="M3.5 8.5h13M7 3v3M13 3v3M7.5 12.5l1.8 1.8 3.4-3.6"/>',
   clear: '<path d="M6 6l8 8M14 6l-8 8"/>',
   field: '<path d="M4 10.5V4.5a1 1 0 011-1h6l5.5 5.5-7 7L4 10.5z"/><circle cx="7.5" cy="7" r="1"/>',
+  move: '<path d="M3.5 10h9M9.5 6.5L13 10l-3.5 3.5M16.5 4.5v11"/>',
   templates: '<path d="M6 3.5h5.5L15 7v8.5a1 1 0 01-1 1H6a1 1 0 01-1-1v-11a1 1 0 011-1z"/><path d="M11.5 3.5V7H15M7.5 10.5h5M7.5 13.5h5"/>',
 }
 
 // A command with `host` has no template: it asks the host to do something the
 // page cannot (here, open a file picker) and the host inserts the result at
 // the position the `/query` was removed from. It is hidden when the page has
-// no matching callback.
+// no matching callback. `pickMove` hands the host the block on the line
+// instead (see move-block.js), so the space before a trailing `/move` goes
+// with it rather than staying on the moved line.
 const SLASH_HOST_ACTIONS = {
   pickImage: {
     available: (callbacks) => typeof callbacks.onPickImage === "function",
@@ -81,6 +86,11 @@ const SLASH_HOST_ACTIONS = {
   pickLink: {
     available: (callbacks) => typeof callbacks.onPickLink === "function",
     run: (callbacks, position) => callbacks.onPickLink(position, position),
+  },
+  pickMove: {
+    available: (callbacks) => typeof callbacks.onPickMoveTarget === "function",
+    run: (callbacks, position, view) => startMove(view, position, callbacks),
+    trimLine: true,
   },
 }
 
@@ -140,6 +150,8 @@ const SLASH_COMMANDS = [
     insert: (now) => slashDate(now) },
   { id: "now", group: "insert", label: "Now", aliases: ["now", "time", "datetime", "date"],
     insert: (now) => `${slashDate(now)} ${slashTime(now)}` },
+  // Only on a line with something to move; see `slashTrigger`.
+  { id: "move", group: "actions", label: "Move to…", aliases: [], host: "pickMove" },
 ]
 
 // Task fields, offered only on a checkbox task's marker line and listed after
@@ -263,12 +275,17 @@ function slashTrigger(state) {
   for (let node = syntaxTree(state).resolveInner(selection.head, -1); node; node = node.parent) {
     if (SLASH_BLOCKED.test(node.name)) return null
   }
+  const from = selection.head - match[2].length - 1
+  const rest = state.doc.sliceString(line.from, from) + state.doc.sliceString(selection.head, line.to)
   return {
-    from: selection.head - match[2].length - 1,
+    from,
     to: selection.head,
     indent: /^[ \t]*/.exec(line.text)[0],
     query: match[2],
     lineFrom: line.from,
+    // Whether `/move` has a block to take: text besides the query, outside
+    // a quote or callout.
+    movable: rest.trim() !== "" && !/^[ \t]*>/.test(rest),
   }
 }
 
@@ -318,12 +335,18 @@ function applySlashCommand(view, trigger, command, host, clock) {
   }
   if (command.host) {
     // Drop the typed `/query`, keep the rest of the line, then hand over.
+    const action = SLASH_HOST_ACTIONS[command.host]
+    const line = view.state.doc.lineAt(trigger.from)
+    let from = trigger.from
+    if (action.trimLine && !view.state.doc.sliceString(trigger.to, line.to).trim()) {
+      from = line.from + view.state.doc.sliceString(line.from, trigger.from).replace(/[ \t]+$/, "").length
+    }
     view.dispatch({
-      changes: { from: trigger.from, to: trigger.to, insert: "" },
-      selection: EditorSelection.cursor(trigger.from),
+      changes: { from, to: trigger.to, insert: "" },
+      selection: EditorSelection.cursor(from),
       userEvent: "slash.apply",
     })
-    SLASH_HOST_ACTIONS[command.host].run(host.callbacks, trigger.from)
+    action.run(host.callbacks, from, view)
     return
   }
   const line = view.state.doc.lineAt(trigger.from)
@@ -426,7 +449,7 @@ function slashExtensions(options, host) {
     if (level !== "root") return fieldItems(level, session)
     const label = templatesLabel
     return [
-      ...commands,
+      ...commands.filter((command) => command.id !== "move" || (session.movable && host.moveBlocks)),
       ...(templates.length ? [{
         ...SLASH_TEMPLATES_ENTRY,
         label,

@@ -30,6 +30,24 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
     /// The slash menu's Link to File: the host picks a project file and
     /// inserts a link at this range.
     var pickLinkRequested: ((Int, Int) -> Void)?
+    /// The slash menu's `/move`: the block on the caret's line, waiting for
+    /// the host to pick where it goes. Nothing is removed until
+    /// `completeMove` (see docs/move-to-file-proposal.md).
+    struct MoveRequest: Equatable {
+        let id: Int
+        let kind: MarkdownSectionInsertion.BlockKind
+        let text: String
+        /// 1-based lines of the block in the buffer.
+        let firstLine: Int
+        let lastLine: Int
+    }
+    var pickMoveTargetRequested: ((MoveRequest) -> Void)?
+    /// Files dragged from the Files sidebar and dropped at a document
+    /// position; the host inserts them like pasted files. Nil refuses drops.
+    var projectFilesDropped: (([URL], Int) -> Void)?
+    /// A finished move's id once the buffer changed after it: its Undo
+    /// button no longer applies.
+    var moveBecameStale: ((Int) -> Void)?
     /// A rendered local image was clicked in the live editor preview.
     var imageClicked: ((URL) -> Void)?
     /// Cmd+click on a link or a metadata token.
@@ -92,7 +110,47 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
         webView.appearanceDidChange = { [weak self] in
             self?.updateUnderPageBackgroundColor()
         }
+        webView.acceptsProjectFiles = { [weak self] in
+            guard let self else { return false }
+            return self.projectFilesDropped != nil && self.codeLanguage == nil && self.hasLoadedEditorPage
+        }
+        webView.projectFileDragMoved = { [weak self] point in
+            self?.moveFileDragCaret(to: point)
+        }
+        webView.projectFilesDropped = { [weak self] files, point in
+            self?.dropProjectFiles(files, at: point)
+        }
+        webView.registerForDraggedTypes(webView.registeredDraggedTypes)
         updateUnderPageBackgroundColor()
+    }
+
+    /// The caret follows a file dragged from the Files sidebar; nil puts the
+    /// selection back when the drag leaves.
+    private func moveFileDragCaret(to point: CGPoint?) {
+        let script = point.map { "window.__mdEditor && window.__mdEditor.dragFileCaret(\($0.x), \($0.y))" }
+            ?? "window.__mdEditor && window.__mdEditor.endFileDrag(false)"
+        webView.evaluateJavaScript(script) { _, _ in }
+    }
+
+    /// Hands the files to the host at the document position under `point`,
+    /// or beeps where a pasted file would not go (code, table cells).
+    private func dropProjectFiles(_ files: [URL], at point: CGPoint) {
+        let script = """
+        (() => {
+            const editor = window.__mdEditor;
+            if (!editor) return null;
+            const pos = editor.fileDropPosition(\(point.x), \(point.y));
+            editor.endFileDrag(pos !== null);
+            return pos;
+        })()
+        """
+        webView.evaluateJavaScript(script) { [weak self] value, _ in
+            guard let self, let position = (value as? NSNumber)?.intValue else {
+                NSSound.beep()
+                return
+            }
+            self.projectFilesDropped?(files, position)
+        }
     }
 
     /// A fence name or alias for a source or text file, "" for plain text;
@@ -205,6 +263,8 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
     /// Whether metadata tokens read as links (workspace windows). Kept here
     /// and sent again to each fresh page, like the candidates.
     private var metadataLinksEnabled = false
+    /// Whether the slash menu offers `/move`. Kept like the metadata links.
+    private var moveBlocksEnabled = false
 
     /// Shows `results` in place of their blocks; nil shows every block as code.
     func showQueryResults(_ results: [QueryBlockResult]?) {
@@ -220,6 +280,70 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
         metadataLinksEnabled = enabled
         guard hasLoadedEditorPage else { return }
         applyMetadataLinksEnabled()
+    }
+
+    func setMoveBlocksEnabled(_ enabled: Bool) {
+        guard enabled != moveBlocksEnabled else { return }
+        moveBlocksEnabled = enabled
+        guard hasLoadedEditorPage else { return }
+        applyMoveBlocksEnabled()
+    }
+
+    private func applyMoveBlocksEnabled() {
+        webView.evaluateJavaScript(
+            "window.__mdEditor && window.__mdEditor.setMoveBlocks(\(moveBlocksEnabled))"
+        ) { _, _ in }
+    }
+
+    /// Removes the move's block once its target holds it, as one undo step.
+    /// False when the block changed since it was picked, or the page is gone.
+    func completeMove(id: Int) async -> Bool {
+        await evaluateMove("completeMove(\(id))")
+    }
+
+    /// A move within this buffer: `next` replaces `expected` as one undo
+    /// step. False when the buffer is no longer `expected`.
+    func applyMove(id: Int, expected: String, next: String) async -> Bool {
+        await evaluateMove("applyMove(\(id), \(EditorHTML.jsStringLiteral(expected)), \(EditorHTML.jsStringLiteral(next)))")
+    }
+
+    /// The buffer as `completeMove` would leave it, for a move within this
+    /// buffer; nil when the block changed.
+    func moveRemovalPreview(id: Int) async -> (expected: String, removed: String)? {
+        await withCheckedContinuation { continuation in
+            webView.evaluateJavaScript("window.__mdEditor ? window.__mdEditor.removalPreview(\(id)) : null") { value, _ in
+                guard let result = value as? [String: Any], let expected = result["expected"] as? String,
+                      let removed = result["removed"] as? String else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                continuation.resume(returning: (expected, removed))
+            }
+        }
+    }
+
+    /// Another window's write into this buffer (a `/move` target), as one
+    /// undoable edit, only while the buffer still holds `expected`.
+    func replaceIfUnchanged(expected: String, with next: String) async -> Bool {
+        await evaluateMove("replaceIfUnchanged(\(EditorHTML.jsStringLiteral(expected)), \(EditorHTML.jsStringLiteral(next)))")
+    }
+
+    /// The Undo button: the move's own undo step, only while the buffer is
+    /// as the move left it.
+    func undoMove(id: Int) async -> Bool {
+        await evaluateMove("undoMove(\(id))")
+    }
+
+    func forgetMove(id: Int) {
+        webView.evaluateJavaScript("window.__mdEditor && window.__mdEditor.forgetMove(\(id))") { _, _ in }
+    }
+
+    private func evaluateMove(_ call: String) async -> Bool {
+        await withCheckedContinuation { continuation in
+            webView.evaluateJavaScript("window.__mdEditor ? window.__mdEditor.\(call) : false") { value, _ in
+                continuation.resume(returning: (value as? Bool) == true)
+            }
+        }
     }
 
     private func applyMetadataLinksEnabled() {
@@ -378,6 +502,12 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
     func fetchMarkdown(_ completion: @escaping (String?) -> Void) {
         webView.evaluateJavaScript("window.__mdEditor ? window.__mdEditor.getMarkdown() : null") { value, _ in
             completion(value as? String)
+        }
+    }
+
+    func markdown() async -> String? {
+        await withCheckedContinuation { continuation in
+            fetchMarkdown { continuation.resume(returning: $0) }
         }
     }
 
@@ -652,6 +782,7 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
                 applySlashTemplates()
                 applyWorkspaceCandidates()
                 applyMetadataLinksEnabled()
+                applyMoveBlocksEnabled()
                 editorDidBecomeReady?()
             case "cancel":
                 cancelRequested?()
@@ -690,6 +821,17 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
             guard let from = payload["from"] as? NSNumber,
                   let to = payload["to"] as? NSNumber else { return }
             pickLinkRequested?(from.intValue, to.intValue)
+        case "pickMoveTarget":
+            guard let id = payload["id"] as? Int,
+                  let kind = (payload["blockKind"] as? String).flatMap(MarkdownSectionInsertion.BlockKind.init),
+                  let text = payload["text"] as? String,
+                  let firstLine = payload["firstLine"] as? Int,
+                  let lastLine = payload["lastLine"] as? Int else { return }
+            pickMoveTargetRequested?(MoveRequest(id: id, kind: kind, text: text,
+                                                 firstLine: firstLine, lastLine: lastLine))
+        case "moveStale":
+            guard let id = payload["id"] as? Int else { return }
+            moveBecameStale?(id)
         case "openLink":
             if let token = payload["token"] as? String {
                 linkActivated?(.metadata(token))
@@ -818,9 +960,83 @@ private final class LegacyEditorBackgroundView: NSView {
 private final class EditorWKWebView: WKWebView {
     var appearanceDidChange: (() -> Void)?
 
+    /// The Files sidebar's own drag type (see ProjectNavigatorView), which
+    /// WebKit doesn't know: its files are taken here and inserted the way
+    /// pasted files are, instead of being ignored.
+    static let projectFileDragType = NSPasteboard.PasteboardType("doc.daisy.project-navigator.urls")
+    /// Whether a file from the sidebar can be dropped now.
+    var acceptsProjectFiles: () -> Bool = { false }
+    /// The point in page coordinates as the drag moves, nil once it ends.
+    var projectFileDragMoved: ((CGPoint?) -> Void)?
+    var projectFilesDropped: (([URL], CGPoint) -> Void)?
+
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
         appearanceDidChange?()
+    }
+
+    // WebKit registers its own types, again on later loads too; ours stays.
+    override func registerForDraggedTypes(_ newTypes: [NSPasteboard.PasteboardType]) {
+        super.registerForDraggedTypes(newTypes.contains(Self.projectFileDragType)
+            ? newTypes : newTypes + [Self.projectFileDragType])
+    }
+
+    /// Regular files only, like a paste: a folder is never dropped.
+    private func projectFiles(_ info: NSDraggingInfo) -> [URL]? {
+        guard let paths = info.draggingPasteboard.propertyList(forType: Self.projectFileDragType) as? [String]
+        else { return nil }
+        return paths.map { URL(fileURLWithPath: $0).standardizedFileURL }
+    }
+
+    private func acceptsDrop(of files: [URL]) -> Bool {
+        acceptsProjectFiles() && !files.isEmpty && files.allSatisfy {
+            (try? $0.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true
+        }
+    }
+
+    /// The drag's location in CSS pixels from the page's top left.
+    private func pagePoint(_ info: NSDraggingInfo) -> CGPoint {
+        var point = convert(info.draggingLocation, from: nil)
+        if !isFlipped { point.y = bounds.height - point.y }
+        let zoom = max(pageZoom * magnification, 0.001)
+        return CGPoint(x: point.x / zoom, y: point.y / zoom)
+    }
+
+    private func projectFileDrag(_ info: NSDraggingInfo, files: [URL]) -> NSDragOperation {
+        guard acceptsDrop(of: files) else { return [] }
+        projectFileDragMoved?(pagePoint(info))
+        return .copy
+    }
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        guard let files = projectFiles(sender) else { return super.draggingEntered(sender) }
+        return projectFileDrag(sender, files: files)
+    }
+
+    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        guard let files = projectFiles(sender) else { return super.draggingUpdated(sender) }
+        return projectFileDrag(sender, files: files)
+    }
+
+    override func draggingExited(_ sender: NSDraggingInfo?) {
+        guard let sender, projectFiles(sender) != nil else { return super.draggingExited(sender) }
+        projectFileDragMoved?(nil)
+    }
+
+    override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        guard let files = projectFiles(sender) else { return super.prepareForDragOperation(sender) }
+        return acceptsDrop(of: files)
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        guard let files = projectFiles(sender) else { return super.performDragOperation(sender) }
+        guard acceptsDrop(of: files) else { return false }
+        projectFilesDropped?(files, pagePoint(sender))
+        return true
+    }
+
+    override func concludeDragOperation(_ sender: NSDraggingInfo?) {
+        guard let sender, projectFiles(sender) != nil else { return super.concludeDragOperation(sender) }
     }
 
     // Left clicks in the transparent titlebar strip stay native (window

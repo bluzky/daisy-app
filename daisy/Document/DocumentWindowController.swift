@@ -91,6 +91,9 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     var taskRootIdentity: WorkspaceFileWriter.RootIdentity?
     /// Check-offs from the Tasks sidebar, run one after another.
     var taskWrites: Task<Void, Never>?
+    /// The last `/move` its banner can still undo, and the banner.
+    var moveRecord: MoveRecord?
+    var moveBanner: MoveBannerView?
     /// The `tasks`/`notes` blocks the preview shows, and the task answering
     /// them while the index changes.
     var queryBlockRequests: [QueryBlockTarget: [QueryBlockRequest]] = [:]

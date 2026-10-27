@@ -129,6 +129,9 @@ nonisolated extension MarkdownHTML {
         padding: 0;
         overflow: hidden;
     }
+    /* The thin system scrollbar for the page. A standard property, unlike a
+       ::-webkit-scrollbar style, so the native one stays (see below). */
+    html { scrollbar-width: thin; }
     /* Hide inner scrollers' bars (tables, math) but never match the root:
        any custom ::-webkit-scrollbar style on <html>/<body> — including a
        later "restore" override — swaps the page's native macOS overlay

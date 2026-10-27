@@ -15,6 +15,10 @@ final class SidebarWorkspace {
 
     let rootURL: URL
     private(set) var expandedFolderURLs: Set<URL>
+    /// Where the tree was last scrolled in any of the folder's tabs. Each
+    /// tab has its own tree; a tab coming forward takes this position, so a
+    /// file clicked in one tree is already in view in the tab that opens it.
+    var scrollOrigin: NSPoint?
 
     init(rootURL: URL) {
         self.rootURL = Self.canonicalURL(rootURL)
