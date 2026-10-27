@@ -78,6 +78,82 @@ final class WorkspaceQueryParserTests: XCTestCase {
         XCTAssertEqual(result.problems, [])
     }
 
+    // MARK: - Display
+
+    private typealias Field = WorkspaceQueryDisplay.Field
+
+    func testDisplayOptionsAreNotFilters() {
+        let result = parser.parse("#a $group:project $view:table $columns:done,text,status", source: .tasks)
+        XCTAssertEqual(result.query.filter, .and([tag("a")]))
+        XCTAssertEqual(result.problems, [])
+        XCTAssertEqual(result.display, WorkspaceQueryDisplay(
+            view: .table, group: Field(kind: .names(.project), spelling: "project"),
+            columns: [Field(kind: .done, spelling: "done"), Field(kind: .text, spelling: "text"),
+                      Field(kind: .attribute("status"), spelling: "status")]))
+        let frontmatter = WorkspaceQueryParser(knownKeys: ["group", "view", "columns"], today: today)
+            .parse("group:design view:wide columns:3", source: .files)
+        XCTAssertEqual(frontmatter.query.filter, .and([.attribute("group", .equal, .text("design")),
+                                                       .attribute("view", .equal, .text("wide")),
+                                                       .attribute("columns", .equal, .text("3"))]),
+                       "without $, the words are frontmatter keys")
+        XCTAssertEqual(frontmatter.display, WorkspaceQueryDisplay())
+        XCTAssertEqual(parser.parse("$group:project", source: .tasks).query.filter, .and([]),
+                       "a block of only options lists everything")
+    }
+
+    func testGroupAndColumnKeys() {
+        let cases: [(String, Field.Kind)] = [
+            ("+", .names(.project)), ("projects", .names(.project)), ("@", .names(.context)),
+            ("context", .names(.context)), ("#", .names(.tag)), ("Tag", .names(.tag)),
+            ("due", .attribute("due")), ("scheduled", .attribute("scheduled")), ("p", .attribute("priority")),
+            ("priority", .attribute("priority")), ("file", .file), ("folder", .attribute("file.folder")),
+            ("path", .attribute("file.path")), ("file.modified", .attribute("file.modified")),
+            ("Status", .attribute("status")),
+        ]
+        for (key, kind) in cases {
+            XCTAssertEqual(parser.parse("$group:\(key)", source: .tasks).display.group?.kind, kind, key)
+            XCTAssertEqual(parser.parse("$columns:\(key)", source: .tasks).display.columns.map(\.kind), [kind], key)
+        }
+    }
+
+    func testTablesDefaultTheirColumns() {
+        XCTAssertEqual(parser.parse("$view:table", source: .tasks).display.columns.map(\.spelling),
+                       ["done", "text", "due", "p", "file"])
+        XCTAssertEqual(parser.parse("$view:TABLE", source: .files).display.columns.map(\.spelling),
+                       ["text", "folder"])
+        XCTAssertEqual(parser.parse("$columns:text $columns:due", source: .tasks).display.columns.map(\.spelling),
+                       ["text", "due"], "$columns: adds up and makes a table")
+        XCTAssertEqual(parser.parse("$columns:text", source: .tasks).display.view, .table)
+        XCTAssertEqual(parser.parse("#a", source: .tasks).display, WorkspaceQueryDisplay())
+    }
+
+    func testDisplayProblems() {
+        let cases: [(String, WorkspaceQuery.Source, WorkspaceQueryParser.Problem)] = [
+            ("$view:grid", .tasks, .badView("$view:grid")),
+            ("$view:list $view:table", .tasks, .repeated("$view:table")),
+            ("$group:p $group:file", .tasks, .repeated("$group:file")),
+            ("$group:done", .tasks, .badGroup("$group:done")),
+            ("$group:text", .tasks, .badGroup("$group:text")),
+            ("$columns:done", .files, .tasksOnly("$columns:done")),
+            ("$view:list $columns:due", .tasks, .columnsNeedTable("$columns:due")),
+            ("$group:statsu", .tasks, .unknownKey("statsu", suggestion: "status")),
+            ("$columns:text,colour", .tasks, .unknownKey("colour", suggestion: nil)),
+            ("-$group:p", .tasks, .unsupported("-$group:p")),
+            ("$group:p,due", .tasks, .unsupported("$group:p,due")),
+            ("$view:<table", .tasks, .unsupported("$view:<table")),
+        ]
+        for (text, source, problem) in cases {
+            XCTAssertEqual(parser.parse(text, source: source).problems.last, problem, text)
+        }
+        for text in ["$sort:due", "$group", "$:x", "$Group:p"] {
+            XCTAssertEqual(parser.parse(text, source: .tasks).problems.last,
+                           text == "$Group:p" ? nil : .unknownOption(text), text)
+        }
+        let rest = parser.parse("$view:grid $group:p", source: .tasks).display
+        XCTAssertEqual(rest.view, .list, "a bad option is left out")
+        XCTAssertEqual(rest.group?.kind, .attribute("priority"), "and the rest still apply")
+    }
+
     func testProblemsLeaveTheTermOutAndTheRestRuns() {
         let cases: [(String, WorkspaceQueryParser.Problem)] = [
             ("word", .bareWord("word")),
@@ -119,6 +195,14 @@ final class WorkspaceQueryParserTests: XCTestCase {
         XCTAssertEqual(parser.parse("color:red OR #a", source: .files).query.filter, .and([tag("a")]))
         XCTAssertEqual(parser.parse("sort:due limit:3", source: .tasks).query.filter, .and([]),
                        "options alone list everything")
+    }
+
+    func testTitleIsAlwaysKnown() {
+        let parser = WorkspaceQueryParser(knownKeys: ["status"], today: today)
+        XCTAssertEqual(parser.parse("title:plan", source: .files).problems, [])
+        XCTAssertEqual(parser.parse("$group:title $columns:title", source: .tasks).problems, [])
+        XCTAssertEqual(parser.parse("titel:plan", source: .files).problems,
+                       [.unknownKey("titel", suggestion: "title")])
     }
 
     func testWithoutKnownKeysEveryKeyRuns() {

@@ -66,7 +66,7 @@ final class MainSplitViewController: NSSplitViewController {
         let content = NSSplitViewItem(viewController: LayeredContentViewController())
         content.minimumThickness = 420
 
-        let tasks = NSSplitViewItem(inspectorWithViewController: TaskCalendarViewController())
+        let tasks = NSSplitViewItem(inspectorWithViewController: RightSidebarViewController())
         tasks.minimumThickness = 270
         tasks.maximumThickness = 500
         tasks.isCollapsed = true
@@ -358,8 +358,17 @@ final class MainSplitViewController: NSSplitViewController {
         return true
     }
 
-    var isTasksVisible: Bool {
+    /// The right-hand pane is open, on whichever panel.
+    var isRightSidebarVisible: Bool {
         !(splitViewItems.last?.isCollapsed ?? true)
+    }
+
+    var isTasksVisible: Bool {
+        isRightSidebarVisible && rightSidebarViewController?.panel == .agenda
+    }
+
+    var isReferencesVisible: Bool {
+        isRightSidebarVisible && rightSidebarViewController?.panel == .references
     }
 
     /// An edit session is closing: its buffer has been or is being committed.
@@ -374,12 +383,18 @@ final class MainSplitViewController: NSSplitViewController {
         }
     }
 
+    /// Opens the right-hand pane on `panel`, switches it there in place when
+    /// it shows the other one, or closes it when it already shows `panel`.
+    /// True when `panel` is on screen afterwards.
     @discardableResult
-    func toggleTasks() -> Bool {
-        guard let tasks = splitViewItems.last else { return false }
-        let shouldShow = tasks.isCollapsed
-        tasks.animator().isCollapsed = !shouldShow
-        taskCalendarViewController?.setPaneVisible(shouldShow)
+    func toggleRightPanel(_ panel: RightSidebarPanel) -> Bool {
+        guard let item = splitViewItems.last, let sidebar = rightSidebarViewController else { return false }
+        // `isCollapsed` takes its new value as soon as the animator is set,
+        // so a click during the animation sees where the pane is going.
+        let shouldShow = item.isCollapsed || sidebar.panel != panel
+        sidebar.setPanel(panel)
+        if item.isCollapsed == shouldShow { item.animator().isCollapsed = !shouldShow }
+        sidebar.setPaneVisible(shouldShow)
         return shouldShow
     }
 
@@ -407,8 +422,8 @@ final class MainSplitViewController: NSSplitViewController {
     }
 
     private func syncTasksPaneVisibility() {
-        taskCalendarViewController?.setPaneVisible(isTasksVisible)
-        (view.window?.windowController as? DocumentWindowController)?.refreshTasksToggleItem()
+        rightSidebarViewController?.setPaneVisible(isRightSidebarVisible)
+        (view.window?.windowController as? DocumentWindowController)?.refreshRightPanelToggleItems()
     }
 
     var isSidebarVisible: Bool {
@@ -469,6 +484,7 @@ final class MainSplitViewController: NSSplitViewController {
         cachedEditorViewController?.applyThemeColors()
         sidebarViewController?.refreshRowTextColors()
         taskCalendarViewController?.themeColorsDidChange()
+        referencesViewController?.themeColorsDidChange()
     }
 
     private static func makeSidebarItem(for viewController: SidebarViewController,
@@ -844,8 +860,16 @@ final class MainSplitViewController: NSSplitViewController {
         splitViewItems.dropFirst().first?.viewController as? LayeredContentViewController
     }
 
+    private var rightSidebarViewController: RightSidebarViewController? {
+        splitViewItems.last?.viewController as? RightSidebarViewController
+    }
+
     var taskCalendarViewController: TaskCalendarViewController? {
-        splitViewItems.last?.viewController as? TaskCalendarViewController
+        rightSidebarViewController?.agenda
+    }
+
+    var referencesViewController: ReferencesViewController? {
+        rightSidebarViewController?.references
     }
 
     override func viewDidAppear() {

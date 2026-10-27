@@ -398,7 +398,9 @@ function frontmatterAttributes(source, starts, range) {
 }
 
 // `tags`, `contexts` and `projects` values as tokens, on the lines where
-// they are written. A value may repeat its marker: `tags: ["#a"]`.
+// they are written. A value may repeat its marker: `tags: ["#a"]`. They are
+// marked `frontmatter`, since they apply to the whole file: its tasks match
+// them in queries.
 function frontmatterTokens(source, starts, attributes, result) {
   for (const attribute of attributes) {
     const marker = FRONTMATTER_NAME_KEYS[attribute.key];
@@ -414,6 +416,7 @@ function frontmatterTokens(source, starts, attributes, result) {
         key: normalizedKey(name),
         line,
         excerpt: excerpt(source, starts, line),
+        frontmatter: true,
       });
     });
   }

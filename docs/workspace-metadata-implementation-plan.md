@@ -1,6 +1,6 @@
 # Workspace metadata implementation plan
 
-Status: Phases 1, 2 (2a, 2c, 2b), 3, 4, 4.5, 5, and 6 complete; 7 in progress (7a, 7b and 7d; 7c deferred). This plan implements [`workspace-metadata-proposal.md`](workspace-metadata-proposal.md) in independently testable phases. It does not imply a release or version bump.
+Status: Phases 1, 2 (2a, 2c, 2b), 3, 4, 4.5, 5, and 6 complete; 7 in progress (7a, 7b, 7c, 7d and 7e built; runtime pass pending). This plan implements [`workspace-metadata-proposal.md`](workspace-metadata-proposal.md) in independently testable phases. It does not imply a release or version bump.
 
 ## Sequencing
 
@@ -19,7 +19,7 @@ Status: Phases 1, 2 (2a, 2c, 2b), 3, 4, 4.5, 5, and 6 complete; 7 in progress (7
         ↓
 6. Integration, documentation, runtime validation — complete
         ↓
-7. File records, references, and queries — in progress (7a → 7b → 7d; 7c deferred)
+7. File records, references, and queries — in progress (7a → 7b → 7d → 7c → 7e; runtime pass pending)
 ```
 
 Do not begin a later phase until its predecessor has passing automated tests. Phase 5 can begin only after Phase 4 has stable index semantics.
@@ -331,13 +331,14 @@ Ship coherent behavior with accurate documentation and end-to-end validation.
 
 ## Phase 7 — File records, references, and queries
 
-Status: 7a, 7b and 7d built, with passing automated tests; their in-app runtime pass is pending. 7c, the References panel, is deferred; the References query itself is part of 7b (`WorkspaceMetadataIndex.references(to:)`). The model is `daisy/Features/WorkspaceMetadata/WorkspaceFileRecord.swift`, queries are `WorkspaceQuery.swift`, the parser is `WorkspaceQueryParser.swift`, block results are `WorkspaceQueryBlocks.swift` and `daisy/Document/DocumentWindowController+QueryBlocks.swift`, and Read mode is the `query-blocks` render extension in `daisy/Rendering/MarkdownRenderExtension.swift` (Settings toggle "Query blocks"). Tests are the new fixtures in `grammar.json`, replayed through the bridge by `WorkspaceMetadataExtractorTests.swift`, `WorkspaceQueryTests.swift`, `WorkspaceQueryParserTests.swift`, the schema v4 cases in `WorkspaceIndexStoreTests.swift`, the `query-blocks` cases in `MarkdownRenderExtensionTests.swift`, and `scripts/editor-bundle/smoke/query-blocks.mjs`. Differences from the text below:
+Status: 7a, 7b, 7c and 7d built, with passing automated tests; their in-app runtime pass is pending. The References query is part of 7b (`WorkspaceMetadataIndex.references(to:)`); the panel's list is `referenceList(to:)`, with the lines, in 7c. The model is `daisy/Features/WorkspaceMetadata/WorkspaceFileRecord.swift`, queries are `WorkspaceQuery.swift`, the parser is `WorkspaceQueryParser.swift`, block results are `WorkspaceQueryBlocks.swift` and `daisy/Document/DocumentWindowController+QueryBlocks.swift`, and Read mode is the `query-blocks` render extension in `daisy/Rendering/MarkdownRenderExtension.swift` (Settings toggle "Query blocks"). Tests are the new fixtures in `grammar.json`, replayed through the bridge by `WorkspaceMetadataExtractorTests.swift`, `WorkspaceQueryTests.swift`, `WorkspaceQueryParserTests.swift`, the schema v4 and v5 cases in `WorkspaceIndexStoreTests.swift`, the `query-blocks` cases in `MarkdownRenderExtensionTests.swift`, and `scripts/editor-bundle/smoke/query-blocks.mjs`. Differences from the text below:
 
 - `WorkspaceMetadataContribution` stays, only as the name counts summed from records for completion. Tasks remain `WorkspaceTaskMetadata`, which gained `tokens` and an `attributes` accessor (`due`, `scheduled`, `priority`), so the Agenda's types did not change.
 - `AttributeValue` is `WorkspaceAttributeValue` and `Predicate` is `WorkspacePredicate`, since Foundation already has a `Predicate`. Dates are `JournalDay`, not `DateComponents`. Each value keeps its source text. A link value is a frontmatter value written as a quoted Markdown link, `parent: "[Up](../index.md)"`, and holds both its destination and its resolved target. `.hasToken` takes `includingDescendants`, which query blocks set and References does not. `file.path` is a built-in too.
 - Frontmatter is read as a YAML subset: top-level `key: value` scalars, `[a, b]` flow lists and `- item` block lists. Values are typed as bool, number, `YYYY-MM-DD` date, link or text. Nested maps and block scalars are skipped, ` #` starts a comment as in YAML, and a repeated key keeps its first value. Excerpts are cut at 200 characters.
-- Each task also keeps `source`, its line as written after the checkbox, so query results can show a task the way the document does: fields as badges, names as links. That column made the cache schema v4.
+- Each task also keeps `source`, its line as written after the checkbox, so query results can show a task the way the document does: fields as badges, names as links. That column made the cache schema v4; the frontmatter flag on tokens made it v5.
 - The `attributes` table has `line`, `item` (a list item's position; NULL for the attribute's own row), `num`, `destination` and `target` columns, and stores dates as text. Task fields are rows with `task_line` set. `tokens` has one row per occurrence, so two equal rows are valid. A task's tokens are not stored; they are the file's tokens on the task's line.
+- A task matches its file's frontmatter names along with its own: `.hasToken` on a task reads its line's tokens and the file's `tags`, `contexts` and `projects` values (`WorkspaceFileRecord.frontmatterTokens`), so `+daisy` in a `tasks` block lists every task in a file with `projects: daisy`. Names in the body stay with their line. The extractor marks frontmatter tokens `frontmatter: true`; a task's own `tokens` still hold only its line's, so completion counts and badges are unchanged. That flag is the `tokens.frontmatter` column of cache schema v5. Attributes were already read this way: a task's own field, then the file's built-ins, then its frontmatter.
 - In a query block, a bare word is a problem that suggests `text:`. An empty block is not a query: it is never run and stays code. A block of only `sort:`/`limit:` lists everything, but a group whose every term had a problem matches nothing rather than everything. `is:` in a `notes` block matches nothing. A frontmatter key no file uses is a problem, with the known key at most two edits away (or a third of its length) as the suggestion.
 - The block for files is named `notes`, not `files`, and lists them as an unordered list; tasks keep their checkboxes.
 - The page posts its blocks to the host (`runQueries`) and the host answers through `MdPreview.queryResults`, so the index never runs in the page.
@@ -378,7 +379,7 @@ enum AttributeValue: Sendable, Equatable {
 - **Files and tasks share one attribute type**, so one predicate language queries both. A task's `due` and a file's `due:` are the same kind of value. `due`, `scheduled` and `priority` stay available as named accessors, so the Agenda does not change.
 - **Values are typed when extracted.** YAML dates become `.date`, numbers become `.number`, sequences become `.list`. Each value keeps its source text for display.
 - **Attribute keys are normalized** like token keys (NFKC, lowercase); the first spelling is kept for display.
-- **Built-in file attributes** are computed from the walk and never stored: `file.name`, `file.folder`, `file.modified`, `file.created`, `file.size`.
+- **Built-in file attributes** are computed from the walk and never stored: `file.name`, `file.folder`, `file.modified`, `file.created`, `file.size`. As built, `title` is one too: the frontmatter `title`, or the file name without its extension when that is missing or empty (`WorkspaceFileRecord.title`), so every file has one and `has:title` matches every file. A note row shows the same title.
 - **Lines** are 1-based throughout, as the extractor already numbers tokens and tasks.
 - **Frontmatter `tags`** (a list or a single value) counts as `#` tokens on the frontmatter line where each value is written, so `tags: [a, b]` makes the file show up for `#a` and `#b`, in completion counts too. `contexts` and `projects` keys do the same for `@` and `+`.
 - **Links** keep both the raw destination, for a later rename-rewrite, and the resolved `target`: the destination taken relative to the source file, then made relative to the root, or nil when it points outside the root. A destination starting with `/` or `~/` is a filesystem path, as `DocumentLink.target(relativeTo:)` reads it, so it has a target only when that path is inside the root. Only inline `[text](destination)` links are indexed. Section links (`#…`), web links, images, autolinks, reference links, `[[wikilinks]]` and bare file names are not.
@@ -413,12 +414,12 @@ indirect enum Predicate {
 - **Agenda** = `.tasks` filtered on `due`/`scheduled`. Moving it onto `run` proves the task half of the model without a visible change.
 - A change stream, like `taskChanges()`, tells subscribers when the records behind a query may have changed; they re-run their query.
 
-### Store (schema v3, shipped as v4)
+### Store (schema v3, shipped as v5)
 
 ```
 files(path PRIMARY KEY, modified, size, hash)
 attributes(path, task_line NULL, key, spelling, type, text, num, date, ord)  -- task_line NULL: the file's own
-tokens(path, line, kind, key, spelling, excerpt)
+tokens(path, line, kind, key, spelling, excerpt, frontmatter)
 links(path, line, destination, target, excerpt)
 tasks(path, line, text, checked)
 ```
@@ -437,11 +438,17 @@ Index `attributes(key, text)`, `attributes(key, date)`, `tokens(kind, key)` and 
 1. Add `WorkspaceFileRecord`, `WorkspaceTask`, `AttributeValue`, `WorkspaceQuery` and `Predicate` under `daisy/Features/WorkspaceMetadata/`, free of AppKit so they link into `tests/swift-tests`.
 2. Make `WorkspaceMetadataIndex` keep a record per path instead of a contribution. Resolve link targets while reading. Keep `snapshots()` producing the same candidates.
 3. Add `run(_:)` and a record change stream, and move `tasks()` onto `run`.
-4. Move `WorkspaceIndexStore` to schema v3 (v4 as built; see the differences above).
+4. Move `WorkspaceIndexStore` to schema v3 (v5 as built; see the differences above).
 
 ### Phase 7c — References panel
 
-Status: deferred. The References query is in 7b; the panel is built later.
+Status: built; runtime pass pending. The pane is `daisy/Features/RightSidebar/RightSidebarViewController.swift`, holding the Agenda and the panel, `daisy/Features/References/`; the list is `WorkspaceReferences` (`daisy/Features/WorkspaceMetadata/WorkspaceReferences.swift`), from `WorkspaceMetadataIndex.referenceList(to:)`; the window side is `daisy/Document/DocumentWindowController+References.swift`. Tests are the `referenceList` cases in `WorkspaceQueryTests.swift` and the References binding in `KeymapTests.swift`. Differences from the tasks below:
+
+- Under Linked and Mentions, each source file is one row, its name over its folder, with no excerpt; a click opens it at its first reference, and a file can be under both. `WorkspaceReferences` still keeps every line, with its excerpt.
+- The menu items are **View → Agenda** (⇧⌘I, as before) and **View → References** (⇧⌘R), checked while their panel is on screen, like Table of Contents and Project Navigator, rather than "Toggle …". OmniSearch lists them because it reads the menu.
+- A row opens its file at the line the way an Agenda task does (a window already showing the file is brought forward and scrolled), not through `LinkHandler.open`, which has no line to open at.
+- Outside a workspace the panel shows the Agenda's empty state, with its own sentence; the two share `NoWorkspaceView`.
+- The References button is added to an existing toolbar once, after the Agenda's, the first time a workspace window opens, as the Journal button was.
 
 1. **Placement.** The right sidebar shows one panel at a time: the Agenda or References. There are no tabs.
 2. **Commands.** View → Toggle Agenda and View → Toggle References, each with a shortcut, in the Keymap settings and in `OmniSearchCommandCatalog`.
@@ -473,7 +480,7 @@ Terms are separated by spaces or newlines. Quotes keep spaces in a value: `title
 
 | Term | Meaning |
 | --- | --- |
-| `#x` `@x` `+x` | Has the token. The name follows the extractor's token rule; a hierarchical `#area` also matches `#area/sub`. |
+| `#x` `@x` `+x` | Has the token. The name follows the extractor's token rule; a hierarchical `#area` also matches `#area/sub`. A task also has its file's frontmatter `tags`, `contexts` and `projects`. |
 | `key:value` | The attribute equals the value; for a list attribute, contains it. |
 | `key:<v` `key:<=v` `key:>v` `key:>=v` | Compares dates, numbers or text. |
 | `key:a,b` / `+a,b` / `#a,b` | Either value, as in `p:high,medium`. A comma cannot occur in a token name, so this never clashes. |
@@ -514,6 +521,71 @@ There are no parentheses. Any condition can still be written as ORed groups of A
 5. The editor shows the block as code. Tokens inside it are highlighted as tokens already are. Completion for keys and dates is left for later.
 6. Localize problem messages and the empty result ("No matching tasks" / "No matching notes") in `en.lproj` and `zh-Hans.lproj`.
 
+### Phase 7e — Grouped and table results
+
+Status: built; runtime pass pending. The options are `WorkspaceQueryDisplay` in `WorkspaceQueryParser.swift`; field values come from `WorkspaceQuery.evaluate(_:fields:)`; grouping and cells are in `QueryBlocks.result` (`WorkspaceQueryBlocks.swift`). Tests are the display cases in `WorkspaceQueryParserTests.swift`, `testQueryBlocksGroupRows` and `testQueryBlockTablesFillTheirCells` in `WorkspaceQueryTests.swift`, `testReadModeDrawsGroupsAndTables` in `MarkdownRenderExtensionTests.swift`, and the group and table cases in `scripts/editor-bundle/smoke/query-blocks.mjs`. Differences from the text below: a notes table's text column is headed "Title", since the Chinese strings already use "Note" for a different word; `$columns:` written twice adds up.
+
+Begins after 7d. How a block shows its results, separate from what it matches: grouping and a table view change only the rendering, never the rows a query returns.
+
+````markdown
+```tasks
+is:open
+$group:project
+```
+
+```tasks
+is:open +daisy
+$columns:done,text,due,p,file
+sort:due
+```
+````
+
+#### Options
+
+Display options start with `$`: `$group:`, `$view:`, `$columns:`. Like `sort:` and `limit:` they apply wherever they are written and are not filters; the `$` sets them apart from filters at a glance and leaves `group`, `view` and `columns` free as frontmatter keys. Any other `$` term is a problem. `sort:` and `limit:` keep no `$`: `limit:` changes which rows come back, so both belong to the query.
+
+| Option | Meaning |
+| --- | --- |
+| `$group:key` | Splits the results into groups by `key`, one level. A second `$group:` is a problem. |
+| `$view:list` / `$view:table` | List (default) or table. |
+| `$columns:a,b,c` | The table's columns, in order: as many as are listed. Implies `$view:table`; with `$view:list` it is a problem. |
+
+Keys for `$group:` and `$columns:`:
+
+| Key | Value |
+| --- | --- |
+| `project`, `context`, `tag` (or `+`, `@`, `#`) | The names: for a task, its line's and its file's frontmatter's; for a note, the file's. |
+| `due`, `scheduled`, `p` | The task fields, through the same lookup as queries (the task's own, then frontmatter). |
+| `file`, `folder`, `path` | The file's title, folder, root-relative path. |
+| `title`, `file.modified`, `file.created`, `file.size` | The built-ins; `title` is the frontmatter title or the file name. |
+| `done`, `text` | Columns only: the checkbox (tasks only) and the task text or note title. |
+| any other | A frontmatter key; an unknown one is a problem with a suggestion, as in a filter. |
+
+#### Grouping
+
+- A row with several values for the key (two projects, a list attribute) appears in each of their groups, as in the Tasks plugin; rows with none go into a last group, "No project", "No due date" and so on.
+- Groups are ordered by value: names and text ignoring case, dates and numbers in order, `p` from high to low. Rows inside a group keep the query's order, so `sort:` orders within groups. `limit:` caps the rows before grouping.
+- A group header is a bold label with the group's count and a rule, set off from the rows; a name label links to its page. Headers are not `h1`–`h6`, so the outline and its scroll tracking (`MarkdownWebView.swift`), which read those, skip them; they carry `role="heading"` for VoiceOver.
+- A row leaves out what its group's header already shows: a task's file under `$group:file`, `file.name` or `path`, a note's folder under `$group:folder` or `path`.
+- With `$view:table`, each group has its own table under its header.
+
+#### Table
+
+- Default $columns: tasks `done,text,due,p,file`; notes `text,folder`.
+- Cells render as the list does: the checkbox checks the task off, the text opens its line, `due`/`scheduled`/`p` are badges, names are links to their pages, a link value opens its file, a list is joined with commas.
+- Known keys have localized headers ("Due", "Priority", "File" …); a frontmatter key's header is the key as written in the block. The checkbox column has no visible header but an accessible name.
+- Header cells have `scope="col"`. A wide table scrolls sideways like a Markdown table.
+
+#### Implementation
+
+1. `WorkspaceQueryParser.Result` gains `display: WorkspaceQueryDisplay` (view, group field, columns), parsed like `sort:`/`limit:`, with problems for a bad view, a repeated group, `$columns:` with `$view:list`, `done` in a `notes` block, and unknown keys.
+2. `WorkspaceQuery.evaluate(_:fields:)` and `WorkspaceMetadataIndex.run(_:fields:)` return each match with the values of the requested fields, read through the same lookup as predicates, so a task's inherited frontmatter counts.
+3. `QueryBlocks.result` groups and fills cells on the host. `QueryBlockResult` carries `view`, `columns` and `groups` (`label`, `kind`, `count`, `rows`); a block without `$group:` has one unlabelled group. Rows gain `cells`. Both renderers only draw what they are sent.
+4. The Read mode script (`queryBlocksScript`) and the editor module (`query-blocks.js`) draw group headers and tables, with matching styles.
+5. Localize headers, "No …" group labels and problem messages in `en.lproj` and `zh-Hans.lproj`.
+
+Later, if wanted: a repeated `$group:` nesting a level, a per-group limit, and column labels (`$columns:due="Due date"`).
+
 ### Required tests
 
 - Extractor: the fixture cases in 7a, replayed by the Swift bridge test as for Phase 1.
@@ -521,10 +593,11 @@ There are no parentheses. Any condition can still be written as ORed groups of A
 - Link resolution: relative, `../`, absolute inside and outside the root, percent-encoded, `file:` URLs, a document at the root and in a subfolder.
 - Query: each predicate on files and tasks; `and`/`or`/`not`; sorting by date, number and text; an overlay adding and removing a reference; a deleted source file dropping its references.
 - References: links to F; tokens of F's page, including case variants and `/` vs `--`; F never lists itself.
-- Store: v2 and v3 caches rebuilt as v4; attributes, links and tokens round-trip; a cache path escape in `links.target` is rejected.
+- Store: v2, v3 and v4 caches rebuilt as v5; attributes, links and tokens round-trip; a cache path escape in `links.target` is rejected.
 - Runtime: both toggle commands in each sidebar state, toolbar highlighting, a row opening its file at the line, a non-workspace window, and VoiceOver labels.
 - Query parser (7d), table-driven, input → expected `Predicate` and problems: each term shape, each operator, `-`, comma values (including negated), `OR` groups, a lowercase `or` and `OR` inside quotes staying text, `sort:`/`limit:` anywhere, quotes, each date form, unknown keys and bad values left out with the rest still running.
 - Query blocks (7d): results match `run` for the parsed query; checking a task off in a result updates the file; the block shows as source outside a workspace, in Quick Look and in exports.
+- Display (7e): parser cases for `$group:`, `$view:` and `$columns:` and their problems, an unknown `$` term, and the plain words staying frontmatter keys; grouping by names (a row in two groups, the "No …" group, inherited frontmatter names), by date, by `p` and by a frontmatter list; group order; `limit:` before grouping; default and listed columns and their cells; both renderers drawing headers and tables, with checkboxes and links working in them.
 
 ### Exit criteria
 

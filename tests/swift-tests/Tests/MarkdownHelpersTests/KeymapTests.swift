@@ -24,6 +24,14 @@ final class KeymapTests: XCTestCase {
         XCTAssertFalse(Keymap().changeToken.contains("view.toggleInspector"))
     }
 
+    func testReferencesHasItsOwnDefaultBinding() {
+        let binding = KeyBinding(string: "shift+cmd+r")!
+        XCTAssertEqual(KeymapCommand.viewToggleReferences.context, .global)
+        XCTAssertEqual(KeymapCommand.viewToggleReferences.titleKey, "References")
+        XCTAssertEqual(Keymap.defaultBindings(for: .viewToggleReferences), [binding])
+        XCTAssertEqual(Keymap().conflicts(for: binding, in: .global), [.viewToggleReferences])
+    }
+
     func testSettingsRewriteMigratesLegacyInspectorID() throws {
         var file = try KeymapFile(data: Data("""
         { "global": { "ctrl+shift+cmd+i": "view.toggleInspector" } }

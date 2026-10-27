@@ -14,6 +14,7 @@ extension NSToolbarItem.Identifier {
     static let openInLLM = NSToolbarItem.Identifier("OpenInLLM")
     /// Preserve the saved toolbar position while replacing the old pane.
     static let tasks = NSToolbarItem.Identifier("Inspector")
+    static let references = NSToolbarItem.Identifier("References")
     static let share = NSToolbarItem.Identifier("Share")
     static let searchForDocument = NSToolbarItem.Identifier("SearchForDocument")
     /// The sidebar show/hide toggle. The raw value predates the mode picker
@@ -63,6 +64,7 @@ extension DocumentWindowController {
             .themesAndSettings,
             .space,
             .tasks,
+            .references,
             .share,
             .editDocument
         ]
@@ -101,6 +103,7 @@ extension DocumentWindowController {
             .openWith,
             .editDocument,
             .tasks,
+            .references,
             .share,
             .searchForDocument,
             .printDocument,
@@ -195,6 +198,7 @@ extension DocumentWindowController {
             return makeOpenInLLMItem()
         case .editDocument: return makeEditItem(willBeInsertedIntoToolbar: flag)
         case .tasks: return makeTasksItem(willBeInsertedIntoToolbar: flag)
+        case .references: return makeReferencesItem(willBeInsertedIntoToolbar: flag)
         case .alwaysOnTop: return makeAlwaysOnTopItem(willBeInsertedIntoToolbar: flag)
         case .share: return makeShareItem()
         case .searchForDocument: return makeSearchForDocumentItem()
@@ -327,6 +331,29 @@ extension DocumentWindowController {
             refreshTasksToggleItem()
         } else {
             button.state = isTasksToggleSelected ? .on : .off
+        }
+        return item
+    }
+
+    private func makeReferencesItem(willBeInsertedIntoToolbar: Bool) -> NSToolbarItem {
+        let (item, button) = makeToggleButtonItem(
+            identifier: .references,
+            image: referencesImage(),
+            label: NSLocalizedString("References", comment: "References toolbar item label"),
+            action: #selector(toggleReferencesAction(_:))
+        )
+        item.autovalidates = false
+        item.isEnabled = isWorkspace
+        button.isEnabled = isWorkspace
+        item.toolTip = referencesToggleToolTip
+        button.toolTip = item.toolTip
+
+        if willBeInsertedIntoToolbar {
+            referencesItem = item
+            referencesButton = button
+            refreshReferencesToggleItem()
+        } else {
+            button.state = isReferencesToggleSelected ? .on : .off
         }
         return item
     }
@@ -617,10 +644,15 @@ extension DocumentWindowController {
     }
 
     @objc private func toggleTasksAction(_ sender: Any) {
-        guard canToggleTasks else { return }
+        guard canToggleTasks else {
+            refreshTasksToggleItem()
+            return
+        }
         let isVisible = (documentWindow.contentViewController as? MainSplitViewController)?
-            .toggleTasks() ?? false
+            .toggleRightPanel(.agenda) ?? false
         setTasksToggleSelected(isVisible)
+        // One panel at a time: the other is off either way.
+        setReferencesToggleSelected(false)
     }
 
     /// View > Tasks: the same toggle as the toolbar button, which may
@@ -645,6 +677,12 @@ extension DocumentWindowController {
             : NSLocalizedString("The agenda is available in a workspace.", comment: "Tasks unavailable tooltip")
     }
 
+    /// Both right-hand panel buttons: only the one on screen is highlighted.
+    func refreshRightPanelToggleItems() {
+        refreshTasksToggleItem()
+        refreshReferencesToggleItem()
+    }
+
     func refreshTasksToggleItem() {
         setTasksToggleSelected(isTasksVisible)
         tasksItem?.isEnabled = canToggleTasks
@@ -656,6 +694,88 @@ extension DocumentWindowController {
     private func setTasksToggleSelected(_ isSelected: Bool) {
         isTasksToggleSelected = isSelected
         tasksButton?.state = isSelected ? .on : .off
+    }
+
+    // MARK: - References
+
+    private func setReferencesToggleSelected(_ isSelected: Bool) {
+        isReferencesToggleSelected = isSelected
+        referencesButton?.state = isSelected ? .on : .off
+    }
+
+    private func referencesImage() -> NSImage {
+        let image = NSImage(systemSymbolName: "link",
+                            accessibilityDescription: NSLocalizedString("References", comment: "References toolbar image")) ?? NSImage()
+        image.isTemplate = true
+        return image
+    }
+
+    @objc private func toggleReferencesAction(_ sender: Any) {
+        guard canToggleReferences else {
+            refreshReferencesToggleItem()
+            return
+        }
+        let isVisible = (documentWindow.contentViewController as? MainSplitViewController)?
+            .toggleRightPanel(.references) ?? false
+        setReferencesToggleSelected(isVisible)
+        setTasksToggleSelected(false)
+    }
+
+    /// View > References: the same toggle as the toolbar button.
+    func toggleReferencesFromMenu() {
+        toggleReferencesAction(self)
+    }
+
+    var isReferencesVisible: Bool {
+        (documentWindow.contentViewController as? MainSplitViewController)?.isReferencesVisible ?? false
+    }
+
+    /// As for the Agenda: only in a workspace, but a pane restored open on
+    /// References can still be closed.
+    var canToggleReferences: Bool {
+        isWorkspace || isReferencesVisible
+    }
+
+    private var referencesToggleToolTip: String {
+        isWorkspace
+            ? NSLocalizedString("Show references", comment: "References toolbar item tooltip")
+            : NSLocalizedString("References are available in a workspace.", comment: "References unavailable tooltip")
+    }
+
+    /// One-time addition of the References button, the first time a
+    /// workspace window has a toolbar: after the Agenda's, before Share, or
+    /// at the end. The item order is shared, so later windows inherit it,
+    /// and a reader who takes it out in Customize Toolbar keeps it out.
+    private static let didAddReferencesItemKey = "Toolbar.DidAddReferences"
+
+    func addReferencesToolbarItemIfNeeded() {
+        guard isWorkspace else { return }
+        insertToolbarItemOnce(.references, key: Self.didAddReferencesItemKey) { identifiers in
+            identifiers.firstIndex(of: .tasks).map { $0 + 1 } ?? identifiers.firstIndex(of: .share) ?? identifiers.count
+        }
+    }
+
+    /// Adds `identifier` to an existing toolbar the first time this runs with
+    /// `key` unset, at the index `position` picks from the current items.
+    /// `key` is set even when the item is already there, so a reader who
+    /// removes it later keeps it out.
+    func insertToolbarItemOnce(_ identifier: NSToolbarItem.Identifier, key: String,
+                               at position: ([NSToolbarItem.Identifier]) -> Int) {
+        guard let toolbar = documentWindow.toolbar, toolbarItemOrderPersistenceReady else { return }
+        let defaults = UserDefaults.standard
+        guard !defaults.bool(forKey: key) else { return }
+        defaults.set(true, forKey: key)
+        let identifiers = toolbar.items.map(\.itemIdentifier)
+        guard !identifiers.contains(identifier) else { return }
+        toolbar.insertItem(withItemIdentifier: identifier, at: position(identifiers))
+    }
+
+    func refreshReferencesToggleItem() {
+        setReferencesToggleSelected(isReferencesVisible)
+        referencesItem?.isEnabled = canToggleReferences
+        referencesButton?.isEnabled = canToggleReferences
+        referencesItem?.toolTip = referencesToggleToolTip
+        referencesButton?.toolTip = referencesToggleToolTip
     }
 
     func items(for pickerToolbarItem: NSSharingServicePickerToolbarItem) -> [Any] {

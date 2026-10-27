@@ -28,6 +28,9 @@ nonisolated struct WorkspaceMetadataToken: Equatable, Sendable {
     let line: Int
     /// The trimmed source line, shortened when long.
     var excerpt: String = ""
+    /// Written as a frontmatter `tags`, `contexts` or `projects` value, so
+    /// it applies to the whole file.
+    var frontmatter = false
 }
 
 /// A token as it appears on a line, with its kind: what a task or file
@@ -38,20 +41,25 @@ nonisolated struct WorkspaceTokenOccurrence: Equatable, Sendable {
     let key: String
     let line: Int
     let excerpt: String
+    /// From the frontmatter; a file's tasks match it in queries.
+    let frontmatter: Bool
 
     /// The spelling without its one-character marker.
     var spelling: String { String(source.dropFirst()) }
 
-    init(kind: WorkspaceMetadataKind, source: String, key: String, line: Int, excerpt: String) {
+    init(kind: WorkspaceMetadataKind, source: String, key: String, line: Int, excerpt: String,
+         frontmatter: Bool = false) {
         self.kind = kind
         self.source = source
         self.key = key
         self.line = line
         self.excerpt = excerpt
+        self.frontmatter = frontmatter
     }
 
     init(kind: WorkspaceMetadataKind, _ token: WorkspaceMetadataToken) {
-        self.init(kind: kind, source: token.source, key: token.key, line: token.line, excerpt: token.excerpt)
+        self.init(kind: kind, source: token.source, key: token.key, line: token.line, excerpt: token.excerpt,
+                  frontmatter: token.frontmatter)
     }
 }
 
@@ -259,9 +267,11 @@ nonisolated private struct Payload: Decodable {
         let key: String
         let line: Int
         let excerpt: String
+        let frontmatter: Bool?
 
         var metadata: WorkspaceMetadataToken {
-            WorkspaceMetadataToken(source: source, key: key, line: line, excerpt: excerpt)
+            WorkspaceMetadataToken(source: source, key: key, line: line, excerpt: excerpt,
+                                   frontmatter: frontmatter ?? false)
         }
     }
 

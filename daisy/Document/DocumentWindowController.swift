@@ -54,7 +54,9 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         let scrollPosition: CGFloat
     }
 
-    var currentFileURL: URL?
+    var currentFileURL: URL? {
+        didSet { mainSplit?.referencesViewController?.setFile(currentFileURL) }
+    }
     var currentMarkdown: String?
     /// The folder this window was opened on, or inherited from the window
     /// it was opened from. Nil for a window opened on a file, whose navigator
@@ -68,8 +70,9 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
             updateWorkspaceIndexBinding()
             mainSplit?.setMetadataLinksEnabled(isWorkspace)
             refreshJournalToolbarItem()
-            refreshTasksToggleItem()
+            refreshRightPanelToggleItems()
             addJournalToolbarItemIfNeeded()
+            addReferencesToolbarItemIfNeeded()
         }
     }
     /// The shared index for `indexedWorkspaceRootURL`, and what it last published.
@@ -102,11 +105,14 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     private var fileWatcher: FileWatcher?
     private let fullscreenToolbarTheme = FullscreenToolbarTheme()
     var isTasksToggleSelected = false
+    var isReferencesToggleSelected = false
     weak var openActionsItem: NSMenuToolbarItem?
     weak var openWithItem: NSMenuToolbarItem?
     weak var openInLLMItem: NSMenuToolbarItem?
     weak var tasksButton: NSButton?
     weak var tasksItem: NSToolbarItem?
+    weak var referencesButton: NSButton?
+    weak var referencesItem: NSToolbarItem?
     weak var alwaysOnTopButton: NSButton?
     weak var editButton: NSButton?
     var editorChangeRevision = 0
@@ -352,6 +358,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         migrateLegacySidebarToolbarIfNeeded(in: toolbar)
         observeAndPersistToolbarPreferences(toolbar)
         addJournalToolbarItemIfNeeded()
+        addReferencesToolbarItemIfNeeded()
 
         installFindBar()
         applyWindowBackgroundTheme()
@@ -369,7 +376,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         findBarOverlay?.needsDisplay = true
         // Toggles whose on state is drawn in the theme accent. An on button
         // repaints its fill only when the state changes, so step it through.
-        for case let button? in [tasksButton, alwaysOnTopButton] {
+        for case let button? in [tasksButton, referencesButton, alwaysOnTopButton] {
             button.bezelColor = Self.makeThemeAccent()
             let state = button.state
             button.state = .off

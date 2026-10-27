@@ -721,19 +721,22 @@
           "source": "#Work",
           "key": "work",
           "line": 2,
-          "excerpt": "tags: [Work, \"#Home\", 2026, \"not a name\", area/sub]"
+          "excerpt": "tags: [Work, \"#Home\", 2026, \"not a name\", area/sub]",
+          "frontmatter": true
         },
         {
           "source": "#Home",
           "key": "home",
           "line": 2,
-          "excerpt": "tags: [Work, \"#Home\", 2026, \"not a name\", area/sub]"
+          "excerpt": "tags: [Work, \"#Home\", 2026, \"not a name\", area/sub]",
+          "frontmatter": true
         },
         {
           "source": "#area/sub",
           "key": "area/sub",
           "line": 2,
-          "excerpt": "tags: [Work, \"#Home\", 2026, \"not a name\", area/sub]"
+          "excerpt": "tags: [Work, \"#Home\", 2026, \"not a name\", area/sub]",
+          "frontmatter": true
         },
         {
           "source": "#work",
@@ -747,13 +750,15 @@
           "source": "@phone",
           "key": "phone",
           "line": 4,
-          "excerpt": "- phone"
+          "excerpt": "- phone",
+          "frontmatter": true
         },
         {
           "source": "@desk",
           "key": "desk",
           "line": 5,
-          "excerpt": "- \"@desk\""
+          "excerpt": "- \"@desk\"",
+          "frontmatter": true
         },
         {
           "source": "@phone",
@@ -767,7 +772,8 @@
           "source": "+Daisy",
           "key": "daisy",
           "line": 6,
-          "excerpt": "projects: Daisy"
+          "excerpt": "projects: Daisy",
+          "frontmatter": true
         },
         {
           "source": "+daisy",
@@ -862,7 +868,8 @@
           "source": "+a",
           "key": "a",
           "line": 3,
-          "excerpt": "projects: [a] # comment"
+          "excerpt": "projects: [a] # comment",
+          "frontmatter": true
         }
       ],
       "tasks": [],

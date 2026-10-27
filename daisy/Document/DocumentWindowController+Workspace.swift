@@ -71,12 +71,65 @@ extension DocumentWindowController {
         WorkspaceMetadataIndex.rebuildCache(root: root)
     }
 
+    // MARK: - Opening workspace files
+
+    /// The file at the root-relative `path` in this window's workspace, or
+    /// nil outside a workspace or for a path that could leave the root.
+    func workspaceFileURL(_ path: String) -> URL? {
+        guard let root = workspaceIndex?.root,
+              (try? WorkspaceFileWriter.components(of: path)) != nil else { return nil }
+        return root.appending(path: path, directoryHint: .notDirectory)
+    }
+
+    /// The window showing the file, matched by resolved identity.
+    static func controller(showingWorkspaceFile url: URL) -> DocumentWindowController? {
+        let target = FileSearchResults.resolvedIdentity(url)
+        return allControllers.first { $0.currentFileURL.map(FileSearchResults.resolvedIdentity) == target }
+    }
+
+    /// Opens the workspace file at `path` at the indexed `line`, for the
+    /// Agenda, References and query blocks. A window already showing it is
+    /// brought forward; it, or a new tab, is scrolled by `scroll` (to `line`
+    /// by default). Otherwise the file replaces this window's, once an edit
+    /// session has ended.
+    func openWorkspaceFile(_ path: String, line: Int, inNewTab: Bool,
+                           scroll: ((DocumentWindowController) -> Void)? = nil) {
+        guard let url = workspaceFileURL(path) else {
+            NSSound.beep()
+            return
+        }
+        let scroll = scroll ?? { $0.mainSplit?.scrollToTaskLine(line) }
+        if let existing = Self.controller(showingWorkspaceFile: url) {
+            existing.documentWindow.makeKeyAndOrderFront(nil)
+            scroll(existing)
+            return
+        }
+        if inNewTab {
+            openInNewTab(url) { controller in scroll(controller) }
+            return
+        }
+        let open = { [weak self] in
+            guard let self else { return }
+            self.present(url: url, preservingEditMode: true, intent: .normal, fragment: nil)
+            // The indexed line; the file is read again only once it is shown.
+            self.mainSplit?.scrollToTaskLine(line)
+        }
+        if isEditing || hasPendingEditorChanges {
+            requestEndEditing(keepAccessoryMounted: true) { success in
+                if success { open() }
+            }
+        } else {
+            open()
+        }
+    }
+
     // MARK: - Index
 
     /// Binds this window to the shared index for its workspace, or lets go
     /// of it when the window stops being a workspace window.
     func updateWorkspaceIndexBinding() {
         configureTaskSidebar()
+        configureReferencesSidebar()
         let root = indexedWorkspaceRootURL.map(WorkspaceMetadataIndex.canonicalRoot)
         guard root != workspaceIndex?.root else { return }
         releaseWorkspaceIndex()
@@ -89,6 +142,7 @@ extension DocumentWindowController {
         workspaceIndex = index
         taskRootIdentity = try? WorkspaceFileWriter.RootIdentity(root: root)
         mainSplit?.taskCalendarViewController?.bind(index: index)
+        mainSplit?.referencesViewController?.bind(index: index)
         workspaceSnapshotTask = Task { [weak self] in
             for await snapshot in await index.snapshots() {
                 self?.applyWorkspaceCandidates(snapshot)
@@ -101,6 +155,7 @@ extension DocumentWindowController {
     func releaseWorkspaceIndex() {
         stopQueryBlocks()
         mainSplit?.taskCalendarViewController?.bind(index: nil)
+        mainSplit?.referencesViewController?.bind(index: nil)
         taskRootIdentity = nil
         restoreWorkspaceOverlay()
         workspaceSnapshotTask?.cancel()
