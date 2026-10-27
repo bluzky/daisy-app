@@ -596,3 +596,28 @@
 "Open a file in the workspace to see what refers to it." = "Open a file in the workspace to see what refers to it.";
 "Not in the workspace index" = "Not in the workspace index";
 "Only Markdown files inside the workspace folder are indexed." = "Only Markdown files inside the workspace folder are indexed.";
+
+/* Move to file (/move) */
+"Move to…" = "Move to…";
+"Actions" = "Actions";
+"Move to a file in this project" = "Move to a file in this project";
+"Where in “%@”?" = "Where in “%@”?";
+"End of file" = "End of file";
+"Untitled heading" = "Untitled heading";
+"No matching headings" = "No matching headings";
+"Type a file name to move to" = "Type a file name to move to";
+"choose file" = "choose file";
+"move here" = "move here";
+"back" = "back";
+"Moved to %@" = "Moved to %@";
+"Copied to %@; the original was left in place." = "Copied to %@; the original was left in place.";
+"%@ changed while you chose where to move. Nothing was moved." = "%@ changed while you chose where to move. Nothing was moved.";
+"“%@” couldn’t be changed. Nothing was moved." = "“%@” couldn’t be changed. Nothing was moved.";
+"The block couldn’t be moved." = "The block couldn’t be moved.";
+"This document changed since the move, so it can’t be undone." = "This document changed since the move, so it can’t be undone.";
+"%@ was changed since the move; its copy was left in place." = "%@ was changed since the move; its copy was left in place.";
+
+/* Dropping files from the Files sidebar */
+"The dropped files could not be placed next to the Markdown file." = "The dropped files could not be placed next to the Markdown file.";
+"The dropped files could not be inserted into the document." = "The dropped files could not be inserted into the document.";
+"Choose the folder containing this Markdown file to save the dropped files." = "Choose the folder containing this Markdown file to save the dropped files.";

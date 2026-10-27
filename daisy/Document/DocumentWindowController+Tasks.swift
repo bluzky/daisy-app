@@ -176,7 +176,7 @@ extension DocumentWindowController {
     /// Waits out a commit in flight and an editor that is closing. Changing
     /// the buffer or draft under either would be overwritten when they
     /// finish. False when the commit failed.
-    private func settleEditSession() async -> Bool {
+    func settleEditSession() async -> Bool {
         while true {
             if isEditorCommitInFlight {
                 let committed = await withCheckedContinuation { continuation in
@@ -261,7 +261,7 @@ extension DocumentWindowController {
     /// The new buffer stands in for the file in the index now, rather than
     /// after the usual typing pause. Only when this window counts it in the
     /// sidebar's index; another workspace sees it once it is saved.
-    private func updateTaskOverlay(_ markdown: String, url: URL, index: WorkspaceMetadataIndex) {
+    func updateTaskOverlay(_ markdown: String, url: URL, index: WorkspaceMetadataIndex) {
         guard workspaceIndex === index else { return }
         if let previous = workspaceOverlayURL, previous != url { restoreWorkspaceOverlay() }
         workspaceOverlayURL = url

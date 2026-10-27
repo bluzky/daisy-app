@@ -137,6 +137,9 @@ nonisolated enum EditorHTML {
             overflow-x: hidden;
             overflow-y: auto;
             overscroll-behavior-x: none;
+            /* Without page scrolling the document scrolls here: the thin
+               bar, matching Read Mode. */
+            scrollbar-width: thin;
             /* Keep page gutters outside the editable content column. */
             padding-inline: var(--mdp-page-padding, \(MarkdownHTML.pagePaddingHorizontal)px);
             /* Document clearance is outside contenteditable and scrolls
@@ -796,6 +799,7 @@ nonisolated enum EditorHTML {
         html[data-page-scrolling="true"] {
             overflow-x: hidden;
             overflow-y: auto;
+            scrollbar-width: thin;
         }
         html[data-page-scrolling="true"] #editor,
         html[data-page-scrolling="true"] .cm-editor { height: auto; }
@@ -870,6 +874,7 @@ nonisolated enum EditorHTML {
             let slashTemplates = [];
             let workspaceCandidates = null;
             let metadataLinks = false;
+            let moveBlocks = false;
             window.__mdLoadEditor = function (markdown, baseHref, codeLanguage) {
                 const isCode = typeof codeLanguage === "string";
                 document.documentElement.toggleAttribute("data-code-mode", isCode);
@@ -909,6 +914,13 @@ nonisolated enum EditorHTML {
                         onPickLink: function (from, to) {
                             post({ kind: "pickLink", from: from, to: to });
                         },
+                        onPickMoveTarget: function (move) {
+                            post({ kind: "pickMoveTarget", id: move.id, blockKind: move.kind, text: move.text,
+                                   firstLine: move.firstLine, lastLine: move.lastLine });
+                        },
+                        onMoveStale: function (id) {
+                            post({ kind: "moveStale", id: id });
+                        },
                         onOpenLink: function (link) {
                             post({ kind: "openLink", token: link.token, destination: link.destination });
                         },
@@ -937,6 +949,7 @@ nonisolated enum EditorHTML {
                 editor.setSlashTemplates(slashTemplates);
                 if (workspaceCandidates) editor.setWorkspaceCandidates(workspaceCandidates);
                 editor.setMetadataLinks(metadataLinks);
+                editor.setMoveBlocks(moveBlocks);
                 window.__mdEditor = {
                     find: function (query, backwards, options) {
                         return editor.find(query, backwards, options);
@@ -973,6 +986,23 @@ nonisolated enum EditorHTML {
                     setMetadataLinks: function (enabled) {
                         metadataLinks = enabled === true;
                         editor.setMetadataLinks(metadataLinks);
+                    },
+                    // Kept like the templates.
+                    setMoveBlocks: function (enabled) {
+                        moveBlocks = enabled === true;
+                        editor.setMoveBlocks(moveBlocks);
+                    },
+                    completeMove: function (id) { return editor.completeMove(id); },
+                    applyMove: function (id, expected, next) { return editor.applyMove(id, expected, next); },
+                    removalPreview: function (id) { return editor.removalPreview(id); },
+                    replaceIfUnchanged: function (expected, next) { return editor.replaceIfUnchanged(expected, next); },
+                    undoMove: function (id) { return editor.undoMove(id); },
+                    forgetMove: function (id) { return editor.forgetMove(id); },
+                    dragFileCaret: function (x, y) { return editor.dragFileCaret(x, y); },
+                    endFileDrag: function (dropped) { editor.endFileDrag(dropped); },
+                    fileDropPosition: function (x, y) { return editor.fileDropPosition(x, y); },
+                    setTaskChecked: function (line, checked, text) {
+                        return editor.setTaskChecked(line, checked, text);
                     },
                     // Not kept: a fresh page sends its queries again.
                     setQueryResults: function (results) {

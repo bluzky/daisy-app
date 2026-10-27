@@ -28,6 +28,7 @@ import { readWorkspaceCandidates, workspaceCandidatesChanged } from "./metadata-
 import { metadataLinksChanged } from "./metadata-links.js"
 import { queryResultsChanged, readQueryResults } from "./query-blocks.js"
 import { linkOpening, openLinkAt } from "./link-open.js"
+import { applyMove, completeMove, forgetMove, moveTracking, removalPreview, replaceIfUnchanged, undoMove } from "./move-block.js"
 import { slashTemplatesChanged } from "./slash.js"
 import { tableEditors } from "./table/editors.js"
 import { escapedTableCell } from "./table/model.js"
@@ -53,7 +54,7 @@ window.MDEditor = {
     const moduleEnabled = new Map()
     // Handed to every module: the callbacks the page gave this editor.
     const moduleHost = { callbacks: callbacks || {}, slashTemplates: [], workspaceCandidates: null, metadataLinks: false,
-      queryResults: new Map() }
+      queryResults: new Map(), moveBlocks: false }
     const moduleOptions = (id) => (callbacks && callbacks.extensionOptions && callbacks.extensionOptions[id]) || {}
     for (const module of editorModules.values()) {
       const enabled = editorModuleEnabled(callbacks && callbacks.extensionState, module.id)
@@ -109,6 +110,7 @@ window.MDEditor = {
           codeCardWidth,
           anchoredPointerSelection,
           linkOpening(callbacks),
+          moveTracking(callbacks),
           ...moduleExtensions,
           tableEditors,
           tableFormattingSelection,
@@ -249,6 +251,15 @@ window.MDEditor = {
       return true
     }
     let preservedSourcePosition = null
+    // The selection before a file drag from the Files sidebar moved the caret.
+    let fileDragSelection = null
+    const fileDropPosition = (x, y) => {
+      const target = document.elementFromPoint(x, y)
+      if (target instanceof Element && target.closest(".cm-md-table-cell")) return null
+      const pos = view.posAtCoords({ x, y }, false)
+      if (pos == null || enclosingNode(view.state, pos, ["FencedCode", "CodeBlock"])) return null
+      return pos
+    }
     const searchResult = (search) => ({
       index: search.index + 1,
       total: search.matches.length,
@@ -630,6 +641,38 @@ window.MDEditor = {
         }
         return { line: task.line, changed, markdown: view.state.doc.toString() }
       },
+      // A file dragged from the Files sidebar, at viewport point (x, y). The
+      // host handles the drag natively, so the caret follows it here, as it
+      // would for a text drop; `endFileDrag` puts the selection back unless
+      // the file was dropped. `fileDropPosition` is where it lands, or null
+      // where a pasted file would not go either: code and table cells.
+      dragFileCaret: (x, y) => {
+        if (!fileDragSelection) fileDragSelection = view.state.selection
+        const pos = fileDropPosition(x, y)
+        if (pos != null) view.dispatch({ selection: { anchor: pos } })
+        return pos
+      },
+      endFileDrag: (dropped) => {
+        if (!dropped && fileDragSelection) view.dispatch({ selection: fileDragSelection })
+        fileDragSelection = null
+      },
+      fileDropPosition: (x, y) => fileDropPosition(x, y),
+      // `/move` (see move-block.js), by the id `onPickMoveTarget` gave:
+      // remove the block once the target holds it; or, for a move within
+      // this document, replace `expected` with the host's `next`; reverse
+      // a finished move for the Undo button; drop a move. Each returns
+      // whether it happened.
+      completeMove: (id) => completeMove(view, id),
+      applyMove: (id, expected, next) => applyMove(view, id, expected, next),
+      removalPreview: (id) => removalPreview(view, id),
+      // A host edit of the whole buffer, as one undo step, only while it
+      // still holds `expected`. Returns whether it was made.
+      replaceIfUnchanged: (expected, next) => replaceIfUnchanged(view, expected, next),
+      undoMove: (id) => undoMove(view, id),
+      forgetMove: (id) => { forgetMove(view, id); return true },
+      // Whether the slash menu offers `/move`: a saved document in a
+      // project folder.
+      setMoveBlocks: (enabled) => { moduleHost.moveBlocks = enabled === true },
       // Whether `#tag`, `@context` and `+project` read as links and open
       // their page on Cmd+click: true in a workspace window.
       // What Cmd+click at `pos` does: sends the link there to `onOpenLink`
