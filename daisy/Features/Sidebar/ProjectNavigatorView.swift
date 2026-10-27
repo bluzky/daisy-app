@@ -33,6 +33,31 @@ private final class FileNode {
             loadedChildren = []
             return []
         }
+        let sorted = Self.listing(of: url)
+        loadedChildren = sorted
+        return sorted
+    }
+
+    /// Re-reads a loaded folder. False when its listing is unchanged, so
+    /// nothing needs redrawing: a save replaces a file under the same name.
+    /// Children that are still there keep their nodes, and with them their
+    /// own loaded children and expansion.
+    func reloadChildren() -> Bool {
+        guard isDirectory, let cached = loadedChildren else { return false }
+        let fresh = Self.listing(of: url)
+        guard fresh.map(\.signature) != cached.map(\.signature) else { return false }
+        var existing: [String: FileNode] = [:]
+        for child in cached { existing[child.signature] = child }
+        loadedChildren = fresh.map { existing[$0.signature] ?? $0 }
+        return true
+    }
+
+    /// What a row shows: which item, and whether it can open.
+    private var signature: String {
+        "\(url.standardizedFileURL.path)|\(isDirectory)|\(isPreviewable)"
+    }
+
+    private static func listing(of url: URL) -> [FileNode] {
         let entries = (try? FileManager.default.contentsOfDirectory(
             at: url,
             includingPropertiesForKeys: [.isDirectoryKey, .isReadableKey, .isSymbolicLinkKey],
@@ -47,12 +72,10 @@ private final class FileNode {
             let isPreviewable = (values?.isReadable ?? true) && !isBroken
             return FileNode(url: entry, isDirectory: false, isPreviewable: isPreviewable)
         }
-        let sorted = nodes.sorted { lhs, rhs in
+        return nodes.sorted { lhs, rhs in
             if lhs.isDirectory != rhs.isDirectory { return lhs.isDirectory }
             return lhs.displayName.localizedStandardCompare(rhs.displayName) == .orderedAscending
         }
-        loadedChildren = sorted
-        return sorted
     }
 }
 
@@ -117,6 +140,9 @@ final class ProjectNavigatorView: NSView {
     /// outline's transient click selection so a pending Save/Don't Save/Cancel
     /// decision cannot make the navigator disagree with the editor.
     private var currentFileURL: URL?
+    /// The file a click in this tree asked to open: when it becomes the open
+    /// file, its row is already in view, so the tree doesn't scroll.
+    private var clickedFileURL: URL?
     // One watcher per loaded directory; kept in sync with which FileNodes
     // currently have a populated children cache.
     private var watchers: [URL: DirectoryWatcher] = [:]
@@ -172,6 +198,11 @@ final class ProjectNavigatorView: NSView {
         outlineView.outlineTableColumn = column
 
         scrollView.documentView = outlineView
+        scrollView.contentView.postsBoundsChangedNotifications = true
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(treeDidScroll),
+            name: NSView.boundsDidChangeNotification, object: scrollView.contentView
+        )
 
         NotificationCenter.default.addObserver(
             self, selector: #selector(bookmarksDidChange),
@@ -284,7 +315,7 @@ final class ProjectNavigatorView: NSView {
         if let rootNode { collectLoadedDirectories(rootNode, into: &live) }
         for url in live where watchers[url] == nil {
             watchers[url] = DirectoryWatcher(url: url) { [weak self] in
-                self?.handleFolderChange()
+                self?.handleFolderChange(url)
             }
         }
         for (url, watcher) in watchers where !live.contains(url) {
@@ -315,26 +346,118 @@ final class ProjectNavigatorView: NSView {
                                columnIndexes: IndexSet(integer: 0))
     }
 
-    private func handleFolderChange() {
+    /// Something in a watched folder changed. Only that folder is re-read,
+    /// and only its rows are redrawn when its listing differs: saving a file
+    /// changes the folder but not the names in it. The tree never scrolls
+    /// for this, and the open file stays selected.
+    private func handleFolderChange(_ folderURL: URL) {
+        guard let node = loadedNode(at: folderURL) else { return }
         let selectedURL = currentlySelectedURL()
-        refreshTree()
-        if let selectedURL { setCurrentFile(selectedURL) }
-    }
-
-    /// Reloads the outline from disk while preserving expansion state.
-    /// Selection is left to the caller.
-    private func refreshTree() {
         let expandedURLs = workspace?.expandedFolderURLs ?? collectExpandedURLs()
-        if let rootNode { invalidateCaches(rootNode) }
-        reloadBookmarkNodes()
-        outlineView.reloadData()
-        expandBookmarksGroupIfNeeded()
-        if let rootNode {
+        guard node.reloadChildren() else { return }
+        keepingScrollPosition {
+            outlineView.reloadItem(node, reloadChildren: true)
             if workspace == nil {
-                outlineView.expandItem(rootNode)
-                reExpand(rootNode, expanded: expandedURLs)
+                reExpand(node, expanded: expandedURLs)
             } else {
                 restoreWorkspaceExpansionState()
+            }
+        }
+        syncWatchers()
+        selectWithoutScrolling(currentFileURL ?? selectedURL)
+    }
+
+    /// The folder's node, when its listing is loaded.
+    private func loadedNode(at url: URL) -> FileNode? {
+        guard let rootNode else { return nil }
+        let target = url.standardizedFileURL
+        var node = rootNode
+        while node.url.standardizedFileURL != target {
+            guard target.isDescendantOrSame(of: node.url),
+                  let next = node.cachedChildren?.first(where: {
+                      $0.isDirectory && target.isDescendantOrSame(of: $0.url)
+                  }) else { return nil }
+            node = next
+        }
+        return node.cachedChildren == nil ? nil : node
+    }
+
+    /// Runs `update` and puts the tree back where it was scrolled. Reloading
+    /// rows briefly shortens the outline, which would push it up.
+    private func keepingScrollPosition(_ update: () -> Void) {
+        let origin = scrollView.contentView.bounds.origin
+        update()
+        outlineView.layoutSubtreeIfNeeded()
+        scrollView.contentView.scroll(to: scrollView.contentView.constrainBoundsRect(
+            NSRect(origin: origin, size: scrollView.contentView.bounds.size)).origin)
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+    }
+
+    // MARK: Shared scroll position
+
+    /// Only the tree in front records where it is: a background tab's tree
+    /// reloading or selecting must not move the others.
+    @objc private func treeDidScroll() {
+        guard window?.isKeyWindow == true, !isAdoptingScroll else { return }
+        workspace?.scrollOrigin = scrollView.contentView.bounds.origin
+    }
+
+    private var isAdoptingScroll = false
+
+    /// Takes the position the folder's tabs last scrolled to.
+    private func adoptSharedScroll() {
+        guard let origin = workspace?.scrollOrigin else { return }
+        isAdoptingScroll = true
+        defer { isAdoptingScroll = false }
+        outlineView.layoutSubtreeIfNeeded()
+        let clip = scrollView.contentView
+        clip.scroll(to: clip.constrainBoundsRect(NSRect(origin: origin, size: clip.bounds.size)).origin)
+        scrollView.reflectScrolledClipView(clip)
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        NotificationCenter.default.removeObserver(self, name: NSWindow.didBecomeKeyNotification, object: nil)
+        guard let window else { return }
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(windowDidBecomeKey),
+            name: NSWindow.didBecomeKeyNotification, object: window
+        )
+    }
+
+    /// Switching tabs brings this tree forward where the last one was.
+    @objc private func windowDidBecomeKey() {
+        adoptSharedScroll()
+    }
+
+    /// Selects the file's row, if it is shown, and leaves the scroll alone.
+    private func selectWithoutScrolling(_ url: URL?) {
+        guard let url else { return }
+        let target = url.standardizedFileURL
+        let row = (0..<outlineView.numberOfRows).first {
+            (outlineView.item(atRow: $0) as? FileNode)?.url.standardizedFileURL == target
+        }
+        guard let row else { return }
+        outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+        refreshRowTextColors()
+    }
+
+    /// Reloads the outline from disk while preserving expansion state and
+    /// where it is scrolled. Selection is left to the caller.
+    private func refreshTree() {
+        let expandedURLs = workspace?.expandedFolderURLs ?? collectExpandedURLs()
+        keepingScrollPosition {
+            if let rootNode { invalidateCaches(rootNode) }
+            reloadBookmarkNodes()
+            outlineView.reloadData()
+            expandBookmarksGroupIfNeeded()
+            if let rootNode {
+                if workspace == nil {
+                    outlineView.expandItem(rootNode)
+                    reExpand(rootNode, expanded: expandedURLs)
+                } else {
+                    restoreWorkspaceExpansionState()
+                }
             }
         }
         syncWatchers()
@@ -412,8 +535,16 @@ final class ProjectNavigatorView: NSView {
         workspace?.setExpandedFolderURLs(collectExpandedURLs(), source: self)
     }
 
+    /// Selects the open file's row, expanding its folders. The tree scrolls
+    /// to it only when the open file changed to one not picked by clicking
+    /// its row here (a link, OmniSearch, a new tab): a clicked row is
+    /// already in view, and re-selecting the same file never moves the tree.
     func setCurrentFile(_ url: URL?) {
+        let previous = currentFileURL
         currentFileURL = url?.standardizedFileURL
+        let clicked = clickedFileURL
+        clickedFileURL = nil
+        let scrolls = currentFileURL != previous && currentFileURL != clicked
         guard let url, let rootNode else {
             outlineView.deselectAll(nil)
             return
@@ -435,11 +566,14 @@ final class ProjectNavigatorView: NSView {
             outlineView.expandItem(ancestor)
         }
         publishWorkspaceExpansionState()
+        // A file opened by a click in another tab's tree: this tree starts
+        // where that one was, so the row is in view and nothing moves.
+        if scrolls { adoptSharedScroll() }
         if let leaf = path.last {
             let row = outlineView.row(forItem: leaf)
             if row >= 0 {
                 outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
-                outlineView.scrollRowToVisible(row)
+                if scrolls { outlineView.scrollRowToVisible(row) }
                 refreshRowTextColors()
             }
         }
@@ -487,6 +621,7 @@ final class ProjectNavigatorView: NSView {
             // `shouldSelectItem` keeps the highlight on the committed file,
             // so there's no AppKit selection to undo here — display(markdown:)
             // selects the requested file only after navigation succeeds.
+            clickedFileURL = requestedURL
             onSelectFile?(node.url)
         }
     }
