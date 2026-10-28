@@ -368,7 +368,7 @@
 "Customize the selected theme’s font, spacing and colors. Reset restores that theme’s defaults; global Reading preferences stay unchanged." = "Customize the selected theme’s font, spacing and colors. Reset restores that theme’s defaults; global Reading preferences stay unchanged.";
 "Clicking a link to another Markdown file opens it in a separate window. Turn this off to open it in the current window." = "Clicking a link to another Markdown file opens it in a separate window. Turn this off to open it in the current window.";
 "Customize…" = "Customize…";
-"Each theme remembers its colors, font and layout. Original also remembers your appearance choice. Reset restores the selected theme’s defaults." = "Each theme remembers its colors, font and layout. Original also remembers your appearance choice. Reset restores the selected theme’s defaults.";
+"Each theme remembers its colors, font and layout. Original and Ember also remember your appearance choice. Reset restores the selected theme’s defaults." = "Each theme remembers its colors, font and layout. Original and Ember also remember your appearance choice. Reset restores the selected theme’s defaults.";
 "Fonts, spacing and colors" = "Fonts, spacing and colors";
 "Highlight outline section under the pointer" = "Highlight outline section under the pointer";
 "Open Markdown links in new windows" = "Open Markdown links in new windows";
