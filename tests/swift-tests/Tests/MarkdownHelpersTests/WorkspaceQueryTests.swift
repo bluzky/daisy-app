@@ -425,6 +425,23 @@ final class WorkspaceQueryTests: XCTestCase {
         XCTAssertNil(list.rows.first?.cells, "a list has no cells")
     }
 
+    func testQueryBlockTitleCellsOpenTheirFile() async throws {
+        try write("---\ntitle: Weekly plan\n---\nBody", to: "notes/plan.md")
+        try write("---\ntitle: Weekly plan\n---\nBody", to: "b.md")
+        let index = WorkspaceMetadataIndex(root: root)
+        await index.reconcile()
+        let table = await QueryBlocks.results(
+            for: [QueryBlockRequest(id: "t", source: .notes, text: "$columns:title,file sort:file.name")],
+            index: index).results[0]
+        XCTAssertEqual(table.rows.map { $0.cells?[0].first?.path }, ["b.md", "notes/plan.md"],
+                       "a title opens its file, as the file column does")
+        XCTAssertEqual(table.rows.map { $0.cells?[0].first?.path }, table.rows.map { $0.cells?[1].first?.path })
+        let grouped = await QueryBlocks.results(
+            for: [QueryBlockRequest(id: "g", source: .notes, text: "$group:title")], index: index).results[0]
+        XCTAssertEqual(grouped.groups.map(\.rows.count), [2], "grouping by title still merges a shared title")
+        XCTAssertNil(grouped.groups.first?.label?.path)
+    }
+
     func testTasksRunOnTheQuery() async throws {
         try write("- [ ] b2\n- [ ] b5", to: "b.md")
         try write("- [x] a1", to: "a.md")
