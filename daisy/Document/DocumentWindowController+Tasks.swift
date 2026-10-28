@@ -258,9 +258,11 @@ extension DocumentWindowController {
         return nil
     }
 
-    /// The new buffer stands in for the file in the index now, rather than
-    /// after the usual typing pause. Only when this window counts it in the
-    /// sidebar's index; another workspace sees it once it is saved.
+    /// The new buffer stands in for the file in the index until it is saved
+    /// or discarded, so the Agenda keeps the check rather than showing the
+    /// saved file's. Typed text never does; the index otherwise follows
+    /// saved files. Only when this window counts it in the sidebar's index;
+    /// another workspace sees it once it is saved.
     func updateTaskOverlay(_ markdown: String, url: URL, index: WorkspaceMetadataIndex) {
         guard workspaceIndex === index else { return }
         if let previous = workspaceOverlayURL, previous != url { restoreWorkspaceOverlay() }
