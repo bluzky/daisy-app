@@ -437,6 +437,25 @@ const slashInsertTemplate = (body, { source = "", locale = "en" } = {}) => {
 }
 
 {
+  const { editor } = slashEditor("", { onInsertCarryOver: () => {} })
+  editor.insertTextAt("/carry", 0, 0)
+  check("carry-over command is hidden until the host turns it on",
+    !slashLabels().includes("Carry over unfinished tasks"))
+}
+
+{
+  const requests = []
+  const { host, editor } = slashEditor("Tasks ", { onInsertCarryOver: (at) => requests.push(at) })
+  editor.setCarryOver(true)
+  editor.insertTextAt("/carryover", 6, 6)
+  check("carry-over command is offered on today's entry", slashLabels()[0] === "Carry over unfinished tasks")
+  slashKey(host, "Enter")
+  check("carry-over command removes the typed query and keeps the line", editor.getMarkdown() === "Tasks ")
+  check("carry-over command asks the host at the query position", requests.length === 1 && requests[0] === 6)
+  check("carry-over command closes the menu", !slashVisible())
+}
+
+{
   const { editor } = slashEditor("", { onPickLink: () => {} })
   editor.insertTextAt("/li", 0, 0)
   check("a label prefix outranks an alias prefix", slashLabels()[0] === "Link to File")

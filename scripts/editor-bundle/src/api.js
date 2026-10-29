@@ -54,7 +54,7 @@ window.MDEditor = {
     const moduleEnabled = new Map()
     // Handed to every module: the callbacks the page gave this editor.
     const moduleHost = { callbacks: callbacks || {}, slashTemplates: [], workspaceCandidates: null, metadataLinks: false,
-      queryResults: new Map(), moveBlocks: false }
+      queryResults: new Map(), moveBlocks: false, carryOver: false }
     const moduleOptions = (id) => (callbacks && callbacks.extensionOptions && callbacks.extensionOptions[id]) || {}
     for (const module of editorModules.values()) {
       const enabled = editorModuleEnabled(callbacks && callbacks.extensionState, module.id)
@@ -673,6 +673,8 @@ window.MDEditor = {
       // Whether the slash menu offers `/move`: a saved document in a
       // project folder.
       setMoveBlocks: (enabled) => { moduleHost.moveBlocks = enabled === true },
+      // Whether the slash menu offers `/carryover`: today's journal entry.
+      setCarryOver: (enabled) => { moduleHost.carryOver = enabled === true },
       // Whether `#tag`, `@context` and `+project` read as links and open
       // their page on Cmd+click: true in a workspace window.
       // What Cmd+click at `pos` does: sends the link there to `onOpenLink`

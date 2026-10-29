@@ -875,6 +875,7 @@ nonisolated enum EditorHTML {
             let workspaceCandidates = null;
             let metadataLinks = false;
             let moveBlocks = false;
+            let carryOver = false;
             window.__mdLoadEditor = function (markdown, baseHref, codeLanguage) {
                 const isCode = typeof codeLanguage === "string";
                 document.documentElement.toggleAttribute("data-code-mode", isCode);
@@ -918,6 +919,9 @@ nonisolated enum EditorHTML {
                             post({ kind: "pickMoveTarget", id: move.id, blockKind: move.kind, text: move.text,
                                    firstLine: move.firstLine, lastLine: move.lastLine });
                         },
+                        onInsertCarryOver: function (at) {
+                            post({ kind: "insertCarryOver", at: at });
+                        },
                         onMoveStale: function (id) {
                             post({ kind: "moveStale", id: id });
                         },
@@ -950,6 +954,7 @@ nonisolated enum EditorHTML {
                 if (workspaceCandidates) editor.setWorkspaceCandidates(workspaceCandidates);
                 editor.setMetadataLinks(metadataLinks);
                 editor.setMoveBlocks(moveBlocks);
+                editor.setCarryOver(carryOver);
                 window.__mdEditor = {
                     find: function (query, backwards, options) {
                         return editor.find(query, backwards, options);
@@ -991,6 +996,11 @@ nonisolated enum EditorHTML {
                     setMoveBlocks: function (enabled) {
                         moveBlocks = enabled === true;
                         editor.setMoveBlocks(moveBlocks);
+                    },
+                    // Kept like the templates.
+                    setCarryOver: function (enabled) {
+                        carryOver = enabled === true;
+                        editor.setCarryOver(carryOver);
                     },
                     completeMove: function (id) { return editor.completeMove(id); },
                     applyMove: function (id, expected, next) { return editor.applyMove(id, expected, next); },

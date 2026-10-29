@@ -34,7 +34,7 @@ Download the signed and notarized DMG from [Releases](https://github.com/bluzky/
 - **Edit Mode** — edit Markdown in place (<kbd>⌘E</kbd>), with live syntax preview, table editing, rich-text paste, and pasted or dropped files copied into a `<document>-assets` folder.
 - **Workspaces** — one window frame per folder, with files as tabs. A single click in the Files sidebar opens a preview tab (italic) that the next click replaces.
 - **Bookmarks** — pin files and folders at the top of the Files sidebar.
-- **Slash commands** — type `/` for headings, lists, tables, code, Mermaid, math, callouts, `/today`, `/now`, `/link` and `/move`.
+- **Slash commands** — type `/` for headings, lists, tables, code, Mermaid, math, callouts, `/today`, `/now`, `/link`, `/move` and `/carryover`.
 - **Tags, contexts and projects** — `#tag`, `@context`, `+project`, plus `due:`, `scheduled:` and `p:` on tasks, with suggestions as you type.
 - **Indexed workspaces** — **File → Initialize Workspace** indexes the folder's Markdown files for suggestions, name pages, queries and sidebars. Only saved files are indexed.
 - **Journal** — one entry per day in `journals/`, with an optional template and carry-over of unfinished tasks.
