@@ -407,6 +407,13 @@
 "Mermaid" = "Mermaid";
 "Colorful headings" = "Colorful headings";
 "Slash commands" = "Slash commands";
+"Task metadata" = "Task metadata";
+"Due" = "Due";
+"Scheduled" = "Scheduled";
+"Overdue" = "Overdue";
+"Priority" = "Priority";
+"High" = "High";
+"Low" = "Low";
 "Editor" = "Editor";
 "Lists" = "Lists";
 "Blocks" = "Blocks";
@@ -420,6 +427,17 @@
 "Caution" = "Caution";
 "Today" = "Today";
 "Now" = "Now";
+"Priority: High" = "Priority: High";
+"Priority: Medium" = "Priority: Medium";
+"Priority: Low" = "Priority: Low";
+"Priority: None" = "Priority: None";
+"Due Date" = "Due Date";
+"Schedule" = "Schedule";
+"Clear Due Date" = "Clear Due Date";
+"Clear Schedule" = "Clear Schedule";
+"Task" = "Task";
+"Previous Month" = "Previous Month";
+"Next Month" = "Next Month";
 "Toggle \"%@\" section" = "Toggle \"%@\" section";
 
 /* Quick Capture */
