@@ -86,9 +86,9 @@ These details are proposed defaults to lock down through grammar fixtures before
 | Trigger | Source | Behavior |
 | --- | --- | --- |
 | `/` | Existing commands and templates | Preserve current slash behavior |
-| `#` | Indexed tags plus live buffers | Filter and insert a tag |
-| `@` | Indexed contexts plus live buffers | Filter and insert a context |
-| `+` | Indexed projects plus live buffers | Filter and insert a project |
+| `#` | Indexed tags plus the current buffer | Filter and insert a tag |
+| `@` | Indexed contexts plus the current buffer | Filter and insert a context |
+| `+` | Indexed projects plus the current buffer | Filter and insert a project |
 
 Typing a field key such as `due:`, `scheduled:`, or `p:` does not open a picker; those fields are set with slash commands (below). Typed field text is still parsed as metadata.
 
@@ -185,7 +185,7 @@ Do not require a Swift round-trip on every keystroke.
 - Discover files, run the shared extractor on saved files, and maintain the cache.
 - Watch and reconcile filesystem changes.
 - Aggregate workspace candidates and send versioned snapshots to editors.
-- Coordinate unsaved-buffer overlays across windows and tabs.
+- Coordinate the unsaved-buffer overlay a task check-off leaves, across windows and tabs.
 
 ### One extractor, two hosts
 
@@ -284,7 +284,7 @@ Publish partial results during initial indexing. Show current-buffer suggestions
 
 Reuse existing discovery exclusions where appropriate, classify eligible Markdown consistently, and add explicit file-size and scan-budget limits. Watchers must coalesce changes and avoid following symlinks outside authorized scope.
 
-Unsaved buffers replace, rather than add to, saved-file contributions, in the workspace of the window editing them; other workspaces containing the file pick up the change when it is saved. Deduplicate shared document buffers across tabs; the current editor's version takes precedence for its own suggestions. Closing an unsaved buffer without saving restores the disk contribution.
+The index follows saved files: typing in a buffer changes nothing in it until the file is saved, so other windows see a name once it is saved. The current editor supplies its own file's names from its buffer, leaving out the token being typed, and the index's copy of that file is left out of its suggestions. The one exception is a task checked off from the Agenda into an unsaved buffer: that buffer replaces, rather than adds to, the file's saved contribution in the workspace of the window editing it, deduplicated across tabs, until it is saved or discarded; other workspaces containing the file pick up the change when it is saved.
 
 `/due`, `/schedule`, and the Priority commands work without a workspace index.
 

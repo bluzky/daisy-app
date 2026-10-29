@@ -32,7 +32,7 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
     var pickLinkRequested: ((Int, Int) -> Void)?
     /// The slash menu's `/move`: the block on the caret's line, waiting for
     /// the host to pick where it goes. Nothing is removed until
-    /// `completeMove` (see docs/move-to-file-proposal.md).
+    /// `completeMove` (see docs/technical/move-to-file-proposal.md).
     struct MoveRequest: Equatable {
         let id: Int
         let kind: MarkdownSectionInsertion.BlockKind

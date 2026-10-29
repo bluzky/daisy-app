@@ -5,7 +5,7 @@ import { markdownLanguage } from "@codemirror/lang-markdown"
 import { isolateHistory } from "@codemirror/commands"
 
 // List editing: Enter, Shift-Enter, Backspace, Tab / Shift-Tab and list-style
-// conversion, as specified in docs/list-editing-proposal.md.
+// conversion, as specified in docs/technical/list-editing-proposal.md.
 //
 // Each command reads the list around the selection into a line model, edits
 // the model, renumbers the ordered lists the edit touched, and writes back

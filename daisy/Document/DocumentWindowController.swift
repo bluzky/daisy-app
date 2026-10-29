@@ -84,7 +84,6 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     var workspaceIndexUpdates: Task<Void, Never>?
     /// The file whose unsaved text this window has handed to the index.
     var workspaceOverlayURL: URL?
-    var workspaceOverlayWork: DispatchWorkItem?
     let workspaceOverlayOwner = UUID()
     /// The workspace root's identity when the index was bound, so the Tasks
     /// sidebar never writes into a root swapped for another directory.
@@ -600,6 +599,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         let isFileSwitch = currentFileURL != nil && currentFileURL != url
         currentFileURL = url
         currentMarkdown = nil
+        // Suggestions leave out the shown file's names; now this file's.
+        if workspaceIndex != nil { Task { await refreshWorkspaceCandidates() } }
         pendingEditModeURL = preservingEditMode ? url.standardizedFileURL : nil
         markdownDocument?.replaceFileURL(url)
         documentWindow.title = url.lastPathComponent

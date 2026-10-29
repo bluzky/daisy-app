@@ -1,6 +1,6 @@
 import { EditorView, keymap, dropCursor } from "@codemirror/view"
 import { Compartment, EditorState, Prec, Transaction } from "@codemirror/state"
-import { cursorDocEnd, cursorDocStart, cursorLineBoundaryBackward, cursorLineBoundaryLeft, cursorLineStart, defaultKeymap, history, historyKeymap, indentLess, selectDocEnd, selectDocStart, selectLineBoundaryBackward, selectLineBoundaryLeft, selectLineStart } from "@codemirror/commands"
+import { cursorDocEnd, cursorDocStart, cursorLineBoundaryBackward, cursorLineBoundaryLeft, cursorLineStart, history, historyKeymap, indentLess, selectDocEnd, selectDocStart, selectLineBoundaryBackward, selectLineBoundaryLeft, selectLineStart } from "@codemirror/commands"
 import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete"
 import { markdown, markdownKeymap, markdownLanguage } from "@codemirror/lang-markdown"
 import { yamlFrontmatter } from "@codemirror/lang-yaml"
@@ -9,7 +9,7 @@ import { tags as t } from "@lezer/highlight"
 import { html } from "@codemirror/lang-html"
 import { convertClipboardToMarkdown } from "../clipboard-markdown.mjs"
 import { codeHighlight } from "./code-highlight.js"
-import { codeModeExtensions } from "./code-mode.js"
+import { codeModeExtensions, editorDefaultKeymap } from "./code-mode.js"
 import { codeBackspace, codeDelete, exitCodeBlock, keepCaretOffFences, openCodeFence, pendingFence, settleCodeCaretPlugin } from "./commands/code-fence.js"
 import { applyBlockStyle, enclosingNode, insertLink, setHeading, stylingContext, toggleBlockPrefix, toggleInlineMark } from "./commands/format.js"
 import { indentMarkdownListItems } from "./commands/list-indent.js"
@@ -158,7 +158,7 @@ window.MDEditor = {
             { key: "Tab", run: indentMarkdownListItems, shift: indentLess },
             ...closeBracketsKeymap,
             ...markdownKeymap,
-            ...defaultKeymap,
+            ...editorDefaultKeymap,
             ...historyKeymap,
           ]),
           // Fires on every change; the host debounces for autosave.

@@ -6,8 +6,8 @@
 //  First selection uses the built-in defaults; Reset restores those defaults.
 //  Applying a fixed preset also locks the app's appearance to the preset's
 //  flavor so the native chrome (sidebar,
-//  toolbar) matches. Original remembers its adjustable appearance and
-//  carries a separate dark palette, so both schemes stay readable while
+//  toolbar) matches. Original and Ember remember their adjustable appearance
+//  and carry a separate dark palette, so both schemes stay readable while
 //  the app keeps tracking the system look. The accent color maps to the
 //  link slot — syntax highlighting keeps its own colors.
 //
@@ -192,7 +192,7 @@ nonisolated struct ThemePreset: Identifiable, Equatable, Sendable {
 
     /// The built-in starter set, in gallery order — three rows of three:
     /// the Apple Books set (Original, Quiet, Paper / Bold, Calm, Focus)
-    /// first, then the remaining dark themes. Original leads — it is the
+    /// first, then Ember and the remaining dark themes. Original leads — it is the
     /// default theme.
     ///
     /// Display names are single evocative words in the Apple Books style.
@@ -236,11 +236,14 @@ nonisolated struct ThemePreset: Identifiable, Equatable, Sendable {
                                      text: "#14120B", accent: "#A0630F"),
                     font: .newYork),
         // Warm near-black with cream ink and an amber accent, in a book
-        // serif: the dark counterpart to the serif light themes. Text reads
-        // at ~13:1 and the accent at ~7.8:1 on the page.
-        ThemePreset(name: "Ember", flavor: .dark,
-                    palette: Palette(pageBackground: "#1F1B16", codeBackground: "#2A251E",
-                                     text: "#E8DFCF", accent: "#E0A458"),
+        // serif. Follows the system appearance: the light half is a warm
+        // parchment with dark-brown ink (~13.7:1) and a deeper amber accent
+        // (~5.6:1); the dark half reads at ~11.3:1 and the accent at ~6.9:1.
+        ThemePreset(name: "Ember", flavor: .system,
+                    palette: Palette(pageBackground: "#F6EFE3", codeBackground: "#ECE2D1",
+                                     text: "#2B2219", accent: "#8F4E0E"),
+                    darkPalette: Palette(pageBackground: "#2B2620", codeBackground: "#37312A",
+                                         text: "#E8DFCF", accent: "#E0A458"),
                     font: .iowan),
         // Bear "Solarized Dark", with the body text lifted from Bear's own
         // #9BA7A4: that reads at about 4.8:1 on this page, the one theme

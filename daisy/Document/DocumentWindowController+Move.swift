@@ -2,7 +2,7 @@
 //  DocumentWindowController+Move.swift
 //  daisy
 //
-//  `/move` (see docs/move-to-file-proposal.md): the editor hands over the
+//  `/move` (see docs/technical/move-to-file-proposal.md): the editor hands over the
 //  block on the caret's line, OmniSearch picks a Markdown file in the
 //  project and a place in it, the block is written there, and only then is
 //  it removed from this buffer, as one undo step of its own. A banner says

@@ -67,8 +67,8 @@ check("unfocused leading heading source stays hidden",
   headingHost.querySelector(".cm-md-heading-source-hidden")?.textContent === "### ")
 headingEditor.focus()
 headingEditor.select(4, 10)
-check("ordinary heading range selection keeps source hidden",
-  headingHost.querySelector(".cm-md-heading-source-hidden")?.textContent === "### ")
+check("a range selection inside a heading keeps its source revealed",
+  headingHost.querySelector(".cm-md-heading-source-hidden") == null)
 const headingContent = headingHost.querySelector(".cm-content")
 headingContent.dispatchEvent(new dom.window.CompositionEvent("compositionstart", { bubbles: true }))
 headingEditor.select(4, 9)
@@ -79,6 +79,23 @@ headingEditor.exec("h0")
 check("Normal Text removes the heading marker",
   headingEditor.getMarkdown() === "Stable heading")
 headingEditor.destroy()
+
+{
+  const host = dom.window.document.createElement("div")
+  dom.window.document.body.appendChild(host)
+  const source = "[Real link](https://example.com)\n\n## Middle heading\n\n## Last heading"
+  const editor = dom.window.MDEditor.create(host, source, {})
+  editor.focus()
+  editor.select(3, 7)
+  check("a range selection inside a link keeps its URL revealed", host.querySelector(".cm-md-url") != null)
+  editor.select(3, 40)
+  check("a selection leaving a link keeps the link it started in revealed", host.querySelector(".cm-md-url") != null)
+  editor.select(3, source.length - 2)
+  const hidden = Array.from(host.querySelectorAll(".cm-md-heading-source-hidden"), (node) => node.textContent)
+  check("a long selection reveals only what holds its ends", hidden.join() === "## "
+    && host.querySelector(".cm-md-url") != null)
+  editor.destroy()
+}
 
 const inactiveHeadingHost = dom.window.document.createElement("div")
 dom.window.document.body.appendChild(inactiveHeadingHost)

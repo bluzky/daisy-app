@@ -144,11 +144,10 @@ extension DocumentWindowController {
         mainSplit?.taskCalendarViewController?.bind(index: index)
         mainSplit?.referencesViewController?.bind(index: index)
         workspaceSnapshotTask = Task { [weak self] in
-            for await snapshot in await index.snapshots() {
-                self?.applyWorkspaceCandidates(snapshot)
+            for await _ in await index.snapshots() {
+                await self?.refreshWorkspaceCandidates()
             }
         }
-        if hasUnsavedEditorChanges { scheduleWorkspaceOverlay() }
         restartQueryBlocks()
     }
 
@@ -166,39 +165,26 @@ extension DocumentWindowController {
         workspaceIndex = nil
     }
 
+    /// The workspace's names without the shown file's: the editor reads that
+    /// file's names from its buffer, without the one being typed.
+    func refreshWorkspaceCandidates() async {
+        guard let index = workspaceIndex else { return }
+        let snapshot = await index.snapshot(excludingNamesOf: currentFileURL)
+        // The window may have moved to another workspace meanwhile.
+        guard index === workspaceIndex else { return }
+        applyWorkspaceCandidates(snapshot)
+    }
+
     private func applyWorkspaceCandidates(_ snapshot: WorkspaceMetadataSnapshot) {
         workspaceCandidates = snapshot
         mainSplit?.editorViewController?.setWorkspaceCandidates(snapshot)
     }
 
-    /// Hands the editor's unsaved text to the index shortly after typing
-    /// stops, so other windows on the workspace see its names. This window's
-    /// own editor already reads them from its buffer.
-    func scheduleWorkspaceOverlay() {
-        guard workspaceIndex != nil, !isCodeFile else { return }
-        workspaceOverlayWork?.cancel()
-        let work = DispatchWorkItem { [weak self] in
-            guard let self, let editor = self.mainSplit?.editorViewController else { return }
-            editor.fetchMarkdown { [weak self] markdown in
-                guard let self, let markdown, self.hasUnsavedEditorChanges,
-                      let index = self.workspaceIndex, let url = self.currentFileURL else { return }
-                if let previous = self.workspaceOverlayURL, previous != url {
-                    self.restoreWorkspaceOverlay()
-                }
-                self.workspaceOverlayURL = url
-                let owner = self.workspaceOverlayOwner
-                self.enqueueWorkspaceIndexUpdate { await index.setOverlay(markdown, for: url, owner: owner) }
-            }
-        }
-        workspaceOverlayWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
-    }
-
     /// Takes this window's unsaved text out of the index; the file on disk
-    /// counts again, saved or not.
+    /// counts again, saved or not. Typing never puts it there: the index
+    /// follows saved files, except a task checked off into an unsaved
+    /// buffer (`updateTaskOverlay`).
     func restoreWorkspaceOverlay() {
-        workspaceOverlayWork?.cancel()
-        workspaceOverlayWork = nil
         guard let url = workspaceOverlayURL, let index = workspaceIndex else { return }
         workspaceOverlayURL = nil
         let owner = workspaceOverlayOwner
