@@ -4,7 +4,7 @@
 //
 //  What the Tasks sidebar asks of its window: open a task's file at the
 //  task, reveal it in Files, and check it off or back on. A check-off goes
-//  one of three ways (see docs/tasks-sidebar-proposal.md):
+//  one of three ways (see docs/technical/tasks-sidebar-proposal.md):
 //
 //  - The file is open in Edit Mode or has unsaved edits: the marker is
 //    flipped in that window's buffer, and saves with everything else.
