@@ -1,5 +1,5 @@
 // Editor smoke tests: constructing the editor, round-trips and paste.
-import { dom, doc, check, paste } from "./harness.mjs"
+import { dom, doc, check, paste, keyHost } from "./harness.mjs"
 
 let editor
 try {
@@ -75,3 +75,18 @@ const tableCell = tablePasteHost.querySelector(".cm-md-table-cell")
 const tablePaste = tableCell && paste(tableCell, { html: "<p><strong>New</strong></p>" })
 check("table cells retain native paste handling", tablePaste != null && !tablePaste.defaultPrevented)
 tablePasteEditor.destroy()
+
+// ⌘[ and ⌘] are the app's Back and Forward: the editor must leave them
+// unhandled so they reach the menu. Ctrl covers jsdom's non-Mac platform.
+for (const [name, options] of [["Markdown", {}], ["code", { codeLanguage: "swift" }]]) {
+  const historyHost = keyHost()
+  const historyEditor = dom.window.MDEditor.create(historyHost, "- item\n", options)
+  const handled = ["[", "]"].flatMap((key) => [{ metaKey: true }, { ctrlKey: true }].map((modifier) => {
+    const event = new dom.window.KeyboardEvent("keydown", { key, ...modifier, bubbles: true, cancelable: true })
+    historyHost.querySelector(".cm-content").dispatchEvent(event)
+    return event.defaultPrevented
+  }))
+  check(`${name} editor leaves ⌘[ and ⌘] to Back and Forward`,
+    !handled.includes(true) && historyEditor.getMarkdown() === "- item\n")
+  historyEditor.destroy()
+}
