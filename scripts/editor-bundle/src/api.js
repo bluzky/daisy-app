@@ -27,7 +27,7 @@ import { activeCodeBlock, anchoredPointerSelection, pointerPreview, stablePointe
 import { readWorkspaceCandidates, workspaceCandidatesChanged } from "./metadata-completion.js"
 import { metadataLinksChanged } from "./metadata-links.js"
 import { queryResultsChanged, readQueryResults } from "./query-blocks.js"
-import { linkOpening, openLinkAt } from "./link-open.js"
+import { linkOpening, openLinkAt, openLinkAtCaret } from "./link-open.js"
 import { applyMove, completeMove, forgetMove, moveTracking, removalPreview, replaceIfUnchanged, undoMove } from "./move-block.js"
 import { slashTemplatesChanged } from "./slash.js"
 import { tableEditors } from "./table/editors.js"
@@ -680,6 +680,8 @@ window.MDEditor = {
       // What Cmd+click at `pos` does: sends the link there to `onOpenLink`
       // and returns it, or returns null.
       openLinkAt: (pos) => openLinkAt(view, pos, callbacks),
+      // The same for the link at the caret (Go ▸ Open Link at Caret).
+      openLinkAtCaret: () => openLinkAtCaret(view, callbacks),
       // Results for the document's ```tasks and ```notes blocks, as
       // `[{ id, source, problems, rows, empty }]`, replacing the ones held;
       // null clears them, so every block shows as code again.

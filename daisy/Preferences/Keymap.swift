@@ -37,6 +37,7 @@ enum KeymapCommand: String, CaseIterable, Hashable {
     case goTodayJournal = "go.todayJournal"
     case goPreviousJournalEntry = "go.previousJournalEntry"
     case goNextJournalEntry = "go.nextJournalEntry"
+    case goOpenLinkAtCaret = "go.openLinkAtCaret"
 
     case goLineUp = "go.lineUp"
     case goLineDown = "go.lineDown"
@@ -91,7 +92,7 @@ enum KeymapCommand: String, CaseIterable, Hashable {
              .formatBold, .formatItalic, .formatStrikethrough,
              .formatInlineCode, .formatLink, .formatBulletList,
              .formatOrderedList, .formatChecklist, .formatQuote,
-             .insertLinkToFile, .insertCarriedOverTasks:
+             .insertLinkToFile, .insertCarriedOverTasks, .goOpenLinkAtCaret:
             .editing
         case .searchSelectPrevious, .searchSelectNext, .searchOpenResult,
              .searchOpenResultInNewTab, .searchOpenResultInNewWindow:
@@ -121,6 +122,7 @@ enum KeymapCommand: String, CaseIterable, Hashable {
         case .goTodayJournal: "Today’s Journal"
         case .goPreviousJournalEntry: "Previous Journal Entry"
         case .goNextJournalEntry: "Next Journal Entry"
+        case .goOpenLinkAtCaret: "Open Link at Caret"
         case .goLineUp: "Up"
         case .goLineDown: "Down"
         case .goPageUp: "Page Up"
@@ -500,7 +502,7 @@ struct Keymap {
             ("shift+cmd+x", .formatStrikethrough), ("shift+cmd+m", .formatInlineCode),
             ("shift+cmd+7", .formatBulletList),
             ("shift+cmd+9", .formatOrderedList), ("shift+cmd+l", .formatChecklist),
-            ("cmd+'", .formatQuote)
+            ("cmd+'", .formatQuote), ("cmd+.", .goOpenLinkAtCaret)
         ]),
         .search: pairs([
             ("up", .searchSelectPrevious), ("down", .searchSelectNext),

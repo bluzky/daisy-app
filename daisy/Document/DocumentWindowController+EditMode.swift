@@ -34,6 +34,18 @@ extension DocumentWindowController {
         mainSplit?.editorViewController?.exec(command)
     }
 
+    /// Go ▸ Open Link at Caret: opens the link, `#tag`, `@context` or
+    /// `+project` at the caret the way Cmd+click does; beeps when there is none.
+    func openLinkAtCaretFromMenu() {
+        guard canFormatMarkdown, let editor = mainSplit?.editorViewController else {
+            NSSound.beep()
+            return
+        }
+        editor.openLinkAtCaret { opened in
+            if !opened { NSSound.beep() }
+        }
+    }
+
     var hasPendingEditorChanges: Bool {
         hasUnsavedEditorChanges || isEditorCommitInFlight
     }

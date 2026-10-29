@@ -635,6 +635,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return activeDocumentWindowController?.canInsertLinkToFile ?? false
         case #selector(insertCarriedOverTasksFromMenu(_:)):
             return activeDocumentWindowController?.canInsertCarriedOverTasks ?? false
+        case #selector(openLinkAtCaretFromMenu(_:)):
+            return activeDocumentWindowController?.canFormatMarkdown ?? false
         default:
             return true
         }
@@ -911,6 +913,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case #selector(DocumentWindowController.openNextJournalEntry(_:)): return .goNextJournalEntry
         case #selector(insertLinkToFileFromMenu(_:)): return .insertLinkToFile
         case #selector(insertCarriedOverTasksFromMenu(_:)): return .insertCarriedOverTasks
+        case #selector(openLinkAtCaretFromMenu(_:)): return .goOpenLinkAtCaret
         case #selector(NSResponder.scrollLineUp(_:)): return .goLineUp
         case #selector(NSResponder.scrollLineDown(_:)): return .goLineDown
         case #selector(NSResponder.scrollPageUp(_:)): return .goPageUp
@@ -1114,6 +1117,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                               keyEquivalent: "]",
                               modifiers: .command,
                               symbol: "chevron.forward"))
+        // Edit Mode only; Read mode follows a link with a click.
+        let openLinkItem = makeItem("Open Link at Caret",
+                                    action: #selector(openLinkAtCaretFromMenu(_:)),
+                                    keyEquivalent: ".",
+                                    modifiers: .command,
+                                    symbol: "arrow.up.right.square")
+        openLinkItem.target = self
+        menu.addItem(openLinkItem)
 
         menu.addItem(.separator())
 
@@ -1579,6 +1590,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func insertCarriedOverTasksFromMenu(_ sender: Any?) {
         activeDocumentWindowController?.insertCarriedOverTasksFromMenu()
+    }
+
+    @objc private func openLinkAtCaretFromMenu(_ sender: Any?) {
+        activeDocumentWindowController?.openLinkAtCaretFromMenu()
     }
 
     @objc private func formatMarkdownFromMenu(_ sender: NSMenuItem) {

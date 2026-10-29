@@ -728,6 +728,14 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
         }
     }
 
+    /// Opens the link, `#tag`, `@context` or `+project` at the caret through
+    /// `linkActivated`, like Cmd+click; false when there is none.
+    func openLinkAtCaret(_ completion: @escaping (Bool) -> Void) {
+        webView.evaluateJavaScript("window.__mdEditor && window.__mdEditor.openLinkAtCaret() !== null") { result, _ in
+            completion(result as? Bool ?? false)
+        }
+    }
+
     func insertLink(text: String, url: String, from: Int, to: Int) {
         let script = "window.__mdEditor && window.__mdEditor.insertLinkFromPopover(\(EditorHTML.jsStringLiteral(text)), \(EditorHTML.jsStringLiteral(url)), \(from), \(to))"
         webView.evaluateJavaScript(script) { _, _ in }

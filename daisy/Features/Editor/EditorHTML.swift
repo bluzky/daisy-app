@@ -972,6 +972,7 @@ nonisolated enum EditorHTML {
                     setBlockStyle: function (style, language) { return editor.setBlockStyle(style, language); },
                     setListStyle: function (style) { return editor.setListStyle(style); },
                     getLinkSelection: function (expandLink) { return editor.getLinkSelection(expandLink); },
+                    openLinkAtCaret: function () { return editor.openLinkAtCaret(); },
                     select: function (anchor, head) { editor.select(anchor, head); },
                     insertLinkFromPopover: function (text, url, from, to) {
                         return editor.insertLinkFromPopover(text, url, from, to);

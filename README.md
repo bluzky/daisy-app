@@ -31,7 +31,7 @@ Download the signed and notarized DMG from [Releases](https://github.com/bluzky/
 ## Features
 
 - **Read Mode** — native rendering with a document outline and file navigator; task checkboxes save to the file.
-- **Edit Mode** — edit Markdown in place (<kbd>⌘E</kbd>), with live syntax preview, table editing, rich-text paste, and pasted or dropped files copied into a `<document>-assets` folder.
+- **Edit Mode** — edit Markdown in place (<kbd>⌘E</kbd>), with live syntax preview, table editing, rich-text paste, pasted or dropped files copied into a `<document>-assets` folder, and <kbd>⌘.</kbd> to open the link, tag, context or project at the caret.
 - **Workspaces** — one window frame per folder, with files as tabs. A single click in the Files sidebar opens a preview tab (italic) that the next click replaces.
 - **Bookmarks** — pin files and folders at the top of the Files sidebar.
 - **Slash commands** — type `/` for headings, lists, tables, code, Mermaid, math, callouts, `/today`, `/now`, `/link`, `/move` and `/carryover`.
@@ -49,7 +49,7 @@ Download the signed and notarized DMG from [Releases](https://github.com/bluzky/
 - **Themes** — reading themes with font, spacing and color customization; some follow the system light/dark appearance.
 - **Export** — PDF, HTML, PNG and Word (`.docx`, with [custom themes](docs/docx-theme-authoring.md)).
 - **Quick Look** — `.md` previews in Finder, Spotlight and Mail.
-- **Custom shortcuts** — rebind commands in **Settings → Shortcuts** (`~/.config/daisy/keymap.json`).
+- **Custom shortcuts** — rebind commands in **Settings → Shortcuts** (`~/.config/daisy/keymap.json`). See [Keyboard shortcuts](docs/keybindings.md) for the defaults.
 - **Command line** — `daisy .` opens from a shell; `daisy export report.md --format docx --output report.docx`. See [CLI docs](docs/command-line.md). Links use `daisy://file/<absolute path>`.
 
 ### Templates
