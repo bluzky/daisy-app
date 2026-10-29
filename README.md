@@ -40,7 +40,7 @@ Download the signed and notarized DMG from [Releases](https://github.com/bluzky/
 - **Journal** — one entry per day in `journals/`, with an optional template and carry-over of unfinished tasks.
 - **Agenda** — a calendar of scheduled and due tasks (<kbd>⇧⌘I</kbd>); check tasks off from it.
 - **References** — files that link to or mention the open one (<kbd>⇧⌘R</kbd>).
-- **Query blocks** — ```` ```tasks ```` and ```` ```notes ```` blocks list matching tasks or files, e.g. `+daisy -is:done due:<=7d sort:due`, as a list or a `$view:table`.
+- **Query blocks** — ```` ```tasks ```` and ```` ```notes ```` blocks list matching tasks or files, e.g. `+daisy -is:done due:<=7d sort:due`, as a list or a `$view:table`. See [query block guide](docs/query-blocks.md).
 - **Code and text files** — open in a code editor with syntax highlighting; add your own types in **Settings → General**.
 - **Templates** — insert snippets from your own template file; see [Templates](#templates).
 - **Extensions** — code highlighting, callouts, KaTeX, Mermaid and colorful headings, each switchable in **Settings → Extensions**.
