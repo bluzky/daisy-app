@@ -513,6 +513,12 @@ nonisolated extension MarkdownHTML {
       cursor: text;
     }
     .mdp-task-badge svg { flex: none; width: 1.05em; height: 1.05em; }
+    /* A done task's line-through stops at a pill (an atomic inline), so the
+       pill strikes its own text. */
+    .cm-md-task-completed .mdp-task-badge,
+    li.task-list-item:has(input.task-list-item-checkbox:checked) .mdp-task-badge {
+      text-decoration: line-through;
+    }
     .mdp-task-badge-overdue {
       color: var(--mdp-task-red);
       background: color-mix(in srgb, var(--mdp-task-red) 12%, transparent);
@@ -1309,6 +1315,8 @@ nonisolated extension MarkdownHTML {
     .mdp-query-problems { color: var(--mdp-task-red, #d70015); }
     .mdp-query-link { cursor: pointer; }
     .mdp-query-link:hover .mdp-query-plain { text-decoration: underline; }
+    /* A table's title and file cells: the link is the text itself. */
+    .mdp-query-values .mdp-query-link:hover { text-decoration: underline; }
     .mdp-query-token { color: var(--link); cursor: pointer; }
     .mdp-query-token:hover { text-decoration: underline; }
     .mdp-query-detail {
@@ -1328,11 +1336,18 @@ nonisolated extension MarkdownHTML {
       border-bottom: 1px solid var(--grid);
       font-weight: 600;
     }
+    /* A pill like the task badges (`.mdp-task-badge`). */
     .mdp-query-group-count {
+      align-self: center;
+      min-width: 1.6em;
+      padding: 0.08em 0.55em;
+      border-radius: 0.55em;
+      box-sizing: border-box;
+      background: color-mix(in srgb, var(--text) 8%, transparent);
       color: var(--secondary);
-      font-size: 0.85em;
-      font-weight: 400;
+      font: 500 0.72em/1.45 -apple-system, system-ui, sans-serif;
       font-variant-numeric: tabular-nums;
+      text-align: center;
     }
     .mdp-query-none { color: var(--secondary); }
     .mdp-query-group > ul { margin-top: 0.5em; }
@@ -1397,6 +1412,8 @@ nonisolated extension MarkdownHTML {
     }
     .cm-md-query-link { cursor: pointer; }
     .cm-md-query-link:hover .cm-md-query-plain { text-decoration: underline; }
+    /* A table's title and file cells: the link is the text itself. */
+    .cm-md-query-link.cm-md-query-plain:hover { text-decoration: underline; }
     .cm-md-query-token:hover { text-decoration: underline; cursor: pointer; }
     .cm-md-query-detail {
       float: inline-end;
@@ -1415,11 +1432,18 @@ nonisolated extension MarkdownHTML {
       border-bottom: 1px solid var(--grid);
       font-weight: 600;
     }
+    /* A pill like the task badges (`.mdp-task-badge`). */
     .cm-md-query-group-count {
+      align-self: center;
+      min-width: 1.6em;
+      padding: 0.08em 0.55em;
+      border-radius: 0.55em;
+      box-sizing: border-box;
+      background: color-mix(in srgb, var(--text) 8%, transparent);
       color: var(--secondary);
-      font-size: 0.85em;
-      font-weight: 400;
+      font: 500 0.72em/1.45 -apple-system, system-ui, sans-serif;
       font-variant-numeric: tabular-nums;
+      text-align: center;
     }
     .cm-md-query-none { color: var(--secondary); }
     /* As the document's tables (`.cm-md-table-grid`). */
