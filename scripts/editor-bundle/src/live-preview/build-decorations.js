@@ -49,14 +49,18 @@ export function buildDecorations(view, detectedCodeCache) {
   // clicks the editor. Only reveal source syntax when the editor truly has
   // keyboard focus; otherwise the first block looks spuriously active.
   // Keep source syntax visible for an insertion caret and while an IME
-  // composition owns a non-empty selection. Ordinary range selections stay
-  // in live-preview form, so Cmd-A and drag selections do not reveal every
-  // Markdown marker they span.
+  // composition owns a non-empty selection. A range selection reveals only
+  // what holds its two ends, so selecting from inside a heading or link
+  // keeps its markup where it was, while Cmd-A and long drags do not reveal
+  // every Markdown marker they span.
   const sourceCaret = focused && (sel.empty || view.compositionStarted)
     ? sel.head
     : null
+  const revealPoints = sourceCaret != null ? [sourceCaret]
+    : focused ? [sel.anchor, sel.head]
+    : []
   const touches = (from, to) => currentFindTouches(state, from, to)
-    || (sourceCaret != null && sourceCaret >= from && sourceCaret <= to)
+    || revealPoints.some((point) => point >= from && point <= to)
   const touchesLineOf = (pos) => {
     const line = state.doc.lineAt(pos)
     return touches(line.from, line.to)
