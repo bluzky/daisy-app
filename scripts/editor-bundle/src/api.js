@@ -28,6 +28,7 @@ import { tableEditors } from "./table/editors.js"
 import { escapedTableCell } from "./table/model.js"
 import { captureTableSelection, prepareTableFormatting, restoreTableFormatting, tableCellSourceRange, tableFormattingCallbacks, tableFormattingSelection, tableFormattingTargets, tableInlineCommands } from "./table/selection.js"
 import { continueTaskList, cycleListItemState } from "./task-list.js"
+import { extractMetadata } from "./workspace-metadata.js"
 import { codeCopyHandlers, unwrappedCodeBlocks } from "./widgets/code.js"
 
 // ---------------------------------------------------------------------------
@@ -35,6 +36,7 @@ import { codeCopyHandlers, unwrappedCodeBlocks } from "./widgets/code.js"
 // ---------------------------------------------------------------------------
 
 window.MDEditor = {
+  extractWorkspaceMetadata: extractMetadata,
   create(parent, doc, callbacks) {
     let jumpToDocEdge = () => false
     const onDirty = callbacks && callbacks.onDirty
