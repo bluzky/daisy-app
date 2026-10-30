@@ -32,6 +32,14 @@ final class KeymapTests: XCTestCase {
         XCTAssertEqual(Keymap().conflicts(for: binding, in: .global), [.viewToggleReferences])
     }
 
+    func testOpenLinkAtCaretDefaultsToCommandPeriodWhileEditing() {
+        let binding = KeyBinding(string: "cmd+.")!
+        XCTAssertEqual(KeymapCommand.goOpenLinkAtCaret.context, .editing)
+        XCTAssertEqual(KeymapCommand.goOpenLinkAtCaret.titleKey, "Open Link at Caret")
+        XCTAssertEqual(Keymap.defaultBindings(for: .goOpenLinkAtCaret), [binding])
+        XCTAssertEqual(Keymap().conflicts(for: binding, in: .editing), [.goOpenLinkAtCaret])
+    }
+
     func testSettingsRewriteMigratesLegacyInspectorID() throws {
         var file = try KeymapFile(data: Data("""
         { "global": { "ctrl+shift+cmd+i": "view.toggleInspector" } }

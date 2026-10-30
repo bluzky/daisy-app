@@ -4,9 +4,9 @@
 //
 //  The workspace journal in a window: the toolbar's Journal calendar, the
 //  Go menu's Today's Journal, Previous Entry and Next Entry, and Insert ▸
-//  Unfinished Tasks from Earlier Days. Each works only
-//  in a workspace window, and only while the Journal extension is on
-//  (`JournalSetting`); entries live in `journals/` (see `WorkspaceJournal`).
+//  Unfinished Tasks from Earlier Days (also the slash menu's `/carryover`).
+//  Each works only in a workspace window, and only while the Journal
+//  extension is on (`JournalSetting`); entries live in `journals/` (see `WorkspaceJournal`).
 //
 
 import Cocoa
@@ -90,7 +90,13 @@ extension DocumentWindowController {
     /// Insert ▸ Unfinished Tasks from Earlier Days: in Edit Mode on today's
     /// entry, whether or not carry-over is on for new entries.
     var canInsertCarriedOverTasks: Bool {
-        canFormatMarkdown && journalRootURL != nil && currentJournalDay == JournalDay(date: Date())
+        canFormatMarkdown && canCarryOverTasks
+    }
+
+    /// Whether the slash menu offers `/carryover`: today's entry, while the
+    /// Journal extension is on. Decided when Edit Mode starts.
+    var canCarryOverTasks: Bool {
+        journalRootURL != nil && currentJournalDay == JournalDay(date: Date())
     }
 
     /// Moves the earlier days' unfinished tasks to the caret, on lines of

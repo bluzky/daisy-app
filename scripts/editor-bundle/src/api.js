@@ -27,7 +27,7 @@ import { activeCodeBlock, anchoredPointerSelection, pointerPreview, stablePointe
 import { readWorkspaceCandidates, workspaceCandidatesChanged } from "./metadata-completion.js"
 import { metadataLinksChanged } from "./metadata-links.js"
 import { queryResultsChanged, readQueryResults } from "./query-blocks.js"
-import { linkOpening, openLinkAt } from "./link-open.js"
+import { linkOpening, openLinkAt, openLinkAtCaret } from "./link-open.js"
 import { applyMove, completeMove, forgetMove, moveTracking, removalPreview, replaceIfUnchanged, undoMove } from "./move-block.js"
 import { slashTemplatesChanged } from "./slash.js"
 import { tableEditors } from "./table/editors.js"
@@ -54,7 +54,7 @@ window.MDEditor = {
     const moduleEnabled = new Map()
     // Handed to every module: the callbacks the page gave this editor.
     const moduleHost = { callbacks: callbacks || {}, slashTemplates: [], workspaceCandidates: null, metadataLinks: false,
-      queryResults: new Map(), moveBlocks: false }
+      queryResults: new Map(), moveBlocks: false, carryOver: false }
     const moduleOptions = (id) => (callbacks && callbacks.extensionOptions && callbacks.extensionOptions[id]) || {}
     for (const module of editorModules.values()) {
       const enabled = editorModuleEnabled(callbacks && callbacks.extensionState, module.id)
@@ -673,11 +673,15 @@ window.MDEditor = {
       // Whether the slash menu offers `/move`: a saved document in a
       // project folder.
       setMoveBlocks: (enabled) => { moduleHost.moveBlocks = enabled === true },
+      // Whether the slash menu offers `/carryover`: today's journal entry.
+      setCarryOver: (enabled) => { moduleHost.carryOver = enabled === true },
       // Whether `#tag`, `@context` and `+project` read as links and open
       // their page on Cmd+click: true in a workspace window.
       // What Cmd+click at `pos` does: sends the link there to `onOpenLink`
       // and returns it, or returns null.
       openLinkAt: (pos) => openLinkAt(view, pos, callbacks),
+      // The same for the link at the caret (Go ▸ Open Link at Caret).
+      openLinkAtCaret: () => openLinkAtCaret(view, callbacks),
       // Results for the document's ```tasks and ```notes blocks, as
       // `[{ id, source, problems, rows, empty }]`, replacing the ones held;
       // null clears them, so every block shows as code again.

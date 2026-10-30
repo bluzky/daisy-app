@@ -53,6 +53,10 @@ extension DocumentWindowController {
         editor.moveBecameStale = { [weak self] id in
             self?.moveBecameStale(id)
         }
+        editor.setCarryOverEnabled(canCarryOverTasks)
+        editor.insertCarryOverRequested = { [weak self] in
+            self?.insertCarriedOverTasksFromMenu()
+        }
         editor.projectFilesDropped = { [weak self] files, position in
             self?.insertDroppedFiles(files, at: position)
         }
@@ -518,6 +522,7 @@ extension DocumentWindowController {
         split.editorViewController?.pickLinkRequested = nil
         split.editorViewController?.pickMoveTargetRequested = nil
         split.editorViewController?.moveBecameStale = nil
+        split.editorViewController?.insertCarryOverRequested = nil
         split.editorViewController?.projectFilesDropped = nil
         dismissMoveBanner()
         split.editorViewController?.imageClicked = nil

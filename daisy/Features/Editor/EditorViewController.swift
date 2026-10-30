@@ -42,6 +42,9 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
         let lastLine: Int
     }
     var pickMoveTargetRequested: ((MoveRequest) -> Void)?
+    /// The slash menu's `/carryover`: the host moves the earlier days'
+    /// unfinished tasks to the caret, where the typed `/carryover` was.
+    var insertCarryOverRequested: (() -> Void)?
     /// Files dragged from the Files sidebar and dropped at a document
     /// position; the host inserts them like pasted files. Nil refuses drops.
     var projectFilesDropped: (([URL], Int) -> Void)?
@@ -265,6 +268,8 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
     private var metadataLinksEnabled = false
     /// Whether the slash menu offers `/move`. Kept like the metadata links.
     private var moveBlocksEnabled = false
+    /// Whether the slash menu offers `/carryover`. Kept like the metadata links.
+    private var carryOverEnabled = false
 
     /// Shows `results` in place of their blocks; nil shows every block as code.
     func showQueryResults(_ results: [QueryBlockResult]?) {
@@ -292,6 +297,19 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
     private func applyMoveBlocksEnabled() {
         webView.evaluateJavaScript(
             "window.__mdEditor && window.__mdEditor.setMoveBlocks(\(moveBlocksEnabled))"
+        ) { _, _ in }
+    }
+
+    func setCarryOverEnabled(_ enabled: Bool) {
+        guard enabled != carryOverEnabled else { return }
+        carryOverEnabled = enabled
+        guard hasLoadedEditorPage else { return }
+        applyCarryOverEnabled()
+    }
+
+    private func applyCarryOverEnabled() {
+        webView.evaluateJavaScript(
+            "window.__mdEditor && window.__mdEditor.setCarryOver(\(carryOverEnabled))"
         ) { _, _ in }
     }
 
@@ -710,6 +728,14 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
         }
     }
 
+    /// Opens the link, `#tag`, `@context` or `+project` at the caret through
+    /// `linkActivated`, like Cmd+click; false when there is none.
+    func openLinkAtCaret(_ completion: @escaping (Bool) -> Void) {
+        webView.evaluateJavaScript("window.__mdEditor && window.__mdEditor.openLinkAtCaret() !== null") { result, _ in
+            completion(result as? Bool ?? false)
+        }
+    }
+
     func insertLink(text: String, url: String, from: Int, to: Int) {
         let script = "window.__mdEditor && window.__mdEditor.insertLinkFromPopover(\(EditorHTML.jsStringLiteral(text)), \(EditorHTML.jsStringLiteral(url)), \(from), \(to))"
         webView.evaluateJavaScript(script) { _, _ in }
@@ -783,6 +809,7 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
                 applyWorkspaceCandidates()
                 applyMetadataLinksEnabled()
                 applyMoveBlocksEnabled()
+                applyCarryOverEnabled()
                 editorDidBecomeReady?()
             case "cancel":
                 cancelRequested?()
@@ -821,6 +848,8 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
             guard let from = payload["from"] as? NSNumber,
                   let to = payload["to"] as? NSNumber else { return }
             pickLinkRequested?(from.intValue, to.intValue)
+        case "insertCarryOver":
+            insertCarryOverRequested?()
         case "pickMoveTarget":
             guard let id = payload["id"] as? Int,
                   let kind = (payload["blockKind"] as? String).flatMap(MarkdownSectionInsertion.BlockKind.init),

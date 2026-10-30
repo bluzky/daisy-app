@@ -68,6 +68,7 @@ const SLASH_ICONS = {
   schedule: '<rect x="3.5" y="4.5" width="13" height="12" rx="2"/><path d="M3.5 8.5h13M7 3v3M13 3v3M7.5 12.5l1.8 1.8 3.4-3.6"/>',
   clear: '<path d="M6 6l8 8M14 6l-8 8"/>',
   field: '<path d="M4 10.5V4.5a1 1 0 011-1h6l5.5 5.5-7 7L4 10.5z"/><circle cx="7.5" cy="7" r="1"/>',
+  carryover: '<rect x="3.5" y="10" width="6.5" height="6.5" rx="1.5"/><path d="M6.75 7.5V7a3 3 0 013-3h6.5M13.5 1.5L16 4l-2.5 2.5"/>',
   move: '<path d="M3.5 10h9M9.5 6.5L13 10l-3.5 3.5M16.5 4.5v11"/>',
   templates: '<path d="M6 3.5h5.5L15 7v8.5a1 1 0 01-1 1H6a1 1 0 01-1-1v-11a1 1 0 011-1z"/><path d="M11.5 3.5V7H15M7.5 10.5h5M7.5 13.5h5"/>',
 }
@@ -91,6 +92,10 @@ const SLASH_HOST_ACTIONS = {
     available: (callbacks) => typeof callbacks.onPickMoveTarget === "function",
     run: (callbacks, position, view) => startMove(view, position, callbacks),
     trimLine: true,
+  },
+  insertCarryOver: {
+    available: (callbacks) => typeof callbacks.onInsertCarryOver === "function",
+    run: (callbacks, position) => callbacks.onInsertCarryOver(position),
   },
 }
 
@@ -150,6 +155,9 @@ const SLASH_COMMANDS = [
     insert: (now) => slashDate(now) },
   { id: "now", group: "insert", label: "Now", aliases: ["now", "time", "datetime", "date"],
     insert: (now) => `${slashDate(now)} ${slashTime(now)}` },
+  // Only on today's journal entry; see `setCarryOver`.
+  { id: "carryover", group: "insert", label: "Carry over unfinished tasks",
+    aliases: ["carryover", "carry", "unfinished", "tasks", "journal"], host: "insertCarryOver" },
   // Only on a line with something to move; see `slashTrigger`.
   { id: "move", group: "actions", label: "Move to…", aliases: [], host: "pickMove" },
 ]
@@ -449,7 +457,8 @@ function slashExtensions(options, host) {
     if (level !== "root") return fieldItems(level, session)
     const label = templatesLabel
     return [
-      ...commands.filter((command) => command.id !== "move" || (session.movable && host.moveBlocks)),
+      ...commands.filter((command) => (command.id !== "move" || (session.movable && host.moveBlocks)) &&
+        (command.id !== "carryover" || host.carryOver)),
       ...(templates.length ? [{
         ...SLASH_TEMPLATES_ENTRY,
         label,
