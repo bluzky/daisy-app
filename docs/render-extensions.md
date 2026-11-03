@@ -52,6 +52,28 @@ adds) and `options` (plain string pairs, such as localized labels, passed to
 the module's `extensions(options, host)` at creation; `host.callbacks` holds the
 callbacks the page gave the editor).
 
+### Host state
+
+The Settings toggle is app-wide. An extension that also needs a value per
+window, such as whether the window hides completed tasks, reads it as host
+state: `MainSplitViewController.setExtensionHostState(_:for:)` keeps a
+`[extension id: Bool]` map for the window and sends it to both surfaces,
+including an editor created later.
+
+- **Read mode:** `MarkdownWebView.extensionHostState` writes each entry as a
+  `data-mdp-<id>` attribute on `<html>`, present while the value is true, on
+  every page load and on each change, then calls `MdPreview.reapplyExtensions`.
+  A stylesheet keyed on the attribute needs no script.
+- **Editor:** `EditorViewController.setExtensionHostState` sends the map with
+  `__mdEditor.setHostState`. A module reads its own value with
+  `hostFlag(host, id)` from `scripts/editor-bundle/src/extensions.js`, a state
+  field that starts false and follows the host.
+
+Quick Look and export never set host state. `hide-completed-tasks` is the
+first extension built on it (`HideCompletedTasksExtension`,
+`scripts/editor-bundle/src/hide-completed-tasks.js`); its value comes from the
+app-wide View ▸ Hide Completed Tasks setting, which every window passes in.
+
 A slash command normally carries a template (`convert`). One with `host` names a
 host action instead (`SLASH_HOST_ACTIONS`, e.g. `pickImage`), posts a message to
 the app, and is hidden when the page has no matching callback. One with
@@ -117,6 +139,8 @@ mirrors excluded from find use `data-mdp-search-exclude`.
    module with `registerEditorExtension` (see `scripts/editor-bundle/src/`), rebuild with `npm run build`
    there, and add a case to the matching section in `scripts/editor-bundle/smoke/`
    (`smoke-test.mjs` runs the sections in order).
+7. For a value per window, pass it as host state (see [Host state](#host-state))
+   rather than adding a separate setter through each layer.
 
 Run:
 

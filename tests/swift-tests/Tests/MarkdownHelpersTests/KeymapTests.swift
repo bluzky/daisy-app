@@ -32,6 +32,15 @@ final class KeymapTests: XCTestCase {
         XCTAssertEqual(Keymap().conflicts(for: binding, in: .global), [.viewToggleReferences])
     }
 
+    func testHideCompletedTasksDefaultsToShiftCommandH() {
+        let binding = KeyBinding(string: "shift+cmd+h")!
+        XCTAssertEqual(KeymapCommand.viewToggleCompletedTasks.context, .global)
+        XCTAssertEqual(KeymapCommand.viewToggleCompletedTasks.rawValue, "view.toggleCompletedTasks")
+        XCTAssertEqual(KeymapCommand.viewToggleCompletedTasks.titleKey, "Hide Completed Tasks")
+        XCTAssertEqual(Keymap.defaultBindings(for: .viewToggleCompletedTasks), [binding])
+        XCTAssertEqual(Keymap().conflicts(for: binding, in: .global), [.viewToggleCompletedTasks])
+    }
+
     func testOpenLinkAtCaretDefaultsToCommandPeriodWhileEditing() {
         let binding = KeyBinding(string: "cmd+.")!
         XCTAssertEqual(KeymapCommand.goOpenLinkAtCaret.context, .editing)

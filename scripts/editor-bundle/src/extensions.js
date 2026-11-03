@@ -1,5 +1,5 @@
 import { EditorView } from "@codemirror/view"
-import { Prec } from "@codemirror/state"
+import { Prec, StateEffect, StateField } from "@codemirror/state"
 import { mermaidPreviews } from "./mermaid-previews.js"
 
 // ---------------------------------------------------------------------------
@@ -28,6 +28,25 @@ export function editorModuleExtensions(module, options, host) {
     case "highest": return Prec.highest(extensions)
     default: return extensions
   }
+}
+
+// Per-window state the host keeps for modules, keyed by module id (see
+// `MainSplitViewController.setExtensionHostState`). `setHostState` on the
+// editor replaces the whole map and dispatches this effect with it.
+export const hostStateChanged = StateEffect.define()
+
+// A module's own on/off host value as a state field: false until the host
+// sets it. Put the field in the module's extensions before anything that
+// reads it.
+export function hostFlag(host, id) {
+  const read = (state) => !!state && state[id] === true
+  return StateField.define({
+    create: () => read(host.hostState),
+    update(value, transaction) {
+      for (const effect of transaction.effects) if (effect.is(hostStateChanged)) value = read(effect.value)
+      return value
+    },
+  })
 }
 
 // A module the host says nothing about stays on, so headless hosts that pass

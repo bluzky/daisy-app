@@ -266,6 +266,9 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
     /// Whether metadata tokens read as links (workspace windows). Kept here
     /// and sent again to each fresh page, like the candidates.
     private var metadataLinksEnabled = false
+    /// Per-window state for editor modules, keyed by module id. Kept like
+    /// the metadata links.
+    private var extensionHostState: [String: Bool] = [:]
     /// Whether the slash menu offers `/move`. Kept like the metadata links.
     private var moveBlocksEnabled = false
     /// Whether the slash menu offers `/carryover`. Kept like the metadata links.
@@ -285,6 +288,13 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
         metadataLinksEnabled = enabled
         guard hasLoadedEditorPage else { return }
         applyMetadataLinksEnabled()
+    }
+
+    func setExtensionHostState(_ state: [String: Bool]) {
+        guard state != extensionHostState else { return }
+        extensionHostState = state
+        guard hasLoadedEditorPage else { return }
+        applyExtensionHostState()
     }
 
     func setMoveBlocksEnabled(_ enabled: Bool) {
@@ -362,6 +372,12 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
                 continuation.resume(returning: (value as? Bool) == true)
             }
         }
+    }
+
+    private func applyExtensionHostState() {
+        webView.evaluateJavaScript(
+            "window.__mdEditor && window.__mdEditor.setHostState(\(EditorHTML.jsonObjectLiteral(extensionHostState)))"
+        ) { _, _ in }
     }
 
     private func applyMetadataLinksEnabled() {
@@ -808,6 +824,7 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
                 applySlashTemplates()
                 applyWorkspaceCandidates()
                 applyMetadataLinksEnabled()
+                applyExtensionHostState()
                 applyMoveBlocksEnabled()
                 applyCarryOverEnabled()
                 editorDidBecomeReady?()

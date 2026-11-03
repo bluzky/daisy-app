@@ -194,6 +194,7 @@ nonisolated extension MarkdownHTML {
     MermaidExtension(),
     ColorfulHeadersExtension(),
     TaskMetadataExtension(),
+    HideCompletedTasksExtension(),
     MetadataLinksExtension(),
     QueryBlocksExtension(),
     SlashCommandsExtension(),
@@ -333,6 +334,41 @@ nonisolated extension MarkdownHTML {
     nonisolated(unsafe) private static let fieldPattern =
       /(?:^|\s)(?:(?:due|scheduled):\d{4}-\d{2}-\d{2}|p:(?:high|medium|low))/
   }
+
+  /// View ▸ Hide Completed Tasks: while it is on, checked task items and
+  /// everything nested in them are left out of Read mode and the editor. The
+  /// setting is app-wide (`HideCompletedTasksSetting`); each window passes it
+  /// as host state under this id. Read mode needs only the stylesheet, keyed
+  /// on `data-mdp-hide-completed-tasks`; the editor module
+  /// (`scripts/editor-bundle/src/hide-completed-tasks.js`) folds the items'
+  /// lines away. Quick Look never sets host state, so it shows every task.
+  struct HideCompletedTasksExtension: MarkdownRenderExtension {
+    let id = "hide-completed-tasks"
+    let descriptor = RenderExtensionDescriptor(
+      titleKey: "Hide completed tasks",
+      descriptionKey: nil,
+      defaultEnabled: true,
+      userToggleable: true
+    )
+    let order = 205
+    let editor: (any EditorCapability)? = EditorModule(moduleID: "hide-completed-tasks")
+
+    func isActive(in context: RenderContext) -> Bool {
+      context.html.contains("task-list-item-checkbox")
+    }
+
+    func assets(mode _: VendorLoading) -> RenderAssets {
+      RenderAssets(css: MarkdownHTML.hideCompletedTasksStylesheet)
+    }
+  }
+
+  /// A loose list item holds its checkbox in its first paragraph.
+  static let hideCompletedTasksStylesheet = """
+    :root[data-mdp-hide-completed-tasks] li.task-list-item:has(> .task-list-item-checkbox:checked),
+    :root[data-mdp-hide-completed-tasks] li.task-list-item:has(> p:first-of-type > .task-list-item-checkbox:checked) {
+      display: none;
+    }
+    """
 
   /// Badge text and accessibility names, shared by the editor module and the
   /// Read mode script.
