@@ -874,6 +874,7 @@ nonisolated enum EditorHTML {
             let slashTemplates = [];
             let workspaceCandidates = null;
             let metadataLinks = false;
+            let hostState = {};
             let moveBlocks = false;
             let carryOver = false;
             window.__mdLoadEditor = function (markdown, baseHref, codeLanguage) {
@@ -953,6 +954,7 @@ nonisolated enum EditorHTML {
                 editor.setSlashTemplates(slashTemplates);
                 if (workspaceCandidates) editor.setWorkspaceCandidates(workspaceCandidates);
                 editor.setMetadataLinks(metadataLinks);
+                editor.setHostState(hostState);
                 editor.setMoveBlocks(moveBlocks);
                 editor.setCarryOver(carryOver);
                 window.__mdEditor = {
@@ -992,6 +994,12 @@ nonisolated enum EditorHTML {
                     setMetadataLinks: function (enabled) {
                         metadataLinks = enabled === true;
                         editor.setMetadataLinks(metadataLinks);
+                    },
+                    // Per-window module state, `{ moduleID: Bool }`. Kept
+                    // like the templates.
+                    setHostState: function (state) {
+                        hostState = state || {};
+                        editor.setHostState(hostState);
                     },
                     // Kept like the templates.
                     setMoveBlocks: function (enabled) {

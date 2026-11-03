@@ -622,3 +622,6 @@
 "The dropped files could not be inserted into the document." = "The dropped files could not be inserted into the document.";
 "Choose the folder containing this Markdown file to save the dropped files." = "Choose the folder containing this Markdown file to save the dropped files.";
 "Open Link at Caret" = "Open Link at Caret";
+"Hide Completed Tasks" = "Hide Completed Tasks";
+"Hide completed tasks" = "Hide completed tasks";
+"Hide checked tasks in every window" = "Hide checked tasks in every window";

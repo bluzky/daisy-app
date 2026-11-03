@@ -436,6 +436,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             in: RenderExtensionPreferences.sharedDefaults()
         )
         reloadDocumentPreviewsForSettingChange()
+        documentWindowControllers.forEach { $0.refreshHideCompletedTasksItem() }
     }
 
     /// Applies reading layout chosen in Customize Theme (bold text and the
@@ -473,6 +474,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         documentWindowControllers.forEach { $0.applyAlwaysOnTopSetting() }
         settingsWindowController?.applyWindowLevel()
         SettingsModel.shared.refreshFromExternalSources()
+    }
+
+    /// View ▸ Hide Completed Tasks: one stored value, followed by every
+    /// document window.
+    func applyHideCompletedTasksSetting(_ isEnabled: Bool) {
+        guard isEnabled != HideCompletedTasksSetting.isEnabled else { return }
+        HideCompletedTasksSetting.isEnabled = isEnabled
+        documentWindowControllers.forEach { $0.applyHideCompletedTasksSetting() }
     }
 
     func applyAutoSaveIntervalSetting(_ minutes: Int) {
@@ -906,6 +915,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case #selector(NSResponder.centerSelectionInVisibleArea(_:)): return .findJumpToSelection
         case #selector(NSWindow.toggleToolbarShown(_:)): return .viewToggleToolbar
         case #selector(DocumentWindowController.toggleAlwaysOnTop(_:)): return .viewToggleAlwaysOnTop
+        case #selector(DocumentWindowController.toggleHideCompletedTasks(_:)): return .viewToggleCompletedTasks
         case #selector(DocumentWindowController.goBackInHistory(_:)): return .goBack
         case #selector(DocumentWindowController.goForwardInHistory(_:)): return .goForward
         case #selector(DocumentWindowController.openTodayJournal(_:)): return .goTodayJournal
@@ -1479,11 +1489,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         item.keyEquivalentModifierMask = [.command]
         item.target = self
 
+        // Sent down the responder chain: the window validates it.
+        let hideCompleted = NSMenuItem(title: L("Hide Completed Tasks"),
+                                       action: #selector(DocumentWindowController.toggleHideCompletedTasks(_:)),
+                                       keyEquivalent: "h")
+        hideCompleted.keyEquivalentModifierMask = [.shift, .command]
+
         let insertIndex = viewMenu.items.firstIndex(where: {
             Self.actualSizeMenuTitles.contains($0.title)
         }) ?? viewMenu.numberOfItems
         viewMenu.insertItem(item, at: insertIndex)
-        viewMenu.insertItem(.separator(), at: insertIndex + 1)
+        viewMenu.insertItem(hideCompleted, at: insertIndex + 1)
+        viewMenu.insertItem(.separator(), at: insertIndex + 2)
     }
 
     @objc private func toggleEditModeFromMenu(_ sender: Any?) {

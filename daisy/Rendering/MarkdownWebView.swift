@@ -110,6 +110,16 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
             applyMetadataLinksState()
         }
     }
+    /// Per-window state for render extensions, keyed by extension id, such
+    /// as `hide-completed-tasks`. Each entry is kept on the page as a
+    /// `data-mdp-<id>` attribute, present while the value is true, so an
+    /// extension's stylesheet or script can follow it.
+    var extensionHostState: [String: Bool] = [:] {
+        didSet {
+            guard extensionHostState != oldValue, isPageReady else { return }
+            applyExtensionHostState()
+        }
+    }
     /// The `tasks`/`notes` blocks on the page, each time they change; an
     /// empty list when there are none, or the page left the workspace.
     var queryBlocksRequested: (([QueryBlockRequest]) -> Void)?
@@ -540,6 +550,17 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         guard let data = try? JSONEncoder().encode(results),
               let json = String(data: data, encoding: .utf8) else { return }
         webView.evaluateJavaScript("window.MdPreview && window.MdPreview.queryResults && window.MdPreview.queryResults(\(json));") { _, _ in }
+    }
+
+    private func applyExtensionHostState() {
+        guard let data = try? JSONSerialization.data(withJSONObject: extensionHostState, options: [.sortedKeys]),
+              let json = String(data: data, encoding: .utf8) else { return }
+        webView.evaluateJavaScript("""
+        (function (state) {
+          for (const id in state) document.documentElement.toggleAttribute('data-mdp-' + id, state[id] === true);
+        })(\(json));
+        window.MdPreview && window.MdPreview.reapplyExtensions && window.MdPreview.reapplyExtensions();
+        """) { _, _ in }
     }
 
     private func applyMetadataLinksState() {
@@ -1642,6 +1663,7 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         // CSS. Re-assert the current theme on the fresh page.
         applyThemeColors()
         if metadataLinksEnabled { applyMetadataLinksState() }
+        if !extensionHostState.isEmpty { applyExtensionHostState() }
         #endif
         contentDidReplace?()
     }

@@ -81,6 +81,12 @@ final class ContentViewController: NSViewController {
         webView.showQueryResults(results)
     }
 
+    /// Per-window render extension state; see `MarkdownWebView.extensionHostState`.
+    var extensionHostState: [String: Bool] {
+        get { webView.extensionHostState }
+        set { webView.extensionHostState = newValue }
+    }
+
     /// Metadata tokens read as links to their workspace pages.
     var metadataLinksEnabled: Bool {
         get { webView.metadataLinksEnabled }

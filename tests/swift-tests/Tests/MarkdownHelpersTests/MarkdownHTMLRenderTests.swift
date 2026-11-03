@@ -29,6 +29,36 @@ final class MarkdownHTMLRenderTests: XCTestCase {
         }
     }
 
+    @MainActor
+    func testOnlyCompletedTasksOwnTextIsStruckThrough() async throws {
+        let html = MarkdownHTML.makeHTML(
+            from: """
+            - [ ] open
+            - [x] done
+              - [ ] child
+            - [ ] parent
+              - [x] subtask
+            - [x] roomy
+
+              more
+            """,
+            vendorLoading: .inline
+        )
+        let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 640, height: 400))
+        webView.loadHTMLString(html, baseURL: nil)
+        let deadline = Date().addingTimeInterval(10)
+        while webView.isLoading && Date() < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        // The word each paragraph starts with, and whether it is struck through.
+        let struck = try await webView.evaluateJavaScript("""
+            Array.from(document.querySelectorAll('article li.task-list-item p')).map(p =>
+              p.textContent.trim().split(/\\s+/)[0] + '=' +
+              getComputedStyle(p).textDecorationLine.includes('line-through')).join(' ')
+            """) as? String
+        XCTAssertEqual(struck, "open=false done=true child=false parent=false subtask=true roomy=true more=true")
+    }
+
     func testLocalMarkdownImagesRemainReadOnlyInPreview() {
         let rendered = MarkdownHTML.render(
             markdown: "![1](notes-pictures/1.png)",

@@ -44,6 +44,7 @@ Download the signed and notarized DMG from [Releases](https://github.com/bluzky/
 - **Code and text files** — open in a code editor with syntax highlighting; add your own types in **Settings → General**.
 - **Templates** — insert snippets from your own template file; see [Templates](#templates).
 - **Extensions** — code highlighting, callouts, KaTeX, Mermaid and colorful headings, each switchable in **Settings → Extensions**.
+- **Hide completed tasks** — **View → Hide Completed Tasks** (<kbd>⇧⌘H</kbd>, or its toolbar button) hides checked tasks in Read and Edit mode, in every window; the file is unchanged.
 - **Search** — in-document find (<kbd>⌘F</kbd>) and OmniSearch (<kbd>⌘K</kbd>) for files, text and commands.
 - **Quick Capture** — a global shortcut (<kbd>⌃⌥Space</kbd>) that opens your `Inbox.md` with a new timestamped heading.
 - **Themes** — reading themes with font, spacing and color customization; some follow the system light/dark appearance.

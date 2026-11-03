@@ -139,6 +139,18 @@ final class MainSplitViewController: NSSplitViewController {
         cachedEditorViewController?.setMetadataLinksEnabled(enabled)
     }
 
+    /// Per-window state for render extensions, keyed by extension id, for
+    /// both the preview and the editor. Kept here so an editor created later
+    /// starts with it.
+    private(set) var extensionHostState: [String: Bool] = [:]
+
+    func setExtensionHostState(_ value: Bool, for id: String) {
+        guard extensionHostState[id] != value else { return }
+        extensionHostState[id] = value
+        contentViewController?.extensionHostState = extensionHostState
+        cachedEditorViewController?.setExtensionHostState(extensionHostState)
+    }
+
     func showSnapshot(_ prefetch: DocumentSnapshotCache.Prefetch) {
         contentViewController?.showSnapshot(prefetch)
     }
@@ -586,6 +598,7 @@ final class MainSplitViewController: NSSplitViewController {
             editorVC.view.alphaValue = 0
             contentHost.installEditorOverlay(editorVC)
             editorVC.findOverlay = findOverlayView
+            editorVC.setExtensionHostState(extensionHostState)
             cachedEditorViewController = editorVC
         }
 

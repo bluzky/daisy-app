@@ -17,7 +17,7 @@ final class KeymapTests: XCTestCase {
         XCTAssertTrue(KeymapCommand.allCases.contains(.viewToggleTasks))
         XCTAssertFalse(KeymapCommand.allCases.map(\.rawValue).contains("view.toggleInspector"))
         XCTAssertNil(KeymapCommand(rawValue: "view.toggleInspector"))
-        XCTAssertEqual(KeymapCommand.viewToggleTasks.titleKey, "Tasks")
+        XCTAssertEqual(KeymapCommand.viewToggleTasks.titleKey, "Agenda")
         let binding = KeyBinding(string: "shift+cmd+i")!
         XCTAssertEqual(Keymap.defaultBindings(for: .viewToggleTasks), [binding])
         XCTAssertEqual(Keymap().conflicts(for: binding, in: .global), [.viewToggleTasks])
@@ -30,6 +30,15 @@ final class KeymapTests: XCTestCase {
         XCTAssertEqual(KeymapCommand.viewToggleReferences.titleKey, "References")
         XCTAssertEqual(Keymap.defaultBindings(for: .viewToggleReferences), [binding])
         XCTAssertEqual(Keymap().conflicts(for: binding, in: .global), [.viewToggleReferences])
+    }
+
+    func testHideCompletedTasksDefaultsToShiftCommandH() {
+        let binding = KeyBinding(string: "shift+cmd+h")!
+        XCTAssertEqual(KeymapCommand.viewToggleCompletedTasks.context, .global)
+        XCTAssertEqual(KeymapCommand.viewToggleCompletedTasks.rawValue, "view.toggleCompletedTasks")
+        XCTAssertEqual(KeymapCommand.viewToggleCompletedTasks.titleKey, "Hide Completed Tasks")
+        XCTAssertEqual(Keymap.defaultBindings(for: .viewToggleCompletedTasks), [binding])
+        XCTAssertEqual(Keymap().conflicts(for: binding, in: .global), [.viewToggleCompletedTasks])
     }
 
     func testOpenLinkAtCaretDefaultsToCommandPeriodWhileEditing() {

@@ -24,6 +24,7 @@ When a Global shortcut and a Reading, Editing or Search shortcut use the same ke
 | <kbd>⌘E</kbd> | Toggle Edit Mode | `view.toggleEditMode` |
 | <kbd>⌥⌘T</kbd> | Show Toolbar | `view.toggleToolbar` |
 | <kbd>⌃⌘T</kbd> | Always on Top | `view.toggleAlwaysOnTop` |
+| <kbd>⇧⌘H</kbd> | Hide Completed Tasks | `view.toggleCompletedTasks` |
 | <kbd>⌘F</kbd> | Find… | `find.find` |
 | <kbd>⌥⌘F</kbd> | Find and Replace… | `find.replace` |
 | <kbd>⌘G</kbd> | Find Next | `find.next` |

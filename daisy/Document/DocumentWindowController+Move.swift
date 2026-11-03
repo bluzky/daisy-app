@@ -279,12 +279,16 @@ extension DocumentWindowController {
         banner.onClose = { [weak self] in self?.dismissMoveBanner() }
         banner.show(in: container)
         moveBanner = banner
-        // A message with nothing to press goes by itself.
-        guard actions.isEmpty else { return }
+        // Every banner goes by itself: one with buttons sooner, taking the
+        // chance to undo with it, but never from under the pointer.
+        let delay: Duration = actions.isEmpty ? .seconds(8) : .seconds(5)
         Task { [weak self, weak banner] in
-            try? await Task.sleep(for: .seconds(8))
+            try? await Task.sleep(for: delay)
+            while let banner, banner.containsPointer {
+                try? await Task.sleep(for: .seconds(1))
+            }
             guard let self, let banner, self.moveBanner === banner else { return }
-            self.removeMoveBanner()
+            self.dismissMoveBanner()
         }
     }
 
