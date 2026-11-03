@@ -720,8 +720,13 @@ nonisolated extension MarkdownHTML {
     li > p:first-child { margin-top: 0; }
 
     li.task-list-item { list-style: none; }
-    /* Completed tasks read as done — struck through and muted. */
-    li.task-list-item:has(input.task-list-item-checkbox:checked) {
+    /* Completed tasks read as done — struck through and muted. Only the
+       item's own checkbox counts, and only its own content is styled: a
+       checked subtask leaves its parent alone, and an open subtask under a
+       checked parent stays plain, as in the editor. A loose item holds its
+       checkbox in its first paragraph. */
+    li.task-list-item:has(> .task-list-item-checkbox:checked) > :not(ul, ol, input),
+    li.task-list-item:has(> p:first-of-type > .task-list-item-checkbox:checked) > :not(ul, ol, input) {
         color: var(--secondary);
         text-decoration: line-through;
     }
