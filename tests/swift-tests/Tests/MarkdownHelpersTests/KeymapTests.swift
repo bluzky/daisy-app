@@ -17,7 +17,7 @@ final class KeymapTests: XCTestCase {
         XCTAssertTrue(KeymapCommand.allCases.contains(.viewToggleTasks))
         XCTAssertFalse(KeymapCommand.allCases.map(\.rawValue).contains("view.toggleInspector"))
         XCTAssertNil(KeymapCommand(rawValue: "view.toggleInspector"))
-        XCTAssertEqual(KeymapCommand.viewToggleTasks.titleKey, "Tasks")
+        XCTAssertEqual(KeymapCommand.viewToggleTasks.titleKey, "Agenda")
         let binding = KeyBinding(string: "shift+cmd+i")!
         XCTAssertEqual(Keymap.defaultBindings(for: .viewToggleTasks), [binding])
         XCTAssertEqual(Keymap().conflicts(for: binding, in: .global), [.viewToggleTasks])

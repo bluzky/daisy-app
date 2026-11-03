@@ -573,7 +573,7 @@ final class MarkdownRenderExtensionTests: XCTestCase {
     window.MdPreview.queryResults([{ id: '\(id ?? "")', source: 'tasks', problems: [], empty: '',
       groups: [{ label: null, kind: 'none',
                  rows: [{ path: 'a.md', line: 3, text: 'Water plants @Daniel', checked: false, detail: 'a',
-                          source: 'p:medium Water plants due:2026-10-24 @Daniel email@x.com C#' }] }] }]);
+                          source: 'p:medium Water plants due:2099-12-31 @Daniel email@x.com C#' }] }] }]);
     const row = document.querySelector('.mdp-query-row');
     [Array.from(row.querySelectorAll('.mdp-task-badge'), b => b.className.split(' ').slice(1).join('+')).join(','),
      Array.from(row.querySelectorAll('.mdp-query-token'), t => t.textContent).join(','),
