@@ -59,6 +59,18 @@ check("table cells drop stray breaks and blank lines", convert({
   html: "<table><tr><th><p>Name</p></th></tr><tr><td><p>Intro:</p><p>a</p><p>b</p><br></td></tr></table>",
 }), "| Name |\n| --- |\n| Intro:<br>a<br>b |")
 
+check("a pasted bare URL keeps its underscores", convert({
+  html: "<p>URL EMS: https://ems.example.com/mail/?_task=mail&_mbox=INBOX</p>",
+}), "URL EMS: https://ems.example.com/mail/?_task=mail&_mbox=INBOX")
+
+check("text around a bare URL is still escaped", convert({
+  html: "<p>see *this* at www.example.com/a_b_ now.</p>",
+}), "see \\*this\\* at www.example.com/a_b\\_ now.")
+
+check("a URL label keeps its underscores", convert({
+  html: "<a href='https://example.com/?_a=1'>https://example.com/?_a=1</a>",
+}), "[https://example.com/?_a=1](https://example.com/?_a=1)")
+
 check("snake_case stays unescaped in table cells", convert({
   html: "<table><tr><th>Name</th></tr><tr><td>page_size and _x_</td></tr></table>",
 }), "| Name |\n| --- |\n| page_size and \\_x\\_ |")
