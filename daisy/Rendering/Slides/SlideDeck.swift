@@ -27,9 +27,9 @@ nonisolated struct SlideDeck {
         case code
         case math
         case titleImage = "title-image"
-        case grid
         case split
         case fullBleed = "full-bleed"
+        case columns
         case titleContent = "title-content"
         case blank
     }
@@ -47,6 +47,10 @@ nonisolated struct SlideDeck {
         /// `fit` / `contain`: scale the whole image into the area instead
         /// of covering it.
         var fits = false
+        /// `dim`: darken the image so text on it reads.
+        var dims = false
+        /// `blur`: soften the image behind the text.
+        var blurs = false
     }
 
     /// Where an element starts in the parsed text; the formatter looks up
@@ -86,11 +90,32 @@ nonisolated struct SlideDeck {
         var elementSteps: [SourceKey: Int] = [:]
         /// The highest step; 0 when everything shows at once.
         var stepCount = 0
+        /// Blocks shown above the columns, across the slide: the heading
+        /// that opens a slide with columns. A range of `blocks`.
+        var columnHeader: Range<Int> = 0..<0
+        /// Each column's blocks, as ranges of `blocks`, from
+        /// `<!-- column -->` breaks. Empty unless there are two or more.
+        var columns: [Range<Int>] = []
+        /// Blocks after `<!-- end-columns -->`, shown below the columns
+        /// across the slide. A range of `blocks`.
+        var columnFooter: Range<Int> = 0..<0
+        /// Empty lines from `<!-- space -->` / `<!-- space: n -->`, by index
+        /// in `blocks`; the comment block itself holds the place.
+        var spaces: [Int: Int] = [:]
 
         var hasNotes: Bool { notesLead != nil || !notes.isEmpty }
         fileprivate var isEmpty: Bool { blocks.isEmpty && !hasNotes && background == nil }
         fileprivate var layoutOverride: Layout?
+        /// Indices in `blocks` where a `<!-- column -->` starts a column.
+        fileprivate var columnBreaks: [Int] = []
+        /// Index in `blocks` of the first block after `<!-- end-columns -->`.
+        fileprivate var columnsEnd: Int?
     }
+
+    /// The most columns a slide is split into; later breaks are ignored.
+    static let maximumColumns = 4
+    /// The most empty lines one `<!-- space: n -->` adds.
+    static let maximumSpaceLines = 10
 
     let slides: [Slide]
 
@@ -100,7 +125,11 @@ nonisolated struct SlideDeck {
         var inNotes = false
         var pendingStep: String?
         func finishSlide() {
+            (current.columnHeader, current.columns, current.columnFooter) = Self.columns(
+                of: current.blocks, breaks: current.columnBreaks, end: current.columnsEnd
+            )
             current.layout = current.layoutOverride
+                ?? (current.columns.isEmpty ? nil : .columns)
                 ?? Self.layout(of: current.blocks, background: current.background)
             slides.append(current)
             current = Slide()
@@ -118,7 +147,11 @@ nonisolated struct SlideDeck {
                 current.notes.append(child)
             } else if let directives = Self.directives(in: child) {
                 for (key, value) in directives {
-                    current.apply(key: key, value: value, pendingStep: &pendingStep)
+                    if key == "space" {
+                        current.addSpace(value, block: child)
+                    } else {
+                        current.apply(key: key, value: value, pendingStep: &pendingStep)
+                    }
                 }
             } else if let paragraph = child as? Paragraph,
                       let background = Self.background(in: paragraph) {
@@ -148,7 +181,7 @@ nonisolated struct SlideDeck {
     /// for any other block. `<!-- step -->` has an empty value.
     static func directives(in markup: Markup) -> [(key: String, value: String)]? {
         guard let html = markup as? HTMLBlock else { return nil }
-        return comments(in: html.rawHTML)?.map(directive)
+        return comments(in: html.rawHTML)?.flatMap(directives(inComment:))
     }
 
     private static func comments(in raw: String) -> [String]? {
@@ -163,13 +196,31 @@ nonisolated struct SlideDeck {
         return comments.isEmpty ? nil : comments
     }
 
-    private static func directive(_ comment: String) -> (key: String, value: String) {
-        let text = comment.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let colon = text.firstIndex(of: ":") else { return (text.lowercased(), "") }
-        return (
-            text[..<colon].trimmingCharacters(in: .whitespaces).lowercased(),
-            text[text.index(after: colon)...].trimmingCharacters(in: .whitespaces)
-        )
+    /// One directive per line, as in Marp, where a comment is YAML:
+    ///
+    ///     <!--
+    ///     layout: title
+    ///     _class: invert
+    ///     -->
+    ///
+    /// A value may be quoted (`color: "#fff"`, which YAML needs); blank
+    /// lines are skipped.
+    static func directives(inComment comment: String) -> [(key: String, value: String)] {
+        comment.split(whereSeparator: \.isNewline).compactMap { line in
+            let text = line.trimmingCharacters(in: .whitespaces)
+            guard !text.isEmpty else { return nil }
+            guard let colon = text.firstIndex(of: ":") else { return (text.lowercased(), "") }
+            return (
+                text[..<colon].trimmingCharacters(in: .whitespaces).lowercased(),
+                unquoted(text[text.index(after: colon)...].trimmingCharacters(in: .whitespaces))
+            )
+        }
+    }
+
+    private static func unquoted(_ value: String) -> String {
+        guard value.count >= 2, let first = value.first, first == value.last,
+              first == "\"" || first == "'" else { return value }
+        return String(value.dropFirst().dropLast())
     }
 
     /// Steps written at the end of a list item's or paragraph's text, in
@@ -181,7 +232,7 @@ nonisolated struct SlideDeck {
         func walk(_ node: Markup) {
             if let paragraph = node as? Paragraph {
                 let values = trailingComments(of: paragraph)
-                    .map(directive)
+                    .flatMap(directives(inComment:))
                     .filter { $0.key == "step" }
                     .map(\.value)
                 let element = paragraph.parent is ListItem ? paragraph.parent! : paragraph
@@ -216,6 +267,36 @@ nonisolated struct SlideDeck {
         return found
     }
 
+    // MARK: - Columns
+
+    /// Splits a slide's blocks at its column breaks. A heading opening the
+    /// slide stays above the columns, and blocks after `<!-- end-columns -->`
+    /// go below them; empty columns (a break right after the heading, or
+    /// just before the end) are dropped; at most `maximumColumns`. Fewer
+    /// than two columns means no columns.
+    static func columns(
+        of blocks: [Markup], breaks: [Int], end columnsEnd: Int? = nil
+    ) -> (header: Range<Int>, columns: [Range<Int>], footer: Range<Int>) {
+        let none = (0..<0, [Range<Int>](), 0..<0)
+        guard !breaks.isEmpty else { return none }
+        let headerEnd = blocks.first is Heading ? 1 : 0
+        let lastIndex = max(headerEnd, columnsEnd ?? blocks.count)
+        let starts = [headerEnd] + breaks.map { max($0, headerEnd) }
+        var columns: [Range<Int>] = []
+        for (index, start) in starts.enumerated() {
+            let end = index + 1 < starts.count ? starts[index + 1] : lastIndex
+            guard start < end else { continue }
+            if columns.count == maximumColumns {
+                // Past the limit, the rest stays in the last column.
+                columns[columns.count - 1] = columns[columns.count - 1].lowerBound..<end
+            } else {
+                columns.append(start..<end)
+            }
+        }
+        guard columns.count >= 2 else { return none }
+        return (0..<headerEnd, columns, lastIndex..<blocks.count)
+    }
+
     // MARK: - Backgrounds
 
     /// A background when the paragraph holds only images whose alt text
@@ -233,6 +314,8 @@ nonisolated struct SlideDeck {
             case "left": background.position = .left
             case "right": background.position = .right
             case "fit", "contain": background.fits = true
+            case "dim": background.dims = true
+            case "blur": background.blurs = true
             default: continue
             }
         }
@@ -300,12 +383,6 @@ nonisolated struct SlideDeck {
         if hasHeading, body.count == 1, let paragraph = body[0] as? Paragraph,
            imageCount(paragraph) == 1 {
             return .titleImage
-        }
-        if !body.isEmpty {
-            let counts = body.map { ($0 as? Paragraph).flatMap(imageCount) }
-            if !counts.contains(nil), counts.reduce(0, { $0 + ($1 ?? 0) }) >= 3 {
-                return .grid
-            }
         }
         return .titleContent
     }
@@ -414,9 +491,23 @@ nonisolated private extension SlideDeck.Slide {
             if let color = SlideDeck.sanitizedColor(value) { self.color = color }
         case "step":
             pendingStep = value
+        case "column":
+            if columnsEnd == nil, columnBreaks.last != blocks.count { columnBreaks.append(blocks.count) }
+        case "end-columns":
+            if columnsEnd == nil, !columnBreaks.isEmpty { columnsEnd = blocks.count }
         default:
             break
         }
+    }
+
+    /// `<!-- space -->` is one empty line, `<!-- space: n -->` is `n`, up to
+    /// `maximumSpaceLines`. It stays in the blocks so it keeps its place;
+    /// comments don't count toward the layout, and a pending step skips it.
+    mutating func addSpace(_ value: String, block: Markup) {
+        let lines = value.isEmpty ? 1 : Int(value).flatMap { $0 > 0 ? $0 : nil }
+        guard let lines else { return }
+        blocks.append(block)
+        spaces[blocks.count - 1] = min(lines, SlideDeck.maximumSpaceLines)
     }
 
     /// `step` takes the click after the highest so far; `step: n` takes

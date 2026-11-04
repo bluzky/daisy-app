@@ -72,9 +72,12 @@ Markers are recognised at the **top level of the document only**, from the swift
 | A paragraph that is exactly `???` | Everything after it on the slide is speaker notes. |
 | `<!-- layout: name -->` | Overrides the inferred layout. |
 | `<!-- _class: name -->`, `<!-- color: #fff -->`, `<!-- _color: … -->` | Adds a class or text color to this slide. |
-| `![bg](img.jpg)`, `![bg left](img.jpg)`, `![bg right](img.jpg)`, `![bg fit](img.jpg)` | Background image; only the first on a slide is used. |
+| `![bg](img.jpg)`, `![bg left](img.jpg)`, `![bg right](img.jpg)`, `![bg fit](img.jpg)`, `![bg dim](img.jpg)` | Background image; only the first on a slide is used. `dim` lays a 60% black veil over the image (`::after` on the background), and over a full background turns the text white. `blur` applies `filter: blur(0.8cqw)` to the image, slightly enlarged so its faded edges fall outside the clipped background box. |
 | `![alt](img.png "50%")` | Image size. Units: `%`, `px`, `em`, `rem`, `cqi`. |
 | `<!-- step -->` / `<!-- step: n -->` | Reveal the element on the next click, or group elements onto click `n`. |
+| `<!-- column -->` on its own line | Starts a new column (added after phase 2; see [Columns](#columns)). |
+| `<!-- end-columns -->` on its own line | Ends the columns; the rest of the slide spans the width below them. |
+| `<!-- space -->` / `<!-- space: n -->` on its own line | Adds one or `n` (up to 10) empty lines at the slide's line height. Blank lines don't add space on a slide: slide mode leaves out Read Mode's blank-line spacers. |
 | `!caption[text]` | Caption for the image, table, Mermaid or math block directly above. |
 
 Frontmatter keys: `slides`, `marp`, `theme`, `theme_overrides`, `aspect` (`16:9` default, `16:10`, `4:3`), `paginate`, `header`, `footer`, `author`, `date`.
@@ -83,12 +86,18 @@ Frontmatter keys: `slides`, `marp`, `theme`, `theme_overrides`, `aspect` (`16:9`
 
 Background images:
 
-- An image is a background when its alt text starts with the word `bg`. The remaining alt words are keywords: `left`, `right` (split position) and `fit` / `contain` (scale without cropping; synonyms). Unknown words are ignored.
+- An image is a background when its alt text starts with the word `bg`. The remaining alt words are keywords: `left`, `right` (split position), `fit` / `contain` (scale without cropping; synonyms), `dim` (darken) and `blur`. Unknown words are ignored.
 - The destination is required, as for any Markdown image.
 - The title is only ever a size (`"50%"`), never a keyword. A background ignores it.
 - Only an image that is the sole content of a top-level paragraph is a background. `![bg](a.jpg)` inside a sentence or list renders as a normal image.
 
-Kova's `|||` column break is not supported. A side-by-side slide uses `![bg left]` / `![bg right]`.
+Kova's `|||` column break is not supported: it would show as a literal `|||` line in every other Markdown viewer. Columns use the `<!-- column -->` directive instead, which is invisible outside Daisy.
+
+### Columns
+
+`<!-- column -->` on its own line at the top level starts a new column; `SlideDeck` records the block index of each break. A heading opening the slide stays above the columns across the full width. `<!-- end-columns -->` closes them: the blocks after it go below the columns, across the slide; without it the rest of the slide stays in the last column. There is one set of columns per slide, so breaks after the end, and an end before any break, are ignored. Empty columns — a break right after that heading, or just before the end — are dropped; fewer than two columns means no columns; past four, later breaks are ignored and the rest stays in the fourth. A slide with columns gets the `columns` layout unless `<!-- layout: … -->` overrides it, and is checked right after the override, before backgrounds.
+
+The formatter writes the heading, then `.mdp-slide-columns` holding one `.mdp-slide-column` per column, then the blocks after the end. The columns are a grid of equal columns (`grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr)`) with one row (`minmax(0, 1fr)`) filling the slide below the heading — or, when blocks follow the end, only as tall as they need. A tall Mermaid diagram or image shrinks to fit, in a column as in the slide body. Columns keep the slide's text size; there is no shrinking for three or four columns, and content that doesn't fit is cut off like on any slide.
 
 ### Marp decks
 
@@ -97,6 +106,8 @@ Kova's `|||` column break is not supported. A side-by-side slide uses `![bg left
 - Speaker notes are `???` only. Marp's HTML-comment notes are not shown anywhere.
 - No Marp CSS themes, `size:` keyword, `<style>` blocks, or directives other than those listed; unknown directives are ignored.
 - Global directives in comments (`<!-- paginate: true -->`) are not read; use frontmatter.
+- As in Marp, one comment can hold several directives, one `key: value` per line; a quoted value is unquoted. Comments are not parsed as full YAML.
+- Local directives without `_` (`class`, `color`) don't carry over to the following slides as in Marp: `class` is ignored and `color` applies to its slide only. Local and spot scope may come with the header and footer work in phase 3.
 
 ## Layout inference
 
@@ -105,6 +116,7 @@ A pure function classifies each slide's blocks, after notes, `bg` images and dir
 | Content | Layout |
 | --- | --- |
 | `<!-- layout: x -->` present | `x` |
+| Two or more columns from `<!-- column -->` | `columns` |
 | `![bg left]` / `![bg right]` | `split` |
 | `![bg]` and no other content | `full-bleed` |
 | Only an H1, optionally with one short paragraph (200 characters or fewer, no list) | `title` |
@@ -113,7 +125,6 @@ A pure function classifies each slide's blocks, after notes, `bg` images and dir
 | Only a code block or Mermaid block, with an optional heading | `code` |
 | Only display math, with an optional heading | `math` |
 | A heading and a single image | `title-image` |
-| Three or more images, with an optional heading | `grid` |
 | Heading plus anything else | `title-content` |
 | Nothing visible | `blank` |
 
@@ -125,7 +136,7 @@ Ambiguous inputs and their layout, each a test fixture:
 | --- | --- |
 | `# Title` + a 250-character paragraph | `title-content` |
 | `# Title` + `- one item` | `title-content` |
-| `## Heading` + three images | `grid` |
+| `## Heading` + three images | `title-content` (images side by side are columns; a `grid` layout was built and removed, since `<!-- column -->` does the same explicitly) |
 | `## Heading` + two images | `title-content` |
 | `# Title` + `![bg](a.jpg)` | `title` with a background |
 | `![bg left](a.jpg)` and no text | `split` with an empty text side |

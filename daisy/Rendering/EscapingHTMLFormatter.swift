@@ -917,6 +917,7 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
             classes += slide.classes.map { "mdp-slide-class-\($0)" }
             if let background = slide.background {
                 classes.append("mdp-slide--bg-\(background.position.rawValue)")
+                if background.dims { classes.append("mdp-slide--bg-dim") }
             }
             result += "<div class=\"\(classes.joined(separator: " "))\""
             if let color = slide.color {
@@ -925,19 +926,24 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
             result += ">"
             if let background = slide.background {
                 let fit = background.fits ? " mdp-slide-bg--fit" : ""
-                result += "<div class=\"mdp-slide-bg mdp-slide-bg--\(background.position.rawValue)\(fit)\">"
+                let dim = background.dims ? " mdp-slide-bg--dim" : ""
+                let blur = background.blurs ? " mdp-slide-bg--blur" : ""
+                result += "<div class=\"mdp-slide-bg mdp-slide-bg--\(background.position.rawValue)\(fit)\(dim)\(blur)\">"
                 result += "<img src=\"\(escapeAttribute(background.source))\" alt=\"\" /></div>"
             }
             result += "<div class=\"mdp-slide-body\">\n"
-            for (blockIndex, block) in slide.blocks.enumerated() {
-                // `display: contents` keeps the block in the slide's layout.
-                if let step = slide.blockSteps[blockIndex] {
-                    result += "<div class=\"mdp-step\" data-step=\"\(step)\">"
-                    visit(block)
+            if slide.columns.isEmpty {
+                visitSlideBlocks(slide, in: slide.blocks.indices)
+            } else {
+                visitSlideBlocks(slide, in: slide.columnHeader)
+                result += "<div class=\"mdp-slide-columns\">\n"
+                for column in slide.columns {
+                    result += "<div class=\"mdp-slide-column\">\n"
+                    visitSlideBlocks(slide, in: column)
                     result += "</div>\n"
-                } else {
-                    visit(block)
                 }
+                result += "</div>\n"
+                visitSlideBlocks(slide, in: slide.columnFooter)
             }
             result += MarkdownHTML.slideFootnotesToken + "</div></div>\n"
             if slide.hasNotes {
@@ -958,6 +964,23 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
         }
         slideElementSteps = [:]
         result += "</div>\n"
+    }
+
+    private mutating func visitSlideBlocks(_ slide: SlideDeck.Slide, in range: Range<Int>) {
+        for blockIndex in range {
+            if let lines = slide.spaces[blockIndex] {
+                result += "<div class=\"mdp-slide-space mdp-slide-space-\(lines)\" aria-hidden=\"true\"></div>\n"
+                continue
+            }
+            // `display: contents` keeps the block in the slide's layout.
+            if let step = slide.blockSteps[blockIndex] {
+                result += "<div class=\"mdp-step\" data-step=\"\(step)\">"
+                visit(slide.blocks[blockIndex])
+                result += "</div>\n"
+            } else {
+                visit(slide.blocks[blockIndex])
+            }
+        }
     }
 
     /// ` data-step="n"` when the deck reveals `markup` on click `n`.

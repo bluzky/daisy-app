@@ -197,7 +197,16 @@ nonisolated extension MarkdownHTML {
     .mdp-slide-body h2 { font-size: 1.6em; }
     .mdp-slide-body img { max-width: 100%; max-height: 100%; object-fit: contain; }
     .mdp-slide[data-slide-color] :is(h1, h2, h3, h4, h5, h6, blockquote) { color: inherit; }
+    /* A diagram keeps its centering margins and, as a flex item, shrinks to
+       the height left on the slide; Mermaid's SVG scales into it. */
+    .mdp-slide :is(.mdp-slide-body, .mdp-slide-column) > .mermaid-figure {
+        margin-inline: auto;
+        min-height: 0;
+    }
     .mdp-step { display: contents; }
+    /* `<!-- space: n -->`: n empty lines at the slide's line height. */
+    .mdp-slide-space { flex: none; margin: 0 !important; }
+    \(slideSpaceCSS)
 
     .mdp-slide--title .mdp-slide-body,
     .mdp-slide--section .mdp-slide-body,
@@ -232,40 +241,67 @@ nonisolated extension MarkdownHTML {
         display: flex;
         justify-content: center;
     }
-    /* The body is the grid, so images in one paragraph or one per
-       paragraph form a single gallery; a heading spans the first row. */
-    .mdp-slide--grid .mdp-slide-body {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        grid-auto-rows: minmax(0, 1fr);
-        gap: 1em;
-    }
-    .mdp-slide--grid .mdp-slide-body:has(> :is(h1, h2, h3, h4, h5, h6)) {
-        grid-template-rows: auto;
-    }
-    .mdp-slide--grid .mdp-slide-body > * { margin: 0; }
-    .mdp-slide--grid .mdp-slide-body > :is(p, .mdp-step) { display: contents; }
-    .mdp-slide--grid .mdp-slide-body > :is(h1, h2, h3, h4, h5, h6, .mdp-slide-footnotes) {
-        grid-column: 1 / -1;
-    }
-    .mdp-slide--grid .mdp-slide-body img {
-        width: 100%;
-        height: 100%;
+    /* Columns from `<!-- column -->`: equal widths filling the slide below
+       its heading, at the slide's own text size. */
+    .mdp-slide-columns {
+        flex: 1 1 auto;
         min-height: 0;
-        object-fit: cover;
+        display: grid;
+        grid-auto-flow: column;
+        grid-auto-columns: minmax(0, 1fr);
+        /* One row as tall as the space below the heading, so a column's
+           tall diagram or image shrinks to fit like it does in the body. */
+        grid-template-rows: minmax(0, 1fr);
+        gap: 1.5em;
     }
+    .mdp-slide-column { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+    .mdp-slide-column > * { margin: 0 0 0.6em; }
+    .mdp-slide-column > :last-child { margin-bottom: 0; }
+    /* An image shrinks to the height left on the slide rather than running
+       off the bottom, in the body as in a column; alone in its paragraph in
+       a column it is centered. */
+    :is(.mdp-slide-body, .mdp-slide-column) > p:has(> img) { min-height: 0; }
+    .mdp-slide-column > p:has(> img:only-child) { text-align: center; }
+    :is(.mdp-slide-body, .mdp-slide-column) > p > img { max-height: 100%; }
+    /* With blocks after `<!-- end-columns -->`, the columns take only the
+       height they need, so those blocks follow right below them. */
+    .mdp-slide-columns:not(:last-child) { flex-grow: 0; margin-bottom: 1em; }
 
     /* Backgrounds: behind the whole slide, or one half beside the text. */
-    .mdp-slide-bg { position: absolute; inset: 0; }
-    .mdp-slide-bg img {
+    .mdp-slide-bg { position: absolute; inset: 0; overflow: hidden; }
+    /* As specific as the base `img:not([width]):not([height])` rule, and
+       later, so the image fills its box instead of keeping its own shape. */
+    .mdp-slide .mdp-slide-bg img {
         display: block;
         width: 100%;
         height: 100%;
         max-width: none;
         max-height: none;
+        margin: 0;
+        border-radius: 0;
         object-fit: cover;
     }
-    .mdp-slide-bg--fit img { object-fit: contain; }
+    .mdp-slide .mdp-slide-bg--fit img { object-fit: contain; }
+    /* `dim` lays a dark veil over the image. Over a full background the
+       text turns light; a `color` directive still wins. */
+    .mdp-slide-bg--dim::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: rgb(0 0 0 / 60%);
+    }
+    .mdp-slide--bg-full.mdp-slide--bg-dim {
+        color: #fff;
+        --secondary: rgb(255 255 255 / 80%);
+    }
+    .mdp-slide--bg-full.mdp-slide--bg-dim :is(h1, h2, h3, h4, h5, h6, blockquote) { color: inherit; }
+    /* `blur` softens the image. The radius is in slide units so it looks
+       the same at every size; the slight zoom pushes the blurred, faded
+       edges outside the clipped background box. */
+    .mdp-slide .mdp-slide-bg--blur img {
+        filter: blur(0.8cqw);
+        transform: scale(1.08);
+    }
     .mdp-slide-bg--left { right: 50%; }
     .mdp-slide-bg--right { left: 50%; }
     .mdp-slide--bg-left { padding-left: calc(50% + 4cqw); }
@@ -391,6 +427,10 @@ nonisolated extension MarkdownHTML {
         :root[\(slidesPrintAttribute)] .mdp-slide-notes { display: none; }
     }
     """
+
+    private static let slideSpaceCSS = (1...SlideDeck.maximumSpaceLines)
+        .map { ".mdp-slide-space-\($0) { height: \($0 * 14 / 10).\($0 * 14 % 10)em; }" }
+        .joined(separator: "\n    ")
 
     /// Injected only while a deck prints: `@page` cannot be scoped to an
     /// attribute, and the base print stylesheet sets paper margins.

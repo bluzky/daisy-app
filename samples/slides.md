@@ -22,7 +22,7 @@ Page Up/Down move between slides; Esc ends the presentation.
 
 Notes show under each slide in Read Mode and never on the presented slide.
 
-[^layout]: Title, section, quote, code, math, image and grid layouts.
+[^layout]: Title, section, quote, code, math, image, split and columns layouts.
 
 ---
 
@@ -44,6 +44,49 @@ The steps all show in Read Mode and in a PDF.
 - `![bg right]` puts the image on one half
 - `![bg]` alone fills the whole slide
 - `fit` shows all of the image
+
+---
+
+## Columns
+
+- `<!-- column -->` on its own line
+- starts the next column
+
+<!-- column -->
+
+- The heading stays across the top
+- Columns share the width equally
+
+<!-- end-columns -->
+
+<!-- space -->
+
+`<!-- end-columns -->` puts the rest of the slide below the columns, and `<!-- space -->` adds an empty line.
+
+---
+
+## A gallery
+
+![Daisy icon](../docs/app-icon.png)
+
+<!-- column -->
+
+![Read Mode](../docs/screenshot-main.png)
+
+<!-- column -->
+
+![Edit Mode](../docs/screenshot-edit-mode.png)
+
+???
+Images side by side are columns: each image fits inside its column.
+
+---
+
+# Text on a picture
+
+`![bg dim blur](…)` darkens and blurs the image behind the text
+
+![bg dim blur](../docs/screenshot-main.png)
 
 ---
 
@@ -91,6 +134,26 @@ graph LR
 
 ---
 
-## The end
+## Long mermaid
+
+```mermaid
+flowchart TD
+    A[Client] -->|POST /orders| B(API Gateway)
+    B --> C{Valid schema?}
+    C -->|yes| D[Order Service]
+    C -->|no| E[400 Bad Request]
+    D --> F[(Orders DB)]
+    D --> G[[Pricing Engine]]
+    G --> H{In stock?}
+    H -->|yes| I[Fulfilment Queue]
+    H -->|no| J[Backorder Queue]
+    I --> K[Warehouse Worker]
+    J --> K
+    K --> L([Shipped])
+```
+
+
+---
+# The end
 
 Thanks for watching.
