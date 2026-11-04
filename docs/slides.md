@@ -44,7 +44,7 @@ See [`samples/slides.md`](../samples/slides.md) for a deck that uses every featu
 
 ## Turning a file into a deck
 
-Add `slides: true` to the frontmatter. Marp's `marp: true` works the same way, and so does TOML frontmatter (`slides = true`).
+Add `slides: true` to the frontmatter. TOML frontmatter (`slides = true`) works too. Marp's `marp: true` is not read.
 
 ```markdown
 ---
@@ -77,6 +77,7 @@ date: 4 Nov 2026
 | `theme` | The deck's look; see [Themes](#themes). |
 | `theme_overrides` | Changes single theme colors or fonts for this deck. |
 | `aspect` | Slide shape: `16:9` (default), `16:10` or `4:3`. Presenting and PDF pages follow it. |
+| `font_size` | The base text size: a percentage of the default (`120%`) or pixels on a 1280 px wide slide (`36`). Everything on the slide scales with it. Kept between `50%` and `200%`. |
 | `paginate` | `true` shows the slide number in the bottom-right corner. |
 | `header`, `footer` | A line of small text at the top or bottom of every slide. |
 | `title`, `author`, `date` | Fill `{title}`, `{author}` and `{date}` in the header and footer. |
@@ -87,6 +88,7 @@ A slide can change these for itself:
 
 | Directive | Effect on its slide |
 | --- | --- |
+| `<!-- _font_size: 120% -->` | This slide's base text size, same values as `font_size`. |
 | `<!-- _paginate: false -->` | Hides the slide number (`true` shows it when the deck doesn't). |
 | `<!-- _header: text -->`, `<!-- _footer: text -->` | Replaces the header or footer; an empty value (`<!-- _footer: "" -->`) hides it. |
 
@@ -101,7 +103,7 @@ A slide can change these for itself:
 | `dark` | Near-black slides, light text. |
 | `paper` | Warm off-white, brown headings, serif type. |
 | `midnight` | Dark blue slides; title and section slides on a brighter blue. |
-| `pitch` | White slides, blue headings; title and section slides on solid blue. |
+| `pitch` | White slides, blue headings; title and section slides on solid blue; table headers in white on blue. |
 
 Code on a slide follows the theme: a dark theme gets dark-mode code colors even in a light window, and the other way round. An unknown theme name falls back to `default`.
 
@@ -140,8 +142,12 @@ footer:
 | `colors.accent` | Links and list bullets (`primary` is used when there is no `accent`). |
 | `colors.bold` | Bold text. |
 | `colors.code_background` | Code block background. |
+| `colors.table_header`, `table_header_text` | Background and text of a table's header row. |
+| `colors.table_border`, `table_stripe` | A table's lines, and the shaded rows of a `striped` table. |
+| `table.style` | `lines` (default: a rule above and below each row), `grid` (borders between all cells), `striped` (every other row shaded) or `minimal` (only a rule under the header). |
 | `colors.primary`, `title_text` | Background and text of title and section slides. |
 | `fonts.body`, `title`, `code` | Font lists for body text, headings and code. |
+| `fonts.size` | The base text size, like the frontmatter's `font_size`, which wins over it. |
 | `header`, `footer` | A template like the frontmatter's, or `show:` and `text:`. The deck's own `header` and `footer` win. |
 
 Colors are hex values (`#0057B8`) or color names (`navy`); fonts are lists of names. Anything else is ignored, so a theme can't break the page. Theme files are read each time a deck renders: after editing one, edit or reopen the deck to see it. Quick Look uses the built-in themes only.
@@ -423,7 +429,7 @@ Revenue grew 12%[^q3].
 
 ## Editing a deck
 
-- **Slide Preview.** **View → Slide Preview** (<kbd>⌘9</kbd>) opens the deck's slides in the right-hand pane, next to the editor. It updates a moment after you stop typing, outlines the slide the cursor is in, and scrolls to it when the cursor moves to another slide. Notes are hidden there. Widen the pane for bigger slides.
+- **Slide Preview.** **View → Slide Preview** (<kbd>⌘9</kbd>) opens the deck's slides in the right-hand pane, next to the editor. It updates a moment after you stop typing, outlines the slide the cursor is in, and scrolls to it when the cursor moves to another slide. Click a slide to jump to it: the editor scrolls there and puts the cursor at the start of the slide, or, in Read Mode, the document scrolls to it. Clicks on links, buttons and selected text are left alone. Notes are hidden there. Widen the pane for bigger slides.
 - **Back to Read Mode.** Leaving Edit Mode (<kbd>⌘E</kbd>) shows the slide the cursor was in, from its top.
 - **Slash commands.** In a deck, the `/` menu has a **Slides** group: **New Slide** (`---`), **Speaker Notes** (`???`), **Reveal Step** (`<!-- step -->`) and **New Column** (`<!-- column -->`).
 
@@ -452,8 +458,8 @@ Presentation clickers send Page Up and Page Down, so they work without setup. Th
 
 | Syntax | Meaning |
 | --- | --- |
-| `slides: true` / `marp: true` in frontmatter | The file is a deck. |
-| `theme`, `theme_overrides`, `aspect`, `paginate`, `header`, `footer`, `title`, `author`, `date` in frontmatter | Deck settings. |
+| `slides: true` in frontmatter | The file is a deck. |
+| `theme`, `theme_overrides`, `aspect`, `font_size`, `paginate`, `header`, `footer`, `title`, `author`, `date` in frontmatter | Deck settings. |
 | `---` on its own line | Starts the next slide. |
 | `???` line | Starts the slide's speaker notes. |
 | `<hr>` | A horizontal rule inside a slide. |
@@ -466,4 +472,5 @@ Presentation clickers send Page Up and Page Down, so they work without setup. Th
 | `<!-- column -->`, `<!-- end-columns -->` | Columns. |
 | `<!-- space -->`, `<!-- space: n -->` | Empty lines. |
 | `<!-- _paginate: … -->`, `<!-- _header: … -->`, `<!-- _footer: … -->` | This slide's number, header and footer. |
+| `<!-- _font_size: … -->` | This slide's base text size. |
 | `!caption[text]` | A caption under the block above. |

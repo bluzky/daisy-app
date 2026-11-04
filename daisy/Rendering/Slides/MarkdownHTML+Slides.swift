@@ -66,6 +66,26 @@ nonisolated extension MarkdownHTML {
         }
     }
 
+    /// The line to put the caret on for each slide, as the editor numbers
+    /// them: the first non-blank line of the slide after the `---` that opens
+    /// it (and after the frontmatter, for the first slide). An empty slide
+    /// gets the line after its `---`, at most the file's last line.
+    static func slideContentLines(markdown: String,
+                                  configuration: RenderExtensionConfiguration = .allEnabled) -> [Int] {
+        let lines = markdown.components(separatedBy: "\n")
+        guard let parsed = deckForLines(markdown: markdown, configuration: configuration) else { return [1] }
+        let starts = parsed.deck.startLines.enumerated().map { index, line in
+            index == 0 ? parsed.lineOffset + 1 : line + parsed.lineOffset + 1
+        }
+        return starts.enumerated().map { index, start in
+            let end = index + 1 < starts.count ? starts[index + 1] - 1 : lines.count + 1
+            var line = start
+            while line < end, line <= lines.count,
+                  lines[line - 1].trimmingCharacters(in: .whitespaces).isEmpty { line += 1 }
+            return min(line <= lines.count && line < end ? line : start, lines.count)
+        }
+    }
+
     private static func deckForLines(
         markdown: String, configuration: RenderExtensionConfiguration
     ) -> (deck: SlideDeck, lineOffset: Int)? {
@@ -166,6 +186,7 @@ nonisolated extension MarkdownHTML {
         all.forEach(frame => {
           frame.querySelectorAll('img[data-mdp-size]').forEach(img => { img.style.width = img.dataset.mdpSize; });
           frame.querySelectorAll('.mdp-slide[data-slide-color]').forEach(slide => { slide.style.color = slide.dataset.slideColor; });
+          frame.querySelectorAll('.mdp-slide[data-slide-font-size]').forEach(slide => { slide.style.fontSize = slide.dataset.slideFontSize; });
         });
         if (!all.length) return;
         current = Math.max(0, Math.min(current, all.length - 1));
@@ -186,6 +207,18 @@ nonisolated extension MarkdownHTML {
           else root.removeAttribute('data-mdp-slides-blank');
         }
       };
+      // In the Slide Preview pane, a click on a slide asks the host to go to
+      // it. Links, buttons and a text selection keep their own behavior.
+      document.addEventListener('click', event => {
+        if (!document.documentElement.hasAttribute('data-mdp-slides-pane')) return;
+        if (event.target.closest('a, button, input, summary, [role="button"], .mermaid-hud')) return;
+        if (String(window.getSelection()).length) return;
+        const frame = event.target.closest('.mdp-slide-frame');
+        if (!frame) return;
+        window.webkit?.messageHandlers?.mdPreviewHost?.postMessage({
+          kind: 'slideClicked', index: Number(frame.dataset.slide)
+        });
+      });
       window.MdPreview?.registerExtension({ id: 'slides', render() { apply(); } });
     })();
     </script>
@@ -202,6 +235,8 @@ nonisolated extension MarkdownHTML {
         flex-direction: column;
         gap: 2.5em;
         --mdp-slide-bg: Canvas;
+        /* Base text size; `font_size`, a theme's `fonts.size` and `_font_size` change it. */
+        --mdp-font-size: \(SlideDeck.cqw(SlideDeck.defaultFontSize));
         /* `aspect` in frontmatter: 16:9 unless the deck says otherwise. */
         --mdp-aspect-w: 16;
         --mdp-aspect-h: 9;
@@ -260,7 +295,7 @@ nonisolated extension MarkdownHTML {
         display: flex;
         flex-direction: column;
         padding: 4.5cqw 6cqw;
-        font-size: 2.2cqw;
+        font-size: var(--mdp-font-size);
         line-height: 1.4;
         background: var(--mdp-slide-bg);
         border-radius: 0.6cqw;

@@ -512,11 +512,11 @@ const slashInsertTemplate = (body, { source = "", locale = "en" } = {}) => {
 }
 
 {
-  const deck = "---\nmarp: true\n---\n- Ship "
+  const deck = "---\nslides: true\n---\n- Ship "
   const { host, editor } = slashEditor(deck)
   editor.insertTextAt("/step", deck.length, deck.length)
   slashKey(host, "Enter")
-  check("/step at the end of text marks that line", editor.getMarkdown() === "---\nmarp: true\n---\n- Ship <!-- step -->")
+  check("/step at the end of text marks that line", editor.getMarkdown() === "---\nslides: true\n---\n- Ship <!-- step -->")
 }
 
 {

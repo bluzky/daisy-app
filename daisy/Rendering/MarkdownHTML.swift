@@ -87,6 +87,11 @@ nonisolated enum MarkdownHTML {
         /// `lightHeading` / `darkHeading`, when set, win over them.
         var lightHeadingLevels: [Int: String] = [:]
         var darkHeadingLevels: [Int: String] = [:]
+        /// Table colors by custom property (`--table-border`, …).
+        var lightTableColors: [String: String] = [:]
+        var darkTableColors: [String: String] = [:]
+        /// How tables are drawn; nil or `lines` is the plain look.
+        var tableStyle: TableStyle?
 
         /// "#RRGGBB" (or #RRGGBBAA), or nil for anything else.
         static func sanitizedHexColor(_ value: String?) -> String? {
@@ -161,6 +166,23 @@ nonisolated enum MarkdownHTML {
                     :root:not([data-mdp-color-scheme="light"]) { --heading-\(level): \(dark); }
                 }
                 """)
+            }
+            let tableProperties = ["--table-header-bg", "--table-border", "--table-stripe"]
+            for property in tableProperties {
+                if let light = Self.sanitizedHexColor(lightTableColors[property]) {
+                    rules.append(":root { \(property): \(light); }")
+                }
+                if let dark = Self.sanitizedHexColor(darkTableColors[property]) {
+                    rules.append(":root[data-mdp-color-scheme=\"dark\"] { \(property): \(dark); }")
+                    rules.append("""
+                    @media (prefers-color-scheme: dark) {
+                        :root:not([data-mdp-color-scheme="light"]) { \(property): \(dark); }
+                    }
+                    """)
+                }
+            }
+            if let tableStyle, tableStyle != .lines {
+                rules.append(MarkdownHTML.tableStyleRules(tableStyle))
             }
             if let light = Self.sanitizedHexColor(lightPageBackground) {
                 rules.append("html { background: \(light); }")

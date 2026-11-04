@@ -102,6 +102,9 @@ nonisolated struct SlideDeck {
         /// Empty lines from `<!-- space -->` / `<!-- space: n -->`, by index
         /// in `blocks`; the comment block itself holds the place.
         var spaces: [Int: Int] = [:]
+        /// `<!-- _font_size: … -->`: this slide's base text size in `cqw`;
+        /// nil follows the deck.
+        var fontSize: Double?
         /// `<!-- _paginate: true|false -->`: this slide's page number
         /// against the deck's `paginate`; nil follows the deck.
         var paginate: Bool?
@@ -500,6 +503,29 @@ nonisolated struct SlideDeck {
         return nil
     }
 
+    /// The base text size of a slide, as a share of the slide's width in
+    /// `cqw`.
+    static let defaultFontSize = 2.8
+    /// The smallest and largest size, as a share of the default.
+    static let fontSizeScale = 0.5...2.0
+
+    /// A base text size from `font_size`, `_font_size` or a theme's
+    /// `fonts.size`, in `cqw`: a percentage of the default (`120%`), or
+    /// pixels on the 1280 px canvas (`36` or `36px`). Sizes outside half to
+    /// twice the default are brought to that range; anything else is nil.
+    static func fontSize(_ value: String) -> Double? {
+        var text = value.trimmingCharacters(in: .whitespaces).lowercased()
+        let isPercent = text.hasSuffix("%")
+        if isPercent { text.removeLast() } else if text.hasSuffix("px") { text.removeLast(2) }
+        guard !text.isEmpty, text.allSatisfy({ $0.isASCII && ($0.isNumber || $0 == ".") }),
+              let number = Double(text), number > 0 else { return nil }
+        let scale = isPercent ? number / 100 : number / (Double(MarkdownHTML.slideCanvasWidth) / 100) / defaultFontSize
+        return defaultFontSize * min(max(scale, fontSizeScale.lowerBound), fontSizeScale.upperBound)
+    }
+
+    /// `size` as a CSS length.
+    static func cqw(_ size: Double) -> String { String(format: "%.3fcqw", size) }
+
     /// Plain class names: letters, digits, `-` and `_`.
     static func sanitizedClasses(_ value: String) -> [String] {
         value.split(whereSeparator: \.isWhitespace).map(String.init).filter { name in
@@ -509,13 +535,11 @@ nonisolated struct SlideDeck {
 
     // MARK: - Turning it on
 
-    /// True when the frontmatter asks for slides: `slides: true`, or Marp's
-    /// `marp: true`.
+    /// True when the frontmatter asks for slides: `slides: true`.
     static func isDeck(frontmatter raw: String?, format: MarkdownFrontmatter.Format?) -> Bool {
         guard let raw, let format else { return false }
         return MarkdownFrontmatter.parse(raw, format: format).contains { entry in
-            let key = entry.key.lowercased()
-            return (key == "slides" || key == "marp")
+            entry.key.lowercased() == "slides"
                 && entry.value.trimmingCharacters(in: .whitespaces).lowercased() == "true"
         }
     }
@@ -534,6 +558,8 @@ nonisolated private extension SlideDeck.Slide {
             if let layout = SlideDeck.Layout(rawValue: value.lowercased()) { layoutOverride = layout }
         case "_class":
             classes += SlideDeck.sanitizedClasses(value)
+        case "_font_size":
+            fontSize = SlideDeck.fontSize(value)
         case "_paginate":
             paginate = value.lowercased() == "true"
         case "_header":

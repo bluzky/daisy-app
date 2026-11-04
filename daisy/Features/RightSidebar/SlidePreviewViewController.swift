@@ -11,9 +11,8 @@ import Cocoa
 import WebKit
 
 final class SlidePreviewViewController: NSViewController {
-    /// The deck is laid out as wide as Read Mode lays it out and shrunk to
-    /// the pane with `pageZoom`, so the pane is an exact miniature of it.
-    private static let layoutWidth: CGFloat = 1100
+    /// The reader clicked a slide: its zero-based index.
+    var slideSelected: ((Int) -> Void)?
 
     private let markdownView = MarkdownWebView(frame: .zero)
     private var markdown: String?
@@ -26,15 +25,8 @@ final class SlidePreviewViewController: NSViewController {
         markdownView.forcesSlides = true
         markdownView.extensionHostState = [MarkdownHTML.slidesPaneStateID: true]
         markdownView.contentDidReplace = { [weak self] in self?.markCurrentSlide(scroll: true) }
+        markdownView.slideClicked = { [weak self] index in self?.slideSelected?(index) }
         view = markdownView
-    }
-
-    override func viewDidLayout() {
-        super.viewDidLayout()
-        let zoom = max(view.bounds.width / Self.layoutWidth, 0.1)
-        if abs(markdownView.webView.pageZoom - zoom) > 0.001 {
-            markdownView.webView.pageZoom = zoom
-        }
     }
 
     /// Only the panel on screen renders; one hidden keeps the latest text

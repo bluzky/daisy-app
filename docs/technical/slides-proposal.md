@@ -57,7 +57,7 @@ Non-goals for now:
 
 A file is a deck when either is true:
 
-- Its frontmatter has `slides: true`, or `marp: true`, which means the same thing (see [Marp decks](#marp-decks)).
+- Its frontmatter has `slides: true`.
 - The user chooses **View → Present** (⌥⌘P) on any Markdown file. This presents without changing the file.
 
 A deck file opens in Read Mode as slides, laid out as a vertical strip of scaled slides, each with its speaker notes below it. Other files render as today. This keeps `---` an ordinary rule in notes that are not decks; in Kova every file is a deck, which would be wrong for Daisy.
@@ -80,7 +80,7 @@ Markers are recognised at the **top level of the document only**, from the swift
 | `<!-- space -->` / `<!-- space: n -->` on its own line | Adds one or `n` (up to 10) empty lines at the slide's line height. Blank lines don't add space on a slide: slide mode leaves out Read Mode's blank-line spacers. |
 | `!caption[text]` | Caption for the image, table, Mermaid or math block directly above. |
 
-Frontmatter keys: `slides`, `marp`, `theme`, `theme_overrides`, `aspect` (`16:9` default, `16:10`, `4:3`), `paginate`, `header`, `footer`, `author`, `date`.
+Frontmatter keys: `slides`, `theme`, `theme_overrides`, `aspect` (`16:9` default, `16:10`, `4:3`), `paginate`, `header`, `footer`, `author`, `date`.
 
 `<!-- step -->` written at the end of a list item or paragraph is inline HTML inside that element and reveals that element; written on its own line it is an `HTMLBlock` and reveals the next block. Both forms are supported.
 
@@ -101,7 +101,7 @@ The formatter writes the heading, then `.mdp-slide-columns` holding one `.mdp-sl
 
 ### Marp decks
 
-`marp: true` is an alias for `slides: true`. From Marp, Daisy supports `![bg …]` with the keywords above, `<!-- _class: … -->`, `<!-- _color: … -->`, and the `paginate`, `header` and `footer` frontmatter keys. Known differences:
+There is no `marp: true`; a deck turns slides on with `slides: true`. From Marp, Daisy supports `![bg …]` with the keywords above, `<!-- _class: … -->`, `<!-- _color: … -->`, and the `paginate`, `header` and `footer` frontmatter keys. Known differences:
 
 - Speaker notes are `???` only. Marp's HTML-comment notes are not shown anywhere.
 - No Marp CSS themes, `size:` keyword, `<style>` blocks, or directives other than those listed; unknown directives are ignored.
@@ -260,7 +260,7 @@ Edit Mode replaces the preview: the editor is an overlay on Read Mode, and Read 
 A third panel in the right pane, next to Agenda and References: **View → Slide Preview**, offered only when the document is a deck.
 
 - **Content:** the Read Mode strip of the whole deck, every slide at the pane's width, so the slides before and after the one being edited stay in view. It is a `MarkdownWebView` with a `slides-pane` host state.
-- **Scaling with `pageZoom`:** the page is laid out at Read Mode's deck width (1100 CSS px) and `webView.pageZoom` is set to `paneWidth / 1100`, recomputed on resize. The pane shows an exact miniature of Read Mode, including pixel-sized chrome, so it needs no pane-specific sizing CSS. Daisy's text size uses a CSS variable (`textScale`), not `pageZoom`, and the page already accounts for `pageZoom` (`--mdp-chrome-zoom`, height and scroll reporting), so the two don't interfere. Pinch-to-zoom is off in the pane, so it never changes the text-size setting.
+- **Scaling:** the page is laid out at the pane's own width, with no `pageZoom`. A slide is sized in container-query units, so it keeps its proportions at any width. An earlier version laid the page out at 1100 CSS px and shrank it with `webView.pageZoom`, but at a small zoom WebKit sized headings wrongly (a heading came out about half its proper size next to the body text). Pixel-sized image widths (`"300px"`) don't scale with the pane; use `%`. Pinch-to-zoom is off in the pane, so it never changes the text-size setting.
 - **Notes are hidden** in the pane: at about 0.4× they would be unreadable. The presenter view and Read Mode show them.
 - **Updates as you type:** the editor already sends `dirty` on every change. After a pause (about 300 ms) the host fetches the buffer (`fetchMarkdown`) and displays it in the pane; the morphdom body swap changes only the edited slide, so other slides and their diagrams are left alone. In Read Mode the pane shows the rendered document.
 - **Following the caret:** the editor's `formattingState` message also carries the caret's line. Swift maps the line to a slide through each slide's start line (a new `startLine` on `SlideDeck.Slide`, shifted by the frontmatter offset), outlines that slide in the pane and scrolls it into view — only when the caret moves to a different slide, not on every keystroke. After the user scrolls the pane, it stops following until the caret moves to another slide. In Read Mode, nothing follows: the strip is already on screen.
@@ -317,5 +317,5 @@ Each phase updates `README.md` and `docs/render-extensions.md` in the same chang
 ## Decisions
 
 - A deck opens as slides in Read Mode; there is no document view of a deck.
-- `???` is the only notes marker, in every deck. HTML comments are never notes, including in `marp: true` decks.
+- `???` is the only notes marker, in every deck. HTML comments are never notes, including in decks that use Marp-style directives.
 - The theme is chosen in frontmatter only. There is no theme picker in the UI.

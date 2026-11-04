@@ -407,6 +407,44 @@ final class MarkdownHTMLRenderTests: XCTestCase {
         XCTAssertNil(original.setting.markdownThemeOverrides)
     }
 
+    func testThemeOverridesEmitTableColorsAndStyle() throws {
+        let overrides = MarkdownHTML.ThemeOverrides(
+            lightTableColors: ["--table-border": "#D2D2D7", "--table-bogus": "#000000"],
+            darkTableColors: ["--table-stripe": "#242222", "--table-header-bg": "red;}"],
+            tableStyle: .grid
+        )
+        let css = overrides.css
+        XCTAssertTrue(css.contains(":root { --table-border: #D2D2D7; }"))
+        XCTAssertTrue(css.contains(":root[data-mdp-color-scheme=\"dark\"] { --table-stripe: #242222; }"))
+        XCTAssertFalse(css.contains("--table-bogus"), "only the known properties are emitted")
+        XCTAssertFalse(css.contains("red;}"), "a non-hex value never reaches the page")
+        XCTAssertTrue(css.contains(".md-table-scroll > table :is(th, td) { border: 1px solid"))
+        XCTAssertFalse(MarkdownHTML.ThemeOverrides(tableStyle: .lines).css.contains(".md-table-scroll"))
+    }
+
+    func testTableStyleSettingPersistsAndPresetsClearIt() throws {
+        let suite = "doc.daisy.tests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        var setting = ThemeColorsSetting()
+        XCTAssertFalse(setting.isCustomized)
+        XCTAssertNil(setting.markdownThemeOverrides)
+        setting.tableStyle = .striped
+        setting.setHex("#102030", .tableBorder, .light)
+        XCTAssertTrue(setting.isCustomized)
+        ThemeColorsSetting.write(setting, to: defaults)
+        let read = ThemeColorsSetting.read(from: defaults)
+        XCTAssertEqual(read.tableStyle, .striped)
+        XCTAssertEqual(read.hexValue(.tableBorder, .light), "#102030")
+        XCTAssertEqual(read.markdownThemeOverrides?.tableStyle, .striped)
+        // A saved look from before table styles has no `tableStyle` key.
+        let old = try JSONEncoder().encode(ThemeColorsSetting())
+        XCTAssertNil(try JSONDecoder().decode(ThemeColorsSetting.self, from: old).tableStyle)
+        // Applying a preset replaces the table style.
+        let paper = try XCTUnwrap(ThemePreset.builtIn.first { $0.name == "Paper" })
+        XCTAssertNil(paper.setting.tableStyle)
+    }
+
     func testThemeOverridesRejectNonHexValues() {
         XCTAssertEqual(MarkdownHTML.ThemeOverrides.sanitizedHexColor("#A1B2C3"), "#A1B2C3")
         XCTAssertEqual(MarkdownHTML.ThemeOverrides.sanitizedHexColor("#A1B2C3D4"), "#A1B2C3D4")
@@ -2546,6 +2584,17 @@ final class MarkdownHTMLRenderTests: XCTestCase {
         ), rendered.articleHTML)
         XCTAssertFalse(rendered.html.contains("kind: 'tableEdit'"))
         XCTAssertFalse(rendered.html.contains("kind: 'tableContextMenu'"))
+    }
+
+    func testTableInlineCodeKeepsItsIntrinsicColumnWidth() {
+        let rendered = MarkdownHTML.render(
+            markdown: "| Field |\n| --- |\n| `mapped_status` |",
+            vendorLoading: .lazy
+        )
+
+        XCTAssertTrue(rendered.html.contains(
+            ":is(th, td) :not(pre) > code {\n        overflow-wrap: normal;\n        white-space: nowrap;"
+        ))
     }
 }
 

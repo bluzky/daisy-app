@@ -10,6 +10,48 @@ import Foundation
 // `nonisolated` matters: the targets default to MainActor isolation, and
 // rendering runs off the main actor.
 nonisolated extension MarkdownHTML {
+    /// How a theme draws tables. `lines` is the plain look: a rule above and
+    /// below every row.
+    enum TableStyle: String, CaseIterable, Codable, Sendable {
+        case lines
+        case grid
+        case striped
+        case minimal
+
+        /// The localization key for the style's name.
+        var displayName: String {
+            switch self {
+            case .lines: "Lines"
+            case .grid: "Grid"
+            case .striped: "Striped"
+            case .minimal: "Minimal"
+            }
+        }
+    }
+
+    /// Rules for a table style, for a theme to emit. `scope` is a selector
+    /// prefix ending in a space, or empty for every table. `lines` needs
+    /// none: it is the stylesheet's own look.
+    static func tableStyleRules(_ style: TableStyle, scope: String = "") -> String {
+        let table = "\(scope).md-table-scroll > table"
+        switch style {
+        case .lines:
+            return ""
+        case .grid:
+            return "\(table) :is(th, td) { border: 1px solid var(--table-border, var(--grid)); }"
+        case .striped:
+            return """
+            \(table) tbody tr:nth-child(even) \
+            { background: var(--table-stripe, color-mix(in srgb, var(--text) 5%, transparent)); }
+            """
+        case .minimal:
+            return """
+            \(table) td { border-top: 0; border-bottom: 0; }
+            \(table) th { border-top: 0; }
+            """
+        }
+    }
+
     // Shared document typography, spacing, and controls. Logical positioning
     // keeps lists, quotations, and table alignment consistent in both directions.
     /// Shared document stylesheet. Extension CSS is emitted from registry.
@@ -778,21 +820,31 @@ nonisolated extension MarkdownHTML {
         display: table;
         width: 100%;
     }
+    /* A theme sets `--table-border`, `--table-header-bg` and
+       `--table-header-text`; unset, tables keep the plain look. */
     th, td {
         padding: 8px 12px;
-        border-top: 1px solid var(--grid);
-        border-bottom: 1px solid var(--grid);
+        border-top: 1px solid var(--table-border, var(--grid));
+        border-bottom: 1px solid var(--table-border, var(--grid));
         text-align: start;
         vertical-align: top;
     }
-    th { font-weight: 600; }
+    th {
+        font-weight: 600;
+        background: var(--table-header-bg, transparent);
+        color: var(--table-header-text, inherit);
+    }
     /* The article's overflow-wrap: anywhere would let auto table layout shrink
        short columns to one letter per line; break-word keeps each column at
        least as wide as its longest word. */
     th, td { overflow-wrap: break-word; }
-    /* Inline code sets its own `anywhere`, which would make a code-only
-       column shrink to a few letters per line the same way. */
-    :is(th, td) :not(pre) > code { overflow-wrap: break-word; }
+    /* Inline code identifies fields such as `mapped_status`. Keep it intact
+       so auto table layout reserves its natural width; the wrapper scrolls
+       horizontally when a table cannot fit. */
+    :is(th, td) :not(pre) > code {
+        overflow-wrap: normal;
+        white-space: nowrap;
+    }
     :is(th, td)[align="center"] { text-align: center; }
     :is(th, td)[align="right"] { text-align: right; }
     :is(th, td)[align="left"] { text-align: left; }

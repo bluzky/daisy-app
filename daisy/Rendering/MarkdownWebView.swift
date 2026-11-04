@@ -127,6 +127,8 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
     var queryResultOpened: ((String, Int) -> Void)?
     /// A task's checkbox in a result: path, line and the new state.
     var queryTaskToggled: ((String, Int, Bool) -> Void)?
+    /// A slide the reader clicked in the Slide Preview pane, by index.
+    var slideClicked: ((Int) -> Void)?
     #endif
     var scrollDidChange: (() -> Void)?
     /// Render every document as slides, frontmatter or not. Set by the
@@ -626,6 +628,9 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
             guard let value = dict["value"] as? NSNumber else { return }
             pointerDocumentYDidChange?(CGFloat(truncating: value))
         #if !QUICK_LOOK_EXTENSION
+        case "slideClicked":
+            guard let index = dict["index"] as? Int, index >= 0 else { return }
+            slideClicked?(index)
         case "openMetadata":
             guard let token = dict["token"] as? String else { return }
             linkActivated?(.metadata(token))

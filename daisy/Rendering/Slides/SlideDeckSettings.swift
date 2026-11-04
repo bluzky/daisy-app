@@ -114,6 +114,8 @@ nonisolated struct SlideDeckSettings: Equatable {
     var paginate = false
     var header: String?
     var footer: String?
+    /// `font_size:` — the base text size in `cqw`; nil follows the theme.
+    var fontSize: Double?
     var title: String?
     var author: String?
     var date: String?
@@ -141,6 +143,7 @@ nonisolated struct SlideDeckSettings: Equatable {
         paginate = string("paginate")?.lowercased() == "true"
         header = string("header")
         footer = string("footer")
+        fontSize = string("font_size").flatMap(SlideDeck.fontSize)
         title = string("title")
         author = string("author")
         date = string("date")

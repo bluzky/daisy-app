@@ -160,8 +160,8 @@ const SLASH_COMMANDS = [
     insert: (now) => slashDate(now) },
   { id: "now", group: "insert", label: "Now", aliases: ["now", "time", "datetime", "date"],
     insert: (now) => `${slashDate(now)} ${slashTime(now)}` },
-  // Slide deck commands, listed only in a deck (`slides: true` or
-  // `marp: true` in the frontmatter); see `slashIsDeck`.
+  // Slide deck commands, listed only in a deck (`slides: true` in the
+  // frontmatter); see `slashIsDeck`.
   { id: "slide", group: "slides", label: "New Slide", aliases: ["slide", "page", "break", "next"],
     // A blank line keeps `text\n---` from becoming a setext heading.
     convert: (raw) => raw
@@ -322,7 +322,7 @@ function slashTrigger(state) {
 }
 
 // A deck turns slides on in its frontmatter, as the preview does
-// (`SlideDeck.isDeck`): `slides: true` or `marp: true`, YAML or TOML.
+// (`SlideDeck.isDeck`): `slides: true`, YAML or TOML.
 function slashIsDeck(state) {
   const doc = state.doc
   const fence = doc.line(1).text.trim()
@@ -330,7 +330,7 @@ function slashIsDeck(state) {
   for (let number = 2; number <= Math.min(doc.lines, 200); number++) {
     const text = doc.line(number).text
     if (text.trim() === fence) return false
-    if (/^(?:slides|marp)\s*[:=]\s*["']?true["']?\s*$/i.test(text)) return true
+    if (/^slides\s*[:=]\s*["']?true["']?\s*$/i.test(text)) return true
   }
   return false
 }

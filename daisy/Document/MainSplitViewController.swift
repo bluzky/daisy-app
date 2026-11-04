@@ -77,6 +77,9 @@ final class MainSplitViewController: NSSplitViewController {
         addSplitViewItem(sidebar)
         addSplitViewItem(content)
         addSplitViewItem(tasks)
+        rightSidebarViewController?.slidePreview.slideSelected = { [weak self] index in
+            self?.showSlide(index)
+        }
 
         tasksCollapseObservation = tasks.observe(\.isCollapsed, options: [.new]) { [weak self] _, _ in
             DispatchQueue.main.async { [weak self] in
@@ -473,6 +476,25 @@ final class MainSplitViewController: NSSplitViewController {
         if isVisible, let source = contentViewController?.presentationSource {
             slidePreview?.display(markdown: source.markdown, assetBaseURL: source.assetBaseURL)
             if isEditorVisible { scheduleSlidePreviewUpdate() }
+        }
+    }
+
+    /// A slide clicked in the Slide Preview pane: the editor scrolls to it and
+    /// puts the caret there; in Read Mode the document scrolls to it.
+    private func showSlide(_ index: Int) {
+        let configuration = RenderExtensionPreferences.currentConfiguration
+        func lines(in markdown: String) -> Int? {
+            let lines = MarkdownHTML.slideContentLines(markdown: markdown, configuration: configuration)
+            return lines.indices.contains(index) ? lines[index] : nil
+        }
+        if let editor = editorViewController, !isEditorPreparing {
+            editor.fetchMarkdown { markdown in
+                guard let markdown, let line = lines(in: markdown) else { return }
+                editor.placeCaret(atLine: line, in: markdown)
+            }
+        } else if let markdown = contentViewController?.presentationSource?.markdown,
+                  let line = lines(in: markdown) {
+            contentViewController?.scrollToSourceLineWhenReady(line)
         }
     }
 

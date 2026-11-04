@@ -693,6 +693,28 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
         }
     }
 
+    /// Scrolls to `line` of `markdown`, the editor's current text, puts the
+    /// caret at the start of it and focuses the editor.
+    func placeCaret(atLine line: Int, in markdown: String) {
+        let nsText = markdown as NSString
+        var offset = 0
+        var current = 1
+        while current < line, offset < nsText.length {
+            let range = nsText.lineRange(for: NSRange(location: offset, length: 0))
+            offset = NSMaxRange(range)
+            current += 1
+        }
+        let target = offset
+        applyScrollProgress(
+            0,
+            sourceAnchor: SourceScrollAnchor(sourcePosition: CGFloat(line), topGap: 0)
+        ) { [weak self] in
+            self?.webView.evaluateJavaScript(
+                "window.__mdEditor && (window.__mdEditor.select(\(target), \(target)), window.__mdEditor.focus())"
+            ) { _, _ in }
+        }
+    }
+
     func fetchScrollAnchor(_ completion: @escaping (SourceScrollAnchor?) -> Void) {
         webView.evaluateJavaScript(
             "window.__mdEditor && window.__mdEditor.getScrollAnchor()"

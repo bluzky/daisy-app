@@ -161,7 +161,7 @@ final class SlideDeckTests: XCTestCase {
 
   func testFrontmatterTurnsSlidesOn() {
     XCTAssertTrue(SlideDeck.isDeck(markdown: "---\nslides: true\n---\n# A"))
-    XCTAssertTrue(SlideDeck.isDeck(markdown: "---\nmarp: true\n---\n# A"))
+    XCTAssertFalse(SlideDeck.isDeck(markdown: "---\nmarp: true\n---\n# A"), "Marp's flag is not read")
     XCTAssertTrue(SlideDeck.isDeck(markdown: "+++\nslides = true\n+++\n# A"))
     XCTAssertFalse(SlideDeck.isDeck(markdown: "---\nslides: false\n---\n# A"))
     XCTAssertFalse(SlideDeck.isDeck(markdown: "# A\n\n---\n\n# B"))

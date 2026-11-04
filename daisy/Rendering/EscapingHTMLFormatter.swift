@@ -930,6 +930,9 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
             if let color = slide.color {
                 result += " data-slide-color=\"\(escapeAttribute(color))\""
             }
+            if let size = slide.fontSize {
+                result += " data-slide-font-size=\"\(SlideDeck.cqw(size))\""
+            }
             result += ">"
             if let background = slide.background {
                 let fit = background.fits ? " mdp-slide-bg--fit" : ""

@@ -12,13 +12,19 @@ import Foundation
 nonisolated struct SlideTheme: Equatable {
     var id: String
     var name: String
-    /// `colors:` — `background`, `text`, `heading`, `accent` (links and
+    /// `colors:` — `table_header`, `table_header_text`, `table_border` and
+    /// `table_stripe` color tables; `background`, `text`, `heading`, `accent` (links and
     /// bullets; `primary` is read when there is no `accent`), `bold`,
     /// `code_background`, and `primary` with `title_text` for title and
     /// section slides.
     var colors: [String: String] = [:]
-    /// `fonts:` — `body`, `title` (headings) and `code`.
+    /// `fonts:` — `body`, `title` (headings) and `code`; `size` is read
+    /// separately into `fontSize`.
     var fonts: [String: String] = [:]
+    /// `table: { style: … }` — how tables are drawn; nil is the plain look.
+    var tableStyle: MarkdownHTML.TableStyle?
+    /// `fonts.size` — the base text size in `cqw`; nil keeps the default.
+    var fontSize: Double?
     var header: String?
     var footer: String?
     /// `appearance: dark|light`; when absent, read from the background.
@@ -34,6 +40,8 @@ nonisolated struct SlideTheme: Equatable {
         name = values["name"]?.string ?? base?.name ?? id
         colors = base?.colors ?? [:]
         fonts = base?.fonts ?? [:]
+        fontSize = base?.fontSize
+        tableStyle = base?.tableStyle
         header = base?.header
         footer = base?.footer
         appearance = base?.appearance
@@ -47,7 +55,11 @@ nonisolated struct SlideTheme: Equatable {
             guard let color = value.string.flatMap(SlideDeck.sanitizedColor) else { continue }
             colors[key.lowercased()] = color
         }
-        for (key, value) in values["fonts"]?.map ?? [:] {
+        if let style = values["table"]?["style"]?.string.flatMap({ MarkdownHTML.TableStyle(rawValue: $0.lowercased()) }) {
+            tableStyle = style
+        }
+        if let size = values["fonts"]?["size"]?.string.flatMap(SlideDeck.fontSize) { fontSize = size }
+        for (key, value) in values["fonts"]?.map ?? [:] where key.lowercased() != "size" {
             guard let font = value.string.flatMap(Self.sanitizedFontFamily) else { continue }
             fonts[key.lowercased()] = font
         }
@@ -78,6 +90,14 @@ nonisolated struct SlideTheme: Equatable {
     }
 
     // MARK: - CSS
+
+    /// `colors:` keys for tables, and the custom property each sets.
+    static let tableColorProperties = [
+        ("table_header", "--table-header-bg"),
+        ("table_header_text", "--table-header-text"),
+        ("table_border", "--table-border"),
+        ("table_stripe", "--table-stripe"),
+    ]
 
     /// Whether the slides are dark: `appearance`, else the background's
     /// brightness when it is a hex color; nil when unknown.
@@ -112,8 +132,8 @@ nonisolated struct SlideTheme: Equatable {
             deck.append((isDark ? MarkdownHTML.darkCodePaletteCSS : MarkdownHTML.lightCodePaletteCSS)
                 .replacingOccurrences(of: "\n", with: " "))
             deck.append(isDark
-                ? "--code-bg: #262626; --code-border: #323232; --quote-border: rgb(255 255 255 / 25%);"
-                : "--code-bg: #f9f9f9; --code-border: #f0f0f0; --quote-border: rgb(0 0 0 / 15%);")
+                ? "--code-bg: #262626; --code-border: #323232; --quote-border: rgb(255 255 255 / 25%); --grid: rgb(255 255 255 / 20%);"
+                : "--code-bg: #f9f9f9; --code-border: #f0f0f0; --quote-border: rgb(0 0 0 / 15%); --grid: rgb(0 0 0 / 15%);")
         }
         if let background = colors["background"] { deck.append("--mdp-slide-bg: \(background);") }
         if let text = colors["text"] {
@@ -129,6 +149,10 @@ nonisolated struct SlideTheme: Equatable {
         }
         if let accent = colors["accent"] ?? colors["primary"] { deck.append("--link: \(accent);") }
         if let code = colors["code_background"] { deck.append("--code-bg: \(code);") }
+        if let fontSize { deck.append("--mdp-font-size: \(SlideDeck.cqw(fontSize));") }
+        for (key, property) in Self.tableColorProperties {
+            if let color = colors[key] { deck.append("\(property): \(color);") }
+        }
 
         var rules: [String] = []
         // On the slides only: the notes under them in Read Mode stay in the
@@ -148,6 +172,9 @@ nonisolated struct SlideTheme: Equatable {
             --secondary: color-mix(in srgb, \(titleText) 80%, transparent); \
             --heading: \(titleText); }
             """)
+        }
+        if let tableStyle, tableStyle != .lines {
+            rules.append(MarkdownHTML.tableStyleRules(tableStyle, scope: ".mdp-deck .mdp-slide "))
         }
         if let body = fonts["body"] {
             rules.append(".mdp-deck .mdp-slide { font-family: \(body); }")
@@ -218,6 +245,9 @@ nonisolated struct SlideTheme: Equatable {
               bold: "#b8003f"
               primary: "#0057b8"
               title_text: "#ffffff"
+              table_header: "#0057b8"
+              table_header_text: "#ffffff"
+              table_border: "#c9d6e8"
             """),
         ]
         return sources.map { SlideTheme(id: $0.0, values: SlideYAML.parse($0.1)) }
@@ -263,6 +293,8 @@ nonisolated struct SlideTheme: Equatable {
             ?? catalog[defaultID]
             ?? SlideTheme(id: defaultID, values: [:])
         theme.apply(settings.themeOverrides)
+        // `font_size` in the frontmatter is the deck's own word on it.
+        if let size = settings.fontSize { theme.fontSize = size }
         return theme
     }
 }

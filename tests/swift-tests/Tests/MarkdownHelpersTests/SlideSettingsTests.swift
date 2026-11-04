@@ -185,6 +185,14 @@ final class SlideSettingsTests: XCTestCase {
     XCTAssertEqual(MarkdownHTML.slideIndex(atSourceLine: 99, markdown: markdown), 2)
   }
 
+  func testSlideContentLinesPointAtEachSlidesFirstContent() {
+    let markdown = "---\nslides: true\n---\n\n# One\n\n---\n\n## Two\ntext\n\n---\n"
+    // "# One" is line 5, "## Two" line 9; the closing `---` adds no slide.
+    XCTAssertEqual(MarkdownHTML.slideContentLines(markdown: markdown), [5, 9])
+    XCTAssertEqual(MarkdownHTML.slideContentLines(markdown: "# Solo\n\n---\n\n## Two"), [1, 5])
+    XCTAssertEqual(MarkdownHTML.slideContentLines(markdown: ""), [1])
+  }
+
   func testMathAndFootnotesKeepLinesAligned() {
     let markdown = "# One[^a]\n\n$$\nx\n$$\n\n[^a]: Note\n\n---\n\n## Two"
     XCTAssertEqual(MarkdownHTML.slideStartLines(markdown: markdown), [1, 9])

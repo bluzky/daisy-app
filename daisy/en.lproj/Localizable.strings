@@ -57,6 +57,14 @@
 "Text" = "Text";
 "Link" = "Link";
 "Headings" = "Headings";
+"Table style" = "Table style";
+"Table header" = "Table header";
+"Table lines" = "Table lines";
+"Table stripe" = "Table stripe";
+"Lines" = "Lines";
+"Grid" = "Grid";
+"Striped" = "Striped";
+"Minimal" = "Minimal";
 "Presets" = "Presets";
 "Colors apply to the current appearance. Choose the Automatic appearance to set Light and Dark separately." = "Colors apply to the current appearance. Choose the Automatic appearance to set Light and Dark separately.";
 "A preset fills every color and switches the app to its light or dark look. Adjust individual colors below afterwards." = "A preset fills every color and switches the app to its light or dark look. Adjust individual colors below afterwards.";

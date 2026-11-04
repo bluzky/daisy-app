@@ -26,7 +26,7 @@ Daisy never shrinks text to fit. A slide is a fixed 16:9 canvas with roughly 28 
 
 ```markdown
 ---
-slides: true          # or marp: true
+slides: true
 theme: midnight       # default, light, dark, paper, midnight, pitch, or a theme file's id
 paginate: true        # slide number, bottom right
 footer: "{title} | | {slide_number}/{total}"   # also header; {author} {date}; | splits left/center/right
@@ -62,6 +62,7 @@ Speaker notes: everything after ??? on this slide.
 | Force a layout | `<!-- layout: section -->` |
 | Center / dark slide | `<!-- _class: center -->`, `center-x`, `center-y`, `lead`, `invert` |
 | Text color | `<!-- color: "#0057b8" -->` or a color name |
+| Text size | `font_size: 120%` in frontmatter, or `<!-- _font_size: 120% -->` on one slide (50%–200% of the default) |
 | Per-slide chrome | `<!-- _paginate: false -->`, `<!-- _header: "" -->` (empty hides), `<!-- _footer: text -->` |
 | Rule inside a slide | `<hr>` (never `---`) |
 
@@ -97,7 +98,7 @@ These don't produce errors in Daisy — the slide just looks wrong — so check 
 - **`<!-- step -->` mid-sentence** is ignored. It must end the item or paragraph.
 - **A `bg` image with other text** on its line or paragraph renders as a normal inline image.
 - **Kova's `|||`** is not a column break here; use `<!-- column -->`.
-- **Marp habits:** HTML comments are *not* notes (only `???` is); `<!-- paginate: true -->`, `class`, `header`, `footer` without `_` are not read — put deck-wide settings in the frontmatter and use `_`-prefixed directives for one slide. Marp's `![bg brightness:.5]` filters aren't supported; use `dim`/`blur`.
+- **Marp habits:** HTML comments are *not* notes (only `???` is); `<!-- paginate: true -->`, `class`, `header`, `footer` without `_` are not read — put deck-wide settings in the frontmatter and use `_`-prefixed directives for one slide. Marp's `![bg brightness:.5]` filters aren't supported; use `dim`/`blur`. `marp: true` isn't read; a deck needs `slides: true`.
 - **Values starting with `#`** in YAML must be quoted (`color: "#fff"`), or YAML reads a comment.
 - **Directives inside lists** (`<!-- column -->`, `<!-- space -->` indented under a bullet) are ignored; keep them at the top level.
 - **A file starting with `---`** and containing another `---` is read as frontmatter. Start decks with real frontmatter.

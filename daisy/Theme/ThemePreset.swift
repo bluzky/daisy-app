@@ -33,6 +33,10 @@ nonisolated struct ThemePreset: Identifiable, Equatable, Sendable {
         /// Colors for H1–H6, in order; nil or fewer than six leaves the
         /// text color for the rest. `heading` overrides them all.
         var headingLevels: [String]? = nil
+        /// Table colors; nil leaves the plain look.
+        var tableHeader: String? = nil
+        var tableBorder: String? = nil
+        var tableStripe: String? = nil
     }
 
     /// What applying the preset does to the app appearance: pin light,
@@ -65,6 +69,7 @@ nonisolated struct ThemePreset: Identifiable, Equatable, Sendable {
 
     init(name: String, flavor: Flavor, palette: Palette, darkPalette: Palette? = nil,
          font: DocumentFontSetting = .system, boldText: Bool = false,
+         tableStyle: MarkdownHTML.TableStyle? = nil,
          usesDefaultColors: Bool = false) {
         self.name = name
         self.flavor = flavor
@@ -88,12 +93,16 @@ nonisolated struct ThemePreset: Identifiable, Equatable, Sendable {
             setting.setHex(colors.text, .textColor, scheme)
             setting.setHex(colors.accent, .linkColor, scheme)
             setting.setHex(colors.heading, .headingColor, scheme)
+            setting.setHex(colors.tableHeader, .tableHeader, scheme)
+            setting.setHex(colors.tableBorder, .tableBorder, scheme)
+            setting.setHex(colors.tableStripe, .tableStripe, scheme)
             for level in 1...6 {
                 guard let slot = ThemeColorSlot.heading(level: level) else { continue }
                 setting.setHex(colors.headingLevels.flatMap { $0.indices.contains(level - 1) ? $0[level - 1] : nil },
                                slot, scheme)
             }
         }
+        setting.tableStyle = tableStyle
         self.setting = setting
     }
 

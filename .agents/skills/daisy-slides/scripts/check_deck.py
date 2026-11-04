@@ -17,7 +17,8 @@ import re
 import sys
 
 DIRECTIVES = {"layout", "_class", "color", "_color", "step", "column", "end-columns",
-              "space", "_paginate", "_header", "_footer"}
+              "space", "_paginate", "_header", "_footer", "_font_size"}
+FONT_SIZE = re.compile(r"\d+(\.\d+)?(%|px)?", re.I)
 MARP_GLOBALS = {"paginate", "header", "footer", "class", "theme", "backgroundcolor",
                 "backgroundimage", "size"}
 LAYOUTS = {"title", "section", "quote", "code", "math", "title-image", "split",
@@ -86,7 +87,7 @@ def user_themes():
 
 
 def check_settings(settings, report):
-    if settings.get("slides", "").lower() != "true" and settings.get("marp", "").lower() != "true":
+    if settings.get("slides", "").lower() != "true":
         report.warn(1, "no `slides: true` in the frontmatter: Read Mode shows this as a document "
                        "(View → Present still shows it as slides)")
     if "aspect" in settings and settings["aspect"] not in ASPECTS:
@@ -95,6 +96,9 @@ def check_settings(settings, report):
     if "theme" in settings and settings["theme"].lower() not in THEMES | user_themes():
         report.error(1, f"theme `{settings['theme']}` is neither built in nor in "
                         "~/.config/daisy/slide-themes/; Daisy falls back to `default`")
+    if "font_size" in settings and not FONT_SIZE.fullmatch(settings["font_size"]):
+        report.error(1, f"font_size `{settings['font_size']}` isn't a percentage (`120%`) or pixels (`36`); "
+                        "Daisy ignores it")
     if "paginate" in settings and settings["paginate"].lower() not in ("true", "false"):
         report.warn(1, "paginate should be `true` or `false`")
 
@@ -112,6 +116,8 @@ def check_directive(key, value, line, report, in_list):
                                       f"(built in: {', '.join(sorted(CLASSES))})")
         if key == "space" and value and not (value.isdigit() and 1 <= int(value) <= 10):
             report.error(line, "`<!-- space: n -->` takes a whole number from 1 to 10")
+        if key == "_font_size" and not FONT_SIZE.fullmatch(value):
+            report.error(line, f"font size `{value}` isn't a percentage (`120%`) or pixels (`36`); it is ignored")
         if key in ("color", "_color") and value.startswith("#") and not re.fullmatch(r"#[0-9a-fA-F]{3,8}", value):
             report.error(line, f"color `{value}` isn't a hex color; it is ignored")
         return

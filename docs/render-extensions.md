@@ -20,12 +20,15 @@ extension provides:
 
 Highlight, Callout, KaTeX, and Mermaid participate in the same registry but
 are always enabled and do not appear in Settings. Heading color is a theme
-setting (`--heading`), not an extension.
+setting (`--heading`), not an extension. Table colors and style are theme
+settings too (`--table-border`, `--table-header-bg`, `--table-stripe`, and a
+style of `lines`, `grid`, `striped` or `minimal`), in Customize Theme and in
+slide themes.
 
 Slides (`SlidesExtension`) is registered too, but is not toggleable: a deck
 is something the document asks for, not a reading preference. Splitting a
 document into slides happens earlier, in the formatter: when frontmatter has
-`slides: true` (or `marp: true`), or the host passes `forcesSlides`,
+`slides: true`, or the host passes `forcesSlides`,
 `EscapingHTMLFormatter` walks `SlideDeck` instead of the document's blocks and
 emits `.mdp-deck` with one `section.mdp-slide-frame` per slide. Slide directives
 (`layout`, `_class`, `color`, `step`) are HTML comments, which the sanitizer
