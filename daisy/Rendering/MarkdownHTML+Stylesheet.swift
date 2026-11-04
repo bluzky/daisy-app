@@ -314,6 +314,9 @@ nonisolated extension MarkdownHTML {
         margin: calc(0.6rem * var(\(textScaleProperty), 1) + 0.5em) 0 0;
         overflow-wrap: anywhere;
     }
+    /* `--heading` (every level) and `--heading-1`…`--heading-6` come from a
+       theme; unset, headings use the text color. */
+    \(headingColorRules(selector: { "h\($0)" }))
     /* System title scale as ratios of a 13px body: Large Title 26, Title 1
        22, Title 2 17, Title 3 15, Headline 13, Subheadline 11. */
     h1 { font-size: 2em; }
@@ -787,6 +790,9 @@ nonisolated extension MarkdownHTML {
        short columns to one letter per line; break-word keeps each column at
        least as wide as its longest word. */
     th, td { overflow-wrap: break-word; }
+    /* Inline code sets its own `anywhere`, which would make a code-only
+       column shrink to a few letters per line the same way. */
+    :is(th, td) :not(pre) > code { overflow-wrap: break-word; }
     :is(th, td)[align="center"] { text-align: center; }
     :is(th, td)[align="right"] { text-align: right; }
     :is(th, td)[align="left"] { text-align: left; }

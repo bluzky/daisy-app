@@ -93,6 +93,7 @@ struct CustomizeThemeView: View {
                     colorRow(L("Window background"), slot: .windowBackground)
                     colorRow(L("Code block background"), slot: .codeBlockBackground)
                     colorRow(L("Text"), slot: .textColor)
+                    colorRow(L("Headings"), slot: .headingColor)
                     colorRow(L("Link"), slot: .linkColor)
                 } header: {
                     Text(L("Colors"))

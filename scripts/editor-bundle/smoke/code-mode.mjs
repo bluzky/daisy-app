@@ -48,14 +48,13 @@ const modules = dom.window.document.createElement("div")
 dom.window.document.body.appendChild(modules)
 const moduleEditor = dom.window.MDEditor.create(modules, "```mermaid\ngraph TD\n```\n", {
   codeLanguage: "",
-  extensionState: { mermaid: true, "colorful-headings": true },
+  extensionState: { mermaid: true },
 })
 let threw = false
-try { moduleEditor.setExtensionState({ mermaid: false, "colorful-headings": false }) } catch (_) { threw = true }
+try { moduleEditor.setExtensionState({ mermaid: false }) } catch (_) { threw = true }
 check("changing extension settings does not break a code editor", !threw && moduleEditor.getMarkdown().includes("mermaid"))
 check("render extensions do not apply in code mode",
-  modules.querySelector(".cm-colorful-headings, .cm-mermaid-preview, [class*=mermaid]") == null
-  && !modules.querySelector(".cm-editor")?.classList.contains("cm-colorful-headings"))
+  modules.querySelector(".cm-mermaid-preview, [class*=mermaid]") == null)
 check("slash commands do not apply in code mode", (() => {
   moduleEditor.insertTextAt("/", 0, 0)
   return modules.querySelector(".cm-slash-menu, [class*=slash]") == null

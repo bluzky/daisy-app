@@ -43,7 +43,7 @@ Download the signed and notarized DMG from [Releases](https://github.com/bluzky/
 - **Query blocks** — ```` ```tasks ```` and ```` ```notes ```` blocks list matching tasks or files, e.g. `+daisy -is:done due:<=7d sort:due`, as a list or a `$view:table`. See [query block guide](docs/query-blocks.md).
 - **Code and text files** — open in a code editor with syntax highlighting; add your own types in **Settings → General**.
 - **Templates** — insert snippets from your own template file; see [Templates](#templates).
-- **Extensions** — code highlighting, callouts, KaTeX, Mermaid and colorful headings, each switchable in **Settings → Extensions**.
+- **Extensions** — code highlighting, callouts, KaTeX and Mermaid, each switchable in **Settings → Extensions**.
 - **Hide completed tasks** — **View → Hide Completed Tasks** (<kbd>⇧⌘H</kbd>, or its toolbar button) hides checked tasks in Read and Edit mode, in every window; the file is unchanged.
 - **Search** — in-document find (<kbd>⌘F</kbd>) and OmniSearch (<kbd>⌘K</kbd>) for files, text and commands.
 - **Quick Capture** — a global shortcut (<kbd>⌃⌥Space</kbd>) that opens your `Inbox.md` with a new timestamped heading.

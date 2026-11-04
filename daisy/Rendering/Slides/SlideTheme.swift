@@ -121,7 +121,11 @@ nonisolated struct SlideTheme: Equatable {
             deck.append("--secondary: color-mix(in srgb, \(text) 70%, transparent);")
         }
         if let heading = colors["heading"] {
-            deck += (1...6).map { "--mdp-heading-h\($0): \(heading);" }
+            deck.append("--heading: \(heading);")
+        } else if colors["background"] != nil || colors["text"] != nil {
+            // A reading theme's heading color doesn't belong on slides with
+            // their own background and text.
+            deck.append((["--heading"] + (1...6).map { "--heading-\($0)" }).map { "\($0): initial;" }.joined(separator: " "))
         }
         if let accent = colors["accent"] ?? colors["primary"] { deck.append("--link: \(accent);") }
         if let code = colors["code_background"] { deck.append("--code-bg: \(code);") }
@@ -142,7 +146,7 @@ nonisolated struct SlideTheme: Equatable {
             .mdp-deck :where(.mdp-slide--title, .mdp-slide--section) { \
             --mdp-slide-bg: \(primary); --text: \(titleText); \
             --secondary: color-mix(in srgb, \(titleText) 80%, transparent); \
-            \((1...6).map { "--mdp-heading-h\($0): \(titleText);" }.joined(separator: " ")) }
+            --heading: \(titleText); }
             """)
         }
         if let body = fonts["body"] {

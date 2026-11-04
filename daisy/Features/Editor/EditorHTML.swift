@@ -210,6 +210,7 @@ nonisolated enum EditorHTML {
             line-height: 1.25;
             padding-top: calc(0.6rem * var(--mdp-text-scale, 1) + 0.5em);
         }
+        \(MarkdownHTML.headingColorRules(selector: { "#editor .cm-md-h\($0)" }))
         #editor .cm-md-h1 { font-size: 2em; }
         /* Mirror the preview's first-child margin reset so the document
            starts at the same height in both modes. */

@@ -28,6 +28,11 @@ nonisolated struct ThemePreset: Identifiable, Equatable, Sendable {
         let text: String
         /// Accent — the link color, and the card sample's highlight.
         let accent: String
+        /// Heading color; nil leaves headings in the text color.
+        var heading: String? = nil
+        /// Colors for H1–H6, in order; nil or fewer than six leaves the
+        /// text color for the rest. `heading` overrides them all.
+        var headingLevels: [String]? = nil
     }
 
     /// What applying the preset does to the app appearance: pin light,
@@ -82,6 +87,12 @@ nonisolated struct ThemePreset: Identifiable, Equatable, Sendable {
             setting.setHex(colors.codeBackground, .codeBlockBackground, scheme)
             setting.setHex(colors.text, .textColor, scheme)
             setting.setHex(colors.accent, .linkColor, scheme)
+            setting.setHex(colors.heading, .headingColor, scheme)
+            for level in 1...6 {
+                guard let slot = ThemeColorSlot.heading(level: level) else { continue }
+                setting.setHex(colors.headingLevels.flatMap { $0.indices.contains(level - 1) ? $0[level - 1] : nil },
+                               slot, scheme)
+            }
         }
         self.setting = setting
     }
@@ -239,11 +250,17 @@ nonisolated struct ThemePreset: Identifiable, Equatable, Sendable {
         // serif. Follows the system appearance: the light half is a warm
         // parchment with dark-brown ink (~13.7:1) and a deeper amber accent
         // (~5.6:1); the dark half reads at ~11.3:1 and the accent at ~6.9:1.
+        // Heading levels run rust, amber, olive, teal, indigo, plum (5:1 or more
+        // in light, 6:1 or more in dark).
         ThemePreset(name: "Ember", flavor: .system,
                     palette: Palette(pageBackground: "#F6EFE3", codeBackground: "#ECE2D1",
-                                     text: "#2B2219", accent: "#8F4E0E"),
+                                     text: "#2B2219", accent: "#8F4E0E",
+                                     headingLevels: ["#A33B20", "#945410", "#52702A",
+                                                     "#2B6C70", "#585796", "#86496A"]),
                     darkPalette: Palette(pageBackground: "#2B2620", codeBackground: "#37312A",
-                                         text: "#E8DFCF", accent: "#E0A458"),
+                                         text: "#E8DFCF", accent: "#E0A458",
+                                         headingLevels: ["#F08A6C", "#F0B27A", "#B5CE85",
+                                                         "#7FCBC8", "#B3B0F0", "#E1A3C0"]),
                     font: .iowan),
         // Bear "Solarized Dark", with the body text lifted from Bear's own
         // #9BA7A4: that reads at about 4.8:1 on this page, the one theme

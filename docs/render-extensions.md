@@ -18,9 +18,9 @@ extension provides:
 - `transform(_:)` — optional HTML rewrite; identity by default.
 - `assets(mode:)` — static CSS and JavaScript declaration.
 
-Colorful headings are user-toggleable. Highlight, Callout,
-KaTeX, and Mermaid participate in the same registry but are always enabled
-and do not appear in Settings.
+Highlight, Callout, KaTeX, and Mermaid participate in the same registry but
+are always enabled and do not appear in Settings. Heading color is a theme
+setting (`--heading`), not an extension.
 
 Slides (`SlidesExtension`) is registered too, but is not toggleable: a deck
 is something the document asks for, not a reading preference. Splitting a

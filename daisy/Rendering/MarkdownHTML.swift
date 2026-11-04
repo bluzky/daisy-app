@@ -59,6 +59,13 @@ nonisolated enum MarkdownHTML {
     /// User color overrides injected after the stylesheet. Values are
     /// sanitized hex colors — anything else is dropped, never emitted —
     /// so stored strings can't break out of the style element.
+    /// One rule per heading level: the theme's `--heading` for every level,
+    /// else that level's `--heading-N`, else the text color.
+    static func headingColorRules(selector: (Int) -> String) -> String {
+        (1...6).map { "\(selector($0)) { color: var(--heading, var(--heading-\($0), inherit)); }" }
+            .joined(separator: "\n")
+    }
+
     struct ThemeOverrides: Equatable, Sendable {
         var lightCodeBackground: String?
         var darkCodeBackground: String?
@@ -73,6 +80,13 @@ nonisolated enum MarkdownHTML {
         /// Link (`--link`) overrides — the theme's primary accent.
         var lightLink: String?
         var darkLink: String?
+        /// Heading (`--heading`) overrides; unset, headings use the text color.
+        var lightHeading: String?
+        var darkHeading: String?
+        /// Per-level heading colors (`--heading-1`…`--heading-6`), by level;
+        /// `lightHeading` / `darkHeading`, when set, win over them.
+        var lightHeadingLevels: [Int: String] = [:]
+        var darkHeadingLevels: [Int: String] = [:]
 
         /// "#RRGGBB" (or #RRGGBBAA), or nil for anything else.
         static func sanitizedHexColor(_ value: String?) -> String? {
@@ -119,6 +133,32 @@ nonisolated enum MarkdownHTML {
                 rules.append("""
                 @media (prefers-color-scheme: dark) {
                     :root:not([data-mdp-color-scheme="light"]) { --link: \(dark); }
+                }
+                """)
+            }
+            if let light = Self.sanitizedHexColor(lightHeading) {
+                rules.append(":root { --heading: \(light); }")
+            }
+            if let dark = Self.sanitizedHexColor(darkHeading) {
+                rules.append(":root[data-mdp-color-scheme=\"dark\"] { --heading: \(dark); }")
+                rules.append("""
+                @media (prefers-color-scheme: dark) {
+                    :root:not([data-mdp-color-scheme="light"]) { --heading: \(dark); }
+                }
+                """)
+            }
+            for level in lightHeadingLevels.keys.sorted() {
+                guard (1...6).contains(level),
+                      let light = Self.sanitizedHexColor(lightHeadingLevels[level]) else { continue }
+                rules.append(":root { --heading-\(level): \(light); }")
+            }
+            for level in darkHeadingLevels.keys.sorted() {
+                guard (1...6).contains(level),
+                      let dark = Self.sanitizedHexColor(darkHeadingLevels[level]) else { continue }
+                rules.append(":root[data-mdp-color-scheme=\"dark\"] { --heading-\(level): \(dark); }")
+                rules.append("""
+                @media (prefers-color-scheme: dark) {
+                    :root:not([data-mdp-color-scheme="light"]) { --heading-\(level): \(dark); }
                 }
                 """)
             }

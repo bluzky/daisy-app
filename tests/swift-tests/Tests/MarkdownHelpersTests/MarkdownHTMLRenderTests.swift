@@ -364,6 +364,47 @@ final class MarkdownHTMLRenderTests: XCTestCase {
             ":root:not([data-mdp-color-scheme=\"light\"]) { --text: #EFEFEF; }"))
     }
 
+    func testThemeOverridesEmitHeadingColorRules() {
+        let overrides = MarkdownHTML.ThemeOverrides(
+            lightHeading: "#8A4B1F",
+            darkHeading: "#93C5FD"
+        )
+        let rendered = MarkdownHTML.render(
+            markdown: "# Doc", vendorLoading: .lazy, themeOverrides: overrides)
+        XCTAssertTrue(rendered.html.contains(":root { --heading: #8A4B1F; }"))
+        XCTAssertTrue(rendered.html.contains(
+            ":root:not([data-mdp-color-scheme=\"light\"]) { --heading: #93C5FD; }"))
+        // Headings read the variable, and fall back to the text color.
+        for level in 1...6 {
+            XCTAssertTrue(rendered.html.contains(
+                "h\(level) { color: var(--heading, var(--heading-\(level), inherit)); }"))
+        }
+        XCTAssertFalse(MarkdownHTML.render(markdown: "# Doc", vendorLoading: .lazy)
+            .html.contains("--heading: #"))
+    }
+
+    func testThemeOverridesEmitPerLevelHeadingColors() {
+        let overrides = MarkdownHTML.ThemeOverrides(
+            lightHeadingLevels: [1: "#A33B20", 3: "#52702A", 9: "#000000"],
+            darkHeadingLevels: [2: "#F0B27A"]
+        )
+        let css = overrides.css
+        XCTAssertTrue(css.contains(":root { --heading-1: #A33B20; }"))
+        XCTAssertTrue(css.contains(":root { --heading-3: #52702A; }"))
+        XCTAssertFalse(css.contains("--heading-9"), "levels outside 1–6 are dropped")
+        XCTAssertTrue(css.contains(":root[data-mdp-color-scheme=\"dark\"] { --heading-2: #F0B27A; }"))
+    }
+
+    func testEmberPresetCarriesPerLevelHeadingColors() throws {
+        let ember = try XCTUnwrap(ThemePreset.builtIn.first { $0.name == "Ember" })
+        let overrides = try XCTUnwrap(ember.setting.markdownThemeOverrides)
+        XCTAssertEqual(overrides.lightHeadingLevels.count, 6)
+        XCTAssertEqual(overrides.darkHeadingLevels.count, 6)
+        XCTAssertNil(overrides.lightHeading, "the single Headings color stays unset")
+        let original = try XCTUnwrap(ThemePreset.builtIn.first { $0.name == "Original" })
+        XCTAssertNil(original.setting.markdownThemeOverrides)
+    }
+
     func testThemeOverridesRejectNonHexValues() {
         XCTAssertEqual(MarkdownHTML.ThemeOverrides.sanitizedHexColor("#A1B2C3"), "#A1B2C3")
         XCTAssertEqual(MarkdownHTML.ThemeOverrides.sanitizedHexColor("#A1B2C3D4"), "#A1B2C3D4")

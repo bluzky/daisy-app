@@ -33,6 +33,18 @@ nonisolated enum ThemeColorSlot: String, CaseIterable, Codable, Sendable {
     /// Links in the preview and the editor — the `--link` variable. This is
     /// the theme's primary accent.
     case linkColor
+    /// Headings in the preview and the editor — the `--heading` variable.
+    /// Unset, headings use the text color.
+    case headingColor
+    /// One heading level's color (`--heading-1`…`--heading-6`), set by
+    /// presets. `headingColor`, when set, overrides all of them.
+    case heading1, heading2, heading3, heading4, heading5, heading6
+
+    /// The slot for heading `level` (1–6).
+    static func heading(level: Int) -> ThemeColorSlot? {
+        let slots: [ThemeColorSlot] = [.heading1, .heading2, .heading3, .heading4, .heading5, .heading6]
+        return slots.indices.contains(level - 1) ? slots[level - 1] : nil
+    }
 }
 
 nonisolated struct ThemeColorsSetting: Equatable, Codable, Sendable {
@@ -166,6 +178,10 @@ nonisolated struct ThemeColorsSetting: Equatable, Codable, Sendable {
             return NSColor(srgbRed: 29 / 255, green: 29 / 255, blue: 31 / 255, alpha: 1)
         case (.textColor, .dark):
             return NSColor(srgbRed: 245 / 255, green: 245 / 255, blue: 247 / 255, alpha: 1)
+        case (.headingColor, _), (.heading1, _), (.heading2, _), (.heading3, _),
+             (.heading4, _), (.heading5, _), (.heading6, _):
+            // No override of its own: headings follow the text color.
+            return defaultColor(.textColor, scheme)
         case (.linkColor, .light):
             // --link in MarkdownHTML.stylesheet: #0066cc / #2997ff.
             return NSColor(srgbRed: 0, green: 102 / 255, blue: 204 / 255, alpha: 1)
@@ -186,10 +202,23 @@ nonisolated struct ThemeColorsSetting: Equatable, Codable, Sendable {
         let darkText = hexValue(.textColor, .dark)
         let lightLink = hexValue(.linkColor, .light)
         let darkLink = hexValue(.linkColor, .dark)
+        let lightHeading = hexValue(.headingColor, .light)
+        let darkHeading = hexValue(.headingColor, .dark)
+        let levels = (1...6).compactMap { level in
+            ThemeColorSlot.heading(level: level).map { (level, $0) }
+        }
+        let lightLevels = Dictionary(uniqueKeysWithValues: levels.compactMap { level, slot in
+            hexValue(slot, .light).map { (level, $0) }
+        })
+        let darkLevels = Dictionary(uniqueKeysWithValues: levels.compactMap { level, slot in
+            hexValue(slot, .dark).map { (level, $0) }
+        })
         guard lightCode != nil || darkCode != nil
                 || lightPage != nil || darkPage != nil
                 || lightText != nil || darkText != nil
-                || lightLink != nil || darkLink != nil else { return nil }
+                || lightLink != nil || darkLink != nil
+                || lightHeading != nil || darkHeading != nil
+                || !lightLevels.isEmpty || !darkLevels.isEmpty else { return nil }
         return MarkdownHTML.ThemeOverrides(
             lightCodeBackground: lightCode,
             darkCodeBackground: darkCode,
@@ -198,7 +227,11 @@ nonisolated struct ThemeColorsSetting: Equatable, Codable, Sendable {
             lightText: lightText,
             darkText: darkText,
             lightLink: lightLink,
-            darkLink: darkLink
+            darkLink: darkLink,
+            lightHeading: lightHeading,
+            darkHeading: darkHeading,
+            lightHeadingLevels: lightLevels,
+            darkHeadingLevels: darkLevels
         )
     }
 
@@ -216,6 +249,15 @@ nonisolated struct ThemeColorsSetting: Equatable, Codable, Sendable {
             }
             if let link = sanitizedHex(.linkColor, scheme) {
                 lines.append(":root { --link: \(link); }")
+            }
+            if let heading = sanitizedHex(.headingColor, scheme) {
+                lines.append(":root { --heading: \(heading); }")
+            }
+            for level in 1...6 {
+                if let slot = ThemeColorSlot.heading(level: level),
+                   let heading = sanitizedHex(slot, scheme) {
+                    lines.append(":root { --heading-\(level): \(heading); }")
+                }
             }
             // The editor follows the window color unless it has its own
             // override — one picked color themes both modes. Always emitted

@@ -192,7 +192,6 @@ nonisolated extension MarkdownHTML {
     CalloutExtension(),
     KaTeXExtension(),
     MermaidExtension(),
-    ColorfulHeadersExtension(),
     TaskMetadataExtension(),
     HideCompletedTasksExtension(),
     MetadataLinksExtension(),
