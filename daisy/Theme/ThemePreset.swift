@@ -229,7 +229,9 @@ nonisolated struct ThemePreset: Identifiable, Equatable, Sendable {
         // Apple Books "Paper": neutral light gray, softened ink, serif.
         ThemePreset(name: "Paper", flavor: .light,
                     palette: Palette(pageBackground: "#EEEDED", codeBackground: "#E3E1E1",
-                                     text: "#262626", accent: "#DE4A4F"),
+                                     text: "#262626", accent: "#DE4A4F",
+                                     headingLevels: ["#B3363B", "#8F5410", "#46702A",
+                                                     "#1F6F7A", "#4B5CA8", "#8A4C7A"]),
                     font: .charter),
         // Apple Books "Bold": plain white with heavy near-black text.
         ThemePreset(name: "Bold", flavor: .light,

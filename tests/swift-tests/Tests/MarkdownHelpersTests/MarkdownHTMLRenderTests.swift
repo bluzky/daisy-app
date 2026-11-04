@@ -401,6 +401,8 @@ final class MarkdownHTMLRenderTests: XCTestCase {
         XCTAssertEqual(overrides.lightHeadingLevels.count, 6)
         XCTAssertEqual(overrides.darkHeadingLevels.count, 6)
         XCTAssertNil(overrides.lightHeading, "the single Headings color stays unset")
+        let paper = try XCTUnwrap(ThemePreset.builtIn.first { $0.name == "Paper" })
+        XCTAssertEqual(paper.setting.markdownThemeOverrides?.lightHeadingLevels.count, 6)
         let original = try XCTUnwrap(ThemePreset.builtIn.first { $0.name == "Original" })
         XCTAssertNil(original.setting.markdownThemeOverrides)
     }
