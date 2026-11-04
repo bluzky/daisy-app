@@ -600,6 +600,43 @@ nonisolated enum EditorHTML {
         .cm-md-frontmatter-delim {
             opacity: 0.45;
         }
+        /* The row that opens and closes the card. Collapsed, it is the whole
+           card; open, it is the card's top edge. */
+        #editor .cm-md-frontmatter-header {
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+            padding: 8px 14px;
+            border-radius: 15px;
+            font-family: ui-monospace, "SF Mono", Menlo, monospace;
+            font-size: 0.82em;
+            line-height: 1.6;
+            color: var(--secondary);
+            background: color-mix(in srgb, var(--code-bg) 50%, transparent);
+            cursor: pointer;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        #editor .cm-md-frontmatter-header:hover { color: var(--text); }
+        #editor .cm-md-frontmatter-header.is-expanded {
+            border-radius: 15px 15px 0 0;
+            padding-bottom: 0;
+        }
+        #editor .cm-md-frontmatter-chevron { width: 1em; text-align: center; flex: none; }
+        #editor .cm-md-frontmatter-label { font-weight: 600; flex: none; }
+        #editor .cm-md-frontmatter-summary {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            opacity: 0.7;
+        }
+        /* The open card's first line continues the header instead of
+           starting a second rounded card. */
+        #editor .cm-content > .cm-md-frontmatter-header.is-expanded + .cm-line.cm-md-frontmatter-first {
+            border-radius: 0;
+            padding-top: 0;
+        }
         .cm-md-fence-info { color: var(--secondary); }
         .cm-md-mermaid-preview {
             /* Outer spacing comes from the block separator lines, matching

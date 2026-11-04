@@ -20,6 +20,7 @@ import { editorModuleEnabled, editorModuleExtensions, editorModules, hostStateCh
 import { collectMatches, documentFind, expandReplacement, findTheme, sameSearch, setFind } from "./find.js"
 import { formattingState } from "./formatting-state.js"
 import { codeLanguages } from "./languages.js"
+import { frontmatterCollapse } from "./frontmatter-collapse.js"
 import { alignInactiveHeadings, keepCaretAfterListMarker, leaveListMarkerBackward, livePreview, stopAfterListMarker } from "./live-preview/plugins.js"
 import { obsidianHighlight } from "./obsidian-highlight.js"
 import { codeCardWidth } from "./code-card-width.js"
@@ -105,6 +106,7 @@ window.MDEditor = {
           }),
           activeCodeBlock,
           unwrappedCodeBlocks,
+          frontmatterCollapse,
           pointerPreview,
           stablePointerPreview,
           codeCardWidth,

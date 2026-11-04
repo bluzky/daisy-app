@@ -46,6 +46,24 @@ const frontmatterHost = dom.window.document.createElement("div")
 dom.window.document.body.appendChild(frontmatterHost)
 const frontmatterDoc = "---\nname: \"openai-docs\"\ntags:\n  - links\n---\n# Body heading"
 const frontmatterEditor = dom.window.MDEditor.create(frontmatterHost, frontmatterDoc, {})
+const frontmatterHeader = () => frontmatterHost.querySelector(".cm-md-frontmatter-header")
+const toggleFrontmatterHeader = () => frontmatterHeader().dispatchEvent(
+  new dom.window.MouseEvent("mousedown", { bubbles: true, cancelable: true }))
+check("frontmatter starts collapsed to one Properties row",
+  frontmatterHeader() != null
+    && frontmatterHeader().getAttribute("aria-expanded") === "false"
+    && frontmatterHeader().querySelector(".cm-md-frontmatter-summary")?.textContent === "name, tags"
+    && frontmatterHost.querySelector(".cm-md-frontmatter") == null
+    && frontmatterHost.querySelector(".cm-md-frontmatter-delim") == null)
+check("body markdown still live-previews below the collapsed frontmatter",
+  frontmatterHost.querySelector(".cm-md-h1") != null)
+check("collapsed frontmatter round-trips byte-faithfully",
+  frontmatterEditor.getMarkdown() === frontmatterDoc)
+toggleFrontmatterHeader()
+check("toggling the row opens the frontmatter",
+  frontmatterHeader().getAttribute("aria-expanded") === "true"
+    && frontmatterHeader().classList.contains("is-expanded")
+    && frontmatterHeader().querySelector(".cm-md-frontmatter-summary") == null)
 check("frontmatter renders as a metadata card, not markdown blocks",
   frontmatterHost.querySelectorAll(".cm-md-frontmatter").length === 5
     && frontmatterHost.querySelector(".cm-md-frontmatter-first") != null
@@ -58,6 +76,24 @@ check("body markdown still live-previews below frontmatter",
   frontmatterHost.querySelector(".cm-md-h1") != null)
 check("frontmatter round-trips byte-faithfully",
   frontmatterEditor.getMarkdown() === frontmatterDoc)
+toggleFrontmatterHeader()
+check("toggling the row again collapses it",
+  frontmatterHeader().getAttribute("aria-expanded") === "false"
+    && frontmatterHost.querySelector(".cm-md-frontmatter") == null)
+const collapsedFrontmatterDoc = frontmatterEditor.getMarkdown()
+frontmatterEditor.insertTextAt("x", 0, 0)
+check("typing before a collapsed frontmatter block is ignored",
+  frontmatterEditor.getMarkdown() === collapsedFrontmatterDoc)
+frontmatterEditor.insertTextAt("", 5, 9)
+check("deleting inside a collapsed frontmatter block is ignored",
+  frontmatterEditor.getMarkdown() === collapsedFrontmatterDoc)
+frontmatterEditor.insertTextAt("\nAppended", collapsedFrontmatterDoc.length, collapsedFrontmatterDoc.length)
+check("lines added at the end of the document still go through",
+  frontmatterEditor.getMarkdown() === collapsedFrontmatterDoc + "\nAppended")
+toggleFrontmatterHeader()
+frontmatterEditor.insertTextAt("x", 0, 0)
+check("an open frontmatter block takes edits like any text",
+  frontmatterEditor.getMarkdown().startsWith("x---"))
 frontmatterEditor.destroy()
 
 const headingHost = dom.window.document.createElement("div")
