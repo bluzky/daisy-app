@@ -916,6 +916,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case #selector(NSWindow.toggleToolbarShown(_:)): return .viewToggleToolbar
         case #selector(DocumentWindowController.toggleAlwaysOnTop(_:)): return .viewToggleAlwaysOnTop
         case #selector(DocumentWindowController.toggleHideCompletedTasks(_:)): return .viewToggleCompletedTasks
+        case #selector(MainSplitViewController.presentSlides(_:)): return .viewPresent
         case #selector(DocumentWindowController.goBackInHistory(_:)): return .goBack
         case #selector(DocumentWindowController.goForwardInHistory(_:)): return .goForward
         case #selector(DocumentWindowController.openTodayJournal(_:)): return .goTodayJournal
@@ -1495,12 +1496,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                                        keyEquivalent: "h")
         hideCompleted.keyEquivalentModifierMask = [.shift, .command]
 
+        // Also down the responder chain: the split view controller presents.
+        let present = NSMenuItem(title: L("Present"),
+                                 action: #selector(MainSplitViewController.presentSlides(_:)),
+                                 keyEquivalent: "p")
+        present.keyEquivalentModifierMask = [.option, .command]
+
         let insertIndex = viewMenu.items.firstIndex(where: {
             Self.actualSizeMenuTitles.contains($0.title)
         }) ?? viewMenu.numberOfItems
         viewMenu.insertItem(item, at: insertIndex)
         viewMenu.insertItem(hideCompleted, at: insertIndex + 1)
-        viewMenu.insertItem(.separator(), at: insertIndex + 2)
+        viewMenu.insertItem(present, at: insertIndex + 2)
+        viewMenu.insertItem(.separator(), at: insertIndex + 3)
     }
 
     @objc private func toggleEditModeFromMenu(_ sender: Any?) {

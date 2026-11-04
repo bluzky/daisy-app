@@ -25,6 +25,7 @@ enum KeymapCommand: String, CaseIterable, Hashable {
     case viewToggleToolbar = "view.toggleToolbar"
     case viewToggleAlwaysOnTop = "view.toggleAlwaysOnTop"
     case viewToggleCompletedTasks = "view.toggleCompletedTasks"
+    case viewPresent = "view.present"
 
     case editPasteAndMatchStyle = "edit.pasteAndMatchStyle"
     case findFind = "find.find"
@@ -82,7 +83,8 @@ enum KeymapCommand: String, CaseIterable, Hashable {
              .viewToggleSidebar, .viewShowOutline,
              .viewShowProjectNavigator, .viewToggleTasks, .viewToggleReferences, .viewToggleEditMode,
              .viewToggleToolbar,
-             .viewToggleAlwaysOnTop, .viewToggleCompletedTasks, .findFind, .findReplace, .findNext,
+             .viewToggleAlwaysOnTop, .viewToggleCompletedTasks, .viewPresent,
+             .findFind, .findReplace, .findNext,
              .findPrevious, .findJumpToSelection, .goBack, .goForward,
              .goTodayJournal, .goPreviousJournalEntry, .goNextJournalEntry:
             .global
@@ -113,6 +115,7 @@ enum KeymapCommand: String, CaseIterable, Hashable {
         case .viewToggleToolbar: "Show Toolbar"
         case .viewToggleAlwaysOnTop: "Always on Top"
         case .viewToggleCompletedTasks: "Hide Completed Tasks"
+        case .viewPresent: "Present"
         case .editPasteAndMatchStyle: "Paste and Match Style"
         case .findFind: "Find…"
         case .findReplace: "Find and Replace…"
@@ -485,7 +488,7 @@ struct Keymap {
             ("shift+cmd+i", .viewToggleTasks), ("shift+cmd+r", .viewToggleReferences),
             ("cmd+e", .viewToggleEditMode),
             ("opt+cmd+t", .viewToggleToolbar), ("ctrl+cmd+t", .viewToggleAlwaysOnTop),
-            ("shift+cmd+h", .viewToggleCompletedTasks),
+            ("shift+cmd+h", .viewToggleCompletedTasks), ("opt+cmd+p", .viewPresent),
             ("cmd+f", .findFind), ("opt+cmd+f", .findReplace), ("cmd+g", .findNext),
             ("shift+cmd+g", .findPrevious), ("cmd+j", .findJumpToSelection),
             ("cmd+[", .goBack), ("cmd+]", .goForward),

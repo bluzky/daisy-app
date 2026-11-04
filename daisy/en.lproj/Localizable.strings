@@ -625,3 +625,7 @@
 "Hide Completed Tasks" = "Hide Completed Tasks";
 "Hide completed tasks" = "Hide completed tasks";
 "Hide checked tasks in every window" = "Hide checked tasks in every window";
+
+/* View ▸ Present and the slides render extension */
+"Present" = "Present";
+"Slides" = "Slides";

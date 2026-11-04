@@ -48,6 +48,7 @@ Download the signed and notarized DMG from [Releases](https://github.com/bluzky/
 - **Search** — in-document find (<kbd>⌘F</kbd>) and OmniSearch (<kbd>⌘K</kbd>) for files, text and commands.
 - **Quick Capture** — a global shortcut (<kbd>⌃⌥Space</kbd>) that opens your `Inbox.md` with a new timestamped heading.
 - **Themes** — reading themes with font, spacing and color customization; some follow the system light/dark appearance.
+- **Slides** — add `slides: true` to a file's frontmatter and it reads as a deck: `---` on its own line starts the next slide, a `???` line starts that slide's speaker notes, and each slide's layout (title, section, quote, code, math, image, grid) comes from its content. **View → Present** (<kbd>⌥⌘P</kbd>) shows any Markdown file full screen as slides, on an external display when there is one; arrows, Space and a clicker's Page Up/Down move, a number then Return jumps, B/W blank the screen, Esc ends. A deck exports and prints one slide per page. See [`samples/slides.md`](samples/slides.md).
 - **Export** — PDF, HTML, PNG and Word (`.docx`, with [custom themes](docs/docx-theme-authoring.md)).
 - **Quick Look** — `.md` previews in Finder, Spotlight and Mail.
 - **Custom shortcuts** — rebind commands in **Settings → Shortcuts** (`~/.config/daisy/keymap.json`). See [Keyboard shortcuts](docs/keybindings.md) for the defaults.

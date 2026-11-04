@@ -132,6 +132,8 @@
 				Rendering/MarkdownWebView.swift,
 				Rendering/QuickLookAppearance.swift,
 				Rendering/ReaderLayoutSetting.swift,
+				"Rendering/Slides/MarkdownHTML+Slides.swift",
+				Rendering/Slides/SlideDeck.swift,
 				Rendering/StrictLineBreaksSetting.swift,
 				Rendering/TextAlignmentSetting.swift,
 				Rendering/URLSchemeTaskCallbackGate.swift,

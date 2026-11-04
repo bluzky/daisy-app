@@ -11,7 +11,7 @@ final class MarkdownRenderExtensionTests: XCTestCase {
       [
         "highlight", "callout", "katex", "mermaid", "colorful-headings",
         "task-metadata", "hide-completed-tasks", "metadata-links", "query-blocks", "slash-commands",
-        "metadata-completion"
+        "metadata-completion", "slides"
       ]
     )
     let orders = MarkdownHTML.renderExtensions.map(\.order)
@@ -88,6 +88,12 @@ final class MarkdownRenderExtensionTests: XCTestCase {
           descriptionKey: nil,
           defaultEnabled: true,
           userToggleable: true
+        ),
+        .init(
+          titleKey: "Slides",
+          descriptionKey: nil,
+          defaultEnabled: true,
+          userToggleable: false
         )
       ]
     )
@@ -307,7 +313,7 @@ final class MarkdownRenderExtensionTests: XCTestCase {
     let renderOnly = MarkdownHTML.renderExtensions.filter { $0.editor == nil }.map(\.id)
     XCTAssertEqual(
       renderOnly,
-      ["highlight", "callout", "katex"]
+      ["highlight", "callout", "katex", "slides"]
     )
   }
 

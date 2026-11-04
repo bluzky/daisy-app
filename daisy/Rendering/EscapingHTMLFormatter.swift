@@ -748,6 +748,8 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
     let rendersHighlights: Bool
     /// Upgrade GitHub-style alert blockquotes.
     let rendersCallouts: Bool
+    /// Render the document as presentation slides (`SlideDeck`).
+    let rendersSlides: Bool
     private let sourceLines: [String]
     private let parsedSourceLines: [String]
 
@@ -779,6 +781,7 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
          highlightsCode: Bool = true,
          rendersHighlights: Bool = true,
          rendersCallouts: Bool = true,
+         rendersSlides: Bool = false,
          strictLineBreaks: Bool = false) {
         self.strictLineBreaks = strictLineBreaks
         self.options = options
@@ -786,6 +789,7 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
         self.highlightsCode = highlightsCode
         self.rendersHighlights = rendersHighlights
         self.rendersCallouts = rendersCallouts
+        self.rendersSlides = rendersSlides
         // Escapes/entities can decode into a URL even without a literal scheme.
         self.detectsBareURLs = Self.mayContainHTTP(parsedMarkdown, includesMarkdownEscapes: true)
             || Self.mayContainAutolink(parsedMarkdown)
@@ -800,10 +804,9 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
                        highlightsCode: Bool = true,
                        rendersHighlights: Bool = true,
                        rendersCallouts: Bool = true,
+                       rendersSlides: Bool = false,
                        strictLineBreaks: Bool = false) -> String {
-        let preparedMarkdown = rendersHighlights
-            ? MarkdownHighlightSource.preparing(markdown)
-            : markdown
+        let preparedMarkdown = preparedForParsing(markdown, rendersHighlights: rendersHighlights)
         let document = Document(parsing: preparedMarkdown)
         var walker = EscapingHTMLFormatter(
             options: options,
@@ -813,10 +816,17 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
             highlightsCode: highlightsCode,
             rendersHighlights: rendersHighlights,
             rendersCallouts: rendersCallouts,
+            rendersSlides: rendersSlides,
             strictLineBreaks: strictLineBreaks
         )
         walker.visit(document)
         return walker.result
+    }
+
+    /// The text `format` hands the parser, so other readers of the tree
+    /// (`MarkdownHTML.slideCount`) see the same structure.
+    static func preparedForParsing(_ markdown: String, rendersHighlights: Bool) -> String {
+        rendersHighlights ? MarkdownHighlightSource.preparing(markdown) : markdown
     }
 
     // MARK: Block elements
@@ -876,6 +886,10 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
     }
 
     mutating func visitDocument(_ document: Document) {
+        if rendersSlides {
+            visitSlideDeck(SlideDeck(document: document))
+            return
+        }
         for child in document.children {
             // CommonMark discards source blank lines between blocks. Restore
             // every authored line in addition to the blocks' semantic margins.
@@ -884,6 +898,39 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
             }
             visit(child)
         }
+    }
+
+    /// One `<section>` per slide inside `.mdp-deck`: the slide canvas, then
+    /// its speaker notes. Blank-line spacers are left out; a slide has its
+    /// own spacing. `MarkdownHTML.slideFootnotesToken` marks where the
+    /// footnotes referenced since the previous token go.
+    private mutating func visitSlideDeck(_ deck: SlideDeck) {
+        result += "<div class=\"mdp-deck\">\n"
+        for (index, slide) in deck.slides.enumerated() {
+            result += "<section class=\"mdp-slide-frame\" data-slide=\"\(index)\">\n"
+            result += "<div class=\"mdp-slide mdp-slide--\(slide.layout.rawValue)\">"
+            result += "<div class=\"mdp-slide-body\">\n"
+            for block in slide.blocks {
+                visit(block)
+            }
+            result += MarkdownHTML.slideFootnotesToken + "</div></div>\n"
+            if slide.hasNotes {
+                result += "<aside class=\"mdp-slide-notes\">\n"
+                if let lead = slide.notesLead {
+                    result += "<p\(sourceLineAttribute(lead))>"
+                    for child in SlideDeck.notesLeadContent(lead) {
+                        visit(child)
+                    }
+                    result += "</p>\n"
+                }
+                for block in slide.notes {
+                    visit(block)
+                }
+                result += MarkdownHTML.slideFootnotesToken + "</aside>\n"
+            }
+            result += "</section>\n"
+        }
+        result += "</div>\n"
     }
 
     mutating func visitBlockQuote(_ blockQuote: BlockQuote) {

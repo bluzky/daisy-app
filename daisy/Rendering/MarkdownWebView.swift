@@ -129,6 +129,11 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
     var queryTaskToggled: ((String, Int, Bool) -> Void)?
     #endif
     var scrollDidChange: (() -> Void)?
+    /// Render every document as slides, frontmatter or not. Set by the
+    /// presentation window before its first `display()`.
+    var forcesSlides = false
+    /// The last displayed document renders as a slide deck.
+    private(set) var isDisplayingSlideDeck = false
     private let assetScheme = MarkdownAssetScheme()
     private var currentAssetBase: URL?
     private let messageBridge = HostBridge()
@@ -338,6 +343,7 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         pendingContentProcessReload = nil
         currentMarkdown = markdown
         currentDocumentID = documentID
+        isDisplayingSlideDeck = forcesSlides || SlideDeck.isDeck(markdown: markdown)
         isPointerOverMermaidFigure = false
         isWebControlFocused = false
         assetScheme.setBaseURL(assetBaseURL)
@@ -349,6 +355,7 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         let textScale = textScale
         let themeOverrides = Self.currentThemeOverrides()
         let renderExtensionConfiguration = RenderExtensionPreferences.currentConfiguration
+        let forcesSlides = forcesSlides
         #if QUICK_LOOK_EXTENSION
         let emptyDocumentHint: String? = nil
         #else
@@ -363,7 +370,8 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
                                             themeOverrides: themeOverrides,
                                             renderExtensionConfiguration: renderExtensionConfiguration,
                                             documentID: documentID,
-                                            emptyDocumentHint: emptyDocumentHint)
+                                            emptyDocumentHint: emptyDocumentHint,
+                                            forcesSlides: forcesSlides)
             #if DEBUG
             let renderFinishedAt = DispatchTime.now().uptimeNanoseconds
             await self?.applyDisplayDebug(
@@ -389,7 +397,8 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
                                                 renderExtensionConfiguration: MarkdownHTML.RenderExtensionConfiguration,
                                                 documentID: String = "page",
                                                 warmup: Bool = false,
-                                                emptyDocumentHint: String? = nil) -> MarkdownHTML.RenderedHTML {
+                                                emptyDocumentHint: String? = nil,
+                                                forcesSlides: Bool = false) -> MarkdownHTML.RenderedHTML {
         let t0 = DispatchTime.now()
         let rendered = MarkdownHTML.render(markdown: markdown,
                                            allowsScroll: true,
@@ -402,7 +411,8 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
                                            textScale: textScale,
                                            documentID: documentID,
                                            renderExtensionConfiguration: renderExtensionConfiguration,
-                                           emptyDocumentHint: emptyDocumentHint)
+                                           emptyDocumentHint: emptyDocumentHint,
+                                           forcesSlides: forcesSlides)
         let elapsedMs = Int(
             (Double(DispatchTime.now().uptimeNanoseconds - t0.uptimeNanoseconds)
              / 1_000_000).rounded()

@@ -22,6 +22,16 @@ Colorful headings are user-toggleable. Highlight, Callout,
 KaTeX, and Mermaid participate in the same registry but are always enabled
 and do not appear in Settings.
 
+Slides (`SlidesExtension`) is registered too, but is not toggleable: a deck
+is something the document asks for, not a reading preference. Splitting a
+document into slides happens earlier, in the formatter: when frontmatter has
+`slides: true` (or `marp: true`), or the host passes `forcesSlides`,
+`EscapingHTMLFormatter` walks `SlideDeck` instead of the document's blocks and
+emits `.mdp-deck` with one `section.mdp-slide-frame` per slide. The extension
+activates on that markup and adds the slide stylesheet and, in the app only,
+the `MdPreviewSlides` script used while presenting. The presentation window
+turns presenting on with the `slides-presenting` host state.
+
 ## Editor capability
 
 An extension may also contribute to the CodeMirror editor. It declares this

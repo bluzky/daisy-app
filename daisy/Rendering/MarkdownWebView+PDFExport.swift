@@ -14,6 +14,7 @@ import WebKit
 
 private let printSizeStyleElementID = "md-print-size"
 private let previewPrintStyleElementID = "daisy-print-style"
+private let slidesPrintStyleElementID = "daisy-slides-print-style"
 
 private extension UTType {
     static let wordDocument = UTType(
@@ -558,6 +559,19 @@ extension MarkdownWebView {
         printInfo.verticalPagination = .automatic
         printInfo.isHorizontallyCentered = true
         printInfo.isVerticallyCentered = false
+        if isDisplayingSlideDeck {
+            // One slide per page: the page is the slide canvas (CSS px are
+            // 0.75 pt), with no margins.
+            printInfo.orientation = .landscape
+            printInfo.paperSize = NSSize(
+                width: CGFloat(MarkdownHTML.slideCanvasWidth) * 0.75,
+                height: CGFloat(MarkdownHTML.slideCanvasHeight) * 0.75
+            )
+            printInfo.topMargin = 0
+            printInfo.bottomMargin = 0
+            printInfo.leftMargin = 0
+            printInfo.rightMargin = 0
+        }
 
         let operation = webView.printOperation(with: printInfo)
         operation.jobTitle = jobTitle
@@ -579,8 +593,9 @@ extension MarkdownWebView {
             operation.printPanel = panel
         }
 
-        // Export renders the live preview, so there is no print size to pick.
-        if panel == nil {
+        // Export renders the live preview, so there is no print size to pick;
+        // nor is there for slides, which scale with the page.
+        if panel == nil, !isDisplayingSlideDeck {
             let accessory = PrintSizeAccessoryController()
             accessory.applySize = { [weak self] size, done in
                 self?.applyPrintPointSize(size, completion: done)
@@ -604,7 +619,19 @@ extension MarkdownWebView {
         // Export keeps the live read-only stylesheet intact. Regular Print
         // retains its paper-oriented size and pagination controls, forces the
         // light palette, and restores the on-screen theme when the panel ends.
-        if matchesPreview {
+        // A deck prints the way it presents, one slide per page, either way.
+        if isDisplayingSlideDeck {
+            renderAllMermaidDiagrams {
+                self.applySlidesPrintMode(true) {
+                    operation.runModal(
+                        for: window,
+                        delegate: self,
+                        didRun: #selector(Self.slidesPrintOperationDidRun(_:success:contextInfo:)),
+                        contextInfo: nil
+                    )
+                }
+            }
+        } else if matchesPreview {
             renderAllMermaidDiagrams {
                 self.applyPreviewPrintMode {
                     operation.runModal(
@@ -629,6 +656,42 @@ extension MarkdownWebView {
                 }
             }
         }
+    }
+
+    @objc private func slidesPrintOperationDidRun(
+        _ operation: NSPrintOperation,
+        success: Bool,
+        contextInfo: UnsafeMutableRawPointer?
+    ) {
+        applySlidesPrintMode(false)
+    }
+
+    /// Marks the page as a printing deck — scale 1, a page per slide, notes
+    /// hidden — and adds the `@page` rule, which can't be scoped to the
+    /// attribute in the static stylesheet. `false` takes both away.
+    private func applySlidesPrintMode(_ isOn: Bool, completion: (() -> Void)? = nil) {
+        let script = """
+        (() => {
+            const root = document.documentElement;
+            let style = document.getElementById('\(slidesPrintStyleElementID)');
+            if (\(isOn ? "true" : "false")) {
+                root.setAttribute('\(MarkdownHTML.slidesPrintAttribute)', '');
+                if (!style) {
+                    style = document.createElement('style');
+                    style.id = '\(slidesPrintStyleElementID)';
+                    document.head.appendChild(style);
+                }
+                style.textContent = \(Self.javaScriptStringLiteral(
+                    "@media print { \(MarkdownHTML.slidesPrintPageCSS) }"
+                ));
+            } else {
+                root.removeAttribute('\(MarkdownHTML.slidesPrintAttribute)');
+                style?.remove();
+            }
+            return true;
+        })()
+        """
+        evaluatePrintSetupScript(script, label: "slides print mode", completion: completion)
     }
 
     @objc private func paperPrintOperationDidRun(

@@ -40,6 +40,8 @@ final class MainSplitViewController: NSSplitViewController {
     var onKeepFile: ((URL) -> Void)?
     private var sidebarCollapseObservation: NSKeyValueObservation?
     private var tasksCollapseObservation: NSKeyValueObservation?
+    /// The running View ▸ Present presentation of this window's document.
+    private var presentationController: PresentationWindowController?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -170,6 +172,10 @@ final class MainSplitViewController: NSSplitViewController {
                  assetBaseURL: URL?,
                  documentID: String) {
         let previewMarkdown = showsPreview ? markdown : ""
+        if let presentation = presentationController, url != nil,
+           presentation.sourceURL == url {
+            presentation.update(markdown: previewMarkdown)
+        }
         contentViewController?.display(
             markdown: previewMarkdown,
             sourceURL: url,
@@ -324,6 +330,25 @@ final class MainSplitViewController: NSSplitViewController {
         withCurrentMarkdown { [weak self] in self?.contentViewController?.exportWord(markdown: $0) }
     }
 
+    /// View ▸ Present: the document full screen as slides. Edit Mode's
+    /// buffer is presented while editing, like export.
+    @IBAction func presentSlides(_ sender: Any?) {
+        guard presentationController == nil,
+              let source = contentViewController?.presentationSource else { return }
+        withCurrentMarkdown { [weak self] markdown in
+            guard let self, self.presentationController == nil else { return }
+            let presentation = PresentationWindowController(
+                markdown: markdown ?? source.markdown,
+                sourceURL: source.sourceURL,
+                assetBaseURL: source.assetBaseURL,
+                documentWindow: self.view.window
+            )
+            presentation.onEnd = { [weak self] in self?.presentationController = nil }
+            self.presentationController = presentation
+            presentation.start()
+        }
+    }
+
     /// The Markdown to export: Edit Mode's buffer while editing, since the
     /// preview only re-renders on leaving Edit Mode, so its source is the text
     /// as it was when editing began. nil means the rendered source.
@@ -363,6 +388,10 @@ final class MainSplitViewController: NSSplitViewController {
         ]
         if let action = menuItem.action, documentActions.contains(action) {
             return contentViewController?.hasExportableDocument == true
+        }
+        if menuItem.action == #selector(presentSlides(_:)) {
+            return presentationController == nil
+                && contentViewController?.hasExportableDocument == true
         }
         if menuItem.action == #selector(resetDocumentZoom(_:)) {
             return abs((contentViewController?.textScale ?? 1.0) - 1.0) > 0.001

@@ -327,6 +327,12 @@ final class ContentViewController: NSViewController {
         exportSource != nil
     }
 
+    /// What View ▸ Present shows: the rendered source and where its
+    /// relative images resolve.
+    var presentationSource: (markdown: String, sourceURL: URL?, assetBaseURL: URL?)? {
+        exportSource.map { ($0.markdown, $0.sourceURL, $0.assetBaseURL) }
+    }
+
     func exportPDF() {
         guard let window = view.window, hasExportableDocument else { return }
         webView.exportPDF(from: window)

@@ -41,6 +41,15 @@ final class KeymapTests: XCTestCase {
         XCTAssertEqual(Keymap().conflicts(for: binding, in: .global), [.viewToggleCompletedTasks])
     }
 
+    func testPresentDefaultsToOptionCommandP() {
+        let binding = KeyBinding(string: "opt+cmd+p")!
+        XCTAssertEqual(KeymapCommand.viewPresent.context, .global)
+        XCTAssertEqual(KeymapCommand.viewPresent.rawValue, "view.present")
+        XCTAssertEqual(KeymapCommand.viewPresent.titleKey, "Present")
+        XCTAssertEqual(Keymap.defaultBindings(for: .viewPresent), [binding])
+        XCTAssertEqual(Keymap().conflicts(for: binding, in: .global), [.viewPresent])
+    }
+
     func testOpenLinkAtCaretDefaultsToCommandPeriodWhileEditing() {
         let binding = KeyBinding(string: "cmd+.")!
         XCTAssertEqual(KeymapCommand.goOpenLinkAtCaret.context, .editing)

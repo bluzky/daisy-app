@@ -25,6 +25,7 @@ When a Global shortcut and a Reading, Editing or Search shortcut use the same ke
 | <kbd>⌥⌘T</kbd> | Show Toolbar | `view.toggleToolbar` |
 | <kbd>⌃⌘T</kbd> | Always on Top | `view.toggleAlwaysOnTop` |
 | <kbd>⇧⌘H</kbd> | Hide Completed Tasks | `view.toggleCompletedTasks` |
+| <kbd>⌥⌘P</kbd> | Present | `view.present` |
 | <kbd>⌘F</kbd> | Find… | `find.find` |
 | <kbd>⌥⌘F</kbd> | Find and Replace… | `find.replace` |
 | <kbd>⌘G</kbd> | Find Next | `find.next` |
@@ -105,6 +106,21 @@ These keys are part of the Edit Mode editor. You can't rebind them.
 | Cmd+click | Opens the link, `#tag`, `@context` or `+project` under the pointer |
 
 The rest of CodeMirror's standard keys work too, except <kbd>⌘[</kbd> and <kbd>⌘]</kbd>, which are left free for Back and Forward.
+
+## Presenting
+
+These keys work while **View → Present** shows a document as slides. You can't rebind them.
+
+| Shortcut | What it does |
+| --- | --- |
+| <kbd>→</kbd> <kbd>↓</kbd> <kbd>Space</kbd> <kbd>⇟</kbd> | Next slide |
+| <kbd>←</kbd> <kbd>↑</kbd> <kbd>⌫</kbd> <kbd>⇞</kbd> | Previous slide |
+| <kbd>↖</kbd> / <kbd>↘</kbd> | First / last slide |
+| A number, then <kbd>↩</kbd> | Jumps to that slide; <kbd>↩</kbd> alone goes to the next one |
+| <kbd>B</kbd> / <kbd>W</kbd> | Blanks the screen to black / white; press again to show the slide |
+| <kbd>esc</kbd> | Ends the presentation |
+
+Presentation clickers send Page Up and Page Down, so they work without setup.
 
 ## Quick Capture
 

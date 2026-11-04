@@ -306,9 +306,14 @@ nonisolated enum MarkdownHTML {
                        highlightsCode: Bool = true,
                        documentID: String = "page",
                        renderExtensionConfiguration: RenderExtensionConfiguration = .allEnabled,
-                       emptyDocumentHint: String? = nil) -> RenderedHTML {
+                       emptyDocumentHint: String? = nil,
+                       forcesSlides: Bool = false) -> RenderedHTML {
         let frontmatter = MarkdownFrontmatter.split(markdown)
         let body = frontmatter.body
+        // A deck is asked for in frontmatter (`slides: true`), or by the host
+        // presenting any document.
+        let rendersSlides = forcesSlides
+            || SlideDeck.isDeck(frontmatter: frontmatter.raw, format: frontmatter.format)
         let sourceLineOffset: Int
         if frontmatter.raw != nil,
            let bodyRange = markdown.range(of: body, options: .backwards) {
@@ -337,28 +342,53 @@ nonisolated enum MarkdownHTML {
             highlightsCode: highlightsCode && rendersHighlights,
             rendersHighlights: rendersHighlights,
             rendersCallouts: rendersCallouts,
+            rendersSlides: rendersSlides,
             strictLineBreaks: strictLineBreaks
         )
         let mathHTML = rendersMath ? renderMathBlocks(in: formatted, with: math) : formatted
-        let footnoteReferenceHTML = renderFootnoteReferences(in: mathHTML, with: footnotes)
-        let footnoteDefinitions = renderFootnoteDefinitions(
-            footnotes,
-            sourceLineOffset: sourceLineOffset,
-            strictLineBreaks: strictLineBreaks,
-            rendersMath: rendersMath,
-            highlightsCode: highlightsCode && rendersHighlights,
-            rendersHighlights: rendersHighlights,
-            rendersCallouts: rendersCallouts
-        )
-        let headingsHTML = injectHeadingIDs(in: footnoteReferenceHTML + footnoteDefinitions.html)
+        // A deck lists each footnote on the slides that reference it rather
+        // than once at the end of the document.
+        let footnotePlacedHTML: String
+        let footnoteDefinitionsHTML: String
+        if rendersSlides {
+            footnotePlacedHTML = placeSlideFootnotes(
+                in: mathHTML,
+                footnotes: footnotes,
+                items: renderSlideFootnoteItems(
+                    footnotes,
+                    sourceLineOffset: sourceLineOffset,
+                    strictLineBreaks: strictLineBreaks,
+                    rendersMath: rendersMath,
+                    highlightsCode: highlightsCode && rendersHighlights,
+                    rendersHighlights: rendersHighlights,
+                    rendersCallouts: rendersCallouts
+                )
+            )
+            footnoteDefinitionsHTML = ""
+        } else {
+            footnotePlacedHTML = mathHTML
+            footnoteDefinitionsHTML = renderFootnoteDefinitions(
+                footnotes,
+                sourceLineOffset: sourceLineOffset,
+                strictLineBreaks: strictLineBreaks,
+                rendersMath: rendersMath,
+                highlightsCode: highlightsCode && rendersHighlights,
+                rendersHighlights: rendersHighlights,
+                rendersCallouts: rendersCallouts
+            ).html
+        }
+        let footnoteReferenceHTML = renderFootnoteReferences(in: footnotePlacedHTML, with: footnotes)
+        let headingsHTML = injectHeadingIDs(in: footnoteReferenceHTML + footnoteDefinitionsHTML)
         // Direction inference scans every rendered block. Most documents
         // contain no RTL text, so avoid walking the much larger generated
         // HTML unless the Markdown could produce an RTL first character.
         let renderedBodyHTML = sourceMayNeedRTLDirection(body)
             ? injectRTLDirection(in: headingsHTML)
             : headingsHTML
+        // A deck's frontmatter configures the deck; it is not a slide.
         let frontmatterHTML: String
-        if let raw = frontmatter.raw,
+        if !rendersSlides,
+           let raw = frontmatter.raw,
            let format = frontmatter.format {
             frontmatterHTML = renderFrontmatter(
                 raw,

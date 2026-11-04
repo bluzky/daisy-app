@@ -198,7 +198,8 @@ nonisolated extension MarkdownHTML {
     MetadataLinksExtension(),
     QueryBlocksExtension(),
     SlashCommandsExtension(),
-    MetadataCompletionExtension()
+    MetadataCompletionExtension(),
+    SlidesExtension()
   ])
 
   static func renderExtensionTitle(for id: String) -> String {
