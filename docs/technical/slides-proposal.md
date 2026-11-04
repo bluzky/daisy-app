@@ -48,7 +48,7 @@ Goals:
 
 Non-goals for now:
 
-- Kova's app-specific directives: `!progress`, `!poll`, `!ref`, `!sheet`, `!youtube`, `!video`, `:icon:`.
+- Kova's app-specific directives: `!toc`, `!progress`, `!poll`, `!ref`, `!sheet`, `!youtube`, `!video`, `:icon:`.
 - Transitions between slides beyond a plain cut or fade.
 - Editing on a slide canvas. The source stays Markdown.
 - Running marp-core or reveal.js. Both bring their own Markdown parser, so slides would lose Daisy's extensions and need Mermaid and KaTeX wired twice.
@@ -76,7 +76,6 @@ Markers are recognised at the **top level of the document only**, from the swift
 | `![alt](img.png "50%")` | Image size. Units: `%`, `px`, `em`, `rem`, `cqi`. |
 | `<!-- step -->` / `<!-- step: n -->` | Reveal the element on the next click, or group elements onto click `n`. |
 | `!caption[text]` | Caption for the image, table, Mermaid or math block directly above. |
-| `!toc` | Generated list of slide titles, skipping the title slide. |
 
 Frontmatter keys: `slides`, `marp`, `theme`, `theme_overrides`, `aspect` (`16:9` default, `16:10`, `4:3`), `paginate`, `header`, `footer`, `author`, `date`.
 
@@ -136,7 +135,7 @@ Ambiguous inputs and their layout, each a test fixture:
 | `## Heading` + a code block + a paragraph | `title-content` |
 | Only `???` notes | `blank` |
 
-The layout is a class on the slide (`mdp-slide--title`), and all visual differences are CSS. The status bar in Edit Mode shows the layout of the slide under the caret, as Kova does, so an inferred layout is never a surprise.
+The layout is a class on the slide (`mdp-slide--title`), and all visual differences are CSS. The Slide Preview panel shows each slide as laid out, so an inferred layout is never a surprise (see [Editing](#editing)).
 
 ## Rendering
 
@@ -224,7 +223,7 @@ The morphdom body swap keeps working: each `<section>` keeps a stable `data-slid
 ## Presenting
 
 - **Present** (⌥⌘P) opens a window with its own `MarkdownWebView` and puts it in native full screen, on an external display when there is one, so the document stays on the laptop. It presents Edit Mode's buffer while editing, like export. Leaving full screen or closing the document window ends the presentation. (Phase 1.)
-- **Present from Current Slide** (⇧⌥⌘P) starts at the slide under the caret or scroll position. (Phase 3, with editor slide sync.)
+- **Present from Current Slide** (⇧⌥⌘P) starts at the slide under the caret in Edit Mode, or at the top of the view in Read Mode. (Phase 3; it uses the line-to-slide mapping under [Editing](#editing).)
 - With two displays, a presenter window on the laptop shows the current slide with its notes, the next slide, the slide and step number, and the elapsed time. It is one more `MarkdownWebView` of the same deck with the `slides-presenter` host state, laid out by CSS, under a native bar for the number and the clock. A countdown timer is not built yet.
 - Keys: → ↓ Space PageDown next; ← ↑ PageUp previous; Home / End; number + Return jumps; B / W blank to black or white; Esc exits. Presentation clickers send PageUp/PageDown, so they work without setup.
 - `ProcessInfo.beginActivity(options: .idleDisplaySleepDisabled, …)` keeps the display awake while presenting.
@@ -243,7 +242,30 @@ A native `PresentationSession` (main actor) owns the state: current slide, curre
 
 ## Editing
 
-In split view, the slide under the caret is shown, using the source lines the formatter already writes. The editor's slash menu gains `/slide` (inserts `---`), `/notes` (`???`) and `/step`.
+Edit Mode replaces the preview: the editor is an overlay on Read Mode, and Read Mode only re-renders on leaving Edit Mode. So while editing a deck you see Markdown, not slides. Phase 3 adds a slide preview beside the editor without a new split layout.
+
+### Slide Preview panel
+
+A third panel in the right pane, next to Agenda and References: **View → Slide Preview**, offered only when the document is a deck.
+
+- **Content:** the Read Mode strip of the whole deck, every slide at the pane's width, so the slides before and after the one being edited stay in view. It is a `MarkdownWebView` with a `slides-pane` host state.
+- **Scaling with `pageZoom`:** the page is laid out at Read Mode's deck width (1100 CSS px) and `webView.pageZoom` is set to `paneWidth / 1100`, recomputed on resize. The pane shows an exact miniature of Read Mode, including pixel-sized chrome, so it needs no pane-specific sizing CSS. Daisy's text size uses a CSS variable (`textScale`), not `pageZoom`, and the page already accounts for `pageZoom` (`--mdp-chrome-zoom`, height and scroll reporting), so the two don't interfere. Pinch-to-zoom is off in the pane, so it never changes the text-size setting.
+- **Notes are hidden** in the pane: at about 0.4× they would be unreadable. The presenter view and Read Mode show them.
+- **Updates as you type:** the editor already sends `dirty` on every change. After a pause (about 300 ms) the host fetches the buffer (`fetchMarkdown`) and displays it in the pane; the morphdom body swap changes only the edited slide, so other slides and their diagrams are left alone. In Read Mode the pane shows the rendered document.
+- **Following the caret:** the editor's `formattingState` message also carries the caret's line. Swift maps the line to a slide through each slide's start line (a new `startLine` on `SlideDeck.Slide`, shifted by the frontmatter offset), outlines that slide in the pane and scrolls it into view — only when the caret moves to a different slide, not on every keystroke. After the user scrolls the pane, it stops following until the caret moves to another slide. In Read Mode, nothing follows: the strip is already on screen.
+- **Width:** the right pane's maximum width (500 pt) is raised for this panel so a slide can be larger.
+
+### Landing on the slide
+
+The same line-to-slide mapping makes leaving Edit Mode (⌘E) land on the slide that holds the caret, its top at the top of the view, and is what **Present from Current Slide** starts from.
+
+### Slash commands
+
+The editor's slash menu gains `/slide` (inserts `---`), `/notes` (`???`) and `/step`.
+
+### Slide chrome in slide units
+
+Separate from the pane, but in the same phase: code-block padding and label and Mermaid frame padding are fixed pixels in the base stylesheet, so they look oversized on a small slide and undersized on a large full-screen display. On slides they are sized in `em`, which scales with the slide, and the code copy and wrap buttons — reading tools, not slide content — are hidden.
 
 ## Themes
 
@@ -273,7 +295,7 @@ A deck file previews as a grid of slide thumbnails. Quick Look already renders w
 
 1. `SlideDeck` with `---`, `???` and layout inference; slide strip in Read Mode; full-screen Present with keyboard navigation; PDF export.
 2. Backgrounds and image sizing, `<!-- layout -->`, `<!-- _class -->`, `<!-- color -->`, `<!-- step -->`; presenter window with notes and timer. Built-in classes: `center`, `center-x`, `center-y`, `lead`, `invert`.
-3. Themes (built-in and YAML), header and footer templates, `!caption`, `!toc`; editor slide sync and slash commands.
+3. Themes (built-in and YAML), header and footer templates, `!caption`; the Slide Preview panel, landing on the slide after Edit Mode, Present from Current Slide, slash commands; slide chrome in slide units.
 4. HTML and PPTX export, CLI options, Quick Look thumbnails.
 
 Each phase updates `README.md` and `docs/render-extensions.md` in the same change, and adds a deck to `samples/`.
