@@ -113,8 +113,8 @@ These keys work while **View → Present** shows a document as slides. You can't
 
 | Shortcut | What it does |
 | --- | --- |
-| <kbd>→</kbd> <kbd>↓</kbd> <kbd>Space</kbd> <kbd>⇟</kbd> | Next slide |
-| <kbd>←</kbd> <kbd>↑</kbd> <kbd>⌫</kbd> <kbd>⇞</kbd> | Previous slide |
+| <kbd>→</kbd> <kbd>↓</kbd> <kbd>Space</kbd> <kbd>⇟</kbd> | Next step, then next slide |
+| <kbd>←</kbd> <kbd>↑</kbd> <kbd>⌫</kbd> <kbd>⇞</kbd> | Previous step, then previous slide |
 | <kbd>↖</kbd> / <kbd>↘</kbd> | First / last slide |
 | A number, then <kbd>↩</kbd> | Jumps to that slide; <kbd>↩</kbd> alone goes to the next one |
 | <kbd>B</kbd> / <kbd>W</kbd> | Blanks the screen to black / white; press again to show the slide |

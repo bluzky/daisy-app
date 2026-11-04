@@ -2,7 +2,8 @@
 //  PresentationWindowController.swift
 //  daisy
 //
-//  View ▸ Present: a document shown full screen as slides, one at a time.
+//  View ▸ Present: a document shown full screen as slides, one at a time,
+//  with a presenter view on the other display when there is one.
 //
 
 import Cocoa
@@ -19,114 +20,238 @@ private final class PresentationWindow: NSWindow {
     }
 }
 
-/// Owns the presentation window and its `PresentationSession`. The session
-/// is the source of truth; the page is told which slide to show after every
-/// change and after every load.
+/// Owns the presentation's windows and its `PresentationSession`. The
+/// session is the source of truth; each page is told which slide and step
+/// to show after every change and after every load.
+///
+/// - The audience window shows the slide full screen, on an external
+///   display when there is one.
+/// - With two displays, the presenter window on the document's display
+///   shows the current slide with its notes, the next slide, the slide
+///   number and the elapsed time.
+///
+/// Esc, leaving full screen, closing the audience window or closing the
+/// document ends the presentation. Closing only the presenter window, or
+/// unplugging a display, keeps presenting on one screen.
 @MainActor
-final class PresentationWindowController: NSWindowController, NSWindowDelegate {
+final class PresentationWindowController: NSObject, NSWindowDelegate {
     /// The file being presented, so its updates reach the presentation.
     let sourceURL: URL?
-    /// Called once the presentation has ended and its window is closed.
+    /// Called once the presentation has ended and its windows are closed.
     var onEnd: (() -> Void)?
 
-    private let markdownView = MarkdownWebView(frame: .zero)
     private let session: PresentationSession
     private let assetBaseURL: URL?
     private weak var documentWindow: NSWindow?
-    private nonisolated(unsafe) var documentWindowObserver: NSObjectProtocol?
+    private let audienceWindow: PresentationWindow
+    private let audienceView = MarkdownWebView(frame: .zero)
+    private var presenterWindow: PresentationWindow?
+    private var presenterView: MarkdownWebView?
+    private var presenterStatusLabel: NSTextField?
+    private var presenterClockLabel: NSTextField?
+    private var clockTimer: Timer?
+    private var displaySleepActivity: NSObjectProtocol?
+    private var observers: [NSObjectProtocol] = []
     private var hasEnded = false
 
     init(markdown: String, sourceURL: URL?, assetBaseURL: URL?, documentWindow: NSWindow?) {
         self.sourceURL = sourceURL
         self.assetBaseURL = assetBaseURL
         self.documentWindow = documentWindow
-        session = PresentationSession(slideCount: Self.slideCount(of: markdown))
+        session = PresentationSession(stepCounts: Self.stepCounts(of: markdown))
 
-        let screen = Self.presentationScreen(besides: documentWindow)
-        let window = PresentationWindow(
-            contentRect: screen.frame,
+        let documentScreen = documentWindow?.screen ?? NSScreen.main ?? NSScreen.screens[0]
+        let externalScreen = NSScreen.screens.first { $0 != documentScreen }
+        let audienceScreen = externalScreen ?? documentScreen
+        audienceWindow = PresentationWindow(
+            contentRect: audienceScreen.frame,
             styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
-        window.title = sourceURL?.lastPathComponent
-            ?? NSLocalizedString("Untitled", comment: "Window title when no document is open")
-        window.titleVisibility = .hidden
-        window.titlebarAppearsTransparent = true
-        window.backgroundColor = .black
-        window.collectionBehavior = [.fullScreenPrimary]
-        window.isReleasedWhenClosed = false
-        super.init(window: window)
-        window.delegate = self
-        window.keyHandler = { [weak self] event in self?.handleKey(event) ?? false }
+        super.init()
 
-        markdownView.forcesSlides = true
-        markdownView.extensionHostState = [MarkdownHTML.slidesPresentingStateID: true]
-        // Hidden until the first slide is chosen, so the slide strip never
-        // flashes before the presenting state applies.
-        markdownView.alphaValue = 0
-        markdownView.contentDidReplace = { [weak self] in self?.showCurrentSlide() }
-        window.contentView = markdownView
+        Self.configureWindow(audienceWindow, title: Self.title(for: sourceURL))
+        audienceWindow.backgroundColor = .black
+        audienceWindow.collectionBehavior = [.fullScreenPrimary]
+        audienceWindow.delegate = self
+        audienceWindow.keyHandler = { [weak self] event in self?.handleKey(event) ?? false }
+        configureView(audienceView, hostStateID: MarkdownHTML.slidesPresentingStateID)
+        audienceWindow.contentView = audienceView
+
+        if externalScreen != nil {
+            makePresenterWindow(on: documentScreen)
+        }
 
         session.onChange = { [weak self] in self?.showCurrentSlide() }
         session.onEnd = { [weak self] in self?.end() }
-        markdownView.display(markdown: markdown, assetBaseURL: assetBaseURL, documentID: "presentation")
+        display(markdown)
 
+        let center = NotificationCenter.default
         if let documentWindow {
-            documentWindowObserver = NotificationCenter.default.addObserver(
-                forName: NSWindow.willCloseNotification,
-                object: documentWindow,
-                queue: .main
+            observers.append(center.addObserver(
+                forName: NSWindow.willCloseNotification, object: documentWindow, queue: .main
             ) { [weak self] _ in
                 MainActor.assumeIsolated { self?.end() }
-            }
+            })
         }
+        observers.append(center.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.screensDidChange() }
+        })
     }
 
-    required init?(coder: NSCoder) { fatalError() }
-
-    deinit {
-        if let documentWindowObserver {
-            NotificationCenter.default.removeObserver(documentWindowObserver)
-        }
-    }
-
-    /// Shows the window on its screen and enters full screen there.
+    /// Shows the windows and enters full screen on the audience display.
     func start() {
-        guard let window else { return }
-        window.makeKeyAndOrderFront(nil)
-        window.toggleFullScreen(nil)
+        displaySleepActivity = ProcessInfo.processInfo.beginActivity(
+            options: [.idleDisplaySleepDisabled, .userInitiated],
+            reason: "Presenting slides"
+        )
+        presenterWindow?.makeKeyAndOrderFront(nil)
+        audienceWindow.makeKeyAndOrderFront(nil)
+        audienceWindow.toggleFullScreen(nil)
+        startClock()
     }
 
     /// The presented file changed on disk: show the new text, staying on
     /// the same slide where it still exists.
     func update(markdown: String) {
         guard !hasEnded else { return }
-        markdownView.display(markdown: markdown, assetBaseURL: assetBaseURL, documentID: "presentation")
-        session.updateSlideCount(Self.slideCount(of: markdown))
+        display(markdown)
+        session.updateStepCounts(Self.stepCounts(of: markdown))
     }
 
-    /// Ends the presentation and closes its window.
+    /// Ends the presentation and closes its windows.
     func end() {
         guard !hasEnded else { return }
         hasEnded = true
-        if let documentWindowObserver {
-            NotificationCenter.default.removeObserver(documentWindowObserver)
-            self.documentWindowObserver = nil
+        for observer in observers { NotificationCenter.default.removeObserver(observer) }
+        observers = []
+        clockTimer?.invalidate()
+        clockTimer = nil
+        if let displaySleepActivity {
+            ProcessInfo.processInfo.endActivity(displaySleepActivity)
+            self.displaySleepActivity = nil
         }
+        closePresenter()
         // Closing a full-screen window also removes its Space.
-        window?.close()
+        audienceWindow.close()
         documentWindow?.makeKeyAndOrderFront(nil)
         onEnd?()
     }
 
+    // MARK: NSWindowDelegate
+
     func windowWillClose(_ notification: Notification) {
-        end()
+        guard let window = notification.object as? NSWindow else { return }
+        if window === audienceWindow {
+            end()
+        } else if window === presenterWindow {
+            closePresenter()
+        }
     }
 
     func windowDidExitFullScreen(_ notification: Notification) {
         // Leaving full screen from the green button or ⌃⌘F ends it too.
-        end()
+        if (notification.object as? NSWindow) === audienceWindow { end() }
+    }
+
+    // MARK: Windows
+
+    private static func title(for sourceURL: URL?) -> String {
+        sourceURL?.lastPathComponent
+            ?? NSLocalizedString("Untitled", comment: "Window title when no document is open")
+    }
+
+    private static func configureWindow(_ window: NSWindow, title: String) {
+        window.title = title
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
+        window.isReleasedWhenClosed = false
+    }
+
+    private func configureView(_ view: MarkdownWebView, hostStateID: String) {
+        view.forcesSlides = true
+        view.extensionHostState = [hostStateID: true]
+        // Hidden until the first slide is chosen, so the slide strip never
+        // flashes before the presenting state applies.
+        view.alphaValue = 0
+        view.contentDidReplace = { [weak self] in self?.showCurrentSlide() }
+    }
+
+    private func makePresenterWindow(on screen: NSScreen) {
+        let window = PresentationWindow(
+            contentRect: screen.visibleFrame,
+            styleMask: [.titled, .closable, .resizable, .miniaturizable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        Self.configureWindow(window, title: NSLocalizedString("Presenter", comment: "Presenter window title"))
+        window.backgroundColor = .windowBackgroundColor
+        window.delegate = self
+        window.keyHandler = { [weak self] event in self?.handleKey(event) ?? false }
+
+        let status = NSTextField(labelWithString: "")
+        status.font = .systemFont(ofSize: 15, weight: .semibold)
+        let clock = NSTextField(labelWithString: "0:00")
+        clock.font = .monospacedDigitSystemFont(ofSize: 22, weight: .medium)
+        let spacer = NSView()
+        spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        let bar = NSStackView(views: [status, spacer, clock])
+        bar.orientation = .horizontal
+        bar.edgeInsets = NSEdgeInsets(top: 0, left: 24, bottom: 0, right: 24)
+
+        let view = MarkdownWebView(frame: .zero)
+        configureView(view, hostStateID: MarkdownHTML.slidesPresenterStateID)
+
+        let content = NSView()
+        for subview in [bar, view] as [NSView] {
+            subview.translatesAutoresizingMaskIntoConstraints = false
+            content.addSubview(subview)
+        }
+        NSLayoutConstraint.activate([
+            bar.topAnchor.constraint(equalTo: content.safeAreaLayoutGuide.topAnchor, constant: 8),
+            bar.leadingAnchor.constraint(equalTo: content.leadingAnchor),
+            bar.trailingAnchor.constraint(equalTo: content.trailingAnchor),
+            bar.heightAnchor.constraint(equalToConstant: 32),
+            view.topAnchor.constraint(equalTo: bar.bottomAnchor),
+            view.leadingAnchor.constraint(equalTo: content.leadingAnchor),
+            view.trailingAnchor.constraint(equalTo: content.trailingAnchor),
+            view.bottomAnchor.constraint(equalTo: content.bottomAnchor),
+        ])
+        window.contentView = content
+        window.setFrame(screen.visibleFrame, display: false)
+
+        presenterWindow = window
+        presenterView = view
+        presenterStatusLabel = status
+        presenterClockLabel = clock
+    }
+
+    /// Keeps presenting on the audience window alone.
+    private func closePresenter() {
+        guard let window = presenterWindow else { return }
+        presenterWindow = nil
+        presenterView = nil
+        presenterStatusLabel = nil
+        presenterClockLabel = nil
+        window.delegate = nil
+        window.close()
+        if !hasEnded { audienceWindow.makeKeyAndOrderFront(nil) }
+    }
+
+    /// With one display left, the presenter view would cover the slides;
+    /// macOS moves the audience window to the remaining display.
+    private func screensDidChange() {
+        if NSScreen.screens.count < 2 { closePresenter() }
+    }
+
+    // MARK: Showing the session
+
+    private func display(_ markdown: String) {
+        audienceView.display(markdown: markdown, assetBaseURL: assetBaseURL, documentID: "presentation")
+        presenterView?.display(markdown: markdown, assetBaseURL: assetBaseURL, documentID: "presentation")
     }
 
     private func handleKey(_ event: NSEvent) -> Bool {
@@ -143,29 +268,58 @@ final class PresentationWindowController: NSWindowController, NSWindowDelegate {
 
     private func showCurrentSlide() {
         let blank = session.blank.map { "'\($0.rawValue)'" } ?? "null"
-        markdownView.webView.evaluateJavaScript("""
-        if (window.MdPreviewSlides) {
-            MdPreviewSlides.show(\(session.index));
-            MdPreviewSlides.blank(\(blank));
-        }
-        """) { [weak self] _, _ in
-            self?.markdownView.alphaValue = 1
+        let show = "MdPreviewSlides.show(\(session.index), \(session.step));"
+        reveal(audienceView, script: "\(show) MdPreviewSlides.blank(\(blank));")
+        if let presenterView { reveal(presenterView, script: show) }
+        updatePresenterStatus()
+    }
+
+    private func reveal(_ view: MarkdownWebView, script: String) {
+        view.webView.evaluateJavaScript("if (window.MdPreviewSlides) { \(script) }") { [weak view] _, _ in
+            view?.alphaValue = 1
         }
     }
 
-    private static func slideCount(of markdown: String) -> Int {
-        MarkdownHTML.slideCount(
+    private func updatePresenterStatus() {
+        guard let presenterStatusLabel else { return }
+        var status = String(
+            format: NSLocalizedString("Slide %1$d of %2$d", comment: "Presenter view slide number"),
+            session.index + 1, session.slideCount
+        )
+        let steps = session.stepCounts[session.index]
+        if steps > 0 {
+            status += "  ·  " + String(
+                format: NSLocalizedString("Step %1$d of %2$d", comment: "Presenter view step number"),
+                session.step, steps
+            )
+        }
+        if session.blank != nil {
+            status += "  ·  " + NSLocalizedString("Screen blanked", comment: "Presenter view blank state")
+        }
+        presenterStatusLabel.stringValue = status
+    }
+
+    private func startClock() {
+        guard presenterClockLabel != nil else { return }
+        let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.updateClock() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        clockTimer = timer
+        updateClock()
+    }
+
+    private func updateClock() {
+        let seconds = Int(Date().timeIntervalSince(session.startDate))
+        presenterClockLabel?.stringValue = seconds >= 3600
+            ? String(format: "%d:%02d:%02d", seconds / 3600, seconds / 60 % 60, seconds % 60)
+            : String(format: "%d:%02d", seconds / 60, seconds % 60)
+    }
+
+    private static func stepCounts(of markdown: String) -> [Int] {
+        MarkdownHTML.slideStepCounts(
             markdown: markdown,
             configuration: RenderExtensionPreferences.currentConfiguration
         )
-    }
-
-    /// An external display when there is one, so the document stays on the
-    /// laptop; otherwise the document's own screen.
-    private static func presentationScreen(besides documentWindow: NSWindow?) -> NSScreen {
-        let documentScreen = documentWindow?.screen ?? NSScreen.main
-        return NSScreen.screens.first { $0 != documentScreen }
-            ?? documentScreen
-            ?? NSScreen.screens[0]
     }
 }

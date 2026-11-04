@@ -1,6 +1,6 @@
 # Proposal: slide presentations
 
-Status: phase 1 implemented (`daisy/Rendering/Slides/`, `daisy/Features/Presentation/`); phases 2–4 are still proposals. Where phase 1 differs from the first draft, this document describes what was built.
+Status: phases 1 and 2 implemented (`daisy/Rendering/Slides/`, `daisy/Features/Presentation/`); phases 3 and 4 are still proposals. Where the build differs from the first draft, this document describes what was built. The user guide is [docs/slides.md](../slides.md).
 
 ## Summary
 
@@ -146,24 +146,24 @@ The layout is a class on the slide (`mdp-slide--title`), and all visual differen
 
 ```swift
 struct SlideDeck {
-    struct RevealTarget {
-        var sourceRange: SourceRange  // the revealed element: a block, list item or paragraph
-        var step: Int
-    }
+    struct SourceKey: Hashable { let line, column: Int }  // where an element starts
     struct Slide {
-        var sourceLines: ClosedRange<Int>
-        var blocks: [Markup]
+        var blocks: [Markup]                // without directives and backgrounds
+        var notesLead: Paragraph?           // `???` with text on its next lines
         var notes: [Markup]
-        var background: Background?
         var layout: Layout
+        var background: Background?
         var classes: [String]
-        var reveals: [RevealTarget]   // elements not listed are always visible
-        var footnoteNumbers: [Int]    // footnotes referenced on this slide
+        var color: String?
+        var blockSteps: [Int: Int]          // own-line `<!-- step -->`, by index in blocks
+        var elementSteps: [SourceKey: Int]  // inline `<!-- step -->`, by list item or paragraph
+        var stepCount: Int
     }
-    var settings: DeckSettings        // from frontmatter
-    var slides: [Slide]
+    let slides: [Slide]
 }
 ```
+
+An own-line step wraps its block in `<div class="mdp-step" data-step="n">` with `display: contents`, so the block keeps its place in the slide's layout; an inline step puts `data-step` on the list item or paragraph itself, which the formatter looks up by `SourceKey`. Footnotes are placed after formatting rather than tracked on the slide (see [Footnotes](#footnotes)).
 
 It has no UI or WebKit dependency, so splitting, markers, steps and layout inference are covered by `swift test --package-path tests/swift-tests`.
 
@@ -211,7 +211,7 @@ Classes carry the `mdp-` prefix so they can't collide with a document's own HTML
 
 Each element in a slide's `reveals` gets `data-step="n"` as the formatter writes it. Everything after the formatter (math, footnotes, heading IDs, RTL, render extensions) runs unchanged on the result, except that footnote definitions go to slides as described under [Footnotes](#footnotes).
 
-`MarkdownHTML.render` gains a `forcesSlides` parameter for View ▸ Present on a file without `slides: true`. A deck's frontmatter is not rendered as a table. The slide stylesheet and script come from `SlidesExtension` in the render-extension registry, which activates on `.mdp-deck` and is not user-toggleable. Its script (`MdPreviewSlides`) is emitted only for the app (`.lazy`), so the fast-path body swap reloads the page when a document becomes a deck.
+`MarkdownHTML.render` gains a `forcesSlides` parameter for View ▸ Present on a file without `slides: true`. A deck's frontmatter is not rendered as a table. The slide stylesheet and script come from `SlidesExtension` in the render-extension registry, which activates on `.mdp-deck` and is not user-toggleable. Its script (`MdPreviewSlides`) is emitted in every host, since it also applies image sizes and slide colors, which the sanitizer keeps out of the HTML as styles; its asset id makes the fast-path body swap reload the page when a document becomes a deck.
 
 ### Scaling
 
@@ -225,7 +225,7 @@ The morphdom body swap keeps working: each `<section>` keeps a stable `data-slid
 
 - **Present** (⌥⌘P) opens a window with its own `MarkdownWebView` and puts it in native full screen, on an external display when there is one, so the document stays on the laptop. It presents Edit Mode's buffer while editing, like export. Leaving full screen or closing the document window ends the presentation. (Phase 1.)
 - **Present from Current Slide** (⇧⌥⌘P) starts at the slide under the caret or scroll position. (Phase 3, with editor slide sync.)
-- With two displays, a presenter window on the laptop shows the current slide, next slide, notes, elapsed or countdown timer, and slide count.
+- With two displays, a presenter window on the laptop shows the current slide with its notes, the next slide, the slide and step number, and the elapsed time. It is one more `MarkdownWebView` of the same deck with the `slides-presenter` host state, laid out by CSS, under a native bar for the number and the clock. A countdown timer is not built yet.
 - Keys: → ↓ Space PageDown next; ← ↑ PageUp previous; Home / End; number + Return jumps; B / W blank to black or white; Esc exits. Presentation clickers send PageUp/PageDown, so they work without setup.
 - `ProcessInfo.beginActivity(options: .idleDisplaySleepDisabled, …)` keeps the display awake while presenting.
 - Notes render as Markdown, so links in notes are clickable in the presenter window only.
@@ -234,12 +234,12 @@ The morphdom body swap keeps working: each `<section>` keeps a stable `data-slid
 
 A native `PresentationSession` (main actor) owns the state: current slide, current step, timer, blanked, and the rendered HTML. The web views only display it.
 
-- Keys and clicks in either window call the session, which clamps the position and pushes `goTo(slide, step)` to every attached web view. A web view never changes slide on its own.
+- Keys in either window call the session, which clamps the position and pushes `MdPreviewSlides.show(slide, step)` to every web view. A web view never changes slide on its own. Clicking does not advance.
 - **Loading:** a web view is attached once its page reports ready; the session then sends the current position. Input that arrives earlier is applied to the session and reaches the view on attach.
 - **Live edit:** a file change re-renders once and reloads both views. The session keeps the slide index and step, clamped to the new slide and step counts, so deleting the current slide moves to the one before it.
-- **Display change:** if the external display disappears, the audience window closes and the session continues in single-screen mode on the remaining display, notes toggled with N. Connecting a display does not move an ongoing presentation.
+- **Display change:** if a display disappears, the presenter window closes and macOS moves the full-screen audience window to the remaining display, so presenting continues on one screen. Connecting a display does not move an ongoing presentation. Notes toggled with N on a single screen are not built yet.
 - **Closing:** closing the audience window, Esc, or closing the document ends the session and closes the presenter window. Closing only the presenter window keeps presenting in single-screen mode.
-- **Failure:** a web view that fails to load or crashes is reloaded once; on a second failure the session ends with an alert, rather than leaving the two windows out of step.
+- **Failure:** a web view that fails to load or crashes is reloaded once; on a second failure the session ends with an alert, rather than leaving the two windows out of step. (Not built yet: a reloaded page is told the position again on load, but there is no retry limit or alert.)
 
 ## Editing
 
@@ -272,7 +272,7 @@ A deck file previews as a grid of slide thumbnails. Quick Look already renders w
 ## Phases
 
 1. `SlideDeck` with `---`, `???` and layout inference; slide strip in Read Mode; full-screen Present with keyboard navigation; PDF export.
-2. Backgrounds and image sizing, `<!-- layout -->`, `<!-- _class -->`, `<!-- step -->`; presenter window with notes and timer.
+2. Backgrounds and image sizing, `<!-- layout -->`, `<!-- _class -->`, `<!-- color -->`, `<!-- step -->`; presenter window with notes and timer. Built-in classes: `center`, `center-x`, `center-y`, `lead`, `invert`.
 3. Themes (built-in and YAML), header and footer templates, `!caption`, `!toc`; editor slide sync and slash commands.
 4. HTML and PPTX export, CLI options, Quick Look thumbnails.
 

@@ -629,3 +629,7 @@
 /* View ▸ Present and the slides render extension */
 "Present" = "Present";
 "Slides" = "Slides";
+"Presenter" = "Presenter";
+"Slide %1$d of %2$d" = "Slide %1$d of %2$d";
+"Step %1$d of %2$d" = "Step %1$d of %2$d";
+"Screen blanked" = "Screen blanked";

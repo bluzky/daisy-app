@@ -26,6 +26,37 @@ Notes show under each slide in Read Mode and never on the presented slide.
 
 ---
 
+## Reveal step by step
+
+- Arrows and Space reveal one item at a time
+- Items marked with a step comment wait for a click <!-- step -->
+- `step: 2` puts several items on the same click <!-- step -->
+
+???
+The steps all show in Read Mode and in a PDF.
+
+---
+
+## Beside a picture
+
+![bg right fit](../docs/daisy-logo.png)
+
+- `![bg right]` puts the image on one half
+- `![bg]` alone fills the whole slide
+- `fit` shows all of the image
+
+---
+
+<!-- _class: invert center -->
+
+## Classes
+
+`<!-- _class: invert center -->` darkens and centres this slide
+
+---
+
+<!-- layout: section -->
+
 ## Part two
 
 ---

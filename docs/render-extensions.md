@@ -27,10 +27,15 @@ is something the document asks for, not a reading preference. Splitting a
 document into slides happens earlier, in the formatter: when frontmatter has
 `slides: true` (or `marp: true`), or the host passes `forcesSlides`,
 `EscapingHTMLFormatter` walks `SlideDeck` instead of the document's blocks and
-emits `.mdp-deck` with one `section.mdp-slide-frame` per slide. The extension
-activates on that markup and adds the slide stylesheet and, in the app only,
-the `MdPreviewSlides` script used while presenting. The presentation window
-turns presenting on with the `slides-presenting` host state.
+emits `.mdp-deck` with one `section.mdp-slide-frame` per slide. Slide directives
+(`layout`, `_class`, `color`, `step`) are HTML comments, which the sanitizer
+removes, so `SlideDeck` reads them in Swift and the formatter writes them as
+classes and `data-*` attributes. The extension activates on that markup and
+adds the slide stylesheet and the `MdPreviewSlides` script in every host: the
+script applies image sizes and slide colors (styles the sanitizer would
+strip) and, while presenting, marks the current and next slide and the
+revealed steps. The presentation windows turn presenting on with the
+`slides-presenting` and `slides-presenter` host states.
 
 ## Editor capability
 

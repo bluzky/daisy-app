@@ -70,37 +70,62 @@ final class PresentationSession {
         case white
     }
 
-    private(set) var slideCount: Int
+    /// Each slide's number of `<!-- step -->` clicks.
+    private(set) var stepCounts: [Int]
     /// Zero-based.
     private(set) var index: Int
+    /// Steps revealed on the current slide; 0 shows none of them.
+    private(set) var step = 0
     private(set) var blank: Blank?
     /// Digits typed since the last jump.
     private(set) var typedNumber = ""
+    let startDate = Date()
 
-    /// Called after every change of slide or blanking.
+    /// Called after every change of slide, step or blanking.
     var onChange: (() -> Void)?
     /// Called when the presenter asks to stop.
     var onEnd: (() -> Void)?
 
-    init(slideCount: Int, index: Int = 0) {
-        self.slideCount = max(1, slideCount)
+    var slideCount: Int { stepCounts.count }
+
+    init(stepCounts: [Int], index: Int = 0) {
+        self.stepCounts = stepCounts.isEmpty ? [0] : stepCounts
         self.index = 0
         self.index = clamped(index)
     }
 
+    convenience init(slideCount: Int, index: Int = 0) {
+        self.init(stepCounts: Array(repeating: 0, count: max(1, slideCount)), index: index)
+    }
+
     func perform(_ command: PresentationCommand) {
         switch command {
-        case .next: go(to: index + 1)
-        case .previous: go(to: index - 1)
-        case .first: go(to: 0)
-        case .last: go(to: slideCount - 1)
+        case .next:
+            if step < stepCounts[index] {
+                show(index, step: step + 1)
+            } else if index < slideCount - 1 {
+                show(index + 1, step: 0)
+            } else {
+                show(index, step: step)
+            }
+        case .previous:
+            if step > 0 {
+                show(index, step: step - 1)
+            } else if index > 0 {
+                // Back to the previous slide as it was left: fully built.
+                show(index - 1, step: stepCounts[index - 1])
+            } else {
+                show(index, step: 0)
+            }
+        case .first: show(0, step: 0)
+        case .last: show(slideCount - 1, step: 0)
         case .digit(let digit):
             typedNumber = String((typedNumber + String(digit)).suffix(4))
         case .confirm:
             if let number = Int(typedNumber) {
-                go(to: number - 1)
+                show(number - 1, step: 0)
             } else {
-                go(to: index + 1)
+                perform(.next)
             }
         case .blankBlack: toggleBlank(.black)
         case .blankWhite: toggleBlank(.white)
@@ -109,18 +134,24 @@ final class PresentationSession {
         }
     }
 
-    /// The document changed: keep the slide, clamped to the new count, so
-    /// deleting the current slide moves to the one before it.
-    func updateSlideCount(_ count: Int) {
-        slideCount = max(1, count)
+    /// The document changed: keep the slide and step, clamped to the new
+    /// counts, so deleting the current slide moves to the one before it.
+    func updateStepCounts(_ counts: [Int]) {
+        stepCounts = counts.isEmpty ? [0] : counts
         index = clamped(index)
+        step = min(step, stepCounts[index])
         onChange?()
     }
 
-    private func go(to target: Int) {
+    func updateSlideCount(_ count: Int) {
+        updateStepCounts(Array(repeating: 0, count: max(1, count)))
+    }
+
+    private func show(_ target: Int, step targetStep: Int) {
         typedNumber = ""
         blank = nil
         index = clamped(target)
+        step = min(max(0, targetStep), stepCounts[index])
         onChange?()
     }
 

@@ -197,12 +197,13 @@ final class SlideDeckTests: XCTestCase {
     XCTAssertTrue(html.contains("<h2 data-source-line=\"9\""), html)
   }
 
-  func testSlidesScriptLoadsOnlyInTheApp() throws {
+  func testSlidesScriptLoadsInEveryHost() throws {
     let slides = try XCTUnwrap(MarkdownHTML.renderExtensions.first { $0.id == "slides" })
     XCTAssertFalse(slides.descriptor.userToggleable)
-    XCTAssertTrue(slides.assets(mode: .lazy).bodyJS.contains("MdPreviewSlides"))
-    XCTAssertTrue(slides.assets(mode: .inline).bodyJS.isEmpty)
-    XCTAssertTrue(slides.assets(mode: .inline).css.contains(".mdp-slide"))
+    for mode in [MarkdownHTML.VendorLoading.lazy, .inline] {
+      XCTAssertTrue(slides.assets(mode: mode).bodyJS.contains("MdPreviewSlides"))
+      XCTAssertTrue(slides.assets(mode: mode).css.contains(".mdp-slide"))
+    }
   }
 
   // MARK: - Footnotes

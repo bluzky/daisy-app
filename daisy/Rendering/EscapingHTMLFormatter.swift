@@ -750,6 +750,9 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
     let rendersCallouts: Bool
     /// Render the document as presentation slides (`SlideDeck`).
     let rendersSlides: Bool
+    /// The deck's `<!-- step -->` targets inside blocks, written as
+    /// `data-step` on the list item or paragraph.
+    private var slideElementSteps: [SlideDeck.SourceKey: Int] = [:]
     private let sourceLines: [String]
     private let parsedSourceLines: [String]
 
@@ -907,11 +910,34 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
     private mutating func visitSlideDeck(_ deck: SlideDeck) {
         result += "<div class=\"mdp-deck\">\n"
         for (index, slide) in deck.slides.enumerated() {
-            result += "<section class=\"mdp-slide-frame\" data-slide=\"\(index)\">\n"
-            result += "<div class=\"mdp-slide mdp-slide--\(slide.layout.rawValue)\">"
+            slideElementSteps = slide.elementSteps
+            result += "<section class=\"mdp-slide-frame\" data-slide=\"\(index)\""
+            result += " data-steps=\"\(slide.stepCount)\">\n"
+            var classes = ["mdp-slide", "mdp-slide--\(slide.layout.rawValue)"]
+            classes += slide.classes.map { "mdp-slide-class-\($0)" }
+            if let background = slide.background {
+                classes.append("mdp-slide--bg-\(background.position.rawValue)")
+            }
+            result += "<div class=\"\(classes.joined(separator: " "))\""
+            if let color = slide.color {
+                result += " data-slide-color=\"\(escapeAttribute(color))\""
+            }
+            result += ">"
+            if let background = slide.background {
+                let fit = background.fits ? " mdp-slide-bg--fit" : ""
+                result += "<div class=\"mdp-slide-bg mdp-slide-bg--\(background.position.rawValue)\(fit)\">"
+                result += "<img src=\"\(escapeAttribute(background.source))\" alt=\"\" /></div>"
+            }
             result += "<div class=\"mdp-slide-body\">\n"
-            for block in slide.blocks {
-                visit(block)
+            for (blockIndex, block) in slide.blocks.enumerated() {
+                // `display: contents` keeps the block in the slide's layout.
+                if let step = slide.blockSteps[blockIndex] {
+                    result += "<div class=\"mdp-step\" data-step=\"\(step)\">"
+                    visit(block)
+                    result += "</div>\n"
+                } else {
+                    visit(block)
+                }
             }
             result += MarkdownHTML.slideFootnotesToken + "</div></div>\n"
             if slide.hasNotes {
@@ -930,7 +956,16 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
             }
             result += "</section>\n"
         }
+        slideElementSteps = [:]
         result += "</div>\n"
+    }
+
+    /// ` data-step="n"` when the deck reveals `markup` on click `n`.
+    private func stepAttribute(_ markup: Markup) -> String {
+        guard !slideElementSteps.isEmpty,
+              let key = SlideDeck.SourceKey(markup),
+              let step = slideElementSteps[key] else { return "" }
+        return " data-step=\"\(step)\""
     }
 
     mutating func visitBlockQuote(_ blockQuote: BlockQuote) {
@@ -1129,14 +1164,14 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
     mutating func visitListItem(_ listItem: ListItem) {
         let bareTask = listItem.checkbox == nil ? Self.bareTaskChecked(listItem) : nil
         if let checked = listItem.checkbox.map({ $0 == .checked }) ?? bareTask {
-            result += "<li class=\"task-list-item\"\(sourceLineAttribute(listItem))>"
+            result += "<li class=\"task-list-item\"\(sourceLineAttribute(listItem))\(stepAttribute(listItem))>"
             result += "<input type=\"checkbox\" class=\"task-list-item-checkbox\" disabled=\"\""
             if checked {
                 result += " checked=\"\""
             }
             result += " /> "
         } else {
-            result += "<li\(sourceLineAttribute(listItem))>"
+            result += "<li\(sourceLineAttribute(listItem))\(stepAttribute(listItem))>"
         }
         if bareTask != nil {
             // The `[ ]` paragraph is the checkbox itself.
@@ -1183,7 +1218,7 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
     }
 
     mutating func visitParagraph(_ paragraph: Paragraph) {
-        result += "<p\(sourceLineAttribute(paragraph))>"
+        result += "<p\(sourceLineAttribute(paragraph))\(stepAttribute(paragraph))>"
         // Source-indented pseudo-list lines only exist inside a parsed list.
         // Keep the overwhelmingly common top-level paragraph path on the
         // walker's direct traversal instead of materializing all children.
@@ -1417,7 +1452,10 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
         if let source = image.source, !source.isEmpty {
             result += " src=\"\(escapeAttribute(source))\""
         }
-        if let title = image.title, !title.isEmpty {
+        if rendersSlides, let size = image.title.flatMap(SlideDeck.imageSize) {
+            // A slide image's title is its size; the slide script applies it.
+            result += " data-mdp-size=\"\(size)\""
+        } else if let title = image.title, !title.isEmpty {
             result += " title=\"\(escapeAttribute(title))\""
         }
         result += " />"

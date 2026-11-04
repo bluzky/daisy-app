@@ -60,6 +60,49 @@ final class PresentationSessionTests: XCTestCase {
     XCTAssertEqual(session.index, 0)
   }
 
+  func testStepsRevealBeforeTheNextSlide() {
+    let session = PresentationSession(stepCounts: [2, 0, 1])
+    session.perform(.next)
+    XCTAssertEqual([session.index, session.step], [0, 1])
+    session.perform(.next)
+    XCTAssertEqual([session.index, session.step], [0, 2])
+    session.perform(.next)
+    XCTAssertEqual([session.index, session.step], [1, 0])
+    session.perform(.next)
+    session.perform(.next)
+    XCTAssertEqual([session.index, session.step], [2, 1])
+    session.perform(.next)
+    XCTAssertEqual([session.index, session.step], [2, 1], "stays at the end")
+  }
+
+  func testPreviousReturnsToAFullyBuiltSlide() {
+    let session = PresentationSession(stepCounts: [2, 1], index: 1)
+    session.perform(.next)
+    XCTAssertEqual([session.index, session.step], [1, 1])
+    session.perform(.previous)
+    XCTAssertEqual([session.index, session.step], [1, 0])
+    session.perform(.previous)
+    XCTAssertEqual([session.index, session.step], [0, 2])
+  }
+
+  func testJumpsStartASlideUnbuilt() {
+    let session = PresentationSession(stepCounts: [0, 3, 3])
+    session.perform(.digit(3))
+    session.perform(.confirm)
+    XCTAssertEqual([session.index, session.step], [2, 0])
+    session.perform(.next)
+    session.perform(.first)
+    XCTAssertEqual([session.index, session.step], [0, 0])
+  }
+
+  func testShrinkingStepsClampsTheCurrentStep() {
+    let session = PresentationSession(stepCounts: [3])
+    session.perform(.next)
+    session.perform(.next)
+    session.updateStepCounts([1])
+    XCTAssertEqual(session.step, 1)
+  }
+
   func testEndAsksTheOwner() {
     let session = PresentationSession(slideCount: 2)
     var ended = false
