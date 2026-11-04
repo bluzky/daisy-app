@@ -14,6 +14,10 @@ import WebKit
 private final class PresentationWindow: NSWindow {
     var keyHandler: ((NSEvent) -> Bool)?
 
+    // A borderless window can't take keys unless it says so.
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
+
     override func sendEvent(_ event: NSEvent) {
         if event.type == .keyDown, keyHandler?(event) == true { return }
         super.sendEvent(event)
@@ -30,8 +34,14 @@ private final class PresentationWindow: NSWindow {
 ///   shows the current slide with its notes, the next slide, the slide
 ///   number and the elapsed time.
 ///
-/// Esc, leaving full screen, closing the audience window or closing the
-/// document ends the presentation. Closing only the presenter window, or
+/// The audience window is a borderless window covering its display, above
+/// the menu bar and Dock, rather than native full screen: entering a
+/// full-screen Space animates the window growing from its frame, and a
+/// presentation should simply appear. It fades in once its first slide is
+/// ready, and drops to a normal level while another app is active.
+///
+/// Esc, closing the audience window or closing the document ends the
+/// presentation. Closing only the presenter window, or
 /// unplugging a display, keeps presenting on one screen.
 @MainActor
 final class PresentationWindowController: NSObject, NSWindowDelegate {
@@ -54,18 +64,19 @@ final class PresentationWindowController: NSObject, NSWindowDelegate {
     private var observers: [NSObjectProtocol] = []
     private var hasEnded = false
 
-    init(markdown: String, sourceURL: URL?, assetBaseURL: URL?, documentWindow: NSWindow?) {
+    init(markdown: String, sourceURL: URL?, assetBaseURL: URL?, documentWindow: NSWindow?,
+         startSlide: Int = 0) {
         self.sourceURL = sourceURL
         self.assetBaseURL = assetBaseURL
         self.documentWindow = documentWindow
-        session = PresentationSession(stepCounts: Self.stepCounts(of: markdown))
+        session = PresentationSession(stepCounts: Self.stepCounts(of: markdown), index: startSlide)
 
         let documentScreen = documentWindow?.screen ?? NSScreen.main ?? NSScreen.screens[0]
         let externalScreen = NSScreen.screens.first { $0 != documentScreen }
         let audienceScreen = externalScreen ?? documentScreen
         audienceWindow = PresentationWindow(
             contentRect: audienceScreen.frame,
-            styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
+            styleMask: [.borderless],
             backing: .buffered,
             defer: false
         )
@@ -73,7 +84,11 @@ final class PresentationWindowController: NSObject, NSWindowDelegate {
 
         Self.configureWindow(audienceWindow, title: Self.title(for: sourceURL))
         audienceWindow.backgroundColor = .black
-        audienceWindow.collectionBehavior = [.fullScreenPrimary]
+        audienceWindow.level = Self.presentingLevel
+        audienceWindow.collectionBehavior = [.fullScreenAuxiliary, .moveToActiveSpace]
+        audienceWindow.animationBehavior = .none
+        audienceWindow.alphaValue = 0
+        audienceWindow.setFrame(audienceScreen.frame, display: false)
         audienceWindow.delegate = self
         audienceWindow.keyHandler = { [weak self] event in self?.handleKey(event) ?? false }
         configureView(audienceView, hostStateID: MarkdownHTML.slidesPresentingStateID)
@@ -100,9 +115,24 @@ final class PresentationWindowController: NSObject, NSWindowDelegate {
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.screensDidChange() }
         })
+        // Above the menu bar only while Daisy is active, so switching to
+        // another app doesn't leave the slides covering it.
+        observers.append(center.addObserver(
+            forName: NSApplication.didResignActiveNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.audienceWindow.level = .normal }
+        })
+        observers.append(center.addObserver(
+            forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.audienceWindow.level = Self.presentingLevel }
+        })
     }
 
-    /// Shows the windows and enters full screen on the audience display.
+    /// Above the menu bar and the Dock.
+    private static let presentingLevel = NSWindow.Level(rawValue: NSWindow.Level.mainMenu.rawValue + 1)
+
+    /// Shows the windows; the audience window fades in with its first slide.
     func start() {
         displaySleepActivity = ProcessInfo.processInfo.beginActivity(
             options: [.idleDisplaySleepDisabled, .userInitiated],
@@ -110,7 +140,6 @@ final class PresentationWindowController: NSObject, NSWindowDelegate {
         )
         presenterWindow?.makeKeyAndOrderFront(nil)
         audienceWindow.makeKeyAndOrderFront(nil)
-        audienceWindow.toggleFullScreen(nil)
         startClock()
     }
 
@@ -135,7 +164,6 @@ final class PresentationWindowController: NSObject, NSWindowDelegate {
             self.displaySleepActivity = nil
         }
         closePresenter()
-        // Closing a full-screen window also removes its Space.
         audienceWindow.close()
         documentWindow?.makeKeyAndOrderFront(nil)
         onEnd?()
@@ -150,11 +178,6 @@ final class PresentationWindowController: NSObject, NSWindowDelegate {
         } else if window === presenterWindow {
             closePresenter()
         }
-    }
-
-    func windowDidExitFullScreen(_ notification: Notification) {
-        // Leaving full screen from the green button or ⌃⌘F ends it too.
-        if (notification.object as? NSWindow) === audienceWindow { end() }
     }
 
     // MARK: Windows
@@ -243,8 +266,15 @@ final class PresentationWindowController: NSObject, NSWindowDelegate {
 
     /// With one display left, the presenter view would cover the slides;
     /// macOS moves the audience window to the remaining display.
+    /// A display was unplugged or changed resolution: keep the slides
+    /// covering a display that still exists, and with one display left,
+    /// close the presenter view, which would cover the slides.
     private func screensDidChange() {
         if NSScreen.screens.count < 2 { closePresenter() }
+        let screen = audienceWindow.screen.flatMap { current in NSScreen.screens.first { $0 == current } }
+            ?? NSScreen.screens.first { $0 != presenterWindow?.screen }
+            ?? NSScreen.main
+        if let screen { audienceWindow.setFrame(screen.frame, display: true) }
     }
 
     // MARK: Showing the session
@@ -275,8 +305,13 @@ final class PresentationWindowController: NSObject, NSWindowDelegate {
     }
 
     private func reveal(_ view: MarkdownWebView, script: String) {
-        view.webView.evaluateJavaScript("if (window.MdPreviewSlides) { \(script) }") { [weak view] _, _ in
+        view.webView.evaluateJavaScript("if (window.MdPreviewSlides) { \(script) }") { [weak self, weak view] _, _ in
             view?.alphaValue = 1
+            guard let self, view === self.audienceView, self.audienceWindow.alphaValue < 1 else { return }
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.2
+                self.audienceWindow.animator().alphaValue = 1
+            }
         }
     }
 

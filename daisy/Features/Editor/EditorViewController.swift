@@ -17,7 +17,14 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
 
     /// Fired on every document change — the host debounces for autosave.
     var contentDidChange: (() -> Void)?
+    /// Also fired on every document change, for the Slide Preview pane;
+    /// separate so autosave's handler stays its own.
+    var textDidChangeForSlidePreview: (() -> Void)?
     var formattingDidChange: ((Int, Set<String>) -> Void)?
+    /// The caret's one-based line, each time the selection or text changes.
+    var caretLineDidChange: ((Int) -> Void)?
+    /// The caret's line as last reported, or nil before the first report.
+    private(set) var caretLine: Int?
     /// Fired after CodeMirror has constructed and painted its initial document.
     /// The split view uses this to avoid replacing the preview with a blank WKWebView.
     var editorDidBecomeReady: (() -> Void)?
@@ -812,6 +819,7 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
             case "dirty":
                 hasChanges = true
                 contentDidChange?()
+                textDidChangeForSlidePreview?()
             case "ready":
                 hasLoadedEditorPage = true
                 updateChromeZoom()
@@ -850,6 +858,10 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
                   (0...6).contains(heading),
                   let commands = payload["commands"] as? [String] else { return }
             formattingDidChange?(heading, Set(commands))
+            if let line = payload["line"] as? Int, line > 0, line != caretLine {
+                caretLine = line
+                caretLineDidChange?(line)
+            }
         case "findResult":
             guard let result = FindResult(scriptResult: payload) else { return }
             findCompletion?(result)

@@ -565,7 +565,7 @@ extension MarkdownWebView {
             printInfo.orientation = .landscape
             printInfo.paperSize = NSSize(
                 width: CGFloat(MarkdownHTML.slideCanvasWidth) * 0.75,
-                height: CGFloat(MarkdownHTML.slideCanvasHeight) * 0.75
+                height: CGFloat(slideAspect.canvasHeight) * 0.75
             )
             printInfo.topMargin = 0
             printInfo.bottomMargin = 0
@@ -682,7 +682,7 @@ extension MarkdownWebView {
                     document.head.appendChild(style);
                 }
                 style.textContent = \(Self.javaScriptStringLiteral(
-                    "@media print { \(MarkdownHTML.slidesPrintPageCSS) }"
+                    "@media print { \(MarkdownHTML.slidesPrintPageCSS(aspect: slideAspect)) }"
                 ));
             } else {
                 root.removeAttribute('\(MarkdownHTML.slidesPrintAttribute)');
@@ -846,7 +846,8 @@ extension MarkdownWebView {
                     from: markdown,
                     allowsScroll: true,
                     assetBaseHref: assetBaseURL?.absoluteString,
-                    vendorLoading: .inline
+                    vendorLoading: .inline,
+                    slideThemes: SlideThemeStore.catalog()
                 )
                 try html.write(to: url, atomically: true, encoding: .utf8)
                 done(nil)

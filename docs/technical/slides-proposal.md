@@ -1,6 +1,6 @@
 # Proposal: slide presentations
 
-Status: phases 1 and 2 implemented (`daisy/Rendering/Slides/`, `daisy/Features/Presentation/`); phases 3 and 4 are still proposals. Where the build differs from the first draft, this document describes what was built. The user guide is [docs/slides.md](../slides.md).
+Status: phases 1–3 implemented (`daisy/Rendering/Slides/`, `daisy/Features/Presentation/`, `daisy/Features/RightSidebar/SlidePreviewViewController.swift`); phase 4 is still a proposal. Where the build differs from the first draft, this document describes what was built. The user guide is [docs/slides.md](../slides.md).
 
 ## Summary
 
@@ -233,7 +233,7 @@ The morphdom body swap keeps working: each `<section>` keeps a stable `data-slid
 
 ## Presenting
 
-- **Present** (⌥⌘P) opens a window with its own `MarkdownWebView` and puts it in native full screen, on an external display when there is one, so the document stays on the laptop. It presents Edit Mode's buffer while editing, like export. Leaving full screen or closing the document window ends the presentation. (Phase 1.)
+- **Present** (⌥⌘P) opens a borderless window with its own `MarkdownWebView` covering the display, above the menu bar and Dock, on an external display when there is one, so the document stays on the laptop. It fades in once its first slide is ready. Not native full screen: entering a full-screen Space animates the window growing from its frame, which looked like a black rectangle sliding in. While another app is active the window drops to a normal level. It presents Edit Mode's buffer while editing, like export. Esc or closing the document window ends the presentation. (Phase 1; changed from native full screen after phase 3.)
 - **Present from Current Slide** (⇧⌥⌘P) starts at the slide under the caret in Edit Mode, or at the top of the view in Read Mode. (Phase 3; it uses the line-to-slide mapping under [Editing](#editing).)
 - With two displays, a presenter window on the laptop shows the current slide with its notes, the next slide, the slide and step number, and the elapsed time. It is one more `MarkdownWebView` of the same deck with the `slides-presenter` host state, laid out by CSS, under a native bar for the number and the clock. A countdown timer is not built yet.
 - Keys: → ↓ Space PageDown next; ← ↑ PageUp previous; Home / End; number + Return jumps; B / W blank to black or white; Esc exits. Presentation clickers send PageUp/PageDown, so they work without setup.
@@ -282,9 +282,12 @@ Separate from the pane, but in the same phase: code-block padding and label and 
 
 Slides use Daisy's reading theme by default, through the existing CSS variables (`--text`, `--link`, page background). A deck names a theme in frontmatter; there is no theme picker in the UI:
 
-- Built-in slide themes are CSS files with the same variables plus slide-only ones (title color, accent, fonts, logo position).
-- Custom themes are YAML files, in Kova's shape, in `~/.config/daisy/slide-themes/`, with `extends:`, `colors`, `fonts`, `logo` and header and footer templates (`{title} | {date} | {slide_number}/{total}`). They are converted to CSS variables; a theme cannot inject arbitrary CSS.
-- `theme_overrides:` in frontmatter changes individual colors for one deck.
+- Themes are `SlideTheme` values read from YAML in Kova's shape by a small reader (`SlideYAML`: nested mappings, quoted scalars, comments). Built-in themes: `default` (the reading theme), `light`, `dark`, `paper`, `midnight`, `pitch`, written in the same YAML.
+- Custom themes are `.yaml` / `.yml` files in `~/.config/daisy/slide-themes/` (`SlideThemeStore`, app only; Quick Look uses the built-ins), with `extends:`, `appearance`, `colors` (`background`, `text`, `heading`, `accent`, `bold`, `code_background`, `primary`, `title_text`), `fonts` (`body`, `title`, `code`), and `header` / `footer` templates. Kova's `logo` and `layout` keys are not read.
+- A theme becomes CSS custom properties on `.mdp-deck` (`--mdp-slide-bg`, `--text`, `--secondary`, `--link`, `--code-bg`, `--mdp-heading-h1…6`) plus font rules, in a `<style>` in the page head. Colors go through variables, so `invert`, `dim` and `color`, which set colors on a slide, still win; title and section slide colors use `:where()` so a slide's own class outranks them. Colors must be hex or names and fonts plain name lists; anything else is dropped, so a theme cannot inject CSS.
+- Code follows the slides: a theme whose background is dark (or `appearance: dark`) sets the dark code palette and `color-scheme: dark` on the deck, and a light one the light palette, whatever the window's appearance.
+- The theme's CSS is part of the page's asset set (`slides-theme:<css>`), so a body swap never keeps another deck's theme in the head.
+- `theme_overrides:` in frontmatter changes individual colors or fonts for one deck.
 
 ## Export
 
@@ -306,7 +309,7 @@ A deck file previews as a grid of slide thumbnails. Quick Look already renders w
 
 1. `SlideDeck` with `---`, `???` and layout inference; slide strip in Read Mode; full-screen Present with keyboard navigation; PDF export.
 2. Backgrounds and image sizing, `<!-- layout -->`, `<!-- _class -->`, `<!-- color -->`, `<!-- step -->`; presenter window with notes and timer. Built-in classes: `center`, `center-x`, `center-y`, `lead`, `invert`.
-3. Themes (built-in and YAML), header and footer templates, `!caption`; the Slide Preview panel, landing on the slide after Edit Mode, Present from Current Slide, slash commands; slide chrome in slide units.
+3. Themes (built-in and YAML), header and footer templates, `!caption`; the Slide Preview panel, landing on the slide after Edit Mode, Present from Current Slide, slash commands; slide chrome in slide units. Also: `aspect` (16:9, 16:10, 4:3), `paginate`, and the spot directives `_paginate`, `_header`, `_footer`. Not built: theme logos. The pane follows the caret's slide only when the caret changes slide, rather than tracking manual scrolling.
 4. HTML and PPTX export, CLI options, Quick Look thumbnails.
 
 Each phase updates `README.md` and `docs/render-extensions.md` in the same change, and adds a deck to `samples/`.

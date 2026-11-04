@@ -565,12 +565,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func selectOutlineMode(_ sender: Any?) {
-        activeDocumentWindowController?.selectOutlineMode(sender)
+        activeDocumentWindowController?.toggleSidebarMode(.outline)
         syncSidebarViewMenuState()
     }
 
     @objc private func selectFilesMode(_ sender: Any?) {
-        activeDocumentWindowController?.selectFilesMode(sender)
+        activeDocumentWindowController?.toggleSidebarMode(.files)
         syncSidebarViewMenuState()
     }
 
@@ -917,6 +917,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case #selector(DocumentWindowController.toggleAlwaysOnTop(_:)): return .viewToggleAlwaysOnTop
         case #selector(DocumentWindowController.toggleHideCompletedTasks(_:)): return .viewToggleCompletedTasks
         case #selector(MainSplitViewController.presentSlides(_:)): return .viewPresent
+        case #selector(MainSplitViewController.presentSlidesFromCurrentSlide(_:)): return .viewPresentFromCurrentSlide
+        case #selector(MainSplitViewController.toggleSlidePreview(_:)): return .viewToggleSlidePreview
         case #selector(DocumentWindowController.goBackInHistory(_:)): return .goBack
         case #selector(DocumentWindowController.goForwardInHistory(_:)): return .goForward
         case #selector(DocumentWindowController.openTodayJournal(_:)): return .goTodayJournal
@@ -1447,6 +1449,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let outline = makeSidebarViewMenuItem(title: L("Table of Contents"),
                                               symbol: "list.bullet.indent",
                                               keyEquivalent: "1",
+                                              modifiers: [.command],
                                               action: #selector(selectOutlineMode(_:)))
         viewMenu.insertItem(outline, at: insertIndex + 1)
         outlineMenuItem = outline
@@ -1454,6 +1457,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let files = makeSidebarViewMenuItem(title: L("Project Navigator"),
                                             symbol: "folder",
                                             keyEquivalent: "2",
+                                            modifiers: [.command],
                                             action: #selector(selectFilesMode(_:)))
         viewMenu.insertItem(files, at: insertIndex + 2)
         filesMenuItem = files
@@ -1501,6 +1505,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                                  action: #selector(MainSplitViewController.presentSlides(_:)),
                                  keyEquivalent: "p")
         present.keyEquivalentModifierMask = [.option, .command]
+        let presentFromCurrent = NSMenuItem(title: L("Present from Current Slide"),
+                                            action: #selector(MainSplitViewController.presentSlidesFromCurrentSlide(_:)),
+                                            keyEquivalent: "p")
+        presentFromCurrent.keyEquivalentModifierMask = [.shift, .option, .command]
+        let slidePreview = NSMenuItem(title: L("Slide Preview"),
+                                      action: #selector(MainSplitViewController.toggleSlidePreview(_:)),
+                                      keyEquivalent: "9")
+        slidePreview.keyEquivalentModifierMask = [.command]
 
         let insertIndex = viewMenu.items.firstIndex(where: {
             Self.actualSizeMenuTitles.contains($0.title)
@@ -1508,7 +1520,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         viewMenu.insertItem(item, at: insertIndex)
         viewMenu.insertItem(hideCompleted, at: insertIndex + 1)
         viewMenu.insertItem(present, at: insertIndex + 2)
-        viewMenu.insertItem(.separator(), at: insertIndex + 3)
+        viewMenu.insertItem(presentFromCurrent, at: insertIndex + 3)
+        viewMenu.insertItem(slidePreview, at: insertIndex + 4)
+        viewMenu.insertItem(.separator(), at: insertIndex + 5)
     }
 
     @objc private func toggleEditModeFromMenu(_ sender: Any?) {
@@ -1632,7 +1646,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                                          modifiers: NSEvent.ModifierFlags = [.control, .command],
                                          action: Selector) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: keyEquivalent)
-        // ⌃⌘ like Safari's sidebar panes; ⌥⌘1–3 belong to Format headings.
+        // ⌥⌘1–3 belong to Format headings.
         item.keyEquivalentModifierMask = modifiers
         item.target = self
         if let image = NSImage(systemSymbolName: symbol, accessibilityDescription: title) {

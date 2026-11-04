@@ -14,11 +14,10 @@ nonisolated extension MarkdownHTML {
     /// block; replaced by the footnotes referenced since the previous token.
     static let slideFootnotesToken = "MdPreviewSlideFootnotesToken"
 
-    /// Slide canvas size in CSS px. Slides scale to their container with
-    /// container-query units, so this only fixes the aspect ratio and the
-    /// printed page.
+    /// Slide canvas width in CSS px; the height follows the deck's `aspect`.
+    /// Slides scale to their container with container-query units, so this
+    /// only fixes the printed page.
     static let slideCanvasWidth = 1280
-    static let slideCanvasHeight = 720
 
     /// Host-state id (`data-mdp-slides-presenting` on `<html>`) that turns a
     /// deck page into a one-slide-at-a-time presentation.
@@ -46,6 +45,44 @@ nonisolated extension MarkdownHTML {
             rendersHighlights: configuration.isEnabled("highlight")
         )
         return SlideDeck(document: Document(parsing: prepared)).slides.map(\.stepCount)
+    }
+
+    /// The slide that holds a one-based line of the whole file, frontmatter
+    /// included, as the editor numbers it. A line in the frontmatter is on
+    /// the first slide.
+    static func slideIndex(atSourceLine line: Int, markdown: String,
+                           configuration: RenderExtensionConfiguration = .allEnabled) -> Int {
+        deckForLines(markdown: markdown, configuration: configuration)
+            .map { $0.deck.slideIndex(atLine: line - $0.lineOffset) } ?? 0
+    }
+
+    /// The first line of each slide in the whole file, as the editor
+    /// numbers it.
+    static func slideStartLines(markdown: String,
+                                configuration: RenderExtensionConfiguration = .allEnabled) -> [Int] {
+        guard let parsed = deckForLines(markdown: markdown, configuration: configuration) else { return [1] }
+        return parsed.deck.startLines.enumerated().map { index, line in
+            index == 0 ? 1 : line + parsed.lineOffset
+        }
+    }
+
+    private static func deckForLines(
+        markdown: String, configuration: RenderExtensionConfiguration
+    ) -> (deck: SlideDeck, lineOffset: Int)? {
+        let frontmatter = MarkdownFrontmatter.split(markdown)
+        let body = frontmatter.body
+        var lineOffset = 0
+        if frontmatter.raw != nil, let bodyRange = markdown.range(of: body, options: .backwards) {
+            lineOffset = markdown[..<bodyRange.lowerBound].count(where: \.isNewline)
+        }
+        let footnotes = extractFootnotes(from: body)
+        let processed = configuration.isEnabled("katex")
+            ? extractMath(from: footnotes.markdown).processedMarkdown
+            : footnotes.markdown
+        let prepared = EscapingHTMLFormatter.preparedForParsing(
+            processed, rendersHighlights: configuration.isEnabled("highlight")
+        )
+        return (SlideDeck(document: Document(parsing: prepared)), lineOffset)
     }
 
     private static let footnoteReferenceTokenRegex: NSRegularExpression = {
@@ -99,7 +136,7 @@ nonisolated extension MarkdownHTML {
         let order = 400
 
         func isActive(in context: RenderContext) -> Bool {
-            context.html.contains("<div class=\"mdp-deck\">")
+            context.html.contains("<div class=\"mdp-deck\"")
         }
 
         /// Every host runs the script: it applies image sizes and slide
@@ -165,13 +202,60 @@ nonisolated extension MarkdownHTML {
         flex-direction: column;
         gap: 2.5em;
         --mdp-slide-bg: Canvas;
+        /* `aspect` in frontmatter: 16:9 unless the deck says otherwise. */
+        --mdp-aspect-w: 16;
+        --mdp-aspect-h: 9;
     }
+    .mdp-deck[data-aspect="16:10"] { --mdp-aspect-h: 10; }
+    .mdp-deck[data-aspect="4:3"] { --mdp-aspect-w: 4; --mdp-aspect-h: 3; }
     .mdp-slide-frame { margin: 0; container-type: inline-size; }
+
+    /* Header, footer and page number sit in the slide's top and bottom
+       padding, so they never cover content. */
+    .mdp-slide-header,
+    .mdp-slide-footer {
+        position: absolute;
+        left: 6cqw;
+        right: 6cqw;
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        gap: 1em;
+        font-size: 0.5em;
+        line-height: 1.3;
+        color: var(--secondary);
+        white-space: nowrap;
+    }
+    .mdp-slide-header { top: 1.6cqw; }
+    .mdp-slide-footer { bottom: 1.6cqw; }
+    .mdp-slide-header > :nth-child(2), .mdp-slide-footer > :nth-child(2) { text-align: center; }
+    .mdp-slide-header > :nth-child(3), .mdp-slide-footer > :nth-child(3) { text-align: right; }
+    .mdp-slide-number {
+        position: absolute;
+        right: 2.5cqw;
+        bottom: 1.6cqw;
+        font-size: 0.5em;
+        line-height: 1.3;
+        color: var(--secondary);
+        font-variant-numeric: tabular-nums;
+    }
+    /* With a page number, the footer's right part stops short of it. */
+    .mdp-slide:has(> .mdp-slide-number) > .mdp-slide-footer { right: 8cqw; }
+
+    /* `!caption[text]` under an image, table, diagram or formula. */
+    .mdp-slide .mdp-slide-caption {
+        margin-top: -0.3em;
+        text-align: center;
+        font-size: 0.65em;
+        color: var(--secondary);
+    }
     .mdp-slide {
         position: relative;
+        /* Resolved here, not inherited from <body>, so a theme's --text on
+           the deck reaches the slide. */
+        color: var(--text);
         box-sizing: border-box;
         width: 100%;
-        aspect-ratio: \(slideCanvasWidth) / \(slideCanvasHeight);
+        aspect-ratio: var(--mdp-aspect-w) / var(--mdp-aspect-h);
         overflow: hidden;
         display: flex;
         flex-direction: column;
@@ -220,8 +304,12 @@ nonisolated extension MarkdownHTML {
     }
     .mdp-slide-class-center-x .mdp-slide-body { align-items: center; text-align: center; }
     .mdp-slide-class-center-y .mdp-slide-body { justify-content: center; }
-    .mdp-slide-class-invert {
+    /* Two classes, so a slide's own class wins over a theme's title and
+       section colors. */
+    .mdp-slide.mdp-slide-class-invert {
         --mdp-slide-bg: #1d1d1f;
+        --text: #f5f5f7;
+        --secondary: rgb(245 245 247 / 70%);
         color: #f5f5f7;
     }
     .mdp-slide-class-invert :is(h1, h2, h3, h4, h5, h6) { color: inherit; }
@@ -235,6 +323,27 @@ nonisolated extension MarkdownHTML {
     .mdp-slide--quote blockquote { font-size: 1.4em; font-style: italic; max-width: 85%; }
     .mdp-slide--math .math-display { font-size: 1.5em; }
     .mdp-slide--code pre { font-size: 0.75em; }
+
+    /* Code and diagram chrome in slide units: the base stylesheet sizes it
+       in pixels, which look oversized on a small slide and undersized on a
+       large screen. The copy and wrap buttons are reading tools, not slide
+       content. */
+    .mdp-slide :is(pre, .md-code-wrap) { border-radius: 0.5em; }
+    .mdp-slide pre { padding: 0.6em 0.8em; }
+    .mdp-slide pre[data-code-language]::before { height: 1.4em; font-size: 0.5em; line-height: 1.4; }
+    .mdp-slide .md-code-wrap > pre { padding-top: 0.3em; }
+    .mdp-slide .md-code-header { height: auto; padding: 0.4em 0.8em 0; }
+    .mdp-slide .md-code-language { font-size: 0.5em; line-height: 1.4; }
+    .mdp-slide .md-code-action { display: none; }
+    /* The figure's padding and the diagram's inset must match: the figure
+       sizes itself from the diagram's aspect ratio inside the padding. */
+    .mdp-slide .mermaid-figure {
+        padding: 0.6em;
+        border-radius: 0.5em;
+        max-width: calc(var(--mm-natural-width, 100%) + 1.2em);
+    }
+    .mdp-slide .mermaid { padding: 0.6em; }
+    .mdp-slide .mermaid-hud { display: none; }
     .mdp-slide--title-image .mdp-slide-body > p:last-of-type {
         flex: 1;
         min-height: 0;
@@ -348,7 +457,7 @@ nonisolated extension MarkdownHTML {
         justify-content: center;
     }
     :root[data-mdp-slides-presenting] .mdp-deck {
-        width: min(100vw, calc(100vh * \(slideCanvasWidth) / \(slideCanvasHeight)));
+        width: min(100vw, calc(100vh * var(--mdp-aspect-w) / var(--mdp-aspect-h)));
         gap: 0;
     }
     :root[data-mdp-slides-presenting] .mdp-slide-frame:not([data-mdp-current]),
@@ -402,14 +511,31 @@ nonisolated extension MarkdownHTML {
         line-height: 1.45;
     }
 
+    /* Slide Preview pane: the Read Mode strip without notes, edge to edge,
+       and the slide holding the editor's caret outlined. */
+    :root[data-mdp-slides-pane] body { padding: 24px !important; }
+    :root[data-mdp-slides-pane] article.markdown-body { max-width: none; padding: 0; }
+    :root[data-mdp-slides-pane] .mdp-slide-notes { display: none; }
+    :root[data-mdp-slides-pane] .mdp-deck { gap: 32px; }
+    :root[data-mdp-slides-pane] [data-mdp-pane-current] .mdp-slide {
+        outline: 6px solid var(--link);
+        outline-offset: 6px;
+    }
+
     /* One slide per page at the canvas size. The host sets the page size
        and margins on the print operation and adds `@page` while printing. */
     @media print {
+        /* The app's Read Mode makes the article a horizontal scroller
+           (`allowsScroll`); printed, a scroll container breaks each slide's
+           page in two, adding a blank page after it. */
+        :root[\(slidesPrintAttribute)],
+        :root[\(slidesPrintAttribute)] body { overflow: visible !important; }
         :root[\(slidesPrintAttribute)] body { padding: 0 !important; margin: 0; }
         :root[\(slidesPrintAttribute)] article.markdown-body {
             max-width: none !important;
             margin: 0 !important;
             padding: 0 !important;
+            overflow: visible !important;
         }
         :root[\(slidesPrintAttribute)] .mdp-deck {
             display: block;
@@ -419,7 +545,7 @@ nonisolated extension MarkdownHTML {
         :root[\(slidesPrintAttribute)] .mdp-slide-frame:last-child { break-after: auto; }
         :root[\(slidesPrintAttribute)] .mdp-slide {
             width: \(slideCanvasWidth)px;
-            height: \(slideCanvasHeight)px;
+            height: calc(\(slideCanvasWidth)px * var(--mdp-aspect-h) / var(--mdp-aspect-w));
             aspect-ratio: auto;
             border-radius: 0;
             box-shadow: none;
@@ -434,10 +560,14 @@ nonisolated extension MarkdownHTML {
 
     /// Injected only while a deck prints: `@page` cannot be scoped to an
     /// attribute, and the base print stylesheet sets paper margins.
-    static let slidesPrintPageCSS =
-        "@page { size: \(slideCanvasWidth)px \(slideCanvasHeight)px; margin: 0; }"
+    static func slidesPrintPageCSS(aspect: SlideDeckSettings.Aspect) -> String {
+        "@page { size: \(slideCanvasWidth)px \(aspect.canvasHeight)px; margin: 0; }"
+    }
 
     /// Host-state id (`data-mdp-slides-presenter` on `<html>`) that lays a
     /// deck page out as the presenter view.
     static let slidesPresenterStateID = "slides-presenter"
+    /// Host-state id (`data-mdp-slides-pane` on `<html>`) for the Slide
+    /// Preview pane: no notes, a tight margin, the caret's slide outlined.
+    static let slidesPaneStateID = "slides-pane"
 }

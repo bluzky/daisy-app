@@ -172,6 +172,7 @@ final class MainSplitViewController: NSSplitViewController {
                  assetBaseURL: URL?,
                  documentID: String) {
         let previewMarkdown = showsPreview ? markdown : ""
+        slidePreview?.display(markdown: previewMarkdown, assetBaseURL: assetBaseURL)
         if let presentation = presentationController, url != nil,
            presentation.sourceURL == url {
             presentation.update(markdown: previewMarkdown)
@@ -333,19 +334,43 @@ final class MainSplitViewController: NSSplitViewController {
     /// View ▸ Present: the document full screen as slides. Edit Mode's
     /// buffer is presented while editing, like export.
     @IBAction func presentSlides(_ sender: Any?) {
+        startPresentation(fromCurrentSlide: false)
+    }
+
+    /// View ▸ Present from Current Slide: starts at the slide holding the
+    /// caret in Edit Mode, or the slide at the top of Read Mode.
+    @IBAction func presentSlidesFromCurrentSlide(_ sender: Any?) {
+        startPresentation(fromCurrentSlide: true)
+    }
+
+    private func startPresentation(fromCurrentSlide: Bool) {
         guard presentationController == nil,
               let source = contentViewController?.presentationSource else { return }
         withCurrentMarkdown { [weak self] markdown in
             guard let self, self.presentationController == nil else { return }
-            let presentation = PresentationWindowController(
-                markdown: markdown ?? source.markdown,
-                sourceURL: source.sourceURL,
-                assetBaseURL: source.assetBaseURL,
-                documentWindow: self.view.window
-            )
-            presentation.onEnd = { [weak self] in self?.presentationController = nil }
-            self.presentationController = presentation
-            presentation.start()
+            let text = markdown ?? source.markdown
+            let present = { (startSlide: Int) in
+                guard self.presentationController == nil else { return }
+                let presentation = PresentationWindowController(
+                    markdown: text,
+                    sourceURL: source.sourceURL,
+                    assetBaseURL: source.assetBaseURL,
+                    documentWindow: self.view.window,
+                    startSlide: startSlide
+                )
+                presentation.onEnd = { [weak self] in self?.presentationController = nil }
+                self.presentationController = presentation
+                presentation.start()
+            }
+            guard fromCurrentSlide else { return present(0) }
+            if self.isEditorVisible, let line = self.editorViewController?.caretLine {
+                present(MarkdownHTML.slideIndex(
+                    atSourceLine: line, markdown: text,
+                    configuration: RenderExtensionPreferences.currentConfiguration
+                ))
+            } else {
+                self.contentViewController?.topVisibleSlideIndex { present($0 ?? 0) }
+            }
         }
     }
 
@@ -389,7 +414,12 @@ final class MainSplitViewController: NSSplitViewController {
         if let action = menuItem.action, documentActions.contains(action) {
             return contentViewController?.hasExportableDocument == true
         }
-        if menuItem.action == #selector(presentSlides(_:)) {
+        if menuItem.action == #selector(toggleSlidePreview(_:)) {
+            menuItem.state = isSlidePreviewVisible ? .on : .off
+            return isSlidePreviewVisible || contentViewController?.isShowingSlideDeck == true
+        }
+        if menuItem.action == #selector(presentSlides(_:))
+            || menuItem.action == #selector(presentSlidesFromCurrentSlide(_:)) {
             return presentationController == nil
                 && contentViewController?.hasExportableDocument == true
         }
@@ -424,6 +454,48 @@ final class MainSplitViewController: NSSplitViewController {
         }
     }
 
+    // MARK: Slide Preview
+
+    private var slidePreview: SlidePreviewViewController? {
+        rightSidebarViewController?.slidePreview
+    }
+
+    var isSlidePreviewVisible: Bool {
+        isRightSidebarVisible && rightSidebarViewController?.panel == .slides
+    }
+
+    /// View ▸ Slide Preview, offered for a deck.
+    @IBAction func toggleSlidePreview(_ sender: Any?) {
+        guard isSlidePreviewVisible || contentViewController?.isShowingSlideDeck == true else { return }
+        let isVisible = toggleRightPanel(.slides)
+        let windowController = view.window?.windowController as? DocumentWindowController
+        windowController?.refreshRightPanelToggleItems()
+        if isVisible, let source = contentViewController?.presentationSource {
+            slidePreview?.display(markdown: source.markdown, assetBaseURL: source.assetBaseURL)
+            if isEditorVisible { scheduleSlidePreviewUpdate() }
+        }
+    }
+
+    private var slidePreviewUpdate: DispatchWorkItem?
+
+    /// The editor's text after a pause in typing, so the pane doesn't
+    /// re-render on every keystroke.
+    private func scheduleSlidePreviewUpdate() {
+        guard isSlidePreviewVisible else { return }
+        slidePreviewUpdate?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, let editor = self.editorViewController,
+                  let base = self.contentViewController?.presentationSource?.assetBaseURL else { return }
+            editor.fetchMarkdown { [weak self] markdown in
+                guard let markdown else { return }
+                self?.slidePreview?.display(markdown: markdown, assetBaseURL: base)
+                if let line = editor.caretLine { self?.slidePreview?.followCaret(toLine: line) }
+            }
+        }
+        slidePreviewUpdate = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: work)
+    }
+
     /// Opens the right-hand pane on `panel`, switches it there in place when
     /// it shows the other one, or closes it when it already shows `panel`.
     /// True when `panel` is on screen afterwards.
@@ -434,6 +506,8 @@ final class MainSplitViewController: NSSplitViewController {
         // so a click during the animation sees where the pane is going.
         let shouldShow = item.isCollapsed || sidebar.panel != panel
         sidebar.setPanel(panel)
+        // Slides read better wider than the Agenda's column.
+        item.maximumThickness = panel == .slides ? 800 : 500
         if item.isCollapsed == shouldShow { item.animator().isCollapsed = !shouldShow }
         sidebar.setPaneVisible(shouldShow)
         return shouldShow
@@ -627,6 +701,8 @@ final class MainSplitViewController: NSSplitViewController {
             editorVC.view.alphaValue = 0
             contentHost.installEditorOverlay(editorVC)
             editorVC.findOverlay = findOverlayView
+            editorVC.textDidChangeForSlidePreview = { [weak self] in self?.scheduleSlidePreviewUpdate() }
+            editorVC.caretLineDidChange = { [weak self] line in self?.slidePreview?.followCaret(toLine: line) }
             editorVC.setExtensionHostState(extensionHostState)
             cachedEditorViewController = editorVC
         }
@@ -810,6 +886,12 @@ final class MainSplitViewController: NSSplitViewController {
         isEditorPreparing = false
         editorVC.editorDidBecomeReady = nil
         editorVC.fetchScrollAnchor { [weak self, weak editorVC] anchor in
+            // A deck lands on the slide holding the caret, not the one at
+            // the top of the editor.
+            var anchor = anchor
+            if self?.contentViewController?.isShowingSlideDeck == true, let line = editorVC?.caretLine {
+                anchor = SourceScrollAnchor(sourcePosition: CGFloat(line), topGap: 0)
+            }
             guard let self, let editorVC else {
                 overlayHidden?()
                 completion()

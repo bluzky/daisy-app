@@ -134,6 +134,8 @@
 				Rendering/ReaderLayoutSetting.swift,
 				"Rendering/Slides/MarkdownHTML+Slides.swift",
 				Rendering/Slides/SlideDeck.swift,
+				Rendering/Slides/SlideDeckSettings.swift,
+				Rendering/Slides/SlideTheme.swift,
 				Rendering/StrictLineBreaksSetting.swift,
 				Rendering/TextAlignmentSetting.swift,
 				Rendering/URLSchemeTaskCallbackGate.swift,

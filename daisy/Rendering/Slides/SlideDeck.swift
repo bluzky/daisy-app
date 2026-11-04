@@ -102,6 +102,13 @@ nonisolated struct SlideDeck {
         /// Empty lines from `<!-- space -->` / `<!-- space: n -->`, by index
         /// in `blocks`; the comment block itself holds the place.
         var spaces: [Int: Int] = [:]
+        /// `<!-- _paginate: true|false -->`: this slide's page number
+        /// against the deck's `paginate`; nil follows the deck.
+        var paginate: Bool?
+        /// `<!-- _header: … -->` / `<!-- _footer: … -->`: this slide's
+        /// template; an empty value hides it, nil follows the deck.
+        var header: String?
+        var footer: String?
 
         var hasNotes: Bool { notesLead != nil || !notes.isEmpty }
         fileprivate var isEmpty: Bool { blocks.isEmpty && !hasNotes && background == nil }
@@ -118,9 +125,13 @@ nonisolated struct SlideDeck {
     static let maximumSpaceLines = 10
 
     let slides: [Slide]
+    /// The first line of each slide in the parsed text, one per slide: 1,
+    /// then the line of each `---`, which belongs to the slide it opens.
+    let startLines: [Int]
 
     init(document: Document) {
         var slides: [Slide] = []
+        var startLines = [1]
         var current = Slide()
         var inNotes = false
         var pendingStep: String?
@@ -139,6 +150,7 @@ nonisolated struct SlideDeck {
         for child in document.children {
             if child is ThematicBreak {
                 finishSlide()
+                startLines.append(child.range?.lowerBound.line ?? startLines[startLines.count - 1])
             } else if !inNotes, let paragraph = child as? Paragraph,
                       let marker = Self.notesMarker(paragraph) {
                 inNotes = true
@@ -170,9 +182,17 @@ nonisolated struct SlideDeck {
         }
         finishSlide()
         // A `---` opening the body or closing the file separates nothing.
-        if slides.count > 1, slides[0].isEmpty { slides.removeFirst() }
-        if slides.count > 1, slides[slides.count - 1].isEmpty { slides.removeLast() }
+        if slides.count > 1, slides[0].isEmpty {
+            slides.removeFirst()
+            startLines.removeFirst()
+            startLines[0] = 1
+        }
+        if slides.count > 1, slides[slides.count - 1].isEmpty {
+            slides.removeLast()
+            startLines.removeLast()
+        }
         self.slides = slides
+        self.startLines = startLines
     }
 
     // MARK: - Directives
@@ -352,7 +372,9 @@ nonisolated struct SlideDeck {
 
     /// First matching rule wins. HTML comments don't count as content.
     static func layout(of blocks: [Markup], background: Background? = nil) -> Layout {
-        let content = blocks.filter { !isCommentBlock($0) }
+        let content = blocks.filter { block in
+            !isCommentBlock(block) && (block as? Paragraph).flatMap(caption) == nil
+        }
         if let background {
             if background.position != .full { return .split }
             if content.isEmpty { return .fullBleed }
@@ -430,6 +452,31 @@ nonisolated struct SlideDeck {
         return raw.hasPrefix("<!--") && raw.hasSuffix("-->")
     }
 
+    /// The slide holding `line` of the parsed text.
+    func slideIndex(atLine line: Int) -> Int {
+        max(0, (startLines.lastIndex { $0 <= line } ?? 0))
+    }
+
+    // MARK: - Captions
+
+    /// The text of a `!caption[text]` paragraph, which captions the image,
+    /// table, diagram or math block above it; nil for any other paragraph.
+    static func caption(_ paragraph: Paragraph) -> String? {
+        let text = paragraph.plainText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard text.hasPrefix("!caption["), text.hasSuffix("]") else { return nil }
+        return String(text.dropFirst("!caption[".count).dropLast())
+    }
+
+    /// The deck's title for `{title}`: the first H1 on any slide.
+    var firstTitle: String? {
+        for slide in slides {
+            if let heading = slide.blocks.lazy.compactMap({ $0 as? Heading }).first(where: { $0.level == 1 }) {
+                return heading.plainText
+            }
+        }
+        return nil
+    }
+
     // MARK: - Values
 
     /// A hex color or a CSS color name; anything else is dropped.
@@ -487,6 +534,12 @@ nonisolated private extension SlideDeck.Slide {
             if let layout = SlideDeck.Layout(rawValue: value.lowercased()) { layoutOverride = layout }
         case "_class":
             classes += SlideDeck.sanitizedClasses(value)
+        case "_paginate":
+            paginate = value.lowercased() == "true"
+        case "_header":
+            header = value
+        case "_footer":
+            footer = value
         case "color", "_color":
             if let color = SlideDeck.sanitizedColor(value) { self.color = color }
         case "step":

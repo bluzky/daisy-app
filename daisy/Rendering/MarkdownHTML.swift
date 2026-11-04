@@ -272,7 +272,8 @@ nonisolated enum MarkdownHTML {
                          strictLineBreaks: Bool = StrictLineBreaksSetting.current,
                          textAlignment: TextAlignmentSetting = .current,
                          documentID: String = "page",
-                         renderExtensionConfiguration: RenderExtensionConfiguration = .allEnabled) -> String {
+                         renderExtensionConfiguration: RenderExtensionConfiguration = .allEnabled,
+                         slideThemes: [String: SlideTheme] = SlideTheme.builtInCatalog) -> String {
         render(markdown: markdown,
                allowsScroll: allowsScroll,
                assetBaseHref: assetBaseHref,
@@ -283,7 +284,8 @@ nonisolated enum MarkdownHTML {
                strictLineBreaks: strictLineBreaks,
                textAlignment: textAlignment,
                documentID: documentID,
-               renderExtensionConfiguration: renderExtensionConfiguration).html
+               renderExtensionConfiguration: renderExtensionConfiguration,
+               slideThemes: slideThemes).html
     }
 
     /// Class of the placeholder an empty document shows instead of a blank page.
@@ -307,13 +309,24 @@ nonisolated enum MarkdownHTML {
                        documentID: String = "page",
                        renderExtensionConfiguration: RenderExtensionConfiguration = .allEnabled,
                        emptyDocumentHint: String? = nil,
-                       forcesSlides: Bool = false) -> RenderedHTML {
+                       forcesSlides: Bool = false,
+                       slideThemes: [String: SlideTheme] = SlideTheme.builtInCatalog) -> RenderedHTML {
         let frontmatter = MarkdownFrontmatter.split(markdown)
         let body = frontmatter.body
         // A deck is asked for in frontmatter (`slides: true`), or by the host
         // presenting any document.
         let rendersSlides = forcesSlides
             || SlideDeck.isDeck(frontmatter: frontmatter.raw, format: frontmatter.format)
+        var slideSettings = SlideDeckSettings()
+        var slideTheme: SlideTheme?
+        if rendersSlides {
+            slideSettings = SlideDeckSettings(frontmatter: frontmatter.raw, format: frontmatter.format)
+            let theme = SlideTheme.resolved(for: slideSettings, in: slideThemes)
+            // The deck's own header and footer win over its theme's.
+            slideSettings.header = slideSettings.header ?? theme.header
+            slideSettings.footer = slideSettings.footer ?? theme.footer
+            slideTheme = theme
+        }
         let sourceLineOffset: Int
         if frontmatter.raw != nil,
            let bodyRange = markdown.range(of: body, options: .backwards) {
@@ -343,6 +356,7 @@ nonisolated enum MarkdownHTML {
             rendersHighlights: rendersHighlights,
             rendersCallouts: rendersCallouts,
             rendersSlides: rendersSlides,
+            slideSettings: slideSettings,
             strictLineBreaks: strictLineBreaks
         )
         let mathHTML = rendersMath ? renderMathBlocks(in: formatted, with: math) : formatted
@@ -489,6 +503,13 @@ nonisolated enum MarkdownHTML {
         for assets in extensionAssets {
             scriptAssetIDs.formUnion(assets.scriptAssetIDs)
         }
+        // The theme lives in <head>, which a body swap keeps: a deck with a
+        // different theme, or none, must load a fresh page.
+        let slideThemeCSS = slideTheme?.css ?? ""
+        if slideTheme != nil { scriptAssetIDs.insert("slides-theme:" + slideThemeCSS) }
+        let slideThemeBlock = slideTheme == nil
+            ? ""
+            : "<style id=\"mdp-slide-theme\">\(slideThemeCSS)</style>"
         // Inline documents populate the article as soon as its <template> has
         // parsed — before the body-end vendor bundles below it — so the text
         // is paintable while the parser is still working through the JS. The
@@ -562,6 +583,7 @@ nonisolated enum MarkdownHTML {
         <style>:root { --mdp-page-top-clearance: \(pageTopClearance)px; }</style>
         \(extensionCSS.isEmpty ? "" : "<style>\(extensionCSS)</style>")
         \(themeStyleBlock)
+        \(slideThemeBlock)
         \(scrollOverride)
         \(contentWidthOverride)
         \(documentFontOverride)

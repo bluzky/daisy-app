@@ -134,6 +134,8 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
     var forcesSlides = false
     /// The last displayed document renders as a slide deck.
     private(set) var isDisplayingSlideDeck = false
+    /// The deck's slide shape, for printing one slide per page.
+    private(set) var slideAspect = SlideDeckSettings.Aspect.wide
     private let assetScheme = MarkdownAssetScheme()
     private var currentAssetBase: URL?
     private let messageBridge = HostBridge()
@@ -344,6 +346,7 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         currentMarkdown = markdown
         currentDocumentID = documentID
         isDisplayingSlideDeck = forcesSlides || SlideDeck.isDeck(markdown: markdown)
+        slideAspect = isDisplayingSlideDeck ? SlideDeckSettings(markdown: markdown).aspect : .wide
         isPointerOverMermaidFigure = false
         isWebControlFocused = false
         assetScheme.setBaseURL(assetBaseURL)
@@ -400,6 +403,15 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
                                                 emptyDocumentHint: String? = nil,
                                                 forcesSlides: Bool = false) -> MarkdownHTML.RenderedHTML {
         let t0 = DispatchTime.now()
+        // A deck reads the reader's theme files; Quick Look keeps the
+        // built-in themes. Off the main actor, so the file reads are free.
+        #if QUICK_LOOK_EXTENSION
+        let slideThemes = SlideTheme.builtInCatalog
+        #else
+        let slideThemes = forcesSlides || SlideDeck.isDeck(markdown: markdown)
+            ? SlideThemeStore.catalog()
+            : SlideTheme.builtInCatalog
+        #endif
         let rendered = MarkdownHTML.render(markdown: markdown,
                                            allowsScroll: true,
                                            assetBaseHref: assetBaseHref,
@@ -412,7 +424,8 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
                                            documentID: documentID,
                                            renderExtensionConfiguration: renderExtensionConfiguration,
                                            emptyDocumentHint: emptyDocumentHint,
-                                           forcesSlides: forcesSlides)
+                                           forcesSlides: forcesSlides,
+                                           slideThemes: slideThemes)
         let elapsedMs = Int(
             (Double(DispatchTime.now().uptimeNanoseconds - t0.uptimeNanoseconds)
              / 1_000_000).rounded()
@@ -1347,6 +1360,39 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         }
         scrollDocument(to: max(0, min(target, maxY)), topMargin: 0, duration: duration)
         return true
+    }
+
+    /// The slide at the top of the view in a deck (the first one whose
+    /// bottom is below the top edge), or nil when the page isn't a deck.
+    func topVisibleSlideIndex(completion: @escaping (Int?) -> Void) {
+        webView.evaluateJavaScript("""
+        (() => {
+            const frames = Array.from(document.querySelectorAll('.mdp-slide-frame'));
+            if (!frames.length) return null;
+            const index = frames.findIndex(frame => frame.getBoundingClientRect().bottom > 1);
+            return index < 0 ? frames.length - 1 : index;
+        })();
+        """) { result, _ in
+            completion((result as? NSNumber)?.intValue)
+        }
+    }
+
+    /// Scrolls a deck so the slide at the top of the view starts at the top,
+    /// instead of partway down. Does nothing on other pages.
+    func snapToSlideAtTop(completion: (() -> Void)? = nil) {
+        webView.evaluateJavaScript("""
+        (() => {
+            const frame = Array.from(document.querySelectorAll('.mdp-slide-frame'))
+                .find(frame => frame.getBoundingClientRect().bottom > 1);
+            if (!frame) return null;
+            return frame.getBoundingClientRect().top + (window.scrollY || document.documentElement.scrollTop || 0);
+        })();
+        """) { [weak self] result, _ in
+            if let self, let top = result as? NSNumber {
+                self.scrollDocument(to: self.scaledDocumentOffset(CGFloat(truncating: top)), duration: 0)
+            }
+            completion?()
+        }
     }
 
     func scrollDocument(to y: CGFloat,

@@ -627,11 +627,13 @@ nonisolated extension MarkdownHTML {
       ("priority-high", "Priority: High"), ("priority-medium", "Priority: Medium"),
       ("priority-low", "Priority: Low"), ("priority-none", "Priority: None"),
       ("due", "Due Date"), ("schedule", "Schedule"),
-      ("due-clear", "Clear Due Date"), ("schedule-clear", "Clear Schedule")
+      ("due-clear", "Clear Due Date"), ("schedule-clear", "Clear Schedule"),
+      ("slide", "New Slide"), ("notes", "Speaker Notes"), ("step", "Reveal Step"),
+      ("column", "New Column")
     ]
     let groups: [(id: String, key: String)] = [
       ("text", "Text"), ("lists", "Lists"), ("blocks", "Blocks"), ("insert", "Insert"),
-      ("task", "Task"), ("actions", "Actions")
+      ("task", "Task"), ("actions", "Actions"), ("slides", "Slides")
     ]
     // Accessibility names for the date picker's month buttons.
     let interfaceLabels: [(id: String, key: String)] = [

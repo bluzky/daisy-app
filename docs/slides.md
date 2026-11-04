@@ -24,6 +24,8 @@ Mention the query block guide.
 See [`samples/slides.md`](../samples/slides.md) for a deck that uses every feature below.
 
 - [Turning a file into a deck](#turning-a-file-into-a-deck)
+- [Deck settings](#deck-settings)
+- [Themes](#themes)
 - [Slides](#slides-1)
 - [Speaker notes](#speaker-notes)
 - [Layouts](#layouts)
@@ -33,7 +35,9 @@ See [`samples/slides.md`](../samples/slides.md) for a deck that uses every featu
 - [Step-by-step reveals](#step-by-step-reveals)
 - [Columns](#columns)
 - [Empty lines](#empty-lines)
+- [Captions](#captions)
 - [Footnotes](#footnotes)
+- [Editing a deck](#editing-a-deck)
 - [Presenting](#presenting)
 - [Export](#export)
 - [Syntax summary](#syntax-summary)
@@ -49,6 +53,112 @@ slides: true
 ```
 
 A deck's frontmatter configures the deck and is not shown. Without it, a file reads as an ordinary document, where `---` is a horizontal rule. **View → Present** shows any Markdown file as slides, with or without the frontmatter, without changing the file.
+
+## Deck settings
+
+The frontmatter can also set:
+
+```markdown
+---
+slides: true
+theme: midnight
+aspect: 4:3
+paginate: true
+header: Daisy
+footer: "{title} | {date} | {slide_number}/{total}"
+title: Quarterly review
+author: Linh
+date: 4 Nov 2026
+---
+```
+
+| Key | Effect |
+| --- | --- |
+| `theme` | The deck's look; see [Themes](#themes). |
+| `theme_overrides` | Changes single theme colors or fonts for this deck. |
+| `aspect` | Slide shape: `16:9` (default), `16:10` or `4:3`. Presenting and PDF pages follow it. |
+| `paginate` | `true` shows the slide number in the bottom-right corner. |
+| `header`, `footer` | A line of small text at the top or bottom of every slide. |
+| `title`, `author`, `date` | Fill `{title}`, `{author}` and `{date}` in the header and footer. |
+
+In `header` and `footer`, `{title}` is the `title` setting, or the first H1 in the deck; `{date}` is the `date` setting, or today's date; `{slide_number}` and `{total}` count slides from 1. A `|` splits the text into left, center and right parts: `"{title} | | {slide_number}/{total}"` puts the title on the left and the count on the right. Quote a value that contains `{`, `|` or `#`.
+
+A slide can change these for itself:
+
+| Directive | Effect on its slide |
+| --- | --- |
+| `<!-- _paginate: false -->` | Hides the slide number (`true` shows it when the deck doesn't). |
+| `<!-- _header: text -->`, `<!-- _footer: text -->` | Replaces the header or footer; an empty value (`<!-- _footer: "" -->`) hides it. |
+
+## Themes
+
+`theme:` in the frontmatter picks the deck's look. Without it, slides follow the reading theme.
+
+| Theme | Look |
+| --- | --- |
+| `default` | The reading theme's colors and fonts. |
+| `light` | White slides, dark text, blue links. |
+| `dark` | Near-black slides, light text. |
+| `paper` | Warm off-white, brown headings, serif type. |
+| `midnight` | Dark blue slides; title and section slides on a brighter blue. |
+| `pitch` | White slides, blue headings; title and section slides on solid blue. |
+
+Code on a slide follows the theme: a dark theme gets dark-mode code colors even in a light window, and the other way round. An unknown theme name falls back to `default`.
+
+### Your own themes
+
+Put a `.yaml` file in `~/.config/daisy/slide-themes/`. Its name, without the extension, is the theme's id, unless the file sets `id:`. A file with a built-in theme's id replaces it.
+
+```yaml
+name: My Brand
+id: my-brand
+extends: light
+appearance: light
+colors:
+  background: "#FFFFFF"
+  text: "#1A1A1A"
+  heading: "#0057B8"
+  accent: "#0057B8"
+  bold: "#B8003F"
+  code_background: "#F5F7FA"
+  primary: "#0057B8"
+  title_text: "#FFFFFF"
+fonts:
+  title: "Georgia, serif"
+  body: "Inter, sans-serif"
+  code: "JetBrains Mono, monospace"
+footer:
+  show: true
+  text: "{title} | | {slide_number}/{total}"
+```
+
+| Key | Meaning |
+| --- | --- |
+| `extends` | Starts from a built-in theme or another of your themes; set only what differs. |
+| `appearance` | `dark` or `light`, for the code colors. Without it, it is read from a hex `background`. |
+| `colors.background`, `text`, `heading` | Slide background, body text and headings. |
+| `colors.accent` | Links and list bullets (`primary` is used when there is no `accent`). |
+| `colors.bold` | Bold text. |
+| `colors.code_background` | Code block background. |
+| `colors.primary`, `title_text` | Background and text of title and section slides. |
+| `fonts.body`, `title`, `code` | Font lists for body text, headings and code. |
+| `header`, `footer` | A template like the frontmatter's, or `show:` and `text:`. The deck's own `header` and `footer` win. |
+
+Colors are hex values (`#0057B8`) or color names (`navy`); fonts are lists of names. Anything else is ignored, so a theme can't break the page. Theme files are read each time a deck renders: after editing one, edit or reopen the deck to see it. Quick Look uses the built-in themes only.
+
+### Changing a theme for one deck
+
+```markdown
+---
+slides: true
+theme: pitch
+theme_overrides:
+  colors:
+    heading: "#C00000"
+---
+```
+
+`theme_overrides` takes the same `colors` and `fonts` as a theme file.
 
 ## Slides
 
@@ -285,6 +395,20 @@ Blank lines don't add space on a slide. `<!-- space -->` on its own line adds on
 
 The space is the slide's line height, so it scales with the slide. A count of 0 or one that isn't a number is ignored.
 
+## Captions
+
+`!caption[text]` on its own line, right below an image, table, diagram or formula, adds a small centered caption.
+
+```markdown
+## Sales
+
+![Chart](sales.png)
+
+!caption[Figure 1: sales by quarter]
+```
+
+A caption doesn't change the slide's layout: a heading, an image and a caption is still a `title-image` slide. Outside a deck, `!caption[…]` is ordinary text.
+
 ## Footnotes
 
 Footnotes keep their numbers across the deck. Each slide lists, at its bottom, the footnotes it references; a footnote referenced on several slides is repeated on each. A footnote referenced in the notes is listed in the notes. Where the definition sits in the file doesn't matter, and definitions no slide references are not shown.
@@ -297,11 +421,17 @@ Revenue grew 12%[^q3].
 [^q3]: Q3 report, page 4.
 ```
 
+## Editing a deck
+
+- **Slide Preview.** **View → Slide Preview** (<kbd>⌘9</kbd>) opens the deck's slides in the right-hand pane, next to the editor. It updates a moment after you stop typing, outlines the slide the cursor is in, and scrolls to it when the cursor moves to another slide. Notes are hidden there. Widen the pane for bigger slides.
+- **Back to Read Mode.** Leaving Edit Mode (<kbd>⌘E</kbd>) shows the slide the cursor was in, from its top.
+- **Slash commands.** In a deck, the `/` menu has a **Slides** group: **New Slide** (`---`), **Speaker Notes** (`???`), **Reveal Step** (`<!-- step -->`) and **New Column** (`<!-- column -->`).
+
 ## Presenting
 
-**View → Present** (<kbd>⌥⌘P</kbd>) shows the deck full screen, on an external display when there is one. While editing, it presents the editor's current text.
+**View → Present** (<kbd>⌥⌘P</kbd>) shows the deck full screen from the first slide, on an external display when there is one. **View → Present from Current Slide** (<kbd>⇧⌥⌘P</kbd>) starts at the slide the cursor is in, or in Read Mode at the slide at the top of the window. While editing, both present the editor's current text.
 
-With two displays, a presenter window on the other display shows the current slide with its notes, the next slide, the slide and step number, and the time since you started. Closing the presenter window keeps presenting, and so does unplugging a display. Leaving full screen or closing the document ends the presentation. If the file changes while you present, the slides update and stay on the same slide.
+With two displays, a presenter window on the other display shows the current slide with its notes, the next slide, the slide and step number, and the time since you started. Closing the presenter window keeps presenting, and so does unplugging a display. <kbd>esc</kbd> or closing the document ends the presentation. While another app is in front, the slides step back behind it. If the file changes while you present, the slides update and stay on the same slide.
 
 | Key | What it does |
 | --- | --- |
@@ -323,6 +453,7 @@ Presentation clickers send Page Up and Page Down, so they work without setup. Th
 | Syntax | Meaning |
 | --- | --- |
 | `slides: true` / `marp: true` in frontmatter | The file is a deck. |
+| `theme`, `theme_overrides`, `aspect`, `paginate`, `header`, `footer`, `title`, `author`, `date` in frontmatter | Deck settings. |
 | `---` on its own line | Starts the next slide. |
 | `???` line | Starts the slide's speaker notes. |
 | `<hr>` | A horizontal rule inside a slide. |
@@ -334,3 +465,5 @@ Presentation clickers send Page Up and Page Down, so they work without setup. Th
 | `<!-- step -->`, `<!-- step: n -->` | Reveals on a click. |
 | `<!-- column -->`, `<!-- end-columns -->` | Columns. |
 | `<!-- space -->`, `<!-- space: n -->` | Empty lines. |
+| `<!-- _paginate: … -->`, `<!-- _header: … -->`, `<!-- _footer: … -->` | This slide's number, header and footer. |
+| `!caption[text]` | A caption under the block above. |

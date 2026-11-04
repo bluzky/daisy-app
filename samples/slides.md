@@ -1,5 +1,7 @@
 ---
 slides: true
+paginate: true
+footer: "{title} | | {date}"
 ---
 
 # Daisy slides
@@ -76,6 +78,10 @@ The steps all show in Read Mode and in a PDF.
 <!-- column -->
 
 ![Edit Mode](../docs/screenshot-edit-mode.png)
+
+<!-- end-columns -->
+
+!caption[The app icon, Read Mode and Edit Mode]
 
 ???
 Images side by side are columns: each image fits inside its column.

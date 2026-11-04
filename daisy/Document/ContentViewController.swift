@@ -406,8 +406,22 @@ final class ContentViewController: NSViewController {
             // instantly. An animated scroll here reads as jitter when the
             // editor overlay is hidden.
             self.webView.scrollDocument(to: target, topMargin: 0, duration: 0)
-            completion?()
+            // A deck lands on the top of the slide holding the anchor, not
+            // partway down it.
+            if self.webView.isDisplayingSlideDeck {
+                self.webView.snapToSlideAtTop { completion?() }
+            } else {
+                completion?()
+            }
         }
+    }
+
+    /// The preview shows a slide deck.
+    var isShowingSlideDeck: Bool { webView.isDisplayingSlideDeck }
+
+    /// The slide at the top of Read Mode, for Present from Current Slide.
+    func topVisibleSlideIndex(completion: @escaping (Int?) -> Void) {
+        webView.topVisibleSlideIndex(completion: completion)
     }
 
     /// Applies the scroll anchor captured from the editor once the fresh

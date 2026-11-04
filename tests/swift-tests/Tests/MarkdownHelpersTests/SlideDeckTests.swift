@@ -180,7 +180,7 @@ final class SlideDeckTests: XCTestCase {
       vendorLoading: .lazy
     )
     let html = rendered.articleHTML
-    XCTAssertTrue(html.hasPrefix("<div class=\"mdp-deck\">"))
+    XCTAssertTrue(html.hasPrefix("<div class=\"mdp-deck\" data-aspect=\"16:9\">"))
     XCTAssertTrue(html.contains("<div class=\"mdp-slide mdp-slide--title\">"))
     XCTAssertTrue(html.contains("<div class=\"mdp-slide mdp-slide--section\">"))
     XCTAssertTrue(html.contains("data-slide=\"1\""))

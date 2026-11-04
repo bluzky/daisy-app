@@ -750,6 +750,8 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
     let rendersCallouts: Bool
     /// Render the document as presentation slides (`SlideDeck`).
     let rendersSlides: Bool
+    /// The deck's frontmatter settings, for its header, footer and aspect.
+    let slideSettings: SlideDeckSettings
     /// The deck's `<!-- step -->` targets inside blocks, written as
     /// `data-step` on the list item or paragraph.
     private var slideElementSteps: [SlideDeck.SourceKey: Int] = [:]
@@ -785,6 +787,7 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
          rendersHighlights: Bool = true,
          rendersCallouts: Bool = true,
          rendersSlides: Bool = false,
+         slideSettings: SlideDeckSettings = SlideDeckSettings(),
          strictLineBreaks: Bool = false) {
         self.strictLineBreaks = strictLineBreaks
         self.options = options
@@ -793,6 +796,7 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
         self.rendersHighlights = rendersHighlights
         self.rendersCallouts = rendersCallouts
         self.rendersSlides = rendersSlides
+        self.slideSettings = slideSettings
         // Escapes/entities can decode into a URL even without a literal scheme.
         self.detectsBareURLs = Self.mayContainHTTP(parsedMarkdown, includesMarkdownEscapes: true)
             || Self.mayContainAutolink(parsedMarkdown)
@@ -808,6 +812,7 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
                        rendersHighlights: Bool = true,
                        rendersCallouts: Bool = true,
                        rendersSlides: Bool = false,
+                       slideSettings: SlideDeckSettings = SlideDeckSettings(),
                        strictLineBreaks: Bool = false) -> String {
         let preparedMarkdown = preparedForParsing(markdown, rendersHighlights: rendersHighlights)
         let document = Document(parsing: preparedMarkdown)
@@ -820,6 +825,7 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
             rendersHighlights: rendersHighlights,
             rendersCallouts: rendersCallouts,
             rendersSlides: rendersSlides,
+            slideSettings: slideSettings,
             strictLineBreaks: strictLineBreaks
         )
         walker.visit(document)
@@ -908,7 +914,8 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
     /// own spacing. `MarkdownHTML.slideFootnotesToken` marks where the
     /// footnotes referenced since the previous token go.
     private mutating func visitSlideDeck(_ deck: SlideDeck) {
-        result += "<div class=\"mdp-deck\">\n"
+        result += "<div class=\"mdp-deck\" data-aspect=\"\(slideSettings.aspect.rawValue)\">\n"
+        let chrome = SlideChrome(settings: slideSettings, deck: deck)
         for (index, slide) in deck.slides.enumerated() {
             slideElementSteps = slide.elementSteps
             result += "<section class=\"mdp-slide-frame\" data-slide=\"\(index)\""
@@ -945,7 +952,9 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
                 result += "</div>\n"
                 visitSlideBlocks(slide, in: slide.columnFooter)
             }
-            result += MarkdownHTML.slideFootnotesToken + "</div></div>\n"
+            result += MarkdownHTML.slideFootnotesToken + "</div>"
+            result += chrome.html(for: slide, number: index + 1)
+            result += "</div>\n"
             if slide.hasNotes {
                 result += "<aside class=\"mdp-slide-notes\">\n"
                 if let lead = slide.notesLead {
@@ -968,6 +977,12 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
 
     private mutating func visitSlideBlocks(_ slide: SlideDeck.Slide, in range: Range<Int>) {
         for blockIndex in range {
+            if let paragraph = slide.blocks[blockIndex] as? Paragraph,
+               let caption = SlideDeck.caption(paragraph) {
+                result += "<p class=\"mdp-slide-caption\"\(sourceLineAttribute(paragraph))>"
+                result += MarkdownHTML.htmlEscape(caption) + "</p>\n"
+                continue
+            }
             if let lines = slide.spaces[blockIndex] {
                 result += "<div class=\"mdp-slide-space mdp-slide-space-\(lines)\" aria-hidden=\"true\"></div>\n"
                 continue

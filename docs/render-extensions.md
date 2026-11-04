@@ -35,7 +35,9 @@ adds the slide stylesheet and the `MdPreviewSlides` script in every host: the
 script applies image sizes and slide colors (styles the sanitizer would
 strip) and, while presenting, marks the current and next slide and the
 revealed steps. The presentation windows turn presenting on with the
-`slides-presenting` and `slides-presenter` host states.
+`slides-presenting` and `slides-presenter` host states, and the Slide Preview
+pane uses `slides-pane`. A deck's theme is emitted by `render` itself, in the
+page head, not by the extension.
 
 ## Editor capability
 
