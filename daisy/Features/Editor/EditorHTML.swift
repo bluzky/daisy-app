@@ -791,6 +791,12 @@ nonisolated enum EditorHTML {
             word-break: normal;
             cursor: text;
         }
+        /* Inline code in a cell keeps its natural width, as in Read mode, so
+           auto table layout reserves room for it instead of splitting it. */
+        .cm-md-table-cell .cm-md-inline-code {
+            overflow-wrap: normal;
+            white-space: nowrap;
+        }
         .cm-md-table-grid th .cm-md-table-cell[data-placeholder]:empty::before {
             content: attr(data-placeholder);
             color: var(--secondary);

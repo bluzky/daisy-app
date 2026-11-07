@@ -841,7 +841,7 @@ nonisolated extension MarkdownHTML {
     /* Inline code identifies fields such as `mapped_status`. Keep it intact
        so auto table layout reserves its natural width; the wrapper scrolls
        horizontally when a table cannot fit. */
-    :is(th, td) :not(pre) > code {
+    :is(th, td) code:not(pre > code) {
         overflow-wrap: normal;
         white-space: nowrap;
     }
@@ -995,7 +995,7 @@ nonisolated extension MarkdownHTML {
         :root:not(.\(previewPrintClass)) body { overflow-wrap: break-word; }
         :root:not(.\(previewPrintClass)) table { width: 100%; }
         :root:not(.\(previewPrintClass)) th,
-        :root:not(.\(previewPrintClass)) td { overflow-wrap: anywhere; }
+        :root:not(.\(previewPrintClass)) td { overflow-wrap: break-word; }
         :root:not(.\(previewPrintClass)) pre,
         :root:not(.\(previewPrintClass)) code { overflow-wrap: anywhere; }
     }
