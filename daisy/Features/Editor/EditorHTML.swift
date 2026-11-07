@@ -86,6 +86,7 @@ nonisolated enum EditorHTML {
             --text: -apple-system-label;
             --secondary: -apple-system-secondary-label;
             --quote-border: -apple-system-quaternary-label;
+            --aside-bg: #f5f5f7;
             --grid: -apple-system-separator;
             --accent: var(--link);
             --link: rgb(0, 104, 218);
@@ -98,6 +99,7 @@ nonisolated enum EditorHTML {
         @media (prefers-color-scheme: dark) {
             :root {
                 --link: rgb(65, 156, 255);
+                --aside-bg: #323232;
                 --code-bg: #262626;
                 --code-border: #323232;
                 \(MarkdownHTML.darkCodePaletteCSS)
@@ -291,6 +293,44 @@ nonisolated enum EditorHTML {
             background-repeat: no-repeat;
             background-size: 4px calc(100% - var(--cm-md-quote-top) - var(--cm-md-quote-bottom) - var(--cm-md-block-gap, 0px));
         }
+        /* Callouts mirror .markdown-alert in the preview stylesheet. The box
+           is a ::before so it stops above the block gap; each line only
+           carries padding. */
+        #editor .cm-content > .cm-line.cm-md-alert {
+            position: relative;
+            isolation: isolate;
+            --alert-color: var(--link);
+            padding-inline: 20px 16px;
+            color: var(--text);
+        }
+        #editor .cm-content > .cm-line.cm-md-alert::before {
+            content: "";
+            position: absolute;
+            inset: 0 0 var(--cm-md-block-gap, 0px) 0;
+            z-index: -1;
+            background: var(--aside-bg);
+            border-inline-start: 4px solid var(--alert-color);
+        }
+        #editor .cm-content > .cm-line.cm-md-alert-first { padding-top: 12px; }
+        #editor .cm-content > .cm-line.cm-md-alert-first::before { border-start-start-radius: 6px; border-start-end-radius: 6px; }
+        #editor .cm-content > .cm-line.cm-md-alert-last {
+            padding-bottom: calc(12px + var(--cm-md-block-gap, 0px));
+        }
+        #editor .cm-content > .cm-line.cm-md-alert-last::before { border-end-start-radius: 6px; border-end-end-radius: 6px; }
+        #editor .cm-content > .cm-line.cm-md-alert-tip { --alert-color: #1a7f37; }
+        #editor .cm-content > .cm-line.cm-md-alert-important { --alert-color: #8250df; }
+        #editor .cm-content > .cm-line.cm-md-alert-warning { --alert-color: #9a6700; }
+        #editor .cm-content > .cm-line.cm-md-alert-caution { --alert-color: #d1242f; }
+        #editor .cm-content > .cm-line.cm-md-alert-first {
+            font-weight: 600;
+            color: var(--alert-color);
+        }
+        .cm-md-alert-title {
+            display: inline-flex;
+            align-items: center;
+            line-height: 1;
+        }
+        .cm-md-alert-icon { width: 1em; height: 1em; margin-right: 0.5em; fill: currentColor; }
         .cm-md-strong { font-weight: 600; }
         .cm-md-emphasis { font-style: italic; }
         .cm-md-strikethrough { text-decoration: line-through; }

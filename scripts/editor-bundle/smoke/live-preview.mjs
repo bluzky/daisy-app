@@ -389,3 +389,25 @@ for (const position of [0, preprocessorSource.indexOf("include")]) {
     preprocessorHost.querySelector(".hl-meta")?.textContent.includes("#include"))
 }
 preprocessorEditor.destroy()
+
+const alertHost = dom.window.document.createElement("div")
+dom.window.document.body.appendChild(alertHost)
+const alertSource = "intro\n\n> [!WARNING]\n> Careful here\n> second line\n\n> [!NOTE] Custom\n> body\n\n> plain quote"
+const alertEditor = dom.window.MDEditor.create(alertHost, alertSource, {})
+alertEditor.select(0)
+check("callout lines get kind, first and last classes",
+  alertHost.querySelectorAll(".cm-md-alert-warning").length === 3
+    && alertHost.querySelectorAll(".cm-md-alert-warning.cm-md-alert-first").length === 1
+    && alertHost.querySelectorAll(".cm-md-alert-warning.cm-md-alert-last").length === 1)
+check("callout title token is replaced by an icon and default title",
+  [...alertHost.querySelectorAll(".cm-md-alert-title")].some((el) => el.textContent === "Warning" && el.querySelector("svg")))
+check("a custom callout title keeps its text and only gets the icon",
+  [...alertHost.querySelectorAll(".cm-md-alert-title")].some((el) => el.textContent === "" && el.querySelector("svg")))
+check("plain blockquotes are not styled as callouts",
+  alertHost.querySelectorAll(".cm-md-alert").length === 5 && alertHost.querySelectorAll(".cm-md-quote").length === 1)
+alertEditor.focus()
+alertEditor.select(alertSource.indexOf("[!WARNING]") + 2)
+check("caret on the title line reveals the callout source",
+  ![...alertHost.querySelectorAll(".cm-md-alert-title")].some((el) => el.textContent === "Warning"))
+check("callout styling preserves Markdown source", alertEditor.getMarkdown() === alertSource)
+alertEditor.destroy()
