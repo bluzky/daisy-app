@@ -41,6 +41,41 @@ final class KeymapTests: XCTestCase {
         XCTAssertEqual(Keymap().conflicts(for: binding, in: .global), [.viewToggleCompletedTasks])
     }
 
+    func testPresentFromCurrentSlideDefaultsToOptionShiftCommandP() {
+        let binding = KeyBinding(string: "opt+shift+cmd+p")!
+        XCTAssertEqual(KeymapCommand.viewPresentFromCurrentSlide.context, .global)
+        XCTAssertEqual(KeymapCommand.viewPresentFromCurrentSlide.rawValue, "view.presentFromCurrentSlide")
+        XCTAssertEqual(KeymapCommand.viewPresentFromCurrentSlide.titleKey, "Present from Current Slide")
+        XCTAssertEqual(Keymap.defaultBindings(for: .viewPresentFromCurrentSlide), [binding])
+        XCTAssertEqual(Keymap().conflicts(for: binding, in: .global), [.viewPresentFromCurrentSlide])
+    }
+
+    func testSidebarPanesAndSlidePreviewUseCommandDigits() {
+        XCTAssertEqual(Keymap.defaultBindings(for: .viewShowOutline), [KeyBinding(string: "cmd+1")!])
+        XCTAssertEqual(Keymap.defaultBindings(for: .viewShowProjectNavigator), [KeyBinding(string: "cmd+2")!])
+        let preview = KeyBinding(string: "cmd+9")!
+        XCTAssertEqual(KeymapCommand.viewToggleSlidePreview.rawValue, "view.toggleSlidePreview")
+        XCTAssertEqual(KeymapCommand.viewToggleSlidePreview.titleKey, "Slide Preview")
+        XCTAssertEqual(Keymap.defaultBindings(for: .viewToggleSlidePreview), [preview])
+        XCTAssertEqual(Keymap().conflicts(for: preview, in: .global), [.viewToggleSlidePreview])
+        for digit in ["cmd+1", "cmd+2", "cmd+9"] {
+            let binding = KeyBinding(string: digit)!
+            for context in [KeymapContext.reading, .editing] {
+                XCTAssertTrue(Keymap().conflicts(for: binding, in: context).allSatisfy { $0.context == .global },
+                              "\(digit) is free in \(context)")
+            }
+        }
+    }
+
+    func testPresentDefaultsToOptionCommandP() {
+        let binding = KeyBinding(string: "opt+cmd+p")!
+        XCTAssertEqual(KeymapCommand.viewPresent.context, .global)
+        XCTAssertEqual(KeymapCommand.viewPresent.rawValue, "view.present")
+        XCTAssertEqual(KeymapCommand.viewPresent.titleKey, "Present")
+        XCTAssertEqual(Keymap.defaultBindings(for: .viewPresent), [binding])
+        XCTAssertEqual(Keymap().conflicts(for: binding, in: .global), [.viewPresent])
+    }
+
     func testOpenLinkAtCaretDefaultsToCommandPeriodWhileEditing() {
         let binding = KeyBinding(string: "cmd+.")!
         XCTAssertEqual(KeymapCommand.goOpenLinkAtCaret.context, .editing)

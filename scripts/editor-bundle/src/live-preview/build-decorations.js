@@ -1,8 +1,10 @@
 import { Decoration } from "@codemirror/view"
 import { LanguageDescription } from "@codemirror/language"
 import { highlightTree, tags as t } from "@lezer/highlight"
+import { AlertTitleWidget } from "../widgets/basic.js"
+import { ALERT_TITLES } from "../widgets/alert-icons.js"
 import { codeHighlight } from "../code-highlight.js"
-import { HEADING_LINE, METRICS, SEPARATOR_BLOCKS, blockGapLine, blockSeparatorLine, bulletDeco, codeLine, codeLineFirst, codeLineLast, codeScrollText, collapsedLine, completedTaskLine, emphasisMark, fenceMark, frontmatterDelim, frontmatterFirstLine, frontmatterLastLine, frontmatterLine, headingAfterBlankLine, headingMarker, headingPrefix, hiddenCodeFenceSource, hiddenHeadingSource, hide, highlightMark, hrDeco, imageLine, inactiveHeadingLine, linkMark, listContinuationLine, listDepthLine, listItemGapLine, listItemLine, markdownListMarker, orderedDeco, quoteLine, ruleLine, setextMarkerLine, setextSource, strikethroughMark, strongMark, tableLine, taskLine, urlMark } from "../decoration-parts.js"
+import { HEADING_LINE, METRICS, SEPARATOR_BLOCKS, blockGapLine, blockSeparatorLine, bulletDeco, codeLine, codeLineFirst, codeLineLast, codeScrollText, collapsedLine, completedTaskLine, emphasisMark, fenceMark, frontmatterDelim, frontmatterFirstLine, frontmatterLastLine, frontmatterLine, headingAfterBlankLine, headingMarker, headingPrefix, hiddenCodeFenceSource, hiddenHeadingSource, hide, highlightMark, hrDeco, imageLine, inactiveHeadingLine, linkMark, listContinuationLine, listDepthLine, listItemGapLine, listItemLine, markdownListMarker, orderedDeco, alertLine, quoteLine, ruleLine, setextMarkerLine, setextSource, strikethroughMark, strongMark, tableLine, taskLine, urlMark } from "../decoration-parts.js"
 import { fencedCodeDetails } from "../fenced-code.js"
 import { currentFindTouches } from "../find.js"
 import { codeLanguages } from "../languages.js"
@@ -294,12 +296,27 @@ export function buildDecorations(view, detectedCodeCache) {
           const parentQuote = node.node.parent?.name === "Blockquote"
           let previous = node.node.prevSibling
           while (previous?.name === "QuoteMark") previous = previous.prevSibling
+          // Top-level `> [!KIND]` quotes draw as callouts, like the preview.
+          const alertMatch = !parentQuote && node.node.parent?.name === "Document"
+            ? /^ {0,3}>[ \t]?(\[!(note|tip|important|warning|caution)\])/i.exec(quoteFirst.text)
+            : null
+          const alertKind = alertMatch ? alertMatch[2].toLowerCase() : null
+          if (alertKind && !touchesLineOf(quoteFirst.from)) {
+            const tokenFrom = quoteFirst.from + alertMatch[0].length - alertMatch[1].length
+            const tokenTo = tokenFrom + alertMatch[1].length
+            const rest = state.doc.sliceString(tokenTo, quoteFirst.to)
+            const custom = rest.trim().length > 0
+            ranges.push(Decoration.replace({
+              widget: new AlertTitleWidget(alertKind, custom ? "" : ALERT_TITLES[alertKind]),
+            }).range(tokenFrom, tokenTo + (rest.startsWith(" ") ? 1 : 0)))
+          }
           const nestedGap = parentQuote && previous ? METRICS.quote : 0
           let pos = node.from
           while (pos <= node.to) {
             const line = state.doc.lineAt(pos)
             const edges = quoteLines.get(line.from) || { depth: 0, starts: 0, ends: 0, gap: 0 }
             edges.depth = Math.max(edges.depth, quoteStack.length)
+            if (alertKind) edges.alert = alertKind
             // Match the preview's 0.4em padding once per quote boundary,
             // not once per source line (which may wrap or soft-join).
             if (line.from === quoteFirst.from) {
@@ -736,7 +753,9 @@ export function buildDecorations(view, detectedCodeCache) {
       },
     })
     for (const [lineFrom, edges] of quoteLines) {
-      lineOnce(lineFrom, quoteLine(edges.depth, edges.starts, edges.ends, edges.gap))
+      lineOnce(lineFrom, edges.alert && edges.depth === 1
+        ? alertLine(edges.alert, edges.starts > 0, edges.ends > 0)
+        : quoteLine(edges.depth, edges.starts, edges.ends, edges.gap))
     }
     quoteLines.clear()
     // A deeply indented marker may be parsed as continuation content inside

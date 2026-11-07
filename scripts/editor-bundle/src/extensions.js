@@ -1,4 +1,3 @@
-import { EditorView } from "@codemirror/view"
 import { Prec, StateEffect, StateField } from "@codemirror/state"
 import { mermaidPreviews } from "./mermaid-previews.js"
 
@@ -54,10 +53,3 @@ export function hostFlag(host, id) {
 export const editorModuleEnabled = (state, id) => !state || state[id] !== false
 
 registerEditorExtension({ id: "mermaid", extensions: () => [mermaidPreviews] })
-
-// Heading lines already carry cm-md-h1..h6; the host stylesheet colors them
-// only under this class, so toggling the module is a single attribute change.
-registerEditorExtension({
-  id: "colorful-headings",
-  extensions: () => [EditorView.editorAttributes.of({ class: "cm-colorful-headings" })],
-})

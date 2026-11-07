@@ -56,6 +56,15 @@
 "Code block background" = "Code block background";
 "Text" = "Text";
 "Link" = "Link";
+"Headings" = "Headings";
+"Table style" = "Table style";
+"Table header" = "Table header";
+"Table lines" = "Table lines";
+"Table stripe" = "Table stripe";
+"Lines" = "Lines";
+"Grid" = "Grid";
+"Striped" = "Striped";
+"Minimal" = "Minimal";
 "Presets" = "Presets";
 "Colors apply to the current appearance. Choose the Automatic appearance to set Light and Dark separately." = "Colors apply to the current appearance. Choose the Automatic appearance to set Light and Dark separately.";
 "A preset fills every color and switches the app to its light or dark look. Adjust individual colors below afterwards." = "A preset fills every color and switches the app to its light or dark look. Adjust individual colors below afterwards.";
@@ -392,7 +401,6 @@
 "Callouts" = "Callouts";
 "Math" = "Math";
 "Mermaid" = "Mermaid";
-"Colorful headings" = "Colorful headings";
 "Slash commands" = "Slash commands";
 "Task metadata" = "Task metadata";
 "Metadata suggestions" = "Metadata suggestions";
@@ -625,3 +633,17 @@
 "Hide Completed Tasks" = "Hide Completed Tasks";
 "Hide completed tasks" = "Hide completed tasks";
 "Hide checked tasks in every window" = "Hide checked tasks in every window";
+
+/* View ▸ Present and the slides render extension */
+"Present" = "Present";
+"Slides" = "Slides";
+"Presenter" = "Presenter";
+"Slide %1$d of %2$d" = "Slide %1$d of %2$d";
+"Step %1$d of %2$d" = "Step %1$d of %2$d";
+"Screen blanked" = "Screen blanked";
+"New Slide" = "New Slide";
+"Speaker Notes" = "Speaker Notes";
+"Reveal Step" = "Reveal Step";
+"New Column" = "New Column";
+"Present from Current Slide" = "Present from Current Slide";
+"Slide Preview" = "Slide Preview";

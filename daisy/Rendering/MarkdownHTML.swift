@@ -59,6 +59,13 @@ nonisolated enum MarkdownHTML {
     /// User color overrides injected after the stylesheet. Values are
     /// sanitized hex colors — anything else is dropped, never emitted —
     /// so stored strings can't break out of the style element.
+    /// One rule per heading level: the theme's `--heading` for every level,
+    /// else that level's `--heading-N`, else the text color.
+    static func headingColorRules(selector: (Int) -> String) -> String {
+        (1...6).map { "\(selector($0)) { color: var(--heading, var(--heading-\($0), inherit)); }" }
+            .joined(separator: "\n")
+    }
+
     struct ThemeOverrides: Equatable, Sendable {
         var lightCodeBackground: String?
         var darkCodeBackground: String?
@@ -73,6 +80,18 @@ nonisolated enum MarkdownHTML {
         /// Link (`--link`) overrides — the theme's primary accent.
         var lightLink: String?
         var darkLink: String?
+        /// Heading (`--heading`) overrides; unset, headings use the text color.
+        var lightHeading: String?
+        var darkHeading: String?
+        /// Per-level heading colors (`--heading-1`…`--heading-6`), by level;
+        /// `lightHeading` / `darkHeading`, when set, win over them.
+        var lightHeadingLevels: [Int: String] = [:]
+        var darkHeadingLevels: [Int: String] = [:]
+        /// Table colors by custom property (`--table-border`, …).
+        var lightTableColors: [String: String] = [:]
+        var darkTableColors: [String: String] = [:]
+        /// How tables are drawn; nil or `lines` is the plain look.
+        var tableStyle: TableStyle?
 
         /// "#RRGGBB" (or #RRGGBBAA), or nil for anything else.
         static func sanitizedHexColor(_ value: String?) -> String? {
@@ -121,6 +140,49 @@ nonisolated enum MarkdownHTML {
                     :root:not([data-mdp-color-scheme="light"]) { --link: \(dark); }
                 }
                 """)
+            }
+            if let light = Self.sanitizedHexColor(lightHeading) {
+                rules.append(":root { --heading: \(light); }")
+            }
+            if let dark = Self.sanitizedHexColor(darkHeading) {
+                rules.append(":root[data-mdp-color-scheme=\"dark\"] { --heading: \(dark); }")
+                rules.append("""
+                @media (prefers-color-scheme: dark) {
+                    :root:not([data-mdp-color-scheme="light"]) { --heading: \(dark); }
+                }
+                """)
+            }
+            for level in lightHeadingLevels.keys.sorted() {
+                guard (1...6).contains(level),
+                      let light = Self.sanitizedHexColor(lightHeadingLevels[level]) else { continue }
+                rules.append(":root { --heading-\(level): \(light); }")
+            }
+            for level in darkHeadingLevels.keys.sorted() {
+                guard (1...6).contains(level),
+                      let dark = Self.sanitizedHexColor(darkHeadingLevels[level]) else { continue }
+                rules.append(":root[data-mdp-color-scheme=\"dark\"] { --heading-\(level): \(dark); }")
+                rules.append("""
+                @media (prefers-color-scheme: dark) {
+                    :root:not([data-mdp-color-scheme="light"]) { --heading-\(level): \(dark); }
+                }
+                """)
+            }
+            let tableProperties = ["--table-header-bg", "--table-border", "--table-stripe"]
+            for property in tableProperties {
+                if let light = Self.sanitizedHexColor(lightTableColors[property]) {
+                    rules.append(":root { \(property): \(light); }")
+                }
+                if let dark = Self.sanitizedHexColor(darkTableColors[property]) {
+                    rules.append(":root[data-mdp-color-scheme=\"dark\"] { \(property): \(dark); }")
+                    rules.append("""
+                    @media (prefers-color-scheme: dark) {
+                        :root:not([data-mdp-color-scheme="light"]) { \(property): \(dark); }
+                    }
+                    """)
+                }
+            }
+            if let tableStyle, tableStyle != .lines {
+                rules.append(MarkdownHTML.tableStyleRules(tableStyle))
             }
             if let light = Self.sanitizedHexColor(lightPageBackground) {
                 rules.append("html { background: \(light); }")
@@ -272,7 +334,8 @@ nonisolated enum MarkdownHTML {
                          strictLineBreaks: Bool = StrictLineBreaksSetting.current,
                          textAlignment: TextAlignmentSetting = .current,
                          documentID: String = "page",
-                         renderExtensionConfiguration: RenderExtensionConfiguration = .allEnabled) -> String {
+                         renderExtensionConfiguration: RenderExtensionConfiguration = .allEnabled,
+                         slideThemes: [String: SlideTheme] = SlideTheme.builtInCatalog) -> String {
         render(markdown: markdown,
                allowsScroll: allowsScroll,
                assetBaseHref: assetBaseHref,
@@ -283,7 +346,8 @@ nonisolated enum MarkdownHTML {
                strictLineBreaks: strictLineBreaks,
                textAlignment: textAlignment,
                documentID: documentID,
-               renderExtensionConfiguration: renderExtensionConfiguration).html
+               renderExtensionConfiguration: renderExtensionConfiguration,
+               slideThemes: slideThemes).html
     }
 
     /// Class of the placeholder an empty document shows instead of a blank page.
@@ -306,9 +370,25 @@ nonisolated enum MarkdownHTML {
                        highlightsCode: Bool = true,
                        documentID: String = "page",
                        renderExtensionConfiguration: RenderExtensionConfiguration = .allEnabled,
-                       emptyDocumentHint: String? = nil) -> RenderedHTML {
+                       emptyDocumentHint: String? = nil,
+                       forcesSlides: Bool = false,
+                       slideThemes: [String: SlideTheme] = SlideTheme.builtInCatalog) -> RenderedHTML {
         let frontmatter = MarkdownFrontmatter.split(markdown)
         let body = frontmatter.body
+        // A deck is asked for in frontmatter (`slides: true`), or by the host
+        // presenting any document.
+        let rendersSlides = forcesSlides
+            || SlideDeck.isDeck(frontmatter: frontmatter.raw, format: frontmatter.format)
+        var slideSettings = SlideDeckSettings()
+        var slideTheme: SlideTheme?
+        if rendersSlides {
+            slideSettings = SlideDeckSettings(frontmatter: frontmatter.raw, format: frontmatter.format)
+            let theme = SlideTheme.resolved(for: slideSettings, in: slideThemes)
+            // The deck's own header and footer win over its theme's.
+            slideSettings.header = slideSettings.header ?? theme.header
+            slideSettings.footer = slideSettings.footer ?? theme.footer
+            slideTheme = theme
+        }
         let sourceLineOffset: Int
         if frontmatter.raw != nil,
            let bodyRange = markdown.range(of: body, options: .backwards) {
@@ -337,28 +417,54 @@ nonisolated enum MarkdownHTML {
             highlightsCode: highlightsCode && rendersHighlights,
             rendersHighlights: rendersHighlights,
             rendersCallouts: rendersCallouts,
+            rendersSlides: rendersSlides,
+            slideSettings: slideSettings,
             strictLineBreaks: strictLineBreaks
         )
         let mathHTML = rendersMath ? renderMathBlocks(in: formatted, with: math) : formatted
-        let footnoteReferenceHTML = renderFootnoteReferences(in: mathHTML, with: footnotes)
-        let footnoteDefinitions = renderFootnoteDefinitions(
-            footnotes,
-            sourceLineOffset: sourceLineOffset,
-            strictLineBreaks: strictLineBreaks,
-            rendersMath: rendersMath,
-            highlightsCode: highlightsCode && rendersHighlights,
-            rendersHighlights: rendersHighlights,
-            rendersCallouts: rendersCallouts
-        )
-        let headingsHTML = injectHeadingIDs(in: footnoteReferenceHTML + footnoteDefinitions.html)
+        // A deck lists each footnote on the slides that reference it rather
+        // than once at the end of the document.
+        let footnotePlacedHTML: String
+        let footnoteDefinitionsHTML: String
+        if rendersSlides {
+            footnotePlacedHTML = placeSlideFootnotes(
+                in: mathHTML,
+                footnotes: footnotes,
+                items: renderSlideFootnoteItems(
+                    footnotes,
+                    sourceLineOffset: sourceLineOffset,
+                    strictLineBreaks: strictLineBreaks,
+                    rendersMath: rendersMath,
+                    highlightsCode: highlightsCode && rendersHighlights,
+                    rendersHighlights: rendersHighlights,
+                    rendersCallouts: rendersCallouts
+                )
+            )
+            footnoteDefinitionsHTML = ""
+        } else {
+            footnotePlacedHTML = mathHTML
+            footnoteDefinitionsHTML = renderFootnoteDefinitions(
+                footnotes,
+                sourceLineOffset: sourceLineOffset,
+                strictLineBreaks: strictLineBreaks,
+                rendersMath: rendersMath,
+                highlightsCode: highlightsCode && rendersHighlights,
+                rendersHighlights: rendersHighlights,
+                rendersCallouts: rendersCallouts
+            ).html
+        }
+        let footnoteReferenceHTML = renderFootnoteReferences(in: footnotePlacedHTML, with: footnotes)
+        let headingsHTML = injectHeadingIDs(in: footnoteReferenceHTML + footnoteDefinitionsHTML)
         // Direction inference scans every rendered block. Most documents
         // contain no RTL text, so avoid walking the much larger generated
         // HTML unless the Markdown could produce an RTL first character.
         let renderedBodyHTML = sourceMayNeedRTLDirection(body)
             ? injectRTLDirection(in: headingsHTML)
             : headingsHTML
+        // A deck's frontmatter configures the deck; it is not a slide.
         let frontmatterHTML: String
-        if let raw = frontmatter.raw,
+        if !rendersSlides,
+           let raw = frontmatter.raw,
            let format = frontmatter.format {
             frontmatterHTML = renderFrontmatter(
                 raw,
@@ -459,6 +565,13 @@ nonisolated enum MarkdownHTML {
         for assets in extensionAssets {
             scriptAssetIDs.formUnion(assets.scriptAssetIDs)
         }
+        // The theme lives in <head>, which a body swap keeps: a deck with a
+        // different theme, or none, must load a fresh page.
+        let slideThemeCSS = slideTheme?.css ?? ""
+        if slideTheme != nil { scriptAssetIDs.insert("slides-theme:" + slideThemeCSS) }
+        let slideThemeBlock = slideTheme == nil
+            ? ""
+            : "<style id=\"mdp-slide-theme\">\(slideThemeCSS)</style>"
         // Inline documents populate the article as soon as its <template> has
         // parsed — before the body-end vendor bundles below it — so the text
         // is paintable while the parser is still working through the JS. The
@@ -532,6 +645,7 @@ nonisolated enum MarkdownHTML {
         <style>:root { --mdp-page-top-clearance: \(pageTopClearance)px; }</style>
         \(extensionCSS.isEmpty ? "" : "<style>\(extensionCSS)</style>")
         \(themeStyleBlock)
+        \(slideThemeBlock)
         \(scrollOverride)
         \(contentWidthOverride)
         \(documentFontOverride)

@@ -491,3 +491,38 @@ const slashInsertTemplate = (body, { source = "", locale = "en" } = {}) => {
   check("destroying the editor removes its menu",
     dom.window.document.querySelectorAll(".cm-md-slash-menu").length === before)
 }
+
+// --- Slide deck commands ------------------------------------------------------
+{
+  const { editor } = slashEditor("# Notes\n\n")
+  editor.insertTextAt("/", 9, 9)
+  check("slide commands stay out of a document that is not a deck",
+    slashVisible() && !slashLabels().includes("New Slide") && !slashLabels().includes("Speaker Notes"))
+}
+
+{
+  const deck = "---\nslides: true\n---\n\n"
+  const { host, editor } = slashEditor(deck)
+  editor.insertTextAt("/", deck.length, deck.length)
+  check("a deck lists the slide commands",
+    ["New Slide", "Speaker Notes", "Reveal Step", "New Column"].every((label) => slashLabels().includes(label)))
+  editor.insertTextAt("slide", deck.length + 1, deck.length + 1)
+  slashKey(host, "Enter")
+  check("/slide inserts a slide break", editor.getMarkdown() === deck + "---\n")
+}
+
+{
+  const deck = "---\nslides: true\n---\n- Ship "
+  const { host, editor } = slashEditor(deck)
+  editor.insertTextAt("/step", deck.length, deck.length)
+  slashKey(host, "Enter")
+  check("/step at the end of text marks that line", editor.getMarkdown() === "---\nslides: true\n---\n- Ship <!-- step -->")
+}
+
+{
+  const deck = "---\nslides: true\n---\n"
+  const { host, editor } = slashEditor(deck + " Say hello")
+  editor.insertTextAt("/notes", deck.length, deck.length)
+  slashKey(host, "Enter")
+  check("/notes starts the notes with the line's text", editor.getMarkdown() === deck + "???\nSay hello")
+}

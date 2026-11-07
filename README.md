@@ -43,11 +43,12 @@ Download the signed and notarized DMG from [Releases](https://github.com/bluzky/
 - **Query blocks** — ```` ```tasks ```` and ```` ```notes ```` blocks list matching tasks or files, e.g. `+daisy -is:done due:<=7d sort:due`, as a list or a `$view:table`. See [query block guide](docs/query-blocks.md).
 - **Code and text files** — open in a code editor with syntax highlighting; add your own types in **Settings → General**.
 - **Templates** — insert snippets from your own template file; see [Templates](#templates).
-- **Extensions** — code highlighting, callouts, KaTeX, Mermaid and colorful headings, each switchable in **Settings → Extensions**.
+- **Extensions** — code highlighting, callouts, KaTeX and Mermaid, each switchable in **Settings → Extensions**.
 - **Hide completed tasks** — **View → Hide Completed Tasks** (<kbd>⇧⌘H</kbd>, or its toolbar button) hides checked tasks in Read and Edit mode, in every window; the file is unchanged.
 - **Search** — in-document find (<kbd>⌘F</kbd>) and OmniSearch (<kbd>⌘K</kbd>) for files, text and commands.
 - **Quick Capture** — a global shortcut (<kbd>⌃⌥Space</kbd>) that opens your `Inbox.md` with a new timestamped heading.
 - **Themes** — reading themes with font, spacing and color customization; some follow the system light/dark appearance.
+- **Slides** — add `slides: true` to a file's frontmatter and it reads as a deck: `---` on its own line starts the next slide, a `???` line starts that slide's speaker notes, and each slide's layout comes from its content. Backgrounds (`![bg left](photo.jpg)`), image sizes, `<!-- step -->` reveals, `<!-- column -->` columns, `<!-- space -->` and per-slide `layout`, `_class` and `color` directives are supported. Themes (built-in or your own YAML), headers, footers and page numbers, and a **Slide Preview** pane beside the editor. **View → Present** (<kbd>⌥⌘P</kbd>) shows any Markdown file full screen as slides, with a presenter window (notes, next slide, timer) on a second display. A deck exports and prints one slide per page. See the [slides guide](docs/slides.md).
 - **Export** — PDF, HTML, PNG and Word (`.docx`, with [custom themes](docs/docx-theme-authoring.md)).
 - **Quick Look** — `.md` previews in Finder, Spotlight and Mail.
 - **Custom shortcuts** — rebind commands in **Settings → Shortcuts** (`~/.config/daisy/keymap.json`). See [Keyboard shortcuts](docs/keybindings.md) for the defaults.

@@ -1,1 +1,0 @@
-../../../../daisy/Rendering/MarkdownHTML+ColorfulHeaders.swift
