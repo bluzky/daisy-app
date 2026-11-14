@@ -24,6 +24,10 @@ enum KeymapCommand: String, CaseIterable, Hashable {
     case viewToggleEditMode = "view.toggleEditMode"
     case viewToggleToolbar = "view.toggleToolbar"
     case viewToggleAlwaysOnTop = "view.toggleAlwaysOnTop"
+    case viewToggleCompletedTasks = "view.toggleCompletedTasks"
+    case viewPresent = "view.present"
+    case viewPresentFromCurrentSlide = "view.presentFromCurrentSlide"
+    case viewToggleSlidePreview = "view.toggleSlidePreview"
 
     case editPasteAndMatchStyle = "edit.pasteAndMatchStyle"
     case findFind = "find.find"
@@ -81,7 +85,8 @@ enum KeymapCommand: String, CaseIterable, Hashable {
              .viewToggleSidebar, .viewShowOutline,
              .viewShowProjectNavigator, .viewToggleTasks, .viewToggleReferences, .viewToggleEditMode,
              .viewToggleToolbar,
-             .viewToggleAlwaysOnTop, .findFind, .findReplace, .findNext,
+             .viewToggleAlwaysOnTop, .viewToggleCompletedTasks, .viewPresent, .viewPresentFromCurrentSlide, .viewToggleSlidePreview,
+             .findFind, .findReplace, .findNext,
              .findPrevious, .findJumpToSelection, .goBack, .goForward,
              .goTodayJournal, .goPreviousJournalEntry, .goNextJournalEntry:
             .global
@@ -111,6 +116,10 @@ enum KeymapCommand: String, CaseIterable, Hashable {
         case .viewToggleEditMode: "Toggle Edit Mode"
         case .viewToggleToolbar: "Show Toolbar"
         case .viewToggleAlwaysOnTop: "Always on Top"
+        case .viewToggleCompletedTasks: "Hide Completed Tasks"
+        case .viewPresent: "Present"
+        case .viewPresentFromCurrentSlide: "Present from Current Slide"
+        case .viewToggleSlidePreview: "Slide Preview"
         case .editPasteAndMatchStyle: "Paste and Match Style"
         case .findFind: "Find…"
         case .findReplace: "Find and Replace…"
@@ -479,10 +488,12 @@ struct Keymap {
     private static let defaultBindings: [KeymapContext: [(KeyBinding, KeymapCommand)]] = [
         .global: pairs([
             ("cmd+k", .fileOmniSearch), ("cmd+l", .viewToggleSidebar),
-            ("ctrl+cmd+1", .viewShowOutline), ("ctrl+cmd+2", .viewShowProjectNavigator),
+            ("cmd+1", .viewShowOutline), ("cmd+2", .viewShowProjectNavigator),
             ("shift+cmd+i", .viewToggleTasks), ("shift+cmd+r", .viewToggleReferences),
             ("cmd+e", .viewToggleEditMode),
             ("opt+cmd+t", .viewToggleToolbar), ("ctrl+cmd+t", .viewToggleAlwaysOnTop),
+            ("shift+cmd+h", .viewToggleCompletedTasks), ("opt+cmd+p", .viewPresent),
+            ("opt+shift+cmd+p", .viewPresentFromCurrentSlide), ("cmd+9", .viewToggleSlidePreview),
             ("cmd+f", .findFind), ("opt+cmd+f", .findReplace), ("cmd+g", .findNext),
             ("shift+cmd+g", .findPrevious), ("cmd+j", .findJumpToSelection),
             ("cmd+[", .goBack), ("cmd+]", .goForward),

@@ -16,10 +16,11 @@ import { indentMarkdownListItems } from "./commands/list-indent.js"
 import { continueList, deleteListMarker, indentListItems, insertListContinuation, outdentListItems, paragraphAfterList, selectedListStyle, setListStyle, toggleListStyle } from "./commands/lists.js"
 import { deleteTableBackward, deleteTableForward, openLineBelowTable } from "./commands/table-edges.js"
 import { METRICS, directionLines } from "./decoration-parts.js"
-import { editorModuleEnabled, editorModuleExtensions, editorModules } from "./extensions.js"
+import { editorModuleEnabled, editorModuleExtensions, editorModules, hostStateChanged } from "./extensions.js"
 import { collectMatches, documentFind, expandReplacement, findTheme, sameSearch, setFind } from "./find.js"
 import { formattingState } from "./formatting-state.js"
 import { codeLanguages } from "./languages.js"
+import { frontmatterCollapse } from "./frontmatter-collapse.js"
 import { alignInactiveHeadings, keepCaretAfterListMarker, leaveListMarkerBackward, livePreview, stopAfterListMarker } from "./live-preview/plugins.js"
 import { obsidianHighlight } from "./obsidian-highlight.js"
 import { codeCardWidth } from "./code-card-width.js"
@@ -54,7 +55,7 @@ window.MDEditor = {
     const moduleEnabled = new Map()
     // Handed to every module: the callbacks the page gave this editor.
     const moduleHost = { callbacks: callbacks || {}, slashTemplates: [], workspaceCandidates: null, metadataLinks: false,
-      queryResults: new Map(), moveBlocks: false, carryOver: false }
+      queryResults: new Map(), moveBlocks: false, carryOver: false, hostState: {} }
     const moduleOptions = (id) => (callbacks && callbacks.extensionOptions && callbacks.extensionOptions[id]) || {}
     for (const module of editorModules.values()) {
       const enabled = editorModuleEnabled(callbacks && callbacks.extensionState, module.id)
@@ -105,6 +106,7 @@ window.MDEditor = {
           }),
           activeCodeBlock,
           unwrappedCodeBlocks,
+          frontmatterCollapse,
           pointerPreview,
           stablePointerPreview,
           codeCardWidth,
@@ -692,6 +694,12 @@ window.MDEditor = {
       setMetadataLinks: (enabled) => {
         moduleHost.metadataLinks = enabled === true
         view.dispatch({ effects: metadataLinksChanged.of(moduleHost.metadataLinks) })
+      },
+      // Per-window module state from the host, `{ moduleID: Bool }`,
+      // replacing the map held; modules read it through `hostFlag`.
+      setHostState: (state) => {
+        moduleHost.hostState = { ...(state || {}) }
+        view.dispatch({ effects: hostStateChanged.of(moduleHost.hostState) })
       },
       setExtensionState: (state) => {
         const effects = []

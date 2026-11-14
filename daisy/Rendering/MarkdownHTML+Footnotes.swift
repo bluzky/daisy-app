@@ -289,6 +289,34 @@ nonisolated extension MarkdownHTML {
         )
     }
 
+    /// Slides list each footnote on every slide that references it, so the
+    /// same definition can appear several times: no ids and no back-links,
+    /// only the document-wide number. Keyed by footnote number.
+    static func renderSlideFootnoteItems(
+        _ footnotes: FootnoteExtraction,
+        sourceLineOffset: Int,
+        strictLineBreaks: Bool,
+        rendersMath: Bool = true,
+        highlightsCode: Bool = true,
+        rendersHighlights: Bool = true,
+        rendersCallouts: Bool = true
+    ) -> [Int: String] {
+        var items: [Int: String] = [:]
+        for definition in footnotes.definitions {
+            let content = renderFootnoteDefinitionContent(
+                definition.content,
+                sourceLineOffset: sourceLineOffset + definition.sourceLine - 1,
+                strictLineBreaks: strictLineBreaks,
+                rendersMath: rendersMath,
+                highlightsCode: highlightsCode,
+                rendersHighlights: rendersHighlights,
+                rendersCallouts: rendersCallouts
+            )
+            items[definition.number] = "<li value=\"\(definition.number)\">\n\(content.html)\n</li>"
+        }
+        return items
+    }
+
     private static func appendFootnoteBackrefs(_ backrefs: String, to html: String) -> String {
         guard !backrefs.isEmpty else { return html }
         let inlineBackrefs = "<span class=\"footnote-backrefs\">\(backrefs)</span>"

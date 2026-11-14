@@ -748,6 +748,13 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
     let rendersHighlights: Bool
     /// Upgrade GitHub-style alert blockquotes.
     let rendersCallouts: Bool
+    /// Render the document as presentation slides (`SlideDeck`).
+    let rendersSlides: Bool
+    /// The deck's frontmatter settings, for its header, footer and aspect.
+    let slideSettings: SlideDeckSettings
+    /// The deck's `<!-- step -->` targets inside blocks, written as
+    /// `data-step` on the list item or paragraph.
+    private var slideElementSteps: [SlideDeck.SourceKey: Int] = [:]
     private let sourceLines: [String]
     private let parsedSourceLines: [String]
 
@@ -779,6 +786,8 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
          highlightsCode: Bool = true,
          rendersHighlights: Bool = true,
          rendersCallouts: Bool = true,
+         rendersSlides: Bool = false,
+         slideSettings: SlideDeckSettings = SlideDeckSettings(),
          strictLineBreaks: Bool = false) {
         self.strictLineBreaks = strictLineBreaks
         self.options = options
@@ -786,6 +795,8 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
         self.highlightsCode = highlightsCode
         self.rendersHighlights = rendersHighlights
         self.rendersCallouts = rendersCallouts
+        self.rendersSlides = rendersSlides
+        self.slideSettings = slideSettings
         // Escapes/entities can decode into a URL even without a literal scheme.
         self.detectsBareURLs = Self.mayContainHTTP(parsedMarkdown, includesMarkdownEscapes: true)
             || Self.mayContainAutolink(parsedMarkdown)
@@ -800,10 +811,10 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
                        highlightsCode: Bool = true,
                        rendersHighlights: Bool = true,
                        rendersCallouts: Bool = true,
+                       rendersSlides: Bool = false,
+                       slideSettings: SlideDeckSettings = SlideDeckSettings(),
                        strictLineBreaks: Bool = false) -> String {
-        let preparedMarkdown = rendersHighlights
-            ? MarkdownHighlightSource.preparing(markdown)
-            : markdown
+        let preparedMarkdown = preparedForParsing(markdown, rendersHighlights: rendersHighlights)
         let document = Document(parsing: preparedMarkdown)
         var walker = EscapingHTMLFormatter(
             options: options,
@@ -813,10 +824,18 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
             highlightsCode: highlightsCode,
             rendersHighlights: rendersHighlights,
             rendersCallouts: rendersCallouts,
+            rendersSlides: rendersSlides,
+            slideSettings: slideSettings,
             strictLineBreaks: strictLineBreaks
         )
         walker.visit(document)
         return walker.result
+    }
+
+    /// The text `format` hands the parser, so other readers of the tree
+    /// (`MarkdownHTML.slideCount`) see the same structure.
+    static func preparedForParsing(_ markdown: String, rendersHighlights: Bool) -> String {
+        rendersHighlights ? MarkdownHighlightSource.preparing(markdown) : markdown
     }
 
     // MARK: Block elements
@@ -876,6 +895,10 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
     }
 
     mutating func visitDocument(_ document: Document) {
+        if rendersSlides {
+            visitSlideDeck(SlideDeck(document: document))
+            return
+        }
         for child in document.children {
             // CommonMark discards source blank lines between blocks. Restore
             // every authored line in addition to the blocks' semantic margins.
@@ -884,6 +907,106 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
             }
             visit(child)
         }
+    }
+
+    /// One `<section>` per slide inside `.mdp-deck`: the slide canvas, then
+    /// its speaker notes. Blank-line spacers are left out; a slide has its
+    /// own spacing. `MarkdownHTML.slideFootnotesToken` marks where the
+    /// footnotes referenced since the previous token go.
+    private mutating func visitSlideDeck(_ deck: SlideDeck) {
+        result += "<div class=\"mdp-deck\" data-aspect=\"\(slideSettings.aspect.rawValue)\">\n"
+        let chrome = SlideChrome(settings: slideSettings, deck: deck)
+        for (index, slide) in deck.slides.enumerated() {
+            slideElementSteps = slide.elementSteps
+            result += "<section class=\"mdp-slide-frame\" data-slide=\"\(index)\""
+            result += " data-steps=\"\(slide.stepCount)\">\n"
+            var classes = ["mdp-slide", "mdp-slide--\(slide.layout.rawValue)"]
+            classes += slide.classes.map { "mdp-slide-class-\($0)" }
+            if let background = slide.background {
+                classes.append("mdp-slide--bg-\(background.position.rawValue)")
+                if background.dims { classes.append("mdp-slide--bg-dim") }
+            }
+            result += "<div class=\"\(classes.joined(separator: " "))\""
+            if let color = slide.color {
+                result += " data-slide-color=\"\(escapeAttribute(color))\""
+            }
+            if let size = slide.fontSize {
+                result += " data-slide-font-size=\"\(SlideDeck.cqw(size))\""
+            }
+            result += ">"
+            if let background = slide.background {
+                let fit = background.fits ? " mdp-slide-bg--fit" : ""
+                let dim = background.dims ? " mdp-slide-bg--dim" : ""
+                let blur = background.blurs ? " mdp-slide-bg--blur" : ""
+                result += "<div class=\"mdp-slide-bg mdp-slide-bg--\(background.position.rawValue)\(fit)\(dim)\(blur)\">"
+                result += "<img src=\"\(escapeAttribute(background.source))\" alt=\"\" /></div>"
+            }
+            result += "<div class=\"mdp-slide-body\">\n"
+            if slide.columns.isEmpty {
+                visitSlideBlocks(slide, in: slide.blocks.indices)
+            } else {
+                visitSlideBlocks(slide, in: slide.columnHeader)
+                result += "<div class=\"mdp-slide-columns\">\n"
+                for column in slide.columns {
+                    result += "<div class=\"mdp-slide-column\">\n"
+                    visitSlideBlocks(slide, in: column)
+                    result += "</div>\n"
+                }
+                result += "</div>\n"
+                visitSlideBlocks(slide, in: slide.columnFooter)
+            }
+            result += MarkdownHTML.slideFootnotesToken + "</div>"
+            result += chrome.html(for: slide, number: index + 1)
+            result += "</div>\n"
+            if slide.hasNotes {
+                result += "<aside class=\"mdp-slide-notes\">\n"
+                if let lead = slide.notesLead {
+                    result += "<p\(sourceLineAttribute(lead))>"
+                    for child in SlideDeck.notesLeadContent(lead) {
+                        visit(child)
+                    }
+                    result += "</p>\n"
+                }
+                for block in slide.notes {
+                    visit(block)
+                }
+                result += MarkdownHTML.slideFootnotesToken + "</aside>\n"
+            }
+            result += "</section>\n"
+        }
+        slideElementSteps = [:]
+        result += "</div>\n"
+    }
+
+    private mutating func visitSlideBlocks(_ slide: SlideDeck.Slide, in range: Range<Int>) {
+        for blockIndex in range {
+            if let paragraph = slide.blocks[blockIndex] as? Paragraph,
+               let caption = SlideDeck.caption(paragraph) {
+                result += "<p class=\"mdp-slide-caption\"\(sourceLineAttribute(paragraph))>"
+                result += MarkdownHTML.htmlEscape(caption) + "</p>\n"
+                continue
+            }
+            if let lines = slide.spaces[blockIndex] {
+                result += "<div class=\"mdp-slide-space mdp-slide-space-\(lines)\" aria-hidden=\"true\"></div>\n"
+                continue
+            }
+            // `display: contents` keeps the block in the slide's layout.
+            if let step = slide.blockSteps[blockIndex] {
+                result += "<div class=\"mdp-step\" data-step=\"\(step)\">"
+                visit(slide.blocks[blockIndex])
+                result += "</div>\n"
+            } else {
+                visit(slide.blocks[blockIndex])
+            }
+        }
+    }
+
+    /// ` data-step="n"` when the deck reveals `markup` on click `n`.
+    private func stepAttribute(_ markup: Markup) -> String {
+        guard !slideElementSteps.isEmpty,
+              let key = SlideDeck.SourceKey(markup),
+              let step = slideElementSteps[key] else { return "" }
+        return " data-step=\"\(step)\""
     }
 
     mutating func visitBlockQuote(_ blockQuote: BlockQuote) {
@@ -1082,14 +1205,14 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
     mutating func visitListItem(_ listItem: ListItem) {
         let bareTask = listItem.checkbox == nil ? Self.bareTaskChecked(listItem) : nil
         if let checked = listItem.checkbox.map({ $0 == .checked }) ?? bareTask {
-            result += "<li class=\"task-list-item\"\(sourceLineAttribute(listItem))>"
+            result += "<li class=\"task-list-item\"\(sourceLineAttribute(listItem))\(stepAttribute(listItem))>"
             result += "<input type=\"checkbox\" class=\"task-list-item-checkbox\" disabled=\"\""
             if checked {
                 result += " checked=\"\""
             }
             result += " /> "
         } else {
-            result += "<li\(sourceLineAttribute(listItem))>"
+            result += "<li\(sourceLineAttribute(listItem))\(stepAttribute(listItem))>"
         }
         if bareTask != nil {
             // The `[ ]` paragraph is the checkbox itself.
@@ -1136,7 +1259,7 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
     }
 
     mutating func visitParagraph(_ paragraph: Paragraph) {
-        result += "<p\(sourceLineAttribute(paragraph))>"
+        result += "<p\(sourceLineAttribute(paragraph))\(stepAttribute(paragraph))>"
         // Source-indented pseudo-list lines only exist inside a parsed list.
         // Keep the overwhelmingly common top-level paragraph path on the
         // walker's direct traversal instead of materializing all children.
@@ -1370,7 +1493,10 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
         if let source = image.source, !source.isEmpty {
             result += " src=\"\(escapeAttribute(source))\""
         }
-        if let title = image.title, !title.isEmpty {
+        if rendersSlides, let size = image.title.flatMap(SlideDeck.imageSize) {
+            // A slide image's title is its size; the slide script applies it.
+            result += " data-mdp-size=\"\(size)\""
+        } else if let title = image.title, !title.isEmpty {
             result += " title=\"\(escapeAttribute(title))\""
         }
         result += " />"

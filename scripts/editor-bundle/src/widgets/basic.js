@@ -1,4 +1,5 @@
 import { WidgetType } from "@codemirror/view"
+import { ALERT_ICONS } from "./alert-icons.js"
 
 // ---------------------------------------------------------------------------
 // Live preview decorations
@@ -89,6 +90,29 @@ export class RuleWidget extends WidgetType {
     const el = document.createElement("span")
     el.className = "cm-md-hr"
     return el
+  }
+  ignoreEvent() { return false }
+}
+
+// Replaces the `[!NOTE]` token while the caret is off the title line: the
+// kind's icon plus its default title (omitted when the author wrote one).
+export class AlertTitleWidget extends WidgetType {
+  constructor(kind, text) { super(); this.kind = kind; this.text = text }
+  eq(other) { return other.kind === this.kind && other.text === this.text }
+  toDOM() {
+    const span = document.createElement("span")
+    span.className = "cm-md-alert-title"
+    const ns = "http://www.w3.org/2000/svg"
+    const svg = document.createElementNS(ns, "svg")
+    svg.setAttribute("viewBox", "0 0 16 16")
+    svg.setAttribute("aria-hidden", "true")
+    svg.setAttribute("class", "cm-md-alert-icon")
+    const path = document.createElementNS(ns, "path")
+    path.setAttribute("d", ALERT_ICONS[this.kind])
+    svg.appendChild(path)
+    span.appendChild(svg)
+    if (this.text) span.appendChild(document.createTextNode(this.text))
+    return span
   }
   ignoreEvent() { return false }
 }

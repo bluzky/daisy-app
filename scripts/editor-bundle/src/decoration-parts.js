@@ -116,6 +116,22 @@ export const quoteLine = (depth, starts, ends, gap) => {
   }
   return deco
 }
+// Callout (`> [!NOTE]`) lines: one class per kind, plus first/last so the
+// tinted box gets its corners and vertical padding. The title line keeps its
+// `[!KIND]` source, coloured and bold by CSS. The box itself is drawn
+// by a ::before in EditorHTML so it can stop above the block gap.
+const alertLineCache = new Map()
+export const alertLine = (kind, first, last) => {
+  const key = `${kind}:${first}:${last}`
+  let deco = alertLineCache.get(key)
+  if (!deco) {
+    deco = Decoration.line({
+      class: `cm-md-alert cm-md-alert-${kind}${first ? " cm-md-alert-first" : ""}${last ? " cm-md-alert-last" : ""}`,
+    })
+    alertLineCache.set(key, deco)
+  }
+  return deco
+}
 // Lines of a list item that carry no marker (a continuation paragraph, a
 // nested code block) align with the item text: same depth padding, but no
 // hanging indent, and the source indentation is hidden like a nested

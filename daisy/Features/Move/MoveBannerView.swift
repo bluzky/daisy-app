@@ -4,7 +4,7 @@
 //
 //  The message `/move` leaves at the bottom of the window: where the block
 //  went, or why it didn't, with the buttons that still apply (Undo, Open)
-//  and a close button. The window decides when it goes; see
+//  and a close button. The window hides it after a few seconds; see
 //  DocumentWindowController+Move.swift.
 //
 
@@ -17,6 +17,12 @@ final class MoveBannerView: NSView {
     }
 
     var onClose: (() -> Void)?
+
+    /// Whether the pointer is over the banner, which holds off hiding it.
+    var containsPointer: Bool {
+        guard let window else { return false }
+        return bounds.contains(convert(window.mouseLocationOutsideOfEventStream, from: nil))
+    }
     private var handlers: [() -> Void] = []
     /// The buttons, which show the pointing hand. The banner floats over the
     /// editor's web view, whose own cursor would otherwise win.
