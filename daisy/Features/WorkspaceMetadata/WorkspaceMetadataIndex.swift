@@ -398,7 +398,7 @@ actor WorkspaceMetadataIndex {
     /// Opens the store and counts every file it holds, as of when the store
     /// last saw it; the first scan then re-reads only what changed since.
     /// Nothing is cached when the cache folder is inside the workspace,
-    /// because Daisy writes nothing there but the marker and pages.
+    /// because Daisy writes nothing there but the marker, pages and journal entries.
     private func loadCache() async {
         guard let directory = cacheDirectory, !isCacheDiscarded,
               !Self.isInside(directory, root: root),

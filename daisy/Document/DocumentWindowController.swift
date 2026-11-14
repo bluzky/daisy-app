@@ -67,6 +67,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         didSet {
             updateWorkspaceIndexBinding()
             mainSplit?.setMetadataLinksEnabled(isWorkspace)
+            refreshJournalToolbarItem()
+            addJournalToolbarItemIfNeeded()
         }
     }
     /// The shared index for `indexedWorkspaceRootURL`, and what it last published.
@@ -191,6 +193,11 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     var themesPopover: NSPopover?
     /// Armed only while the themes popover is open.
     let themesPopoverEscapeMonitor = EscapeKeyMonitor()
+    /// The toolbar's Journal calendar popover while it is on screen.
+    var journalCalendarPopover: NSPopover?
+    /// Armed only while the Journal calendar is open.
+    let journalCalendarEscapeMonitor = EscapeKeyMonitor()
+    weak var journalCalendarButton: NSButton?
     /// The Table of Contents / Project Navigator picker in the toolbar.
     var sidebarModeItem: NSToolbarItemGroup?
     /// The original position and spacer while sidebar-only items are removed.
@@ -331,6 +338,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         replaceZoomToolbarItemIfNeeded(in: toolbar)
         migrateLegacySidebarToolbarIfNeeded(in: toolbar)
         observeAndPersistToolbarPreferences(toolbar)
+        addJournalToolbarItemIfNeeded()
 
         installFindBar()
         applyWindowBackgroundTheme()
@@ -437,6 +445,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         fileWatcher?.cancel()
         fileWatcher = nil
         themesPopoverEscapeMonitor.stop()
+        journalCalendarEscapeMonitor.stop()
         stopAutoSaveTimer()
         autoSaveFeedbackResetWork?.cancel()
         autoSaveFeedbackResetWork = nil

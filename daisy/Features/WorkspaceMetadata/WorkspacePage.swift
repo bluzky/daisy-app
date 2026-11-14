@@ -8,8 +8,9 @@
 //  name becomes `--`: `#area/sub` is `pages/#area--sub.md`. An existing page
 //  is found ignoring case; a missing one is created holding only `# <token>`.
 //
-//  Creating a page is the one write into a workspace besides the marker, and
-//  happens only when the user opens a token. No AppKit, so it links into
+//  Creating a page is, with creating a journal entry (`WorkspaceJournal`),
+//  the only write into a workspace besides the marker, and happens only when
+//  the user opens a token. No AppKit, so it links into
 //  `tests/swift-tests`.
 //
 

@@ -552,6 +552,32 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
         webView.evaluateJavaScript(script) { _, _ in }
     }
 
+    /// The selection, and whether it starts at a line's start and ends at
+    /// a line's end: where a block of lines can go without splitting one.
+    func fetchLineInsertionPoint(_ completion: @escaping ((from: Int, to: Int,
+                                                           atLineStart: Bool, atLineEnd: Bool)?) -> Void) {
+        let script = """
+        (() => {
+            const editor = window.__mdEditor;
+            const selection = editor && editor.getLinkSelection(false);
+            if (!selection) return null;
+            const markdown = editor.getMarkdown();
+            return { from: selection.from, to: selection.to,
+                     atLineStart: selection.from === 0 || markdown[selection.from - 1] === "\\n",
+                     atLineEnd: selection.to === markdown.length || markdown[selection.to] === "\\n" };
+        })()
+        """
+        webView.evaluateJavaScript(script) { result, _ in
+            guard let value = result as? [String: Any], let from = value["from"] as? Int,
+                  let to = value["to"] as? Int, let atLineStart = value["atLineStart"] as? Bool,
+                  let atLineEnd = value["atLineEnd"] as? Bool else {
+                completion(nil)
+                return
+            }
+            completion((from, to, atLineStart, atLineEnd))
+        }
+    }
+
     func insertMarkdown(_ markdown: String,
                         from: Int,
                         to: Int,

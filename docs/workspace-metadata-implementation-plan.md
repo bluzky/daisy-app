@@ -234,7 +234,7 @@ Make each tag, context, and project in a workspace window a link to its page: a 
 - **Lookup.** Case is ignored: the file name is compared with the extractor's `normalizedKey`, so `#Review` opens an existing `pages/#review.md`. When more than one file matches, the order is: exact spelling first, then lexical order.
 - **Creation.** When no page exists, create `pages/` if needed and write the page holding `# <label>\n`. `<label>` is the token as written, marker included, with `/` kept: `#Review` gives `# #Review`, and `#area/sub` gives `# #area/sub`. The write is atomic and never replaces an existing file. If the write fails, show an error and leave the document as it was.
 - **Opening.** A page opens the way a clicked local Markdown link does (`onOpenMarkdownLink`): in the same window, so it joins the workspace through the existing `inheritProject` path.
-- **Writes into the workspace.** Opening a page that doesn't exist yet is the only action that writes into the workspace, apart from the marker. It happens only on an explicit click; indexing, rendering, and completion still never write. The new page reaches the index through the directory watcher like any other file.
+- **Writes into the workspace.** Opening a page that doesn't exist yet is the only action that writes into the workspace, apart from the marker (and, since the journal, opening a journal entry that doesn't exist yet, which with carry-over on also rewrites the earlier entries its tasks come from). It happens only on an explicit click; indexing, rendering, and completion still never write. The new page reaches the index through the directory watcher like any other file.
 
 ### Tasks
 
@@ -291,13 +291,13 @@ Persist disposable derived index data outside the workspace, with graceful fallb
 
 - Cached reopen, incompatible schema/parser rebuild, cache corruption, system purge, root relocation, path validation, write failure, contention, and cache-only rebuild.
 - Persistent-cache-disabled fallback.
-- The cache creates no file inside the workspace (the marker and Phase 4.5 pages are the only workspace writes); cache directory is excluded from watcher feedback.
+- The cache creates no file inside the workspace (the marker, Phase 4.5 pages, opened journal entries and the earlier entries carry-over takes tasks from are the only workspace writes); cache directory is excluded from watcher feedback.
 
 ### Exit criteria
 
 - Cache is optional and disposable.
 - Persistent cache failure never blocks editing or completion.
-- Daisy writes nothing into workspace folders except the marker and pages the user explicitly opens (Phase 4.5).
+- Daisy writes nothing into workspace folders except the marker and the pages (Phase 4.5) and journal entries the user explicitly opens, and, with carry-over on, the earlier entries whose tasks move into today's new one.
 
 ## Phase 6 — Integration, docs, and runtime validation
 
@@ -319,7 +319,7 @@ Ship coherent behavior with accurate documentation and end-to-end validation.
 3. Add "Rebuild Workspace Index" UI/action for the current workspace.
 4. Update `README.md`, samples, and behavior comments only after final behavior exists.
 5. Task metadata badges render in the editor and Read mode (`task-metadata` render extension); Quick Look and exports stay literal. Re-check this when wiring Phase 6 runtime tests.
-6. Perform runtime tests for keyboard navigation, mouse selection, VoiceOver labels/selection state, date chooser cancel/accept, two-tab overlays, Initialize and Remove Workspace, marker detection on every folder-open route including last-session restore, folders without a marker staying unindexed, a Finder-opened file joining an open workspace window that contains it and staying plain when none is open, overlapping workspaces, unresolvable bookmarks, synced folders (nothing written but the marker and explicitly opened pages), metadata link click and Cmd+click in both modes, page creation, large workspaces, and cache corruption.
+6. Perform runtime tests for keyboard navigation, mouse selection, VoiceOver labels/selection state, date chooser cancel/accept, two-tab overlays, Initialize and Remove Workspace, marker detection on every folder-open route including last-session restore, folders without a marker staying unindexed, a Finder-opened file joining an open workspace window that contains it and staying plain when none is open, overlapping workspaces, unresolvable bookmarks, synced folders (nothing written but the marker, explicitly opened pages and journal entries, and carry-over's earlier entries), metadata link click and Cmd+click in both modes, page creation, large workspaces, and cache corruption.
 
 ### Exit criteria
 
