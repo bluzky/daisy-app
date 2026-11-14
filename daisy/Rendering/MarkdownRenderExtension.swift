@@ -1103,32 +1103,90 @@ nonisolated extension MarkdownHTML {
           for (const problem of result.problems) problems.append(element('li', null, problem));
           container.append(problems);
         }
-        if (!result.rows.length) {
+        const groups = result.groups || [];
+        if (!groups.some((group) => group.rows.length)) {
           container.append(element('p', 'mdp-query-empty', result.empty));
           return;
         }
-        // The article's own list markup, so rows look like the document's
-        // tasks and lists.
-        const list = element('ul', 'mdp-query-results mdp-query-' + result.source);
-        for (const row of result.rows) {
-          const item = element('li', 'mdp-query-row' + (result.source === 'tasks' ? ' task-list-item' : ''));
-          if (result.source === 'tasks') {
-            const box = element('input', 'task-list-item-checkbox mdp-query-checkbox');
-            box.type = 'checkbox';
-            box.checked = row.checked;
-            box.dataset.path = row.path;
-            box.dataset.line = row.line;
-            box.setAttribute('aria-label', row.text);
-            // The space the document's own task items have after the box.
-            item.append(box, document.createTextNode(' '));
+        for (const group of groups) {
+          const rows = result.view === 'table' ? table(result, group.rows) : list(result, group.rows);
+          if (!group.label) {
+            container.append(rows);
+            continue;
           }
-          const link = rowText(row, result.source === 'tasks' && row.checked);
-          link.classList.add('mdp-query-link');
-          link.setAttribute('role', 'link');
-          link.setAttribute('aria-label', row.text);
-          link.dataset.path = row.path;
-          link.dataset.line = row.line;
-          item.append(link);
+          // Not an h1–h6: the outline reads those, and a group is part of
+          // the block, not the document's structure.
+          const section = element('section', 'mdp-query-group');
+          const header = element('div', 'mdp-query-group-header');
+          header.setAttribute('role', 'heading');
+          header.setAttribute('aria-level', '4');
+          header.append(values(group.kind, [group.label], false),
+                        element('span', 'mdp-query-group-count', String(group.rows.length)));
+          section.append(header, rows);
+          container.append(section);
+        }
+      }
+
+      function checkbox(row) {
+        const box = element('input', 'task-list-item-checkbox mdp-query-checkbox');
+        box.type = 'checkbox';
+        box.checked = row.checked;
+        box.dataset.path = row.path;
+        box.dataset.line = row.line;
+        box.setAttribute('aria-label', row.text);
+        return box;
+      }
+
+      // The row's text, opening its line; in a table, without the fields
+      // its own columns show.
+      function rowLink(row, result, withSource) {
+        const link = rowText(withSource ? row : { text: row.text }, result.source === 'tasks' && row.checked);
+        link.classList.add('mdp-query-link');
+        link.setAttribute('role', 'link');
+        link.setAttribute('aria-label', row.text);
+        link.dataset.path = row.path;
+        link.dataset.line = row.line;
+        return link;
+      }
+
+      // A cell's or a group label's values, drawn by kind.
+      function values(kind, list, done) {
+        const node = element('span', 'mdp-query-values' + (kind === 'none' ? ' mdp-query-none' : ''));
+        list.forEach((value, index) => {
+          if (index) node.append(document.createTextNode(kind === 'value' ? ', ' : ' '));
+          if (kind === 'due' || kind === 'scheduled' || kind === 'p') {
+            const text = kind === 'p' ? value.text.toLowerCase() : value.text;
+            if (kind === 'p' ? labels[text] : localDate(text)) {
+              node.append(badge(kind, text, done));
+              return;
+            }
+          }
+          if (kind === 'names') {
+            const token = element('span', 'mdp-query-token', value.text);
+            token.setAttribute('role', 'link');
+            node.append(token);
+          } else if (value.path) {
+            const link = element('span', 'mdp-query-link', value.text);
+            link.setAttribute('role', 'link');
+            link.dataset.path = value.path;
+            link.dataset.line = 1;
+            node.append(link);
+          } else {
+            node.append(element('span', null, value.text));
+          }
+        });
+        return node;
+      }
+
+      // The article's own list markup, so rows look like the document's
+      // tasks and lists.
+      function list(result, rows) {
+        const list = element('ul', 'mdp-query-results mdp-query-' + result.source);
+        for (const row of rows) {
+          const item = element('li', 'mdp-query-row' + (result.source === 'tasks' ? ' task-list-item' : ''));
+          // The space the document's own task items have after the box.
+          if (result.source === 'tasks') item.append(checkbox(row), document.createTextNode(' '));
+          item.append(rowLink(row, result, true));
           if (row.detail) {
             const detail = element('span', 'mdp-query-detail', row.detail);
             detail.title = row.path;
@@ -1136,7 +1194,37 @@ nonisolated extension MarkdownHTML {
           }
           list.append(item);
         }
-        container.append(list);
+        return list;
+      }
+
+      // The article's table markup and scroll wrapper, so it looks like
+      // the document's tables.
+      function table(result, rows) {
+        const scroll = element('div', 'md-table-scroll mdp-query-table-scroll');
+        const table = element('table', 'mdp-query-table mdp-query-' + result.source);
+        const head = element('tr');
+        for (const column of result.columns) {
+          const cell = element('th', 'mdp-query-cell-' + column.kind, column.kind === 'done' ? '' : column.label);
+          cell.scope = 'col';
+          if (column.kind === 'done') cell.setAttribute('aria-label', column.label);
+          head.append(cell);
+        }
+        const body = element('tbody');
+        for (const row of rows) {
+          const line = element('tr', 'mdp-query-row' + (row.checked ? ' mdp-query-done' : ''));
+          result.columns.forEach((column, index) => {
+            const cell = element('td', 'mdp-query-cell-' + column.kind);
+            if (column.kind === 'done') cell.append(checkbox(row));
+            else if (column.kind === 'text') cell.append(rowLink(row, result, false));
+            else cell.append(values(column.kind, (row.cells || [])[index] || [], row.checked));
+            line.append(cell);
+          });
+          body.append(line);
+        }
+        table.append(element('thead'), body);
+        table.firstChild.append(head);
+        scroll.append(table);
+        return scroll;
       }
 
       // The block's frame: the code wrapper with its header, once the page
@@ -1230,6 +1318,29 @@ nonisolated extension MarkdownHTML {
       text-decoration: none;
     }
     .mdp-query-empty { color: var(--secondary); }
+    .mdp-query-group + .mdp-query-group { margin-top: 1.2em; }
+    .mdp-query-group-header {
+      display: flex;
+      align-items: baseline;
+      gap: 0.5em;
+      padding-bottom: 0.3em;
+      border-bottom: 1px solid var(--grid);
+      font-weight: 600;
+    }
+    .mdp-query-group-count {
+      color: var(--secondary);
+      font-size: 0.85em;
+      font-weight: 400;
+      font-variant-numeric: tabular-nums;
+    }
+    .mdp-query-none { color: var(--secondary); }
+    .mdp-query-group > ul { margin-top: 0.5em; }
+    .mdp-query-group > .mdp-query-table-scroll { margin-top: 0; }
+    .mdp-query-group > .mdp-query-table-scroll tr:first-child > th { border-top: 0; }
+    .mdp-query-table .mdp-query-checkbox { margin: 0; vertical-align: middle; }
+    .mdp-query-table .mdp-query-cell-done { width: 1px; }
+    .mdp-query-table :is(.mdp-query-cell-due, .mdp-query-cell-scheduled, .mdp-query-cell-p) { white-space: nowrap; }
+    .mdp-query-table .mdp-query-done .mdp-query-text { color: var(--secondary); text-decoration: line-through; }
     :root[data-mdp-literal-task-metadata] .mdp-query { display: none; }
     @media print {
       .mdp-query { display: none; }
@@ -1293,6 +1404,41 @@ nonisolated extension MarkdownHTML {
       font-size: 0.85em;
     }
     .cm-md-query-empty { margin: 0; padding-inline-start: 2.1em; color: var(--secondary); }
+    .cm-md-query-group + .cm-md-query-group { margin-top: 1.2em; }
+    .cm-md-query-group-header {
+      display: flex;
+      align-items: baseline;
+      gap: 0.5em;
+      margin-bottom: 0.4em;
+      padding-bottom: 0.3em;
+      border-bottom: 1px solid var(--grid);
+      font-weight: 600;
+    }
+    .cm-md-query-group-count {
+      color: var(--secondary);
+      font-size: 0.85em;
+      font-weight: 400;
+      font-variant-numeric: tabular-nums;
+    }
+    .cm-md-query-none { color: var(--secondary); }
+    /* As the document's tables (`.cm-md-table-grid`). */
+    .cm-md-query-table-scroll { width: 100%; max-width: 100%; overflow-x: auto; }
+    .cm-md-query-table { width: 100%; border-collapse: collapse; table-layout: auto; }
+    .cm-md-query-table :is(th, td) {
+      padding: 8px 12px;
+      border-top: 1px solid var(--grid);
+      border-bottom: 1px solid var(--grid);
+      text-align: start;
+      vertical-align: top;
+      overflow-wrap: break-word;
+      word-break: normal;
+    }
+    .cm-md-query-table th { font-weight: 600; }
+    .cm-md-query-group .cm-md-query-table tr:first-child > th { border-top: 0; }
+    .cm-md-query-table .cm-md-query-checkbox { margin: 0; vertical-align: middle; }
+    .cm-md-query-table .cm-md-query-cell-done { width: 1px; }
+    .cm-md-query-table :is(.cm-md-query-cell-due, .cm-md-query-cell-scheduled, .cm-md-query-cell-p) { white-space: nowrap; }
+    .cm-md-query-table .cm-md-query-done .cm-md-query-text { color: var(--secondary); text-decoration: line-through; }
     """
 
   struct MetadataCompletionExtension: MarkdownRenderExtension {

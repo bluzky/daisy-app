@@ -16,8 +16,10 @@ const create = (text = source, extra = {}) => {
   })
   return { host, editor, sent }
 }
+// A block without `group:` has one group with no label.
+const ungrouped = (rows) => [{ label: null, kind: "none", rows }]
 const result = (id, rows = [{ path: "a.md", line: 3, text: "Ship it", checked: false, detail: "a" }]) => ({
-  id, source: "tasks", problems: ["“wrd” is not a term."], empty: "No matching tasks", rows,
+  id, source: "tasks", problems: ["“wrd” is not a term."], empty: "No matching tasks", groups: ungrouped(rows),
 })
 
 {
@@ -76,10 +78,10 @@ const result = (id, rows = [{ path: "a.md", line: 3, text: "Ship it", checked: f
 {
   const { host, editor, sent } = create(source, { onOpenLink: (link) => sent.opened.push(link) })
   const id = sent.queries.at(-1)[0].id
-  editor.setQueryResults([{ id, source: "tasks", problems: [], empty: "", rows: [{
+  editor.setQueryResults([{ id, source: "tasks", problems: [], empty: "", groups: ungrouped([{
     path: "a.md", line: 3, text: "Water plants @Daniel", checked: false, detail: "a",
     source: "p:medium Water plants due:2026-10-24 @Daniel email@x.com C#",
-  }] }])
+  }]) }])
   const row = host.querySelector(".cm-md-query-row")
   check("a task row shows its fields as badges", Array.from(row.querySelectorAll(".mdp-task-badge"),
     (badge) => badge.className).join("|") === "mdp-task-badge mdp-task-badge-priority mdp-task-badge-medium|mdp-task-badge mdp-task-badge-due"
@@ -97,7 +99,7 @@ const result = (id, rows = [{ path: "a.md", line: 3, text: "Ship it", checked: f
   const queries = sent.queries.at(-1)
   check("only tasks and notes blocks are queries", queries.length === 1 && queries[0].source === "notes")
   editor.setQueryResults([{ id: queries[0].id, source: "notes", problems: [], empty: "",
-    rows: [{ path: "p.md", line: 1, text: "Plan", checked: false, detail: "projects" }] }])
+    groups: ungrouped([{ path: "p.md", line: 1, text: "Plan", checked: false, detail: "projects" }]) }])
   const list = host.querySelector(".cm-md-query-results")
   check("notes render as an unordered list without checkboxes", list?.classList.contains("cm-md-query-notes")
     && !list.querySelector("input") && list.querySelector(".cm-md-query-link")?.textContent === "Plan")
@@ -108,5 +110,62 @@ const result = (id, rows = [{ path: "a.md", line: 3, text: "Ship it", checked: f
   const { host, editor, sent } = create("```tasks\n\n```\n\n```notes\n   \n```\n\n```tasks\n```\n")
   check("empty query blocks are never sent", JSON.stringify(sent.queries.at(-1) ?? []) === "[]")
   check("empty query blocks stay code", !host.querySelector(".cm-md-query"))
+  editor.destroy()
+}
+
+{
+  const { host, editor, sent } = create(source, { onOpenLink: (link) => sent.opened.push(link) })
+  const id = sent.queries.at(-1)[0].id
+  const task = (line, text) => ({ path: "a.md", line, text, checked: false, detail: "a", source: text })
+  editor.setQueryResults([{ id, source: "tasks", problems: [], empty: "", groups: [
+    { label: { text: "+daisy" }, kind: "names", rows: [task(3, "Ship +daisy"), task(4, "Test +daisy +site")] },
+    { label: { text: "+site" }, kind: "names", rows: [task(4, "Test +daisy +site")] },
+    { label: { text: "No project" }, kind: "none", rows: [task(5, "Loose")] },
+  ] }])
+  const headers = Array.from(host.querySelectorAll(".cm-md-query-group-header"))
+  check("each group has a header with its count", headers.map((header) => header.textContent).join("|")
+    === "+daisy2|+site1|No project1")
+  check("group headers are headings for VoiceOver, not h1–h6", headers.every((header) =>
+    header.getAttribute("role") === "heading" && header.tagName === "DIV") && !host.querySelector(".cm-md-query :is(h1, h2, h3, h4, h5, h6)"))
+  check("a group's rows are listed under its header", Array.from(host.querySelectorAll(".cm-md-query-group"),
+    (group) => group.querySelectorAll(".cm-md-query-row").length).join() === "2,1,1")
+  check("the group with no value is muted", headers[2].querySelector(".cm-md-query-none") != null)
+  headers[0].querySelector(".cm-md-query-token").dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true, cancelable: true }))
+  check("a name header opens its page", JSON.stringify(sent.opened) === JSON.stringify([{ token: "+daisy" }]))
+  editor.destroy()
+}
+
+{
+  const { host, editor, sent } = create()
+  const id = sent.queries.at(-1)[0].id
+  editor.setQueryResults([{ id, source: "tasks", problems: [], empty: "", view: "table",
+    columns: [{ kind: "done", label: "Done" }, { kind: "text", label: "Task" }, { kind: "due", label: "Due" },
+      { kind: "p", label: "Priority" }, { kind: "names", label: "Projects" }, { kind: "value", label: "partner" },
+      { kind: "value", label: "File" }],
+    groups: ungrouped([{ path: "notes/a.md", line: 3, text: "Ship +daisy", checked: true, detail: "a",
+      source: "Ship +daisy due:2030-01-02 p:high",
+      cells: [[], [], [{ text: "2030-01-02" }], [{ text: "high" }], [{ text: "+daisy" }],
+        [{ text: "Acme" }, { text: "Globex" }], [{ text: "a", path: "notes/a.md" }]] }]) }])
+  const table = host.querySelector(".cm-md-query-table")
+  check("a table view renders a table", !!table && !host.querySelector(".cm-md-query-results"))
+  check("the table has one header per column, the checkbox one only spoken",
+    Array.from(table.querySelectorAll("th"), (cell) => cell.textContent).join("|") === "|Task|Due|Priority|Projects|partner|File"
+    && table.querySelector("th").getAttribute("aria-label") === "Done"
+    && Array.from(table.querySelectorAll("th")).every((cell) => cell.scope === "col"))
+  const cells = Array.from(table.querySelectorAll("tbody td"))
+  check("cells draw their kind", cells[0].querySelector("input")?.checked === true
+    && cells[1].textContent === "Ship +daisy" && !cells[1].querySelector(".mdp-task-badge")
+    && cells[2].querySelector(".mdp-task-badge-due") != null
+    && cells[3].querySelector(".mdp-task-badge-high") != null
+    && cells[4].querySelector(".cm-md-query-token")?.textContent === "+daisy"
+    && cells[5].textContent === "Acme, Globex")
+  cells[6].querySelector(".cm-md-query-link").dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true, cancelable: true }))
+  cells[1].querySelector(".cm-md-query-link").dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true, cancelable: true }))
+  check("a file cell opens the file, the text its line", JSON.stringify(sent.opened)
+    === JSON.stringify([{ path: "notes/a.md", line: 1 }, { path: "notes/a.md", line: 3 }]))
+  cells[0].querySelector("input").checked = false
+  cells[0].querySelector("input").dispatchEvent(new dom.window.Event("change", { bubbles: true }))
+  check("a table checkbox checks the task off in the host", JSON.stringify(sent.toggled)
+    === JSON.stringify([{ path: "notes/a.md", line: 3, checked: false }]))
   editor.destroy()
 }

@@ -8,10 +8,64 @@
 //  not, and `OR` between groups that are each ANDed. There is no other
 //  keyword, no parentheses and no separate syntax tree: each term becomes
 //  one `WorkspacePredicate`. A term with a problem is left out, and the
-//  rest still runs. No AppKit, so it links into `tests/swift-tests`.
+//  rest still runs. `$group:`, `$view:` and `$columns:` set how the
+//  results show (`WorkspaceQueryDisplay`), never which rows match; the `$`
+//  keeps them apart from filters and from frontmatter keys of those names. No AppKit, so it
+//  links into `tests/swift-tests`.
 //
 
 import Foundation
+
+/// How a block shows its results. Grouping and a table change only the
+/// rendering; the query returns the same rows.
+nonisolated struct WorkspaceQueryDisplay: Equatable, Sendable {
+    enum View: String, Equatable, Sendable { case list, table }
+
+    /// A table column, or the key rows are grouped by.
+    nonisolated struct Field: Equatable, Sendable {
+        enum Kind: Equatable, Sendable {
+            /// A task's checkbox; columns of `tasks` blocks only.
+            case done
+            /// The task text or note title; columns only.
+            case text
+            /// The file's title, linking to it.
+            case file
+            case names(WorkspaceMetadataKind)
+            /// `due`, `scheduled`, `priority`, a `file.` built-in or a
+            /// frontmatter key.
+            case attribute(String)
+        }
+
+        let kind: Kind
+        /// As written in the block: a frontmatter key's header.
+        let spelling: String
+
+        /// What the query reads for it; nil for what the row already has.
+        var queryField: WorkspaceQueryField? {
+            switch kind {
+            case .done, .text, .file: nil
+            case let .names(kind): .names(kind)
+            case let .attribute(key): .attribute(key)
+            }
+        }
+    }
+
+    var view: View = .list
+    var group: Field?
+    /// A table's columns, in order; the defaults when the block lists none.
+    var columns: [Field] = []
+
+    static func defaultColumns(_ source: WorkspaceQuery.Source) -> [Field] {
+        switch source {
+        case .tasks:
+            [Field(kind: .done, spelling: "done"), Field(kind: .text, spelling: "text"),
+             Field(kind: .attribute("due"), spelling: "due"), Field(kind: .attribute("priority"), spelling: "p"),
+             Field(kind: .file, spelling: "file")]
+        case .files:
+            [Field(kind: .text, spelling: "text"), Field(kind: .attribute("file.folder"), spelling: "folder")]
+        }
+    }
+}
 
 nonisolated struct WorkspaceQueryParser {
     nonisolated enum Problem: Equatable, Sendable {
@@ -33,6 +87,18 @@ nonisolated struct WorkspaceQueryParser {
         case emptyGroup
         /// A frontmatter key no file uses, with the closest one that is used.
         case unknownKey(String, suggestion: String?)
+        /// `$view:` takes `list` or `table`.
+        case badView(String)
+        /// A second `$group:` or `$view:`.
+        case repeated(String)
+        /// `$columns:` with `$view:list`.
+        case columnsNeedTable(String)
+        /// `done` in a `notes` block.
+        case tasksOnly(String)
+        /// `$group:` by `done` or `text`.
+        case badGroup(String)
+        /// A `$` term that is no display option.
+        case unknownOption(String)
 
         var message: String {
             switch self {
@@ -69,6 +135,23 @@ nonisolated struct WorkspaceQueryParser {
                                                  comment: "Query block problem"), key, suggestion)
             case let .unknownKey(key, nil):
                 String(format: NSLocalizedString("No file has “%@”.", comment: "Query block problem"), key)
+            case let .badView(term):
+                String(format: NSLocalizedString("“%@”: use $view:list or $view:table.",
+                                                 comment: "Query block problem"), term)
+            case let .repeated(term):
+                String(format: NSLocalizedString("“%@”: a block takes this option once.",
+                                                 comment: "Query block problem"), term)
+            case let .columnsNeedTable(term):
+                String(format: NSLocalizedString("“%@”: columns show with $view:table.",
+                                                 comment: "Query block problem"), term)
+            case let .tasksOnly(term):
+                String(format: NSLocalizedString("“%@” is for tasks blocks.", comment: "Query block problem"), term)
+            case let .badGroup(term):
+                String(format: NSLocalizedString("“%@”: done and text are columns, not groups.",
+                                                 comment: "Query block problem"), term)
+            case let .unknownOption(term):
+                String(format: NSLocalizedString("“%@” is not a display option. Use $group:, $view: or $columns:.",
+                                                 comment: "Query block problem"), term)
             }
         }
     }
@@ -76,6 +159,7 @@ nonisolated struct WorkspaceQueryParser {
     nonisolated struct Result: Equatable, Sendable {
         let query: WorkspaceQuery
         let problems: [Problem]
+        var display = WorkspaceQueryDisplay()
     }
 
     /// Frontmatter keys some file uses, normalized; nil checks none.
@@ -92,12 +176,22 @@ nonisolated struct WorkspaceQueryParser {
     private static let reserved: Set<String> = ["is", "due", "scheduled", "p", "in", "links", "text", "sort",
                                                 "limit", "has"]
 
-    func parse(_ text: String, source: WorkspaceQuery.Source) -> Result {
-        var problems: [Problem] = []
+    /// What applies to the whole block rather than filtering it.
+    private struct Options {
         var sort: [WorkspaceSortKey] = []
         var limit: Int?
+        var view: WorkspaceQueryDisplay.View?
+        var group: WorkspaceQueryDisplay.Field?
+        /// With the term that listed them, for a problem.
+        var columns: (fields: [WorkspaceQueryDisplay.Field], term: String)?
+    }
+
+    func parse(_ text: String, source: WorkspaceQuery.Source) -> Result {
+        var problems: [Problem] = []
+        var options = Options()
         var groups: [[WorkspacePredicate]] = [[]]
-        /// `sort:` and `limit:` are options of the whole query, not terms.
+        /// `sort:`, `limit:` and the display options apply to the whole
+        /// query; they are not terms.
         var groupHadTerms = [false]
 
         for word in Self.words(text) {
@@ -107,7 +201,7 @@ nonisolated struct WorkspaceQueryParser {
                 continue
             }
             let last = groups.count - 1
-            switch term(word.text, source: source, sort: &sort, limit: &limit) {
+            switch term(word.text, source: source, options: &options) {
             case let .predicate(predicate):
                 groups[last].append(predicate)
                 groupHadTerms[last] = true
@@ -137,8 +231,19 @@ nonisolated struct WorkspaceQueryParser {
         case 1: .and(kept[0])
         default: .or(kept.map { .and($0) })
         }
-        return Result(query: WorkspaceQuery(source: source, filter: filter, sort: sort, limit: limit),
-                      problems: problems)
+        var display = WorkspaceQueryDisplay()
+        display.group = options.group
+        if let columns = options.columns, options.view == .list {
+            problems.append(.columnsNeedTable(columns.term))
+        }
+        display.view = options.view ?? (options.columns == nil ? .list : .table)
+        if display.view == .table {
+            let listed = options.columns?.fields ?? []
+            display.columns = listed.isEmpty ? WorkspaceQueryDisplay.defaultColumns(source) : listed
+        }
+        return Result(query: WorkspaceQuery(source: source, filter: filter, sort: options.sort,
+                                            limit: options.limit),
+                      problems: problems, display: display)
     }
 
     // MARK: - Words
@@ -174,12 +279,12 @@ nonisolated struct WorkspaceQueryParser {
     private enum Term {
         case predicate(WorkspacePredicate)
         case problem(Problem)
-        /// `sort:` or `limit:`, which apply to the whole query.
+        /// `sort:`, `limit:` or a display option, which apply to the whole
+        /// query.
         case option
     }
 
-    private func term(_ word: String, source: WorkspaceQuery.Source, sort: inout [WorkspaceSortKey],
-                      limit: inout Int?) -> Term {
+    private func term(_ word: String, source: WorkspaceQuery.Source, options: inout Options) -> Term {
         var body = Substring(word)
         let negated = body.count > 1 && body.hasPrefix("-")
         if negated { body = body.dropFirst() }
@@ -193,7 +298,10 @@ nonisolated struct WorkspaceQueryParser {
             return .predicate(Self.negate(Self.anyOf(names), negated))
         }
 
-        guard let colon = body.firstIndex(of: ":") else { return .problem(.bareWord(word)) }
+        let isOption = body.hasPrefix("$")
+        guard let colon = body.firstIndex(of: ":") else {
+            return .problem(isOption ? .unknownOption(word) : .bareWord(word))
+        }
         let key = WorkspacePage.key(String(body[..<colon]))
         var value = Substring(body[body.index(after: colon)...])
         guard !key.isEmpty else { return .problem(.bareWord(word)) }
@@ -220,13 +328,43 @@ nonisolated struct WorkspaceQueryParser {
                 let descending = value.hasPrefix("-")
                 let name = WorkspacePage.key(descending ? String(value.dropFirst()) : value)
                 guard !name.isEmpty else { return .problem(.missingValue(word)) }
-                sort.append(WorkspaceSortKey(key: name == "p" ? "priority" : name, descending: descending))
+                options.sort.append(WorkspaceSortKey(key: name == "p" ? "priority" : name, descending: descending))
             }
             return .option
         case "limit":
             guard !negated, isPlain else { return .problem(.unsupported(word)) }
             guard let number = Int(values[0]), number >= 0 else { return .problem(.badLimit(word)) }
-            limit = number
+            options.limit = number
+            return .option
+        case "$view":
+            guard !negated, isPlain else { return .problem(.unsupported(word)) }
+            guard options.view == nil else { return .problem(.repeated(word)) }
+            guard let view = WorkspaceQueryDisplay.View(rawValue: WorkspacePage.key(values[0])) else {
+                return .problem(.badView(word))
+            }
+            options.view = view
+            return .option
+        case "$group":
+            guard !negated, isPlain else { return .problem(.unsupported(word)) }
+            guard options.group == nil else { return .problem(.repeated(word)) }
+            switch field(values[0], source: source, term: word) {
+            case let .success(field):
+                if field.kind == .done || field.kind == .text { return .problem(.badGroup(word)) }
+                options.group = field
+                return .option
+            case let .failure(problem):
+                return .problem(problem.problem)
+            }
+        case "$columns":
+            guard !negated, comparison == .equal else { return .problem(.unsupported(word)) }
+            var fields = options.columns?.fields ?? []
+            for value in values {
+                switch field(value, source: source, term: word) {
+                case let .success(field): fields.append(field)
+                case let .failure(problem): return .problem(problem.problem)
+                }
+            }
+            options.columns = (fields, word)
             return .option
         case "is":
             guard comparison == .equal else { return .problem(.unsupported(word)) }
@@ -266,13 +404,44 @@ nonisolated struct WorkspaceQueryParser {
                 }
             }), negated))
         default:
-            if let knownKeys, !knownKeys.contains(key), !key.hasPrefix("file.") {
+            if isOption { return .problem(.unknownOption(word)) }
+            if let knownKeys, !knownKeys.contains(key), !Self.isBuiltIn(key) {
                 return .problem(.unknownKey(String(body[..<colon]), suggestion: Self.closest(to: key, in: knownKeys)))
             }
             return .predicate(Self.negate(Self.anyOf(values.map { value in
                 .attribute(key, comparison, date(value).map(WorkspaceAttributeValue.date) ?? .text(value))
             }), negated))
         }
+    }
+
+    private struct FieldProblem: Error { let problem: Problem }
+
+    /// A `group:` or `columns:` key.
+    private func field(_ name: String, source: WorkspaceQuery.Source,
+                       term: String) -> Swift.Result<WorkspaceQueryDisplay.Field, FieldProblem> {
+        let key = WorkspacePage.key(name)
+        let kind: WorkspaceQueryDisplay.Field.Kind
+        switch key {
+        case "done":
+            guard source == .tasks else { return .failure(FieldProblem(problem: .tasksOnly(term))) }
+            kind = .done
+        case "text": kind = .text
+        case "file": kind = .file
+        case "folder": kind = .attribute("file.folder")
+        case "path": kind = .attribute("file.path")
+        case "#", "tag", "tags": kind = .names(.tag)
+        case "@", "context", "contexts": kind = .names(.context)
+        case "+", "project", "projects": kind = .names(.project)
+        case "due", "scheduled": kind = .attribute(key)
+        case "p", "priority": kind = .attribute("priority")
+        default:
+            if let knownKeys, !knownKeys.contains(key), !Self.isBuiltIn(key) {
+                return .failure(FieldProblem(problem: .unknownKey(name, suggestion: Self.closest(to: key,
+                                                                                                in: knownKeys))))
+            }
+            kind = .attribute(key)
+        }
+        return .success(WorkspaceQueryDisplay.Field(kind: kind, spelling: name))
     }
 
     /// `today`, a signed offset in days or weeks (`7d`, `-2w`), or `YYYY-MM-DD`.
@@ -302,9 +471,12 @@ nonisolated struct WorkspaceQueryParser {
         negated ? .not(predicate) : predicate
     }
 
+    /// Keys every file has, so never unknown: `title` and the `file.` ones.
+    private static func isBuiltIn(_ key: String) -> Bool { key == "title" || key.hasPrefix("file.") }
+
     /// The known key fewest edits away, if it is close enough to be a typo.
     static func closest(to key: String, in keys: Set<String>) -> String? {
-        let candidates = keys.subtracting(reserved).sorted()
+        let candidates = keys.union(["title"]).subtracting(reserved).sorted()
         guard let best = candidates.min(by: { distance(key, $0) < distance(key, $1) }) else { return nil }
         return distance(key, best) <= max(2, key.count / 3) ? best : nil
     }

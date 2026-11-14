@@ -555,7 +555,8 @@ final class MarkdownRenderExtensionTests: XCTestCase {
     let answered = try await evaluate("""
     window.MdPreview.queryResults([{ id: '\(id ?? "")', source: 'tasks', problems: ['bad <b>term</b>'],
       empty: 'No matching tasks',
-      rows: [{ path: 'a.md', line: 3, text: 'Ship <i>it</i>', checked: false, detail: 'a' }] }]);
+      groups: [{ label: null, kind: 'none',
+                 rows: [{ path: 'a.md', line: 3, text: 'Ship <i>it</i>', checked: false, detail: 'a' }] }] }]);
     \(state)
     """)
     XCTAssertEqual(answered, "1;hidden; Ship <i>it</i>a;bad <b>term</b>", "rows replace the source, as text")
@@ -570,8 +571,9 @@ final class MarkdownRenderExtensionTests: XCTestCase {
 
     let decorated = try await evaluate("""
     window.MdPreview.queryResults([{ id: '\(id ?? "")', source: 'tasks', problems: [], empty: '',
-      rows: [{ path: 'a.md', line: 3, text: 'Water plants @Daniel', checked: false, detail: 'a',
-               source: 'p:medium Water plants due:2026-10-24 @Daniel email@x.com C#' }] }]);
+      groups: [{ label: null, kind: 'none',
+                 rows: [{ path: 'a.md', line: 3, text: 'Water plants @Daniel', checked: false, detail: 'a',
+                          source: 'p:medium Water plants due:2026-10-24 @Daniel email@x.com C#' }] }] }]);
     const row = document.querySelector('.mdp-query-row');
     [Array.from(row.querySelectorAll('.mdp-task-badge'), b => b.className.split(' ').slice(1).join('+')).join(','),
      Array.from(row.querySelectorAll('.mdp-query-token'), t => t.textContent).join(','),
@@ -618,12 +620,64 @@ final class MarkdownRenderExtensionTests: XCTestCase {
     }
     let list = try await webView.evaluateJavaScript("""
     window.MdPreview.queryResults([{ id: '\(id ?? "")', source: 'notes', problems: [], empty: '',
-      rows: [{ path: 'p.md', line: 1, text: 'Plan', checked: false, detail: 'projects' }] }]);
+      groups: [{ label: null, kind: 'none',
+                 rows: [{ path: 'p.md', line: 1, text: 'Plan', checked: false, detail: 'projects' }] }] }]);
     const item = document.querySelector('.mdp-query-row');
     [item.parentElement.tagName, item.classList.contains('task-list-item'), !!item.querySelector('input'),
      getComputedStyle(item, '::before').content !== 'none'].join(';')
     """) as? String
     XCTAssertEqual(list, "UL;false;false;true", "a notes row is a bulleted list item, without a checkbox")
+  }
+
+  @MainActor
+  func testReadModeDrawsGroupsAndTables() async throws {
+    let rendered = MarkdownHTML.render(markdown: "# Doc\n\n```tasks\ngroup:project\n```\n", vendorLoading: .lazy)
+    let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 900, height: 600))
+    webView.loadHTMLString(rendered.html, baseURL: nil)
+    let deadline = Date().addingTimeInterval(10)
+    while webView.isLoading && Date() < deadline { try await Task.sleep(for: .milliseconds(50)) }
+    var id: String?
+    while Date() < deadline {
+      id = try await webView.evaluateJavaScript("""
+      window.MdPreview && window.MdPreview.queryResults ? (document.documentElement.setAttribute('data-mdp-workspace', ''),
+        window.MdPreview.reapplyExtensions(), document.querySelector('.mdp-query')?.dataset.queryId ?? null) : null
+      """) as? String
+      if id != nil { break }
+      try await Task.sleep(for: .milliseconds(50))
+    }
+    let row = { (line: Int, text: String) in
+      "{ path: 'a.md', line: \(line), text: '\(text)', checked: false, detail: 'a', source: '\(text)' }"
+    }
+    let grouped = try await webView.evaluateJavaScript("""
+    window.MdPreview.queryResults([{ id: '\(id ?? "")', source: 'tasks', problems: [], empty: '', groups: [
+      { label: { text: '+daisy' }, kind: 'names', rows: [\(row(3, "Ship +daisy")), \(row(4, "Both +daisy +site"))] },
+      { label: { text: 'No project' }, kind: 'none', rows: [\(row(5, "Loose"))] }] }]);
+    const headers = Array.from(document.querySelectorAll('.mdp-query-group-header'));
+    [headers.map(h => h.textContent).join('|'), headers.every(h => h.getAttribute('role') === 'heading'),
+     document.querySelectorAll('.mdp-query :is(h1, h2, h3, h4, h5, h6)').length,
+     Array.from(document.querySelectorAll('.mdp-query-group'), g => g.querySelectorAll('.mdp-query-row').length).join(),
+     !!headers[0].querySelector('.mdp-query-token'), !!headers[1].querySelector('.mdp-query-none')].join(';')
+    """) as? String
+    XCTAssertEqual(grouped, "+daisy2|No project1;true;0;2,1;true;true",
+                   "groups have headers that are not h1–h6, so the outline skips them")
+
+    let table = try await webView.evaluateJavaScript("""
+    window.MdPreview.queryResults([{ id: '\(id ?? "")', source: 'tasks', problems: [], empty: '', view: 'table',
+      columns: [{ kind: 'done', label: 'Done' }, { kind: 'text', label: 'Task' }, { kind: 'p', label: 'Priority' },
+                { kind: 'value', label: 'partner' }],
+      groups: [{ label: null, kind: 'none', rows: [{ path: 'a.md', line: 3, text: 'Ship', checked: true, detail: 'a',
+        source: 'Ship p:high', cells: [[], [], [{ text: 'high' }], [{ text: 'Acme' }, { text: 'Up', path: 'up.md' }]] }] }] }]);
+    const table = document.querySelector('.mdp-query-table');
+    const cells = Array.from(table.querySelectorAll('tbody td'));
+    [table.parentElement.classList.contains('md-table-scroll'),
+     Array.from(table.querySelectorAll('th'), th => th.textContent + '/' + th.scope).join(','),
+     table.querySelector('th').getAttribute('aria-label'), cells[0].querySelector('input').checked,
+     cells[1].querySelector('.mdp-query-link').dataset.line, !!cells[1].querySelector('.mdp-task-badge'),
+     !!cells[2].querySelector('.mdp-task-badge-high'), cells[3].textContent,
+     cells[3].querySelector('.mdp-query-link').dataset.path].join(';')
+    """) as? String
+    XCTAssertEqual(table, "true;/col,Task/col,Priority/col,partner/col;Done;true;3;false;true;Acme, Up;up.md",
+                   "a table has the document's table markup and draws each cell by kind")
   }
 
   @MainActor

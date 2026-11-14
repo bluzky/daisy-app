@@ -73,6 +73,24 @@ nonisolated enum WorkspaceQueryMatch: Equatable, Sendable {
     }
 }
 
+/// A value a query block shows of each match besides its row: the key it
+/// groups by, or a table column.
+nonisolated enum WorkspaceQueryField: Equatable, Sendable {
+    /// For a task, its line's names and its file's frontmatter names; for a
+    /// file, all of its names.
+    case names(WorkspaceMetadataKind)
+    /// A task field, a built-in or a frontmatter key, read the way a
+    /// predicate reads it.
+    case attribute(String)
+}
+
+/// A match with the values of the fields asked for, in their order. A list
+/// attribute gives its items; a missing one gives none.
+nonisolated struct WorkspaceQueryRow: Equatable, Sendable {
+    let match: WorkspaceQueryMatch
+    var values: [[WorkspaceAttributeValue]] = []
+}
+
 /// What the walk knows about a file and its record does not: computed, never
 /// stored, read as `file.modified`, `file.created`, `file.size`.
 nonisolated struct WorkspaceFileInfo: Equatable, Sendable {
@@ -89,6 +107,25 @@ nonisolated extension WorkspaceQuery {
     func evaluate(_ records: [WorkspaceFileRecord],
                   info: (String) -> WorkspaceFileInfo = { _ in WorkspaceFileInfo() },
                   calendar: Calendar = .current) -> [WorkspaceQueryMatch] {
+        items(records, info: info, calendar: calendar).map(\.match)
+    }
+
+    /// The same matches, each with the values of `fields`.
+    func evaluate(_ records: [WorkspaceFileRecord], fields: [WorkspaceQueryField],
+                  info: (String) -> WorkspaceFileInfo = { _ in WorkspaceFileInfo() },
+                  calendar: Calendar = .current) -> [WorkspaceQueryRow] {
+        items(records, info: info, calendar: calendar).map { item in
+            WorkspaceQueryRow(match: item.match, values: fields.map(item.values))
+        }
+    }
+
+    /// Orders two values the way `sort:` does; a missing value comes last.
+    static func order(_ lhs: WorkspaceAttributeValue?, _ rhs: WorkspaceAttributeValue?) -> ComparisonResult {
+        Item.compare(lhs, rhs)
+    }
+
+    private func items(_ records: [WorkspaceFileRecord], info: (String) -> WorkspaceFileInfo,
+                       calendar: Calendar) -> [Item] {
         var items: [Item] = []
         for record in records {
             let file = info(record.path)
@@ -117,10 +154,7 @@ nonisolated extension WorkspaceQuery {
             return (lhs.task?.line ?? 0) < (rhs.task?.line ?? 0)
         }
         if let limit { matches = Array(matches.prefix(max(0, limit))) }
-        return matches.map { item in
-            if let task = item.task { return .task(WorkspaceIndexedTask(path: item.record.path, task: task)) }
-            return .file(item.record)
-        }
+        return matches
     }
 
     /// Files that link to `path` or, when `path` is a page in `pages/`, use
@@ -130,18 +164,29 @@ nonisolated extension WorkspaceQuery {
     /// never lists itself.
     static func references(to path: String,
                            tokens: [(kind: WorkspaceMetadataKind, key: String)]) -> WorkspaceQuery {
-        var anyOf: [WorkspacePredicate] = [.linksTo(path: path)]
-        let components = path.split(separator: "/")
-        if components.count == 2, components[0] == WorkspacePage.folderName {
-            let page = WorkspacePage.key(String(components[1]))
-            for (kind, key) in tokens {
-                guard let name = WorkspacePage.fileName(for: kind.marker + key),
-                      WorkspacePage.key(name) == page else { continue }
-                anyOf.append(.hasToken(kind, key: key, includingDescendants: false))
-            }
+        references(to: path, pageTokens: pageTokens(of: path, among: tokens))
+    }
+
+    /// The same, given the names whose page `path` is (`pageTokens(of:among:)`).
+    static func references(to path: String,
+                           pageTokens: [(kind: WorkspaceMetadataKind, key: String)]) -> WorkspaceQuery {
+        let anyOf: [WorkspacePredicate] = [.linksTo(path: path)] + pageTokens.map {
+            .hasToken($0.kind, key: $0.key, includingDescendants: false)
         }
         return WorkspaceQuery(source: .files,
                               filter: .and([.or(anyOf), .not(.attribute("file.path", .equal, .text(path)))]))
+    }
+
+    /// The names among `tokens` whose page is `path`; none unless `path` is
+    /// a page in `pages/`.
+    static func pageTokens(of path: String, among tokens: [(kind: WorkspaceMetadataKind, key: String)])
+        -> [(kind: WorkspaceMetadataKind, key: String)] {
+        let components = path.split(separator: "/")
+        guard components.count == 2, components[0] == WorkspacePage.folderName else { return [] }
+        let page = WorkspacePage.key(String(components[1]))
+        return tokens.filter { kind, key in
+            WorkspacePage.fileName(for: kind.marker + key).map(WorkspacePage.key) == page
+        }
     }
 }
 
@@ -164,6 +209,30 @@ nonisolated private struct Item {
 
     private static let priorityRank = ["low": 1, "medium": 2, "high": 3]
 
+    var match: WorkspaceQueryMatch {
+        if let task { return .task(WorkspaceIndexedTask(path: record.path, task: task)) }
+        return .file(record)
+    }
+
+    /// A task has its line's names and the file's frontmatter names.
+    private var tokens: [WorkspaceTokenOccurrence] {
+        task.map { $0.tokens + record.frontmatterTokens } ?? record.tokens
+    }
+
+    func values(_ field: WorkspaceQueryField) -> [WorkspaceAttributeValue] {
+        switch field {
+        case let .names(kind):
+            var seen: Set<String> = []
+            return tokens.filter { $0.kind == kind && seen.insert($0.key).inserted }.map { .text($0.source) }
+        case let .attribute(key):
+            switch value(key) {
+            case nil: return []
+            case let .list(items)?: return items
+            case let value?: return [value]
+            }
+        }
+    }
+
     func matches(_ predicate: WorkspacePredicate) -> Bool {
         switch predicate {
         case let .and(predicates): return predicates.allSatisfy(matches)
@@ -175,7 +244,6 @@ nonisolated private struct Item {
         case let .hasAttribute(key):
             return self.value(key) != nil
         case let .hasToken(kind, key, descendants):
-            let tokens = task?.tokens ?? record.tokens
             return tokens.contains { token in
                 token.kind == kind && (token.key == key || (descendants && token.key.hasPrefix(key + "/")))
             }
@@ -193,11 +261,13 @@ nonisolated private struct Item {
     }
 
     /// A task's own attributes first, then the file's built-ins, then its
-    /// frontmatter.
+    /// frontmatter. `title` is a built-in that reads the frontmatter's,
+    /// falling back to the file name, so every file has one.
     func value(_ key: String) -> WorkspaceAttributeValue? {
         let key = WorkspacePage.key(key)
         if let attribute = task?.attributes[key] { return attribute.value }
         switch key {
+        case "title": return .text(record.title)
         case "file.name": return .text((record.path as NSString).lastPathComponent)
         case "file.folder": return .text((record.path as NSString).deletingLastPathComponent)
         case "file.path": return .text(record.path)

@@ -53,6 +53,17 @@ nonisolated struct WorkspaceFileRecord: Equatable, Sendable {
         tasks = metadata.tasks
     }
 
+    /// The frontmatter `title`, or the file name without its extension:
+    /// the `title` built-in, and how a note is listed.
+    var title: String {
+        if let title = attributes["title"]?.value.text, !title.isEmpty { return title }
+        return ((path as NSString).lastPathComponent as NSString).deletingPathExtension
+    }
+
+    /// The names the frontmatter gives the whole file, which its tasks
+    /// match in queries along with their own.
+    var frontmatterTokens: [WorkspaceTokenOccurrence] { tokens.filter(\.frontmatter) }
+
     /// Name occurrences, for completion's counts.
     var contribution: WorkspaceMetadataContribution { WorkspaceMetadataContribution(tokens) }
 

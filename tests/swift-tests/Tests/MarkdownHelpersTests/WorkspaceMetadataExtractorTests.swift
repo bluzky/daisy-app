@@ -60,9 +60,11 @@ private struct ExpectedToken: Decodable {
     let key: String
     let line: Int
     let excerpt: String
+    let frontmatter: Bool?
 
     var token: WorkspaceMetadataToken {
-        WorkspaceMetadataToken(source: source, key: key, line: line, excerpt: excerpt)
+        WorkspaceMetadataToken(source: source, key: key, line: line, excerpt: excerpt,
+                               frontmatter: frontmatter ?? false)
     }
 }
 

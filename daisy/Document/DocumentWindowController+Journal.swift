@@ -260,16 +260,9 @@ extension DocumentWindowController {
     private static let didAddJournalItemKey = "Toolbar.DidAddJournalCalendar"
 
     func addJournalToolbarItemIfNeeded() {
-        guard journalRootURL != nil, let toolbar = documentWindow.toolbar,
-              toolbarItemOrderPersistenceReady else { return }
-        let defaults = UserDefaults.standard
-        guard !defaults.bool(forKey: Self.didAddJournalItemKey) else { return }
-        defaults.set(true, forKey: Self.didAddJournalItemKey)
-        let identifiers = toolbar.items.map(\.itemIdentifier)
-        guard !identifiers.contains(.journalCalendar) else { return }
-        let index = identifiers.firstIndex(of: .tasks)
-            ?? identifiers.firstIndex(of: .share)
-            ?? identifiers.count
-        toolbar.insertItem(withItemIdentifier: .journalCalendar, at: index)
+        guard journalRootURL != nil else { return }
+        insertToolbarItemOnce(.journalCalendar, key: Self.didAddJournalItemKey) { identifiers in
+            identifiers.firstIndex(of: .tasks) ?? identifiers.firstIndex(of: .share) ?? identifiers.count
+        }
     }
 }

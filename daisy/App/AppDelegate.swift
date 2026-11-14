@@ -105,6 +105,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private weak var outlineMenuItem: NSMenuItem?
     private weak var filesMenuItem: NSMenuItem?
     private weak var tasksMenuItem: NSMenuItem?
+    private weak var referencesMenuItem: NSMenuItem?
     private weak var automaticAppearanceMenuItem: NSMenuItem?
     private weak var lightAppearanceMenuItem: NSMenuItem?
     private weak var darkAppearanceMenuItem: NSMenuItem?
@@ -569,6 +570,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         syncSidebarViewMenuState()
     }
 
+    @objc private func toggleReferencesFromMenu(_ sender: Any?) {
+        activeDocumentWindowController?.toggleReferencesFromMenu()
+        syncSidebarViewMenuState()
+    }
+
     @objc private func selectAppearanceMode(_ sender: NSMenuItem) {
         guard ThemePreset.applied().requiredAppearance == nil else { return }
         guard let rawValue = sender.representedObject as? String,
@@ -606,6 +612,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let controller = activeDocumentWindowController
             menuItem.toolTip = controller?.isWorkspace == true ? nil : L("The agenda is available in a workspace.")
             return controller?.canToggleTasks == true
+        case #selector(toggleReferencesFromMenu(_:)):
+            let controller = activeDocumentWindowController
+            menuItem.toolTip = controller?.isWorkspace == true ? nil : L("References are available in a workspace.")
+            return controller?.canToggleReferences == true
         case #selector(selectAppearanceMode(_:)):
             return ThemePreset.applied().requiredAppearance == nil
         case #selector(selectContentWidthSetting(_:)):
@@ -879,6 +889,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case #selector(DocumentWindowController.searchForDocument(_:)): return .fileOmniSearch
         case #selector(toggleSidebarFromMenu(_:)): return .viewToggleSidebar
         case #selector(toggleTasksFromMenu(_:)): return .viewToggleTasks
+        case #selector(toggleReferencesFromMenu(_:)): return .viewToggleReferences
         case #selector(selectOutlineMode(_:)): return .viewShowOutline
         case #selector(selectFilesMode(_:)): return .viewShowProjectNavigator
         case #selector(toggleEditModeFromMenu(_:)): return .viewToggleEditMode
@@ -1434,7 +1445,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         viewMenu.insertItem(tasks, at: insertIndex + 3)
         tasksMenuItem = tasks
 
-        viewMenu.insertItem(.separator(), at: insertIndex + 4)
+        let references = makeSidebarViewMenuItem(title: L("References"),
+                                                 symbol: "link",
+                                                 keyEquivalent: "r",
+                                                 modifiers: [.shift, .command],
+                                                 action: #selector(toggleReferencesFromMenu(_:)))
+        viewMenu.insertItem(references, at: insertIndex + 4)
+        referencesMenuItem = references
+
+        viewMenu.insertItem(.separator(), at: insertIndex + 5)
     }
 
     private func installEditModeMenuItem() {
@@ -1588,9 +1607,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             outlineMenuItem?.state = .off
             filesMenuItem?.state = .off
             tasksMenuItem?.state = .off
+            referencesMenuItem?.state = .off
             return
         }
         tasksMenuItem?.state = activeDocumentWindowController?.isTasksVisible == true ? .on : .off
+        referencesMenuItem?.state = activeDocumentWindowController?.isReferencesVisible == true ? .on : .off
         outlineMenuItem?.state = (state.sidebarVisible && state.mode == .outline) ? .on : .off
         filesMenuItem?.state = (state.sidebarVisible && state.mode == .files) ? .on : .off
     }

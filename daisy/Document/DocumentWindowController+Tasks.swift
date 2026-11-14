@@ -49,45 +49,20 @@ extension DocumentWindowController {
     }
 
     private func taskURL(_ task: WorkspaceIndexedTask) -> URL? {
-        guard let root = workspaceIndex?.root,
-              (try? WorkspaceFileWriter.components(of: task.path)) != nil else { return nil }
-        return root.appending(path: task.path, directoryHint: .notDirectory)
+        workspaceFileURL(task.path)
     }
 
-    /// The window showing the file, matched by resolved identity.
     private static func controller(showingTaskFile url: URL) -> DocumentWindowController? {
-        let target = FileSearchResults.resolvedIdentity(url)
-        return allControllers.first { $0.currentFileURL.map(FileSearchResults.resolvedIdentity) == target }
+        controller(showingWorkspaceFile: url)
     }
 
     // MARK: - Opening
 
+    /// A window that already has the file finds the task in its text, which
+    /// may have moved since the index read it.
     func openTask(_ task: WorkspaceIndexedTask, inNewTab: Bool) {
-        guard let url = taskURL(task) else {
-            NSSound.beep()
-            return
-        }
-        if let existing = Self.controller(showingTaskFile: url) {
-            existing.documentWindow.makeKeyAndOrderFront(nil)
-            existing.scrollToTask(task.task)
-            return
-        }
-        if inNewTab {
-            openInNewTab(url) { controller in controller.scrollToTask(task.task) }
-            return
-        }
-        let open = { [weak self] in
-            guard let self else { return }
-            self.present(url: url, preservingEditMode: true, intent: .normal, fragment: nil)
-            // The indexed line; the file is read again only once it is shown.
-            self.mainSplit?.scrollToTaskLine(task.task.line)
-        }
-        if isEditing || hasPendingEditorChanges {
-            requestEndEditing(keepAccessoryMounted: true) { success in
-                if success { open() }
-            }
-        } else {
-            open()
+        openWorkspaceFile(task.path, line: task.task.line, inNewTab: inNewTab) { controller in
+            controller.scrollToTask(task.task)
         }
     }
 
