@@ -51,6 +51,17 @@ extension DocumentWindowController {
             self?.renameImage(at: url)
         }
         editor.setWorkspaceCandidates(workspaceCandidates)
+        editor.setMetadataLinksEnabled(isWorkspace)
+        editor.linkActivated = { [weak self] request in
+            guard let self else { return }
+            switch request {
+            case .destination(let destination):
+                let link = DocumentLink(id: 0, text: "", destination: destination)
+                self.mainSplit?.openLink(link.target(relativeTo: self.currentFileURL))
+            case .metadata(let token):
+                self.mainSplit?.openLink(.metadata(token))
+            }
+        }
         if editorBaselineMarkdown == nil {
             editorBaselineMarkdown = currentMarkdown
             editorChangeRevision = 0
@@ -488,6 +499,7 @@ extension DocumentWindowController {
         split.editorViewController?.pickImageRequested = nil
         split.editorViewController?.pickLinkRequested = nil
         split.editorViewController?.imageClicked = nil
+        split.editorViewController?.linkActivated = nil
         documentWindow.makeFirstResponder(nil)
         let overlayHidden: @MainActor () -> Void = { [weak self] in
             if hidesAccessoryAfterSwap { self?.dismissEditChrome() }

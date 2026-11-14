@@ -41,7 +41,7 @@ final class DocumentLinksTests: XCTestCase {
 
     func testFileTargetsResolveAgainstTheDocumentFolder() {
         let document = URL(fileURLWithPath: "/project/guides/setup.md")
-        func target(_ destination: String) -> DocumentLink.Target? {
+        func target(_ destination: String) -> LinkTarget? {
             DocumentLink(id: 0, text: "", destination: destination).target(relativeTo: document)
         }
         XCTAssertEqual(target("../My%20Notes/plan.md#next-steps"),

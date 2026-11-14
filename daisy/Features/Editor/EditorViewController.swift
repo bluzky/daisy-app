@@ -32,6 +32,14 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
     var pickLinkRequested: ((Int, Int) -> Void)?
     /// A rendered local image was clicked in the live editor preview.
     var imageClicked: ((URL) -> Void)?
+    /// Cmd+click on a link or a metadata token.
+    enum LinkRequest {
+        /// A link destination as written in the Markdown.
+        case destination(String)
+        /// A `#tag`, `@context` or `+project` token, marker included.
+        case metadata(String)
+    }
+    var linkActivated: ((LinkRequest) -> Void)?
 
     private(set) var hasChanges = false
 
@@ -187,6 +195,23 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
     /// The workspace names the `#`, `@` and `+` menus offer besides the
     /// document's own. Kept here and sent again to each fresh page.
     private var workspaceCandidates: WorkspaceMetadataSnapshot?
+
+    /// Whether metadata tokens read as links (workspace windows). Kept here
+    /// and sent again to each fresh page, like the candidates.
+    private var metadataLinksEnabled = false
+
+    func setMetadataLinksEnabled(_ enabled: Bool) {
+        guard enabled != metadataLinksEnabled else { return }
+        metadataLinksEnabled = enabled
+        guard hasLoadedEditorPage else { return }
+        applyMetadataLinksEnabled()
+    }
+
+    private func applyMetadataLinksEnabled() {
+        webView.evaluateJavaScript(
+            "window.__mdEditor && window.__mdEditor.setMetadataLinks(\(metadataLinksEnabled))"
+        ) { _, _ in }
+    }
 
     func setWorkspaceCandidates(_ snapshot: WorkspaceMetadataSnapshot?) {
         guard snapshot != workspaceCandidates else { return }
@@ -567,6 +592,7 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
                 updateObscuredContentInsets()
                 applySlashTemplates()
                 applyWorkspaceCandidates()
+                applyMetadataLinksEnabled()
                 editorDidBecomeReady?()
             case "cancel":
                 cancelRequested?()
@@ -605,6 +631,12 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
             guard let from = payload["from"] as? NSNumber,
                   let to = payload["to"] as? NSNumber else { return }
             pickLinkRequested?(from.intValue, to.intValue)
+        case "openLink":
+            if let token = payload["token"] as? String {
+                linkActivated?(.metadata(token))
+            } else if let destination = payload["destination"] as? String, !destination.isEmpty {
+                linkActivated?(.destination(destination))
+            }
         case "imageClick":
             guard let source = payload["src"] as? String,
                   let url = URL(string: source),

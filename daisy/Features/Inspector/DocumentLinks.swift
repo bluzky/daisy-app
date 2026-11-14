@@ -37,20 +37,13 @@ struct DocumentLink: Equatable, Identifiable {
 
     /// What activating the link should do. Nil when it cannot be resolved:
     /// a relative path in a document that has not been saved anywhere.
-    enum Target: Equatable {
-        case external(URL)
-        /// A local file, with the `#section` to open it at, if any.
-        case file(URL, fragment: String?)
-        case section(String)
-    }
-
-    func target(relativeTo documentURL: URL?) -> Target? {
+    func target(relativeTo documentURL: URL?) -> LinkTarget? {
         switch kind {
         case .section:
             let fragment = String(destination.dropFirst())
             return .section(fragment.removingPercentEncoding ?? fragment)
         case .web:
-            return URL(string: destination).map(Target.external)
+            return URL(string: destination).map(LinkTarget.external)
         case .file:
             var path = destination
             var fragment: String?

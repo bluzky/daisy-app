@@ -315,6 +315,10 @@ nonisolated enum EditorHTML {
         }
         .cm-md-link { color: var(--link); }
         .cm-md-url { color: var(--secondary); }
+        /* Links underline on hover; holding Cmd (Cmd+click opens them)
+           adds the pointer. */
+        .cm-md-link:hover, .cm-md-url:hover { text-decoration: underline; }
+        .cm-mod-held :is(.cm-md-link, .cm-md-url):hover { cursor: pointer; }
         .cm-md-image-preview {
             display: inline-flex;
             max-width: 100%;
@@ -869,6 +873,7 @@ nonisolated enum EditorHTML {
             let editor = null;
             let slashTemplates = [];
             let workspaceCandidates = null;
+            let metadataLinks = false;
             window.__mdLoadEditor = function (markdown, baseHref, codeLanguage) {
                 const isCode = typeof codeLanguage === "string";
                 document.documentElement.toggleAttribute("data-code-mode", isCode);
@@ -908,6 +913,9 @@ nonisolated enum EditorHTML {
                         onPickLink: function (from, to) {
                             post({ kind: "pickLink", from: from, to: to });
                         },
+                        onOpenLink: function (link) {
+                            post({ kind: "openLink", token: link.token, destination: link.destination });
+                        },
                         // Preview block margins (MarkdownHTML design tokens):
                         // the bundle sizes blank-separator lines from these.
                         spacing: {
@@ -923,6 +931,7 @@ nonisolated enum EditorHTML {
                 );
                 editor.setSlashTemplates(slashTemplates);
                 if (workspaceCandidates) editor.setWorkspaceCandidates(workspaceCandidates);
+                editor.setMetadataLinks(metadataLinks);
                 window.__mdEditor = {
                     find: function (query, backwards, options) {
                         return editor.find(query, backwards, options);
@@ -954,6 +963,11 @@ nonisolated enum EditorHTML {
                     // and not kept.
                     setWorkspaceCandidates: function (snapshot) {
                         if (editor.setWorkspaceCandidates(snapshot)) workspaceCandidates = snapshot;
+                    },
+                    // Kept like the templates.
+                    setMetadataLinks: function (enabled) {
+                        metadataLinks = enabled === true;
+                        editor.setMetadataLinks(metadataLinks);
                     },
                     isSyntaxReady: function () { return editor.isSyntaxReady(); },
                     replaceMarkdown: function (markdown) { return editor.replaceMarkdown(markdown); },
