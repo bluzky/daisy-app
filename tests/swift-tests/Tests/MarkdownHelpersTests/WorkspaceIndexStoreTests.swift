@@ -405,6 +405,67 @@ final class WorkspaceIndexStoreTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: cacheURL().path))
     }
 
+    // MARK: - Tasks
+
+    /// Caches one task, then rewrites the file in place with the same size
+    /// and date: a reopen that reports `alpha` read the task from the cache.
+    private func cacheTaskThenSwapInPlace() async throws {
+        WorkspaceIndexStore.deleteCache(root: root, in: cache)
+        try write("- [ ] alpha due:2026-10-23 p:high", to: "a.md")
+        let first = await cached()
+        await first.stop()
+        try write("- [x] bravo due:2026-10-23 p:high", to: "a.md")
+    }
+
+    func testReopenRestoresTasksWithoutRereading() async throws {
+        try await cacheTaskThenSwapInPlace()
+        let reopened = await cached()
+        let tasks = await reopened.tasks()
+        XCTAssertEqual(tasks, [WorkspaceIndexedTask(path: "a.md", task: WorkspaceTaskMetadata(
+            line: 1, due: "2026-10-23", scheduled: nil, priority: "high", text: "alpha", checked: false))])
+        let revision = await reopened.taskRevision
+        XCTAssertGreaterThan(revision, 0, "a cache load signals tasks")
+    }
+
+    func testSchemaOneCacheIsRebuilt() async throws {
+        try await cacheTaskThenSwapInPlace()
+        try sql("DROP TABLE tasks; UPDATE meta SET value = '1' WHERE key = 'schema'", at: cacheURL())
+        let reopened = await cached()
+        let texts = await reopened.tasks().map(\.task.text)
+        XCTAssertEqual(texts, ["bravo"])
+    }
+
+    func testMalformedTaskRowsRejectTheCache() async throws {
+        let rows = [
+            "UPDATE tasks SET line = 0",
+            "UPDATE tasks SET checked = 2",
+            "UPDATE tasks SET due = '2026-02-30'",
+            "UPDATE tasks SET scheduled = 7",
+            "UPDATE tasks SET priority = 'urgent'",
+            "UPDATE tasks SET text = 'a' || char(10) || 'b'",
+            "UPDATE tasks SET text = x'41'",
+        ]
+        for row in rows {
+            try await cacheTaskThenSwapInPlace()
+            try sql("PRAGMA foreign_keys = OFF; \(row)", at: cacheURL())
+            let reopened = await cached()
+            let texts = await reopened.tasks().map(\.task.text)
+            XCTAssertEqual(texts, ["bravo"], row)
+            await reopened.stop()
+        }
+    }
+
+    func testOrphanTaskRowRejectsTheCache() async throws {
+        try await cacheTaskThenSwapInPlace()
+        try sql("""
+            PRAGMA foreign_keys = OFF;
+            INSERT INTO tasks (path, line, text, checked) VALUES ('ghost.md', 1, 'ghost', 0)
+            """, at: cacheURL())
+        let reopened = await cached()
+        let texts = await reopened.tasks().map(\.task.text)
+        XCTAssertEqual(texts, ["bravo"])
+    }
+
     func testSafeRelativePaths() {
         for path in ["a.md", "notes/b.md", "a b/c.md"] {
             XCTAssertTrue(WorkspaceIndexStore.isSafeRelativePath(path), path)

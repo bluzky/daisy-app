@@ -16,18 +16,18 @@ Keep Markdown files authoritative. A workspace is a folder containing a `.daisy/
 
 - Search and select tags, contexts, and projects while typing; set priorities and dates through slash commands.
 - Treat people as contexts rather than maintaining a separate people directory.
-- Support scheduled and due dates without a task dashboard, reminders, or recurrence execution.
+- Support scheduled and due dates without reminders or recurrence execution. (A dated-task view was later added as the Tasks sidebar; see [the Tasks sidebar proposal](tasks-sidebar-proposal.md).)
 - Preserve readable, editable Markdown outside Daisy.
 - Reuse completion infrastructure instead of implementing a separate menu for every prefix.
 - Make future metadata fields possible without introducing a plugin loader now.
 - Reuse indexed suggestions across tabs and app launches.
-- Index only folders the user has made workspaces, and write nothing into the user's folders except the marker that Initialize Workspace creates the metadata pages the user explicitly opens (see the implementation plan, Phase 4.5), and the journal entries the user explicitly opens (`journals/YYYY-MM-DD.md`, from Today's Journal or the toolbar calendar), plus, with journal carry-over turned on, the earlier entries whose unfinished tasks move into today's new one.
+- Index only folders the user has made workspaces, and write nothing into the user's folders except the marker that Initialize Workspace creates the metadata pages the user explicitly opens (see the implementation plan, Phase 4.5), and the journal entries the user explicitly opens (`journals/YYYY-MM-DD.md`, from Today's Journal or the toolbar calendar), plus, with journal carry-over turned on, the earlier entries whose unfinished tasks move into today's new one, and the files whose tasks the user checks off in the Tasks sidebar.
 
 Non-goals for the initial release:
 
 - Accounts, contact integration, person identity verification, or mention notifications.
 - Automatic task assignment from a person context.
-- Task dashboards, calendar synchronization, notifications, or recurring task generation.
+- Calendar synchronization, notifications, or recurring task generation.
 - Full todo.txt format compatibility.
 - Runtime third-party extension loading.
 
@@ -196,7 +196,7 @@ Metadata extraction has exactly one implementation, in JavaScript. Which text co
 - The Swift indexer loads that bundle into JavaScriptCore and calls it per file, following the precedent of `daisy/Rendering/CodeHighlighter.swift`. JavaScriptCore serializes calls per context, so initial indexing uses a small bounded pool of contexts; partial results are published while it runs.
 - Unicode normalization therefore happens in one place, and Swift needs no matching algorithm.
 
-Dates and priorities stay out of the workspace index. If a native feature later needs them, a narrow Swift reader is acceptable because those fields are confined to task marker lines and do not depend on block structure.
+The index also keeps each file's tasks, with their text, checked state, dates and priority, for the Tasks sidebar (see [the Tasks sidebar proposal](tasks-sidebar-proposal.md)). They are read by the same extractor, stored per file rather than aggregated, and never sent to editors in completion snapshots.
 
 ## Workspaces
 
@@ -208,7 +208,7 @@ Detection checks only the folder being opened. Daisy does not walk parent direct
 - **Folder windows only.** A window opened for a single file roots its navigator at the file's parent folder. That root is never checked for a marker, because checking it would be a one-level parent walk. To use a workspace, open its folder.
 - **Initialize Workspace.** File → Initialize Workspace is enabled in a folder window whose root has no marker. It creates `.daisy/config.json` and turns every open folder window on that root into a workspace window. If the write fails, show an error and leave the window a plain folder.
 - **Remove Workspace.** File → Remove Workspace, enabled in a workspace window, deletes `.daisy/config.json` (and `.daisy/` once nothing else is in it) and that workspace's cache, and turns its windows back into plain folder windows. Deleting the marker by hand has the same effect the next time Daisy becomes active.
-- **The marker.** `.daisy/config.json` contains only `{"version": 1}`. Its presence makes the folder a workspace; Daisy does not read its contents, and later versions will ignore content they do not recognise, so a marker that arrives with a cloned repository can turn on indexing and nothing else. It holds no cache or per-user state, so committing it is harmless and shares the workspace with collaborators; adding it to `.gitignore` keeps it personal. Initialize Workspace is the only command that writes into a workspace folder.
+- **The marker.** `.daisy/config.json` contains only `{"version": 1}`. Its presence makes the folder a workspace; Daisy does not read its contents, and later versions will ignore content they do not recognise, so a marker that arrives with a cloned repository can turn on indexing and nothing else. It holds no cache or per-user state, so committing it is harmless and shares the workspace with collaborators; adding it to `.gitignore` keeps it personal. Initialize Workspace is the only command that writes the marker; the other writes into a workspace folder are listed under Goals and scope.
 - **Window scope.** A workspace window keeps its workspace whatever file it shows next, as a folder window keeps its navigator root today. Every document it shows gets that workspace's suggestions; only files inside the root contribute to the index. Open in New Tab or Open in New Window for a file inside the root, and a new untitled document created from the window, carry the workspace over, as they already carry the navigator root.
 - **Files opened directly.** A file opened from Finder, ⌘O, Open Recent, drag and drop, or the command-line tool joins, as a tab, the frame of the innermost open window whose folder contains it, and gets that window's workspace if it has one. With no such window open, it gets a plain window and current-buffer suggestions only, even if it lies inside a workspace folder.
 - **Shared index.** Key workspaces by canonical root (symlinks resolved, then standardized, as `SidebarWorkspace.canonicalURL` does). The index service is shared by canonical root, so a second workspace window on the same root does not index again. Do not follow symlinks out of the root or into cycles. There is no workspace registry; leave `SidebarWorkspaceRegistry` and folder-opening behavior unchanged.
@@ -235,7 +235,7 @@ Store each workspace's index in the app's sandbox container, not in the workspac
 <app container>/Library/Caches/WorkspaceIndex/<root-id>.sqlite
 ```
 
-`<root-id>` is derived from the canonical root path and its volume identifier. Apart from the `.daisy/config.json` marker, the pages and journal entries the user opens, and the earlier entries journal carry-over takes tasks from, Daisy writes nothing into the workspace folder: no cache, no `.gitignore`, no per-user state. The marker is small, static, and safe to commit or sync; keeping the cache out keeps SQLite out of git, iCloud Drive, Dropbox, and network folders, where synced database files are a known source of corruption. Future shareable workspace settings may be added to `config.json` under a new version; per-user state never goes there.
+`<root-id>` is derived from the canonical root path and its volume identifier. Apart from the `.daisy/config.json` marker, the pages and journal entries the user opens, the earlier entries journal carry-over takes tasks from, and the files whose tasks the user checks off in the Tasks sidebar, Daisy writes nothing into the workspace folder: no cache, no `.gitignore`, no per-user state. The marker is small, static, and safe to commit or sync; keeping the cache out keeps SQLite out of git, iCloud Drive, Dropbox, and network folders, where synced database files are a known source of corruption. Future shareable workspace settings may be added to `config.json` under a new version; per-user state never goes there.
 
 ### Cache contents
 
@@ -243,6 +243,7 @@ Store each workspace's index in the app's sandbox container, not in the workspac
 - Root identity (canonical path and volume identifier) sufficient to detect an incompatible or relocated cache.
 - Workspace-relative file paths, modification times, sizes, and content hashes.
 - Per-file tokens and occurrence counts; aggregate projects, contexts, and tags.
+- Per-file tasks (line, text, checked state, dates, priority), for the Tasks sidebar.
 
 Do not store full document copies or unsaved-buffer text. The database is disposable derived data, not a source of truth.
 

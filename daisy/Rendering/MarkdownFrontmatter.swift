@@ -11,7 +11,7 @@ struct FrontmatterEntry: Equatable, Identifiable {
     let value: String
     /// Non-nil when the value is a sequence (`tags: [a, b]` or `- item`
     /// lines). `value` then carries the items joined with ", " for
-    /// plain-text consumers like the Inspector.
+    /// plain-text consumers.
     let items: [String]?
 
     nonisolated init(id: Int, key: String, value: String, items: [String]? = nil) {
@@ -24,8 +24,7 @@ struct FrontmatterEntry: Equatable, Identifiable {
 
 // Swift-markdown is CommonMark: it has no frontmatter notion, so delimiter
 // blocks can be rendered as document content. We split supported frontmatter
-// from the Markdown body, then surface its parsed entries in the rendered page
-// and Inspector.
+// from the Markdown body, then surface its parsed entries in the rendered page.
 nonisolated enum MarkdownFrontmatter {
 
     enum Format {

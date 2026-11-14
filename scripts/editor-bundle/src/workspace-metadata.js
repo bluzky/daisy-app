@@ -201,7 +201,8 @@ function taskMetadata(source, starts, taskOffset, ranges) {
   const line = lineAt(starts, taskOffset);
   const end = lineEnd(source, taskOffset);
   const text = source.slice(taskOffset, end);
-  const task = { line, due: null, scheduled: null, priority: null };
+  const task = { line, text: "", checked: /^\[[xX]\]/u.test(text), due: null, scheduled: null, priority: null };
+  const removed = [];
   for (const field of text.matchAll(TASK_FIELD)) {
     const fieldStart = taskOffset + field.index + field[1].length;
     if (isBlocked(fieldStart, ranges)) continue;
@@ -209,7 +210,12 @@ function taskMetadata(source, starts, taskOffset, ranges) {
     else if (field[2] === "scheduled" && isTaskDate(field[3]))
       task.scheduled ??= field[3];
     else if (field[4]) task.priority ??= field[4];
+    if (field[4] || isTaskDate(field[3]))
+      removed.push([field.index + field[1].length, field.index + field[0].length]);
   }
+  let label = text;
+  for (const [from, to] of removed.reverse()) label = label.slice(0, from) + label.slice(to);
+  task.text = label.replace(/^\[[ xX]\]\s*/u, "").replace(/\s+/gu, " ").trim();
   return task;
 }
 

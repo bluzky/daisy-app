@@ -42,12 +42,16 @@
       "tasks": [
         {
           "line": 3,
+          "text": "Ship #Release",
+          "checked": false,
           "due": "2026-02-28",
           "scheduled": "2026-02-01",
           "priority": "high"
         },
         {
           "line": 4,
+          "text": "Review @Team +Daisy",
+          "checked": true,
           "due": null,
           "scheduled": null,
           "priority": "medium"
@@ -128,7 +132,7 @@
   },
   {
     "name": "malformed tokens and task continuation are ignored without rewriting source",
-    "source": "#123 #bad//path #trailing/ #_ @/no +---\n(#ignored), #good @home-office +one_two/three-4\n- [ ] Valid due:2024-02-29 scheduled:2025-01-01 p:high\n- [x] Bad due:2023-02-29 scheduled:2025-13-01 p:urgent\nNot a task due:2025-01-02 p:low\n- [ ] Continuation\n  due:2025-01-02 p:low",
+    "source": "#123 #bad//path #trailing/ #_ @/no +---\n(#ignored), #good @home-office +one_two/three-4\n- [ ] Valid due:2024-02-29 scheduled:2025-01-01 p:high\n- [x] Bad due:2023-02-29 scheduled:2025-13-01 p:urgent due:0000-01-01\nNot a task due:2025-01-02 p:low\n- [ ] Continuation\n  due:2025-01-02 p:low",
     "expected": {
       "tags": [
         {
@@ -154,18 +158,24 @@
       "tasks": [
         {
           "line": 3,
+          "text": "Valid",
+          "checked": false,
           "due": "2024-02-29",
           "scheduled": "2025-01-01",
           "priority": "high"
         },
         {
           "line": 4,
+          "text": "Bad due:2023-02-29 scheduled:2025-13-01 p:urgent due:0000-01-01",
+          "checked": true,
           "due": null,
           "scheduled": null,
           "priority": null
         },
         {
           "line": 6,
+          "text": "Continuation",
+          "checked": false,
           "due": null,
           "scheduled": null,
           "priority": null
@@ -201,12 +211,16 @@
       "tasks": [
         {
           "line": 2,
+          "text": "Lowercase DUE:2025-04-01 Scheduled:2025-04-02 P:high",
+          "checked": false,
           "due": "2025-03-04",
           "scheduled": "2025-03-01",
           "priority": "low"
         },
         {
           "line": 4,
+          "text": "Inline `due:2025-06-01 p:high`",
+          "checked": false,
           "due": null,
           "scheduled": "2025-06-02",
           "priority": null
@@ -235,6 +249,8 @@
       "tasks": [
         {
           "line": 4,
+          "text": "Plan +Daisy",
+          "checked": false,
           "due": null,
           "scheduled": null,
           "priority": null
@@ -339,15 +355,54 @@
       "tasks": [
         {
           "line": 1,
+          "text": "Task foo:bar",
+          "checked": false,
           "due": "2025-01-02",
           "scheduled": null,
           "priority": "low"
         },
         {
           "line": 2,
+          "text": "Glued,due:2025-05-06 x;p:high",
+          "checked": false,
           "due": null,
           "scheduled": null,
           "priority": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "task text and checked state in quotes and nested lists; code ignored",
+    "source": "> - [ ] Quoted  reply due:2026-10-23\n- [ ] Parent\n  - [X] Nested p:low scheduled:2026-10-20\n```\n- [ ] Code due:2026-10-20\n```",
+    "expected": {
+      "tags": [],
+      "contexts": [],
+      "projects": [],
+      "tasks": [
+        {
+          "line": 1,
+          "text": "Quoted reply",
+          "checked": false,
+          "due": "2026-10-23",
+          "scheduled": null,
+          "priority": null
+        },
+        {
+          "line": 2,
+          "text": "Parent",
+          "checked": false,
+          "due": null,
+          "scheduled": null,
+          "priority": null
+        },
+        {
+          "line": 3,
+          "text": "Nested",
+          "checked": true,
+          "due": null,
+          "scheduled": "2026-10-20",
+          "priority": "low"
         }
       ]
     }

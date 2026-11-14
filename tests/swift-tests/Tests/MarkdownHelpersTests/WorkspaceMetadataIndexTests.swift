@@ -251,6 +251,97 @@ final class WorkspaceMetadataIndexTests: XCTestCase {
         await assertTags(index, ["saved": 1])
     }
 
+    // MARK: - Tasks
+
+    private func taskTexts(_ index: WorkspaceMetadataIndex) async -> [String] {
+        await index.tasks().map { "\($0.path):\($0.task.line) \($0.task.checked ? "x" : "o") \($0.task.text)" }
+    }
+
+    func testTasksAreKeptPerFile() async throws {
+        try write("- [ ] Ship #release due:2026-10-23 p:high\n- [x] Done scheduled:2026-10-20", to: "b.md")
+        try write("Intro\n\n- [ ] Plan +daisy", to: "a.md")
+        let index = await scanned()
+
+        let texts = await taskTexts(index)
+        XCTAssertEqual(texts, ["a.md:3 o Plan +daisy", "b.md:1 o Ship #release", "b.md:2 x Done"])
+        let tasks = await index.tasks()
+        let first = try XCTUnwrap(tasks.first { $0.path == "b.md" })
+        XCTAssertEqual(first.task.due, "2026-10-23")
+        XCTAssertEqual(first.task.priority, "high")
+        // Tasks never reach the completion snapshot.
+        await assertTags(index, ["release": 1])
+    }
+
+    func testTaskRevisionFollowsOnlyTaskChanges() async throws {
+        let a = try write("#one\n- [ ] Task due:2026-10-23", to: "a.md")
+        let index = await scanned()
+        var revision = await index.taskRevision
+
+        func expect(_ changed: Bool, after text: String, _ message: String,
+                    file: StaticString = #filePath, line: UInt = #line) async throws {
+            try write(text, to: "a.md")
+            await index.filesChanged([a])
+            let next = await index.taskRevision
+            XCTAssertEqual(next != revision, changed, message, file: file, line: line)
+            revision = next
+        }
+        try await expect(false, after: "#one\n- [ ] Task due:2026-10-23", "unchanged re-read")
+        try await expect(false, after: "#two\n- [ ] Task due:2026-10-23", "tag-only edit")
+        try await expect(true, after: "#two\n- [ ] Task due:2026-10-24", "due only")
+        try await expect(true, after: "#two\n- [ ] Task due:2026-10-24 scheduled:2026-10-22", "scheduled only")
+        try await expect(true, after: "#two\n- [x] Task due:2026-10-24 scheduled:2026-10-22", "checked only")
+        try await expect(true, after: "#two\n- [x] Renamed due:2026-10-24 scheduled:2026-10-22", "text only")
+
+        let owner = UUID()
+        await index.setOverlay("- [ ] Draft due:2026-10-25", for: a, owner: owner)
+        let afterOverlay = await index.taskRevision
+        XCTAssertNotEqual(afterOverlay, revision, "overlay set")
+        await index.restoreDiskContribution(for: a, owner: owner)
+        let afterRestore = await index.taskRevision
+        XCTAssertNotEqual(afterRestore, afterOverlay, "overlay cleared")
+
+        try FileManager.default.removeItem(at: a)
+        await index.filesChanged([a])
+        let afterDelete = await index.taskRevision
+        XCTAssertNotEqual(afterDelete, afterRestore, "delete")
+        let tasks = await index.tasks()
+        XCTAssertEqual(tasks, [])
+    }
+
+    func testTaskChangesStreamYieldsRevisions() async throws {
+        let a = try write("- [ ] Task", to: "a.md")
+        let index = await scanned()
+        let stream = await index.taskChanges()
+        var iterator = stream.makeAsyncIterator()
+        let initial = await iterator.next()
+        let initialRevision = await index.taskRevision
+        XCTAssertEqual(initial, initialRevision)
+
+        try write("- [x] Task", to: "a.md")
+        await index.filesChanged([a])
+        let next = await iterator.next()
+        let nextRevision = await index.taskRevision
+        XCTAssertEqual(next, nextRevision)
+        XCTAssertGreaterThan(next ?? 0, initial ?? 0)
+    }
+
+    func testRecordTaskWriteUpdatesTasksImmediately() async throws {
+        let a = try write("- [ ] Task", to: "a.md")
+        let index = await scanned()
+        let before = await index.taskRevision
+
+        await index.recordTaskWrite(markdown: "- [x] Task", for: a)
+
+        let texts = await taskTexts(index)
+        XCTAssertEqual(texts, ["a.md:1 x Task"])
+        let after = await index.taskRevision
+        XCTAssertNotEqual(after, before)
+        // The disk still says otherwise; the next read is believed.
+        await index.filesChanged([a])
+        let reread = await taskTexts(index)
+        XCTAssertEqual(reread, ["a.md:1 o Task"])
+    }
+
     // MARK: - Workspaces
 
     func testOverlappingWorkspacesIndexIndependently() async throws {

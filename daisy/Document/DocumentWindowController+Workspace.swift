@@ -76,6 +76,7 @@ extension DocumentWindowController {
     /// Binds this window to the shared index for its workspace, or lets go
     /// of it when the window stops being a workspace window.
     func updateWorkspaceIndexBinding() {
+        configureTaskSidebar()
         let root = indexedWorkspaceRootURL.map(WorkspaceMetadataIndex.canonicalRoot)
         guard root != workspaceIndex?.root else { return }
         releaseWorkspaceIndex()
@@ -86,6 +87,8 @@ extension DocumentWindowController {
         }
         let index = WorkspaceMetadataIndex.acquire(root: root)
         workspaceIndex = index
+        taskRootIdentity = try? WorkspaceFileWriter.RootIdentity(root: root)
+        mainSplit?.taskCalendarViewController?.bind(index: index)
         workspaceSnapshotTask = Task { [weak self] in
             for await snapshot in await index.snapshots() {
                 self?.applyWorkspaceCandidates(snapshot)
@@ -95,6 +98,8 @@ extension DocumentWindowController {
     }
 
     func releaseWorkspaceIndex() {
+        mainSplit?.taskCalendarViewController?.bind(index: nil)
+        taskRootIdentity = nil
         restoreWorkspaceOverlay()
         workspaceSnapshotTask?.cancel()
         workspaceSnapshotTask = nil
@@ -143,7 +148,7 @@ extension DocumentWindowController {
         enqueueWorkspaceIndexUpdate { await index.restoreDiskContribution(for: url, owner: owner) }
     }
 
-    private func enqueueWorkspaceIndexUpdate(_ update: @escaping @Sendable () async -> Void) {
+    func enqueueWorkspaceIndexUpdate(_ update: @escaping @Sendable () async -> Void) {
         let previous = workspaceIndexUpdates
         workspaceIndexUpdates = Task {
             await previous?.value

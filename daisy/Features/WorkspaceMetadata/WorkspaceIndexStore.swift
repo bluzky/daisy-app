@@ -33,7 +33,7 @@ actor WorkspaceIndexStore {
     }
 
     /// Bump when the tables change; an older file is rebuilt.
-    nonisolated static let schemaVersion = 1
+    nonisolated static let schemaVersion = 2
     /// Files saved per transaction, so a write never holds the file long.
     nonisolated static let transactionSize = 256
     /// How long a write waits for another connection before giving up.
@@ -194,7 +194,7 @@ actor WorkspaceIndexStore {
         guard try query(database, "PRAGMA quick_check", { text($0, 0) }) == ["ok"] else { return false }
         let tables = try query(database, "SELECT name FROM sqlite_master WHERE type = 'table'") { text($0, 0) }
         guard !tables.isEmpty else { return true }
-        guard Set(tables.compactMap { $0 }) == ["meta", "files", "tokens"] else { return false }
+        guard Set(tables.compactMap { $0 }) == ["meta", "files", "tokens", "tasks"] else { return false }
         let rows = try query(database, "SELECT key, value FROM meta") { (text($0, 0), text($0, 1)) }
         let meta = Dictionary(rows.compactMap { key, value in key.flatMap { key in value.map { (key, $0) } } }) {
             first, _ in first
@@ -223,6 +223,16 @@ actor WorkspaceIndexStore {
                 count INTEGER NOT NULL
             );
             CREATE INDEX IF NOT EXISTS tokens_by_path ON tokens(path);
+            CREATE TABLE IF NOT EXISTS tasks (
+                path TEXT NOT NULL REFERENCES files(path) ON DELETE CASCADE,
+                line INTEGER NOT NULL,
+                text TEXT NOT NULL,
+                checked INTEGER NOT NULL,
+                due TEXT,
+                scheduled TEXT,
+                priority TEXT
+            );
+            CREATE INDEX IF NOT EXISTS tasks_by_path ON tasks(path);
             """)
         let meta = ["schema": String(schemaVersion), "parser": parserVersion,
                     "root": identity.path, "volume": identity.volume]
@@ -253,8 +263,27 @@ actor WorkspaceIndexStore {
             (Self.text(statement, 0), Self.int(statement, 1), Self.text(statement, 2),
              Self.text(statement, 3), Self.int(statement, 4))
         }
+        let taskRows = try Self.query(database, """
+            SELECT path, line, text, checked, due, scheduled, priority FROM tasks ORDER BY path, line, rowid
+            """) { statement in
+            (Self.text(statement, 0), Self.int(statement, 1), Self.text(statement, 2), Self.int(statement, 3),
+             Self.optionalText(statement, 4), Self.optionalText(statement, 5), Self.optionalText(statement, 6))
+        }
         var contributions: [String: WorkspaceMetadataContribution] = [:]
         var occurrences: [String: Int] = [:]
+        var tasks: [String: [WorkspaceTaskMetadata]] = [:]
+        for (path, line, text, checked, due, scheduled, priority) in taskRows {
+            guard let path, let line, line > 0, let text, !text.contains("\n"), !text.contains("\r"),
+                  let checked, checked == 0 || checked == 1,
+                  let due, let scheduled, let priority,
+                  due.map(Self.isTaskDate) ?? true, scheduled.map(Self.isTaskDate) ?? true,
+                  priority.map(["high", "medium", "low"].contains) ?? true,
+                  tasks[path, default: []].count < Self.maximumOccurrencesPerFile
+            else { return try discardContents() }
+            tasks[path, default: []].append(WorkspaceTaskMetadata(line: line, due: due, scheduled: scheduled,
+                                                                  priority: priority, text: text,
+                                                                  checked: checked == 1))
+        }
         var seen: Set<[String]> = []
         for (path, kind, key, spelling, count) in tokens {
             guard let path, let kind = kind.flatMap(Self.kind(_:)), let key, Self.isKey(key),
@@ -270,12 +299,13 @@ actor WorkspaceIndexStore {
         for (path, modified, size, hash) in rows {
             guard let path, Self.isSafeRelativePath(path), let hash, hash.count == SHA256.byteCount,
                   size.map({ $0 >= 0 }) ?? true else { return try discardContents() }
+            var contribution = contributions.removeValue(forKey: path) ?? WorkspaceMetadataContribution()
+            contribution.tasks = tasks.removeValue(forKey: path) ?? []
             records[path] = Record(modificationDate: modified.map(Date.init(timeIntervalSinceReferenceDate:)),
-                                   size: size, hash: hash,
-                                   contribution: contributions.removeValue(forKey: path) ?? WorkspaceMetadataContribution())
+                                   size: size, hash: hash, contribution: contribution)
         }
-        // Tokens for a file that is not there.
-        guard contributions.isEmpty else { return try discardContents() }
+        // Tokens or tasks for a file that is not there.
+        guard contributions.isEmpty, tasks.isEmpty else { return try discardContents() }
         return records
     }
 
@@ -308,6 +338,20 @@ actor WorkspaceIndexStore {
                                     Self.bind($0, 5, count)
                                 }
                             }
+                        }
+                    }
+                    for task in record.contribution.tasks {
+                        try Self.run(database, """
+                            INSERT INTO tasks (path, line, text, checked, due, scheduled, priority)
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                            """) {
+                            Self.bind($0, 1, path)
+                            Self.bind($0, 2, task.line)
+                            Self.bind($0, 3, task.text)
+                            Self.bind($0, 4, task.checked ? 1 : 0)
+                            Self.bind($0, 5, task.due)
+                            Self.bind($0, 6, task.scheduled)
+                            Self.bind($0, 7, task.priority)
                         }
                     }
                 }
@@ -474,6 +518,10 @@ actor WorkspaceIndexStore {
         sqlite3_bind_text(statement, index, value, -1, transient)
     }
 
+    nonisolated private static func bind(_ statement: OpaquePointer, _ index: Int32, _ value: String?) {
+        if let value { bind(statement, index, value) } else { sqlite3_bind_null(statement, index) }
+    }
+
     nonisolated private static func bind(_ statement: OpaquePointer, _ index: Int32, _ value: Int?) {
         if let value { sqlite3_bind_int64(statement, index, Int64(value)) } else { sqlite3_bind_null(statement, index) }
     }
@@ -492,6 +540,16 @@ actor WorkspaceIndexStore {
         guard sqlite3_column_type(statement, column) == SQLITE_TEXT,
               let pointer = sqlite3_column_text(statement, column) else { return nil }
         return String(cString: pointer)
+    }
+
+    /// Outer nil is a malformed column; inner nil is SQL NULL.
+    nonisolated private static func optionalText(_ statement: OpaquePointer, _ column: Int32) -> String?? {
+        if sqlite3_column_type(statement, column) == SQLITE_NULL { return .some(nil) }
+        return text(statement, column).map(Optional.some)
+    }
+
+    nonisolated private static func isTaskDate(_ value: String) -> Bool {
+        JournalDay(string: value) != nil
     }
 
     nonisolated private static func int(_ statement: OpaquePointer, _ column: Int32) -> Int? {

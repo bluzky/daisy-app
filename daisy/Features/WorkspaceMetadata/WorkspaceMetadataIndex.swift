@@ -3,7 +3,9 @@
 //  daisy
 //
 //  The tags, contexts and projects of one workspace's saved Markdown files,
-//  with unsaved buffers standing in for their files. One index serves every
+//  and each file's tasks for the Tasks sidebar, with unsaved buffers
+//  standing in for their files. Tasks have their own revision and stream,
+//  apart from the name snapshots editors get. One index serves every
 //  workspace window on a root. It only reads the workspace; what it read is
 //  kept in memory and copied to a `WorkspaceIndexStore` outside the
 //  workspace, so the next open starts from the copy instead of an empty
@@ -68,10 +70,13 @@ nonisolated struct WorkspaceMetadataSnapshot: Sendable, Equatable {
 nonisolated struct WorkspaceMetadataContribution: Sendable, Equatable {
     typealias Spellings = [String: Int]
     private(set) var names: [WorkspaceMetadataKind: [String: Spellings]] = [:]
+    /// Per-file only; merge deliberately aggregates names, never tasks.
+    var tasks: [WorkspaceTaskMetadata] = []
 
     init() {}
 
     init(_ metadata: WorkspaceMetadata) {
+        tasks = metadata.tasks
         add(metadata.tags, as: .tag)
         add(metadata.contexts, as: .context)
         add(metadata.projects, as: .project)
@@ -191,6 +196,44 @@ actor WorkspaceMetadataIndex {
     private var watcher: WorkspaceDirectoryWatcher?
     private var subscribers: [UUID: AsyncStream<WorkspaceMetadataSnapshot>.Continuation] = [:]
     private var latest: WorkspaceMetadataSnapshot?
+    private(set) var taskRevision = 0
+    private var taskSubscribers: [UUID: AsyncStream<Int>.Continuation] = [:]
+
+    func tasks() -> [WorkspaceIndexedTask] {
+        Set(files.keys).union(overlays.keys).sorted().flatMap { path in
+            (effectiveContribution(at: path)?.tasks ?? []).map { WorkspaceIndexedTask(path: path, task: $0) }
+        }
+    }
+
+    func taskChanges() -> AsyncStream<Int> {
+        let id = UUID()
+        let (stream, continuation) = AsyncStream.makeStream(of: Int.self, bufferingPolicy: .bufferingNewest(1))
+        taskSubscribers[id] = continuation
+        continuation.yield(taskRevision)
+        continuation.onTermination = { [weak self] _ in Task { await self?.unsubscribeTasks(id) } }
+        return stream
+    }
+
+    private func unsubscribeTasks(_ id: UUID) { taskSubscribers[id] = nil }
+
+    private func publishTasks() {
+        taskRevision += 1
+        for continuation in taskSubscribers.values { continuation.yield(taskRevision) }
+    }
+
+    /// Immediately reflects a successful write without installing a lasting buffer overlay.
+    func recordTaskWrite(markdown: String, for url: URL) async {
+        guard let path = relativePath(of: url) else { return }
+        let generation = (readGenerations[path] ?? 0) + 1
+        readGenerations[path] = generation
+        guard let metadata = await Self.extract(markdown), readGenerations[path] == generation else { return }
+        // Unknown fingerprint forces the watcher/reconcile to confirm the actual disk bytes.
+        setFile(FileEntry(fingerprint: Fingerprint(modificationDate: nil, size: nil),
+                          hash: Data(SHA256.hash(data: Data(markdown.utf8))),
+                          contribution: WorkspaceMetadataContribution(metadata)), at: path)
+        publish()
+        scheduleFlush()
+    }
 
     init(root: URL, limits: Limits = Limits(), cacheDirectory: URL? = nil) {
         self.root = Self.canonicalRoot(root)
@@ -262,6 +305,8 @@ actor WorkspaceMetadataIndex {
         reconcileTask?.cancel()
         for continuation in subscribers.values { continuation.finish() }
         subscribers.removeAll()
+        for continuation in taskSubscribers.values { continuation.finish() }
+        taskSubscribers.removeAll()
         await flushCache()
         await closeStore()
     }
@@ -326,6 +371,7 @@ actor WorkspaceMetadataIndex {
             if !isComplete { publish() }
             scheduleFlush()
         }
+        if !isComplete { publishTasks() }
         isComplete = true
         publish()
         scheduleFlush()
@@ -552,6 +598,7 @@ actor WorkspaceMetadataIndex {
 
     private func replaceEffective(_ old: WorkspaceMetadataContribution?, at path: String) {
         let new = effectiveContribution(at: path)
+        if (old?.tasks ?? []) != (new?.tasks ?? []) { publishTasks() }
         guard old != new else { return }
         if let old { aggregate.merge(old, sign: -1) }
         if let new { aggregate.merge(new, sign: 1) }

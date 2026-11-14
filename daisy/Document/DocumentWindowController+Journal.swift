@@ -253,7 +253,7 @@ extension DocumentWindowController {
     }
 
     /// One-time addition of the Journal calendar, the first time a workspace
-    /// window has a toolbar while the extension is on: before the Inspector,
+    /// window has a toolbar while the extension is on: before Tasks or Share,
     /// or at the end. The item
     /// order is shared, so later windows inherit it, and a reader who takes
     /// it out in Customize Toolbar keeps it out.
@@ -267,7 +267,7 @@ extension DocumentWindowController {
         defaults.set(true, forKey: Self.didAddJournalItemKey)
         let identifiers = toolbar.items.map(\.itemIdentifier)
         guard !identifiers.contains(.journalCalendar) else { return }
-        let index = identifiers.firstIndex(of: .inspector)
+        let index = identifiers.firstIndex(of: .tasks)
             ?? identifiers.firstIndex(of: .share)
             ?? identifiers.count
         toolbar.insertItem(withItemIdentifier: .journalCalendar, at: index)

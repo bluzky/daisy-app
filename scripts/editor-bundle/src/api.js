@@ -586,6 +586,33 @@ window.MDEditor = {
         view.dispatch({ effects: workspaceCandidatesChanged.of(null) })
         return true
       },
+      // Checks or unchecks one task for the Tasks sidebar, as one undoable
+      // edit of its marker. `line` is the indexed line; `text` the indexed
+      // label. The line is used when it still holds that task, otherwise the
+      // one task with that text. Returns `{ line, changed, markdown }`, or
+      // null when the task cannot be found unambiguously.
+      setTaskChecked: (line, checked, text) => {
+        const source = view.state.doc.toString()
+        const tasks = extractMetadata(source).tasks
+        const matches = (task) => typeof text !== "string" || task.text === text
+        let task = tasks.find((candidate) => candidate.line === line && matches(candidate))
+        if (!task && typeof text === "string") {
+          const same = tasks.filter((candidate) => candidate.text === text)
+          if (same.length === 1) task = same[0]
+        }
+        if (!task || task.line > view.state.doc.lines) return null
+        const docLine = view.state.doc.line(task.line)
+        // Same pattern as Swift's `TaskCheckboxSource`, which flips the
+        // marker for the Read Mode and on-disk paths: change both together.
+        const marker = /^(\s*(?:>\s*)*(?:[-+*]|\d+[.)])\s+\[)([ xX])\]/u.exec(docLine.text)
+        if (!marker) return null
+        const changed = (marker[2] !== " ") !== (checked === true)
+        if (changed) {
+          const from = docLine.from + marker[1].length
+          view.dispatch({ changes: { from, to: from + 1, insert: checked ? "x" : " " }, userEvent: "input.task" })
+        }
+        return { line: task.line, changed, markdown: view.state.doc.toString() }
+      },
       // Whether `#tag`, `@context` and `+project` read as links and open
       // their page on Cmd+click: true in a workspace window.
       // What Cmd+click at `pos` does: sends the link there to `onOpenLink`
