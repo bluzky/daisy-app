@@ -81,6 +81,9 @@ final class MermaidRasterizer: NSObject, WKNavigationDelegate {
             startOnLoad: false,
             theme: 'default',
             securityLevel: 'strict',
+            // A syntax error throws (and rasterizes nothing) instead of
+            // returning Mermaid's error graphic as the diagram.
+            suppressErrorRendering: true,
             fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif'
         });
         </script>

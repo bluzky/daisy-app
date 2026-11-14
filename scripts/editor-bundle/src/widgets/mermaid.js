@@ -49,7 +49,12 @@ export class MermaidWidget extends WidgetType {
           return
         }
         const id = `md-editor-mermaid-${++mermaidWidgetID}`
-        return Promise.resolve(mermaid.render(id, this.source)).then(({ svg }) => {
+        return Promise.resolve(mermaid.render(id, this.source)).catch((error) => {
+          // Mermaid renders into a temporary element in the page body; drop
+          // it if a failed render left it behind.
+          document.querySelectorAll(`#d${id}, #${id}`).forEach((node) => node.remove())
+          throw error
+        }).then(({ svg }) => {
           stage.innerHTML = svg
           const diagram = stage.querySelector("svg")
           const box = diagram?.viewBox?.baseVal

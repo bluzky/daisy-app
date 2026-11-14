@@ -32,6 +32,7 @@ extension DocumentWindowController {
         where root == nil || controller.folderRootURL == root {
             controller.refreshWorkspaceState()
         }
+        NotificationCenter.default.post(name: WorkspaceMarker.didChangeNotification, object: nil)
     }
 
     @objc func initializeWorkspace(_ sender: Any?) {
@@ -54,10 +55,20 @@ extension DocumentWindowController {
         }
         do {
             try WorkspaceMarker.remove(root: root)
+            WorkspaceMetadataIndex.discardCache(root: root)
         } catch {
             NSAlert(error: error).beginSheetModal(for: documentWindow)
         }
         Self.refreshWorkspaceStates(onRoot: root)
+    }
+
+    /// Indexes the workspace again from nothing, replacing its cache file.
+    @objc func rebuildWorkspaceIndex(_ sender: Any?) {
+        guard let root = indexedWorkspaceRootURL else {
+            NSSound.beep()
+            return
+        }
+        WorkspaceMetadataIndex.rebuildCache(root: root)
     }
 
     // MARK: - Index
@@ -65,6 +76,7 @@ extension DocumentWindowController {
     /// Binds this window to the shared index for its workspace, or lets go
     /// of it when the window stops being a workspace window.
     func updateWorkspaceIndexBinding() {
+        configureTaskSidebar()
         let root = indexedWorkspaceRootURL.map(WorkspaceMetadataIndex.canonicalRoot)
         guard root != workspaceIndex?.root else { return }
         releaseWorkspaceIndex()
@@ -75,6 +87,8 @@ extension DocumentWindowController {
         }
         let index = WorkspaceMetadataIndex.acquire(root: root)
         workspaceIndex = index
+        taskRootIdentity = try? WorkspaceFileWriter.RootIdentity(root: root)
+        mainSplit?.taskCalendarViewController?.bind(index: index)
         workspaceSnapshotTask = Task { [weak self] in
             for await snapshot in await index.snapshots() {
                 self?.applyWorkspaceCandidates(snapshot)
@@ -84,6 +98,8 @@ extension DocumentWindowController {
     }
 
     func releaseWorkspaceIndex() {
+        mainSplit?.taskCalendarViewController?.bind(index: nil)
+        taskRootIdentity = nil
         restoreWorkspaceOverlay()
         workspaceSnapshotTask?.cancel()
         workspaceSnapshotTask = nil
@@ -132,7 +148,7 @@ extension DocumentWindowController {
         enqueueWorkspaceIndexUpdate { await index.restoreDiskContribution(for: url, owner: owner) }
     }
 
-    private func enqueueWorkspaceIndexUpdate(_ update: @escaping @Sendable () async -> Void) {
+    func enqueueWorkspaceIndexUpdate(_ update: @escaping @Sendable () async -> Void) {
         let previous = workspaceIndexUpdates
         workspaceIndexUpdates = Task {
             await previous?.value
@@ -146,6 +162,8 @@ extension DocumentWindowController {
             return folderRootURL != nil && !isWorkspace
         case #selector(removeWorkspace(_:)):
             return isWorkspace
+        case #selector(rebuildWorkspaceIndex(_:)):
+            return workspaceIndex != nil
         default:
             return nil
         }

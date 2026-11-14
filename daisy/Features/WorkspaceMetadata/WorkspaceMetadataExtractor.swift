@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import JavaScriptCore
 
@@ -16,11 +17,20 @@ nonisolated struct WorkspaceMetadataToken: Equatable {
     let line: Int
 }
 
-nonisolated struct WorkspaceTaskMetadata: Equatable {
+nonisolated struct WorkspaceTaskMetadata: Equatable, Sendable {
     let line: Int
     let due: String?
     let scheduled: String?
     let priority: String?
+    /// The marker line without its list marker, checkbox and valid fields.
+    let text: String
+    let checked: Bool
+}
+
+nonisolated struct WorkspaceIndexedTask: Equatable, Sendable, Identifiable {
+    let path: String
+    let task: WorkspaceTaskMetadata
+    var id: String { "\(path)\u{0}\(task.line)" }
 }
 
 /// Executes bundled JavaScript grammar. JavaScriptCore contexts are mutable,
@@ -36,6 +46,15 @@ nonisolated enum WorkspaceMetadataExtractor {
         pool = EnginePool(source: source)
     }
 
+    /// SHA-256 of the extractor script, nil when it is missing. A cache of
+    /// extracted names is valid only for the script that extracted them.
+    static var parserVersion: String? {
+        lock.lock()
+        defer { lock.unlock() }
+        loadBundledPoolIfNeeded()
+        return pool?.version
+    }
+
     /// Nil when the bundle is missing or the script fails. Callers must not
     /// treat that as a file with no metadata, or an index would cache it.
     static func extract(_ markdown: String) -> WorkspaceMetadata? {
@@ -47,18 +66,24 @@ nonisolated enum WorkspaceMetadataExtractor {
 
     private static func withEngine<Result>(_ body: (Engine) -> Result?) -> Result? {
         lock.lock()
-        if pool == nil, let source = VendorResource.string(
-            "workspace-metadata.min", ext: "js", subdir: "Vendor/WorkspaceMetadata"
-        ) {
-            pool = EnginePool(source: source)
-        }
+        loadBundledPoolIfNeeded()
         let activePool = pool
         lock.unlock()
         return activePool?.withEngine(body)
     }
 
+    /// Call holding `lock`.
+    private static func loadBundledPoolIfNeeded() {
+        if pool == nil, let source = VendorResource.string(
+            "workspace-metadata.min", ext: "js", subdir: "Vendor/WorkspaceMetadata"
+        ) {
+            pool = EnginePool(source: source)
+        }
+    }
+
     private final class EnginePool: @unchecked Sendable {
         private let source: String
+        let version: String
         private let maximumCount = min(4, max(1, ProcessInfo.processInfo.activeProcessorCount))
         private let condition = NSCondition()
         private var available: [Engine] = []
@@ -66,6 +91,7 @@ nonisolated enum WorkspaceMetadataExtractor {
 
         init(source: String) {
             self.source = source
+            version = SHA256.hash(data: Data(source.utf8)).map { String(format: "%02x", $0) }.joined()
         }
 
         func withEngine<Result>(_ body: (Engine) -> Result?) -> Result? {
@@ -154,13 +180,16 @@ nonisolated private struct Payload: Decodable {
     }
 
     nonisolated struct Task: Decodable {
+        let text: String
+        let checked: Bool
         let line: Int
         let due: String?
         let scheduled: String?
         let priority: String?
 
         var metadata: WorkspaceTaskMetadata {
-            WorkspaceTaskMetadata(line: line, due: due, scheduled: scheduled, priority: priority)
+            WorkspaceTaskMetadata(line: line, due: due, scheduled: scheduled, priority: priority,
+                                  text: text, checked: checked)
         }
     }
 }

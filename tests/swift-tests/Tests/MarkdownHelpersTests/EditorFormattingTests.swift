@@ -542,7 +542,7 @@ final class EditorFormattingTests: XCTestCase {
             ("+ [X] One", "+ [X] One\n+ [ ] ", "+ [X] One\n\n"),
             ("* [ ] One", "* [ ] One\n* [ ] ", "* [ ] One\n\n"),
             ("- [ ] One\n- [ ] Two", "- [ ] One\n- [ ] Two\n- [ ] ", "- [ ] One\n- [ ] Two\n\n"),
-            ("> - [ ] One", "> - [ ] One\n> - [ ] ", "> - [ ] One\n> "),
+            ("> - [ ] One", "> - [ ] One\n> - [ ] ", "> - [ ] One\n>\n> "),
             ("- [ ] Parent\n    - [x] Child", "- [ ] Parent\n    - [x] Child\n    - [ ] ",
              "- [ ] Parent\n    - [x] Child\n- [ ] ")
         ]
@@ -870,7 +870,7 @@ final class EditorFormattingTests: XCTestCase {
         defer { editor.close() }
         _ = try await editor.layout(texts: [], imageCount: 0)
         for (style, source) in [("task", "  - [x] Item"), ("bullet", "  - Item"),
-                                ("ordered", "  1. Item"), ("task", "  - [ ] Item"), ("none", "  Item")] {
+                                ("ordered", "  1. Item"), ("task", "  1. [ ] Item"), ("none", "  Item")] {
             let result = try await editor.webView.callAsyncJavaScript("""
                 window.__mdEditor.setListStyle(style);
                 for (let i = 0; i < 8; i++) { window.__layoutTestFrame(); await Promise.resolve(); }

@@ -788,6 +788,7 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
         self.rendersCallouts = rendersCallouts
         // Escapes/entities can decode into a URL even without a literal scheme.
         self.detectsBareURLs = Self.mayContainHTTP(parsedMarkdown, includesMarkdownEscapes: true)
+            || Self.mayContainAutolink(parsedMarkdown)
         self.sourceLines = sourceMarkdown.components(separatedBy: "\n")
         self.parsedSourceLines = parsedMarkdown.components(separatedBy: "\n")
     }
@@ -1079,18 +1080,37 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
     }
 
     mutating func visitListItem(_ listItem: ListItem) {
-        if let checkbox = listItem.checkbox {
+        let bareTask = listItem.checkbox == nil ? Self.bareTaskChecked(listItem) : nil
+        if let checked = listItem.checkbox.map({ $0 == .checked }) ?? bareTask {
             result += "<li class=\"task-list-item\"\(sourceLineAttribute(listItem))>"
             result += "<input type=\"checkbox\" class=\"task-list-item-checkbox\" disabled=\"\""
-            if checkbox == .checked {
+            if checked {
                 result += " checked=\"\""
             }
             result += " /> "
         } else {
             result += "<li\(sourceLineAttribute(listItem))>"
         }
-        descendInto(listItem)
+        if bareTask != nil {
+            // The `[ ]` paragraph is the checkbox itself.
+            for child in listItem.children.dropFirst() { visit(child) }
+        } else {
+            descendInto(listItem)
+        }
         result += "</li>\n"
+    }
+
+    /// cmark-gfm only reads `[ ]` as a task box when text or a space follows
+    /// it. The editor also treats an empty `- [ ]` as a task, so Read Mode
+    /// renders that item's lone `[ ]` / `[x]` paragraph as its checkbox.
+    private static func bareTaskChecked(_ listItem: ListItem) -> Bool? {
+        guard let paragraph = listItem.child(at: 0) as? Paragraph,
+              paragraph.children.allSatisfy({ $0 is Text }) else { return nil }
+        switch paragraph.plainText.trimmingCharacters(in: .whitespaces) {
+        case "[ ]": return false
+        case "[x]", "[X]": return true
+        default: return nil
+        }
     }
 
     mutating func visitOrderedList(_ orderedList: OrderedList) {
@@ -1426,9 +1446,32 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
         return false
     }
 
+    /// Text that may hold a GFM autolink: `http(s)://`, `www.` or an email.
+    private static func mayContainAutolink(_ string: String) -> Bool {
+        mayContainHTTP(string) || string.utf8.contains(64) // @
+            || string.range(of: "www.", options: .caseInsensitive) != nil
+    }
+
+    /// GFM autolinks only: `http(s)://` URLs, `www.` addresses (over http)
+    /// and email addresses. NSDataDetector also finds bare domains such as
+    /// `example.com`, which GFM leaves as text.
+    private static func autolinkHref(_ text: Substring, url: URL) -> String? {
+        let lowered = text.lowercased()
+        switch url.scheme?.lowercased() {
+        case "http", "https":
+            if lowered.hasPrefix("http://") || lowered.hasPrefix("https://") { return url.absoluteString }
+            if lowered.hasPrefix("www.") { return "http://" + text }
+            return nil
+        case "mailto":
+            return lowered.hasPrefix("mailto:") || !text.contains("@") ? nil : url.absoluteString
+        default:
+            return nil
+        }
+    }
+
     private func renderText(_ string: String) -> String {
         guard detectsBareURLs, markdownLinkDepth == 0, rawHTMLLinkExclusions.isEmpty,
-              Self.mayContainHTTP(string),
+              Self.mayContainAutolink(string),
               let detector = Self.linkDetector else {
             return escapeTextWithHighlights(string)
         }
@@ -1442,11 +1485,9 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
         for match in detector.matches(in: detectionText, range: NSRange(detectionText.startIndex..., in: detectionText)) {
             guard let range = Range(match.range, in: string),
                   let url = match.url,
-                  ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
-                  string[range].lowercased().hasPrefix("http://")
-                    || string[range].lowercased().hasPrefix("https://") else { continue }
+                  let href = Self.autolinkHref(string[range], url: url) else { continue }
             html += escapeTextWithHighlights(String(string[cursor..<range.lowerBound]))
-            html += "<a href=\"\(escapeAttribute(url.absoluteString))\">\(escapeText(String(string[range])))</a>"
+            html += "<a href=\"\(escapeAttribute(href))\">\(escapeText(String(string[range])))</a>"
             cursor = range.upperBound
         }
         html += escapeTextWithHighlights(String(string[cursor...]))

@@ -15,6 +15,11 @@ enum WorkspaceMarker {
     static let fileName = "config.json"
     static let contents = Data("{\n  \"version\": 1\n}\n".utf8)
 
+    /// Posted after open windows re-read their markers: on Initialize and
+    /// Remove Workspace, and when Daisy becomes active. Any folder may have
+    /// gained or lost its marker.
+    static let didChangeNotification = Notification.Name("WorkspaceMarkerDidChange")
+
     static func markerURL(root: URL) -> URL {
         root.appendingPathComponent(directoryName, isDirectory: true)
             .appendingPathComponent(fileName, isDirectory: false)

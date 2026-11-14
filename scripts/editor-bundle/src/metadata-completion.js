@@ -22,9 +22,11 @@ const BEFORE_CARET = /(?:^|\s)([#@+])([\p{L}\p{M}\p{N}_\-/]*)$/u
 const LINE_START = /^[ \t>]*$/
 
 // The workspace snapshot the host last sent, normalized as
-// `{ version, tags, contexts, projects }` with a `Map(key -> { name, count })`
-// per kind. Returns null, leaving `held` in place, for a malformed snapshot or
-// one older than `held`.
+// `{ version, indexing, truncated, tags, contexts, projects }` with a
+// `Map(key -> { name, count })` per kind. `indexing` is true while the first
+// scan runs; `truncated` when the scan stopped at a limit, so some files are
+// not counted. Returns null, leaving `held` in place, for a malformed snapshot
+// or one older than `held`.
 export const workspaceCandidatesChanged = StateEffect.define()
 
 export function readWorkspaceCandidates(snapshot, held) {
@@ -32,7 +34,7 @@ export function readWorkspaceCandidates(snapshot, held) {
   const version = snapshot.version
   if (!Number.isSafeInteger(version) || version < 0) return null
   if (held && version < held.version) return null
-  const next = { version }
+  const next = { version, indexing: snapshot.indexing === true, truncated: snapshot.truncated === true }
   for (const kind of Object.values(METADATA_MARKERS)) {
     const names = new Map()
     for (const entry of Array.isArray(snapshot[kind]) ? snapshot[kind] : []) {
@@ -151,7 +153,16 @@ export function rankNames(names, query) {
     || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
 }
 
-function metadataExtensions(_options, host) {
+// Why the workspace's names may be incomplete, under the rows; nothing once
+// every file is counted. Labels come from the host (`options["label.<id>"]`).
+function coverageNote(options, workspace) {
+  if (!workspace) return null
+  if (workspace.indexing) return options["label.indexing"] || "Indexing workspace…"
+  if (workspace.truncated) return options["label.truncated"] || "Some files are not indexed: the workspace is over the file limit."
+  return null
+}
+
+function metadataExtensions(options, host) {
   const names = bufferNames()
   const items = (_level, _query, session) => {
     const snapshot = host.workspaceCandidates && host.workspaceCandidates[session.kind]
@@ -166,6 +177,7 @@ function metadataExtensions(_options, host) {
     classPrefix: "metadata",
     trigger: metadataTrigger,
     items,
+    footer: () => coverageNote(options, host.workspaceCandidates),
     apply: (view, session, item) => {
       // A session the document has moved past changes nothing.
       if (view.state.doc.sliceString(session.from, session.end) !== session.marker + session.token) return

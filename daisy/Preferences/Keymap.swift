@@ -19,7 +19,7 @@ enum KeymapCommand: String, CaseIterable, Hashable {
     case viewToggleSidebar = "view.toggleSidebar"
     case viewShowOutline = "view.showOutline"
     case viewShowProjectNavigator = "view.showProjectNavigator"
-    case viewToggleInspector = "view.toggleInspector"
+    case viewToggleTasks = "view.toggleTasks"
     case viewToggleEditMode = "view.toggleEditMode"
     case viewToggleToolbar = "view.toggleToolbar"
     case viewToggleAlwaysOnTop = "view.toggleAlwaysOnTop"
@@ -33,6 +33,9 @@ enum KeymapCommand: String, CaseIterable, Hashable {
 
     case goBack = "go.back"
     case goForward = "go.forward"
+    case goTodayJournal = "go.todayJournal"
+    case goPreviousJournalEntry = "go.previousJournalEntry"
+    case goNextJournalEntry = "go.nextJournalEntry"
 
     case goLineUp = "go.lineUp"
     case goLineDown = "go.lineDown"
@@ -57,6 +60,7 @@ enum KeymapCommand: String, CaseIterable, Hashable {
     case formatChecklist = "format.checklist"
     case formatQuote = "format.quote"
     case insertLinkToFile = "insert.linkToFile"
+    case insertCarriedOverTasks = "insert.carriedOverTasks"
 
     case searchSelectPrevious = "search.selectPrevious"
     case searchSelectNext = "search.selectNext"
@@ -64,13 +68,19 @@ enum KeymapCommand: String, CaseIterable, Hashable {
     case searchOpenResultInNewTab = "search.openResultInNewTab"
     case searchOpenResultInNewWindow = "search.openResultInNewWindow"
 
+    /// Read-only compatibility names; Settings and conflicts use canonical commands.
+    static let legacyAliases: [String: KeymapCommand] = [
+        "view.toggleInspector": .viewToggleTasks
+    ]
+
     var context: KeymapContext {
         switch self {
         case .fileOmniSearch,
              .viewToggleSidebar, .viewShowOutline,
-             .viewShowProjectNavigator, .viewToggleInspector, .viewToggleEditMode, .viewToggleToolbar,
+             .viewShowProjectNavigator, .viewToggleTasks, .viewToggleEditMode, .viewToggleToolbar,
              .viewToggleAlwaysOnTop, .findFind, .findReplace, .findNext,
-             .findPrevious, .findJumpToSelection, .goBack, .goForward:
+             .findPrevious, .findJumpToSelection, .goBack, .goForward,
+             .goTodayJournal, .goPreviousJournalEntry, .goNextJournalEntry:
             .global
         case .goLineUp, .goLineDown, .goPageUp, .goPageDown,
              .goPreviousItem, .goNextItem, .goTop, .goBottom:
@@ -79,7 +89,7 @@ enum KeymapCommand: String, CaseIterable, Hashable {
              .formatBold, .formatItalic, .formatStrikethrough,
              .formatInlineCode, .formatLink, .formatBulletList,
              .formatOrderedList, .formatChecklist, .formatQuote,
-             .insertLinkToFile:
+             .insertLinkToFile, .insertCarriedOverTasks:
             .editing
         case .searchSelectPrevious, .searchSelectNext, .searchOpenResult,
              .searchOpenResultInNewTab, .searchOpenResultInNewWindow:
@@ -93,7 +103,7 @@ enum KeymapCommand: String, CaseIterable, Hashable {
         case .viewToggleSidebar: "Toggle Sidebar"
         case .viewShowOutline: "Table of Contents"
         case .viewShowProjectNavigator: "Project Navigator"
-        case .viewToggleInspector: "Inspector"
+        case .viewToggleTasks: "Agenda"
         case .viewToggleEditMode: "Toggle Edit Mode"
         case .viewToggleToolbar: "Show Toolbar"
         case .viewToggleAlwaysOnTop: "Always on Top"
@@ -105,6 +115,9 @@ enum KeymapCommand: String, CaseIterable, Hashable {
         case .findJumpToSelection: "Jump to Selection"
         case .goBack: "Back"
         case .goForward: "Forward"
+        case .goTodayJournal: "Today’s Journal"
+        case .goPreviousJournalEntry: "Previous Journal Entry"
+        case .goNextJournalEntry: "Next Journal Entry"
         case .goLineUp: "Up"
         case .goLineDown: "Down"
         case .goPageUp: "Page Up"
@@ -127,6 +140,7 @@ enum KeymapCommand: String, CaseIterable, Hashable {
         case .formatChecklist: "Checklist"
         case .formatQuote: "Block Quote"
         case .insertLinkToFile: "Link to File…"
+        case .insertCarriedOverTasks: "Unfinished Tasks from Earlier Days"
         case .searchSelectPrevious: "Previous Result"
         case .searchSelectNext: "Next Result"
         case .searchOpenResult: "Open Result"
@@ -299,7 +313,18 @@ struct KeymapFile {
             }
         }
 
-        self.root = root
+        // Normalize known command aliases in known sections so Settings removes
+        // their overrides correctly and every subsequent write uses the new ID.
+        self.root = .object(pairs.map { key, value in
+            guard KeymapContext(rawValue: key) != nil, case let .object(entries) = value else {
+                return (key, value)
+            }
+            return (key, .object(entries.map { binding, command in
+                guard case let .string(id) = command,
+                      let alias = KeymapCommand.legacyAliases[id] else { return (binding, command) }
+                return (binding, .string(alias.rawValue))
+            }))
+        })
         self.version = version
         self.isReadOnly = version > Self.supportedVersion
         self.diagnostics = diagnostics + (version > Self.supportedVersion
@@ -401,7 +426,8 @@ struct Keymap {
                     bindings[context]?.removeAll { $0.0 == binding }
                     continue
                 }
-                guard let command = KeymapCommand(rawValue: commandID) else {
+                guard let command = KeymapCommand.legacyAliases[commandID]
+                    ?? KeymapCommand(rawValue: commandID) else {
                     diagnostics.append("Unknown command: \(commandID)")
                     continue
                 }
@@ -449,12 +475,14 @@ struct Keymap {
         .global: pairs([
             ("cmd+k", .fileOmniSearch), ("cmd+l", .viewToggleSidebar),
             ("ctrl+cmd+1", .viewShowOutline), ("ctrl+cmd+2", .viewShowProjectNavigator),
-            ("shift+cmd+i", .viewToggleInspector),
+            ("shift+cmd+i", .viewToggleTasks),
             ("cmd+e", .viewToggleEditMode),
             ("opt+cmd+t", .viewToggleToolbar), ("ctrl+cmd+t", .viewToggleAlwaysOnTop),
             ("cmd+f", .findFind), ("opt+cmd+f", .findReplace), ("cmd+g", .findNext),
             ("shift+cmd+g", .findPrevious), ("cmd+j", .findJumpToSelection),
-            ("cmd+[", .goBack), ("cmd+]", .goForward)
+            ("cmd+[", .goBack), ("cmd+]", .goForward),
+            ("shift+cmd+j", .goTodayJournal),
+            ("opt+cmd+left", .goPreviousJournalEntry), ("opt+cmd+right", .goNextJournalEntry)
         ]),
         .reading: pairs([
             ("up", .goLineUp), ("down", .goLineDown), ("pageup", .goPageUp),

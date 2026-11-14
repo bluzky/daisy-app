@@ -145,11 +145,8 @@
 "Forward" = "Forward";
 "Sidebar" = "Sidebar";
 "Sidebar options" = "Sidebar options";
-"Inspector" = "Inspector";
-"Get Info" = "Get Info";
 "Always on Top" = "Always on Top";
 "Keep Daisy windows in front of other apps" = "Keep Daisy windows in front of other apps";
-"Show the inspector" = "Show the inspector";
 "Share" = "Share";
 "Share document" = "Share document";
 "Print" = "Print";
@@ -199,26 +196,9 @@
 "Open As" = "Open As";
 "No editors available" = "No editors available";
 
-/* Inspector */
-"Inspector tab" = "Inspector tab";
-"Document" = "Document";
-"Properties" = "Properties";
-"File Name" = "File Name";
-"Full Path" = "Full Path";
-"Document Type" = "Document Type";
-"Markdown Document" = "Markdown Document";
-"File Size" = "File Size";
-"Words" = "Words";
-"Characters" = "Characters";
-"Lines" = "Lines";
-"Headings" = "Headings";
-"Links" = "Links";
-"No links" = "No links";
+/* Links */
 "Open Link" = "Open Link";
 "Copy Link" = "Copy Link";
-"Images" = "Images";
-"Modified" = "Modified";
-"No frontmatter" = "No frontmatter";
 "Untitled" = "Untitled";
 
 /* Document state and save dialogs */
@@ -319,6 +299,13 @@
 "OmniSearch…" = "OmniSearch…";
 "Initialize Workspace" = "Initialize Workspace";
 "Remove Workspace" = "Remove Workspace";
+"Rebuild Workspace Index" = "Rebuild Workspace Index";
+"Workspace" = "Workspace";
+
+/* Metadata suggestions */
+"Indexing workspace…" = "Indexing workspace…";
+"Some files are not indexed: the workspace is over the file limit." = "Some files are not indexed: the workspace is over the file limit.";
+
 "Search files and commands" = "Search files and commands";
 "Link to a file in this project" = "Link to a file in this project";
 "Type a file name to link to" = "Type a file name to link to";
@@ -444,6 +431,11 @@
 "Task" = "Task";
 "Previous Month" = "Previous Month";
 "Next Month" = "Next Month";
+"Previous Week" = "Previous Week";
+"Next Week" = "Next Week";
+"Calendar View" = "Calendar View";
+"Month" = "Month";
+"Week" = "Week";
 "Toggle \"%@\" section" = "Toggle \"%@\" section";
 
 /* Quick Capture */
@@ -500,3 +492,58 @@
 "Extensions or file names, separated by commas." = "Extensions or file names, separated by commas.";
 "Code and text files" = "Code and text files";
 "Daisy edits common source and text files without a preview, and opens other files in their default app. Files over 5 MB, or not UTF-8, always open in the default app." = "Daisy edits common source and text files without a preview, and opens other files in their default app. Files over 5 MB, or not UTF-8, always open in the default app.";
+"Today’s Journal" = "Today’s Journal";
+"Previous Journal Entry" = "Previous Journal Entry";
+"Next Journal Entry" = "Next Journal Entry";
+"Journal" = "Journal";
+"Open a day’s journal" = "Open a day’s journal";
+"The journal is available in a workspace. Choose File ▸ Initialize Workspace." = "The journal is available in a workspace. Choose File ▸ Initialize Workspace.";
+"The journals folder is outside the workspace." = "The journals folder is outside the workspace.";
+"has entry" = "has entry";
+"None" = "None";
+"Workspace windows" = "Workspace windows";
+"New entry template" = "New entry template";
+"%@ (not found)" = "%@ (not found)";
+"Choose a template file in General to use one." = "Choose a template file in General to use one.";
+"Used when an entry is first created." = "Used when an entry is first created.";
+"The Journal button in the toolbar and the Go menu open one Markdown file per day in the workspace’s journals folder. In a template, {{date}} and {{weekday}} are the entry’s day and {{carryover}} places carried-over tasks. With no template, an entry starts with just its date." = "The Journal button in the toolbar and the Go menu open one Markdown file per day in the workspace’s journals folder. In a template, {{date}} and {{weekday}} are the entry’s day and {{carryover}} places carried-over tasks. With no template, an entry starts with just its date.";
+"Unfinished Tasks from Earlier Days" = "Unfinished Tasks from Earlier Days";
+"Carry over unfinished tasks" = "Carry over unfinished tasks";
+"Today’s new entry takes the unchecked tasks from earlier entries, which lose them." = "Today’s new entry takes the unchecked tasks from earlier entries, which lose them.";
+"Days to look back" = "Days to look back";
+"Some unfinished tasks are in two entries" = "Some unfinished tasks are in two entries";
+"They were copied to today’s entry but couldn’t be removed from %@, which changed or couldn’t be written." = "They were copied to today’s entry but couldn’t be removed from %@, which changed or couldn’t be written.";
+"“%@” in the journals folder is not a file." = "“%@” in the journals folder is not a file.";
+
+/* Tasks sidebar */
+"Agenda" = "Agenda";
+"Show agenda" = "Show agenda";
+"The agenda is available in a workspace." = "The agenda is available in a workspace.";
+"Filter Tasks" = "Filter Tasks";
+"Show Completed" = "Show Completed";
+"Show Overdue" = "Show Overdue";
+"%d due" = "%d due";
+"%d scheduled" = "%d scheduled";
+"%d done" = "%d done";
+"%d open" = "%d open";
+"%d open, %d done" = "%d open, %d done";
+"Today · %@" = "Today · %@";
+"Upcoming · Next %d Days" = "Upcoming · Next %d Days";
+"Collapsed" = "Collapsed";
+"Expanded" = "Expanded";
+"Nothing scheduled or due" = "Nothing scheduled or due";
+"Add dates to tasks with /schedule or /due" = "Add dates to tasks with /schedule or /due";
+"Mark task complete" = "Mark task complete";
+"Mark task incomplete" = "Mark task incomplete";
+"Reveal in Files" = "Reveal in Files";
+"Copy Task Text" = "Copy Task Text";
+"due" = "due";
+"scheduled" = "scheduled";
+"Completed “%@”" = "Completed “%@”";
+"Undo" = "Undo";
+"Tasks can’t be changed here." = "Tasks can’t be changed here.";
+"The task couldn’t be changed." = "The task couldn’t be changed.";
+"%@ changed. Open to check it off." = "%@ changed. Open to check it off.";
+"The task’s file is not inside the workspace." = "The task’s file is not inside the workspace.";
+"The workspace folder changed." = "The workspace folder changed.";
+"“%@” is not a regular file." = "“%@” is not a regular file.";

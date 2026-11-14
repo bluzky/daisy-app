@@ -5,10 +5,9 @@ import { RuleWidget, TextWidget } from "./widgets/basic.js"
 
 export const hide = Decoration.replace({})
 export const bulletDeco = Decoration.replace({ widget: new TextWidget("•", "cm-md-bullet") })
-export const activeBulletDeco = Decoration.mark({ class: "cm-md-bullet-source" })
 // Ordered markers sit in the same hanging box as bullets, right-aligned and
 // in the accent color, so item text lines up across list kinds like the
-// preview's ::marker. The active marker stays editable source in that box.
+// preview's ::marker.
 const orderedDecoCache = new Map()
 export const orderedDeco = (mark) => {
   let deco = orderedDecoCache.get(mark)
@@ -18,7 +17,6 @@ export const orderedDeco = (mark) => {
   }
   return deco
 }
-export const activeOrderedDeco = Decoration.mark({ class: "cm-md-ordered-source" })
 export const hrDeco = Decoration.replace({ widget: new RuleWidget() })
 export const ruleLine = Decoration.line({ class: "cm-md-rule-line" })
 export const markdownListMarker = /^([ \t]*)([-+*]|\d+[.)])([ \t]+|$)/

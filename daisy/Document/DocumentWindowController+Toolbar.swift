@@ -12,7 +12,8 @@ extension NSToolbarItem.Identifier {
     static let openActions = NSToolbarItem.Identifier("OpenActions")
     static let openWith = NSToolbarItem.Identifier("OpenWith")
     static let openInLLM = NSToolbarItem.Identifier("OpenInLLM")
-    static let inspector = NSToolbarItem.Identifier("Inspector")
+    /// Preserve the saved toolbar position while replacing the old pane.
+    static let tasks = NSToolbarItem.Identifier("Inspector")
     static let share = NSToolbarItem.Identifier("Share")
     static let searchForDocument = NSToolbarItem.Identifier("SearchForDocument")
     /// The sidebar show/hide toggle. The raw value predates the mode picker
@@ -28,6 +29,7 @@ extension NSToolbarItem.Identifier {
     static let editDocument = NSToolbarItem.Identifier("EditDocument")
     static let navigation = NSToolbarItem.Identifier("Navigation")
     static let alwaysOnTop = NSToolbarItem.Identifier("AlwaysOnTop")
+    static let journalCalendar = NSToolbarItem.Identifier("JournalCalendar")
 }
 
 private extension Array where Element == NSToolbarItem.Identifier {
@@ -60,7 +62,7 @@ extension DocumentWindowController {
             .space,
             .themesAndSettings,
             .space,
-            .inspector,
+            .tasks,
             .share,
             .editDocument
         ]
@@ -98,7 +100,7 @@ extension DocumentWindowController {
             .openActions,
             .openWith,
             .editDocument,
-            .inspector,
+            .tasks,
             .share,
             .searchForDocument,
             .printDocument,
@@ -107,7 +109,8 @@ extension DocumentWindowController {
             .copyMarkdown,
             .themesAndSettings,
             .zoom,
-            .alwaysOnTop
+            .alwaysOnTop,
+            .journalCalendar
         ]
         if hasLLMTargetsAvailable {
             identifiers.insertAfterOpenActions(.openInLLM)
@@ -191,7 +194,7 @@ extension DocumentWindowController {
             guard hasLLMTargetsAvailable else { return nil }
             return makeOpenInLLMItem()
         case .editDocument: return makeEditItem(willBeInsertedIntoToolbar: flag)
-        case .inspector: return makeInspectorItem(willBeInsertedIntoToolbar: flag)
+        case .tasks: return makeTasksItem(willBeInsertedIntoToolbar: flag)
         case .alwaysOnTop: return makeAlwaysOnTopItem(willBeInsertedIntoToolbar: flag)
         case .share: return makeShareItem()
         case .searchForDocument: return makeSearchForDocumentItem()
@@ -201,6 +204,7 @@ extension DocumentWindowController {
         case .copyMarkdown: return makeCopyItem()
         case .zoom: return makeZoomItem()
         case .themesAndSettings: return makeThemesAndSettingsItem()
+        case .journalCalendar: return makeJournalCalendarItem(willBeInsertedIntoToolbar: flag)
         default: return nil
         }
     }
@@ -285,28 +289,44 @@ extension DocumentWindowController {
         let button = NSButton(image: image, target: self, action: action)
         button.setButtonType(.pushOnPushOff)
         button.isBordered = true
+        // The on state takes the theme accent, as the sidebars' selection does.
+        button.bezelColor = Self.makeThemeAccent()
         item.view = button
         item.label = label
         item.paletteLabel = label
         return (item, button)
     }
 
-    private func makeInspectorItem(willBeInsertedIntoToolbar: Bool) -> NSToolbarItem {
+    /// The theme's link color for each appearance, or the system accent
+    /// without a theme override. A new color every call: a button handed
+    /// the color it already has keeps what it drew before.
+    static func makeThemeAccent() -> NSColor {
+        NSColor(name: nil) { appearance in
+            let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+            return ThemeColorsSetting.current.color(.linkColor, isDark ? .dark : .light) ?? .controlAccentColor
+        }
+    }
+
+    private func makeTasksItem(willBeInsertedIntoToolbar: Bool) -> NSToolbarItem {
         let (item, button) = makeToggleButtonItem(
-            identifier: .inspector,
-            image: inspectorImage(),
-            label: NSLocalizedString("Inspector", comment: "Inspector toolbar item label"),
-            action: #selector(toggleInspectorAction(_:))
+            identifier: .tasks,
+            image: tasksImage(),
+            label: NSLocalizedString("Agenda", comment: "Tasks toolbar item label"),
+            action: #selector(toggleTasksAction(_:))
         )
-        item.paletteLabel = NSLocalizedString("Get Info", comment: "Inspector toolbar palette label")
-        item.toolTip = NSLocalizedString("Show the inspector", comment: "Inspector toolbar item tooltip")
+        item.paletteLabel = NSLocalizedString("Agenda", comment: "Tasks toolbar item label")
+        item.autovalidates = false
+        item.isEnabled = isWorkspace
+        button.isEnabled = isWorkspace
+        item.toolTip = tasksToggleToolTip
         button.toolTip = item.toolTip
 
         if willBeInsertedIntoToolbar {
-            inspectorButton = button
-            refreshInspectorToggleItem()
+            tasksItem = item
+            tasksButton = button
+            refreshTasksToggleItem()
         } else {
-            button.state = isInspectorToggleSelected ? .on : .off
+            button.state = isTasksToggleSelected ? .on : .off
         }
         return item
     }
@@ -559,6 +579,10 @@ extension DocumentWindowController {
     /// However the popover went away — Escape, an outside click, the toolbar
     /// button again, or Customize — the key monitor goes with it.
     func popoverDidClose(_ notification: Notification) {
+        if let popover = notification.object as? NSPopover, popover === journalCalendarPopover {
+            journalCalendarPopoverDidClose()
+            return
+        }
         themesPopoverEscapeMonitor.stop()
         // Dropped rather than kept for reuse: holding it retains the hosting
         // controller and the whole card gallery for the window's lifetime,
@@ -585,38 +609,53 @@ extension DocumentWindowController {
         toolbar.insertItem(withItemIdentifier: .themesAndSettings, at: zoomIndex)
     }
 
-    private func inspectorImage() -> NSImage {
-        let image = NSImage(systemSymbolName: "info",
-                            accessibilityDescription: NSLocalizedString("Inspector", comment: "Inspector toolbar image")) ?? NSImage()
+    private func tasksImage() -> NSImage {
+        let image = NSImage(systemSymbolName: "checklist",
+                            accessibilityDescription: NSLocalizedString("Agenda", comment: "Tasks toolbar image")) ?? NSImage()
         image.isTemplate = true
         return image
     }
 
-    @objc private func toggleInspectorAction(_ sender: Any) {
+    @objc private func toggleTasksAction(_ sender: Any) {
+        guard canToggleTasks else { return }
         let isVisible = (documentWindow.contentViewController as? MainSplitViewController)?
-            .toggleInspector() ?? false
-        setInspectorToggleSelected(isVisible)
+            .toggleTasks() ?? false
+        setTasksToggleSelected(isVisible)
     }
 
-    /// View > Inspector: the same toggle as the toolbar button, which may
+    /// View > Tasks: the same toggle as the toolbar button, which may
     /// not be in the toolbar at all.
-    func toggleInspectorFromMenu() {
-        toggleInspectorAction(self)
+    func toggleTasksFromMenu() {
+        toggleTasksAction(self)
     }
 
-    var isInspectorVisible: Bool {
-        (documentWindow.contentViewController as? MainSplitViewController)?.isInspectorVisible ?? false
+    var isTasksVisible: Bool {
+        (documentWindow.contentViewController as? MainSplitViewController)?.isTasksVisible ?? false
     }
 
-    private func refreshInspectorToggleItem() {
-        let isVisible = (documentWindow.contentViewController as? MainSplitViewController)?
-            .isInspectorVisible ?? false
-        setInspectorToggleSelected(isVisible)
+    /// Outside a workspace the pane can't be opened, but one restored open
+    /// from the shared split autosave can still be closed.
+    var canToggleTasks: Bool {
+        isWorkspace || isTasksVisible
     }
 
-    private func setInspectorToggleSelected(_ isSelected: Bool) {
-        isInspectorToggleSelected = isSelected
-        inspectorButton?.state = isSelected ? .on : .off
+    private var tasksToggleToolTip: String {
+        isWorkspace
+            ? NSLocalizedString("Show agenda", comment: "Tasks toolbar item tooltip")
+            : NSLocalizedString("The agenda is available in a workspace.", comment: "Tasks unavailable tooltip")
+    }
+
+    func refreshTasksToggleItem() {
+        setTasksToggleSelected(isTasksVisible)
+        tasksItem?.isEnabled = canToggleTasks
+        tasksButton?.isEnabled = canToggleTasks
+        tasksItem?.toolTip = tasksToggleToolTip
+        tasksButton?.toolTip = tasksToggleToolTip
+    }
+
+    private func setTasksToggleSelected(_ isSelected: Bool) {
+        isTasksToggleSelected = isSelected
+        tasksButton?.state = isSelected ? .on : .off
     }
 
     func items(for pickerToolbarItem: NSSharingServicePickerToolbarItem) -> [Any] {

@@ -1,6 +1,6 @@
 # Workspace metadata implementation plan
 
-Status: Phases 1, 2 (2a, 2c, 2b), 3, 4, and 4.5 complete; 5–6 planned. This plan implements [`workspace-metadata-proposal.md`](workspace-metadata-proposal.md) in independently testable phases. It does not imply a release or version bump.
+Status: Phases 1, 2 (2a, 2c, 2b), 3, 4, 4.5, and 5 complete; 6 in progress (tasks 1–5 done, runtime tests pending). This plan implements [`workspace-metadata-proposal.md`](workspace-metadata-proposal.md) in independently testable phases. It does not imply a release or version bump.
 
 ## Sequencing
 
@@ -15,9 +15,9 @@ Status: Phases 1, 2 (2a, 2c, 2b), 3, 4, and 4.5 complete; 5–6 planned. This pl
         ↓
 4.5 Metadata links and pages — complete
         ↓
-5. Persistent cache and lifecycle
+5. Persistent cache and lifecycle — complete
         ↓
-6. Integration, documentation, runtime validation
+6. Integration, documentation, runtime validation — in progress
 ```
 
 Do not begin a later phase until its predecessor has passing automated tests. Phase 5 can begin only after Phase 4 has stable index semantics.
@@ -234,12 +234,12 @@ Make each tag, context, and project in a workspace window a link to its page: a 
 - **Lookup.** Case is ignored: the file name is compared with the extractor's `normalizedKey`, so `#Review` opens an existing `pages/#review.md`. When more than one file matches, the order is: exact spelling first, then lexical order.
 - **Creation.** When no page exists, create `pages/` if needed and write the page holding `# <label>\n`. `<label>` is the token as written, marker included, with `/` kept: `#Review` gives `# #Review`, and `#area/sub` gives `# #area/sub`. The write is atomic and never replaces an existing file. If the write fails, show an error and leave the document as it was.
 - **Opening.** A page opens the way a clicked local Markdown link does (`onOpenMarkdownLink`): in the same window, so it joins the workspace through the existing `inheritProject` path.
-- **Writes into the workspace.** Opening a page that doesn't exist yet is the only action that writes into the workspace, apart from the marker. It happens only on an explicit click; indexing, rendering, and completion still never write. The new page reaches the index through the directory watcher like any other file.
+- **Writes into the workspace.** Opening a page that doesn't exist yet is the only action that writes into the workspace, apart from the marker (and, since the journal, opening a journal entry that doesn't exist yet, which with carry-over on also rewrites the earlier entries its tasks come from, and, since the Tasks sidebar, checking a task off there, which rewrites that task's file). It happens only on an explicit click; indexing, rendering, and completion still never write. The new page reaches the index through the directory watcher like any other file.
 
 ### Tasks
 
 1. Add `daisy/Features/WorkspaceMetadata/WorkspacePage.swift`, free of AppKit so it links into `tests/swift-tests`. It provides `resolve(name:root:) -> URL?` and `openOrCreate(name:label:root:) throws -> URL`. Validate the name with the extractor's rules before building a path: a valid name has no `.` or path separator after the `/` → `--` mapping, and the resolved path, symlinks included, must stay inside `<root>/pages/`.
-2. Add `LinkHandler.open(_ link:in:)` in `daisy/Document/LinkHandler.swift`, the one place that opens links. `Link` is an enum: `.external(URL)`, `.file(URL, fragment:)`, `.section(String)`, `.metadata(token:)` (the token as written, marker included). `open` switches on it. Markdown files open in Daisy (`onOpenMarkdownLink`), other files in their default app, web links through `ExternalLinkOpener`, sections scroll the current document, and metadata calls `WorkspacePage.openOrCreate` and then opens the page as a Markdown file. It takes the window controller for scrolling, the workspace root, and error sheets. Read mode, the inspector, and the editor each build a `Link` and call it. `activateLink` in `daisy/Rendering/MarkdownWebView.swift` and `openInspectorLink` in `daisy/Document/MainSplitViewController.swift` keep only the conversion to `Link`; their dispatch code moves into `LinkHandler` with no visible change. In Read mode, metadata tokens use the link form `daisy-metadata:<percent-encoded token>`.
+2. Add `LinkHandler.open(_ link:in:)` in `daisy/Document/LinkHandler.swift`, the one place that opens links. `Link` is an enum: `.external(URL)`, `.file(URL, fragment:)`, `.section(String)`, `.metadata(token:)` (the token as written, marker included). `open` switches on it. Markdown files open in Daisy (`onOpenMarkdownLink`), other files in their default app, web links through `ExternalLinkOpener`, sections scroll the current document, and metadata calls `WorkspacePage.openOrCreate` and then opens the page as a Markdown file. It takes the window controller for scrolling, the workspace root, and error sheets. Read mode, the inspector (since replaced by the Tasks sidebar), and the editor each build a `Link` and call it. `activateLink` in `daisy/Rendering/MarkdownWebView.swift` and `openInspectorLink` in `daisy/Document/MainSplitViewController.swift` keep only the conversion to `Link`; their dispatch code moves into `LinkHandler` with no visible change. In Read mode, metadata tokens use the link form `daisy-metadata:<percent-encoded token>`.
 3. **Read mode:** add a `metadata-links` render extension next to `TaskMetadataExtension` in `daisy/Rendering/MarkdownRenderExtension.swift`. Enable it only when the render context has a workspace root. Its script wraps `#`/`@`/`+` tokens in `<a class="mdp-metadata-link" href="daisy-metadata:…">` and skips the same literal content as `taskMetadataScript` (code, links, `kbd`, KaTeX, Mermaid). It mirrors the rules in `metadata-names.js`. `activateLink` turns the `daisy-metadata` scheme into `.metadata`, and the link context menu leaves out "Copy Link" for it.
 4. **Editor, metadata:** in a workspace window, give `#`/`@`/`+` tokens a link-style mark decoration, taken from the extractor's ranges. A plain click still places the caret. Cmd+click on a token sends a new `openLink` bridge message to `EditorViewController` and prevents CodeMirror's default Cmd+click (adding a cursor). The host turns the decoration on and off with the window's workspace state, in the same way `setWorkspaceCandidates` is driven.
 5. **Editor, Markdown links:** Cmd+click on a `Link` node that has a URL, or on an autolink or bare URL, sends `openLink` with the raw destination. Swift builds the `Link` with `DocumentLink.target(relativeTo:)`, as the inspector does, and calls `LinkHandler.open`. This works in every window, workspace or not. Cmd+click anywhere else keeps today's behavior.
@@ -257,9 +257,19 @@ Make each tag, context, and project in a workspace window a link to its page: a 
 
 - Clicking a token in Read mode, or Cmd+clicking it in the editor, opens the same page, creating it with its H1 only when none exists.
 - Cmd+click on a Markdown link in the editor goes where clicking it in Read mode goes.
-- Nothing is written into the workspace except the marker and pages the user explicitly opens.
+- Nothing is written into the workspace except the marker, pages and journal entries the user explicitly opens, carry-over's earlier entries, and files whose tasks are checked off in the Tasks sidebar.
 
 ## Phase 5 — SQLite cache in the app container
+
+Status: complete. The store is the `WorkspaceIndexStore` actor in `daisy/Features/WorkspaceMetadata/WorkspaceIndexStore.swift`, the only file with SQLite calls; `WorkspaceMetadataIndex` loads it before its first scan and saves changed files to it. The parser version is the SHA-256 of the extractor script (`WorkspaceMetadataExtractor.parserVersion`). Tests are `tests/swift-tests/Tests/MarkdownHelpersTests/WorkspaceIndexStoreTests.swift`. Differences from the tasks below:
+
+- Aggregates are not stored. They are summed from the per-file rows on load, so they cannot disagree with them.
+- A file whose size or date changed but whose SHA-256 matches its row keeps its names without running the extractor.
+- A moved root is rebuilt, not re-keyed: its path gives it a new `<root-id>`, and a file copied to that id names the old root, so it is rejected. The old file is deleted by the 30-day purge.
+- A cache folder inside the workspace is not used, so the cache never produces watcher events.
+- A store that fails or is held by another connection past 200 ms is dropped for the life of that index, which carries on in memory. `rebuildCache` tries again. After Remove Workspace, an index that is still held writes no cache until it is released.
+- `WorkspaceMetadataIndex.rebuildCache(root:)` is the rebuild action; the menu item and indexing status are Phase 6.
+- No project or package change was needed: `import SQLite3` links the system library.
 
 ### Goal
 
@@ -281,15 +291,22 @@ Persist disposable derived index data outside the workspace, with graceful fallb
 
 - Cached reopen, incompatible schema/parser rebuild, cache corruption, system purge, root relocation, path validation, write failure, contention, and cache-only rebuild.
 - Persistent-cache-disabled fallback.
-- The cache creates no file inside the workspace (the marker and Phase 4.5 pages are the only workspace writes); cache directory is excluded from watcher feedback.
+- The cache creates no file inside the workspace (the marker, Phase 4.5 pages, opened journal entries, the earlier entries carry-over takes tasks from, and files whose tasks are checked off in the Tasks sidebar are the only workspace writes); cache directory is excluded from watcher feedback.
 
 ### Exit criteria
 
 - Cache is optional and disposable.
 - Persistent cache failure never blocks editing or completion.
-- Daisy writes nothing into workspace folders except the marker and pages the user explicitly opens (Phase 4.5).
+- Daisy writes nothing into workspace folders except the marker and the pages (Phase 4.5) and journal entries the user explicitly opens, and, with carry-over on, the earlier entries whose tasks move into today's new one, and files whose tasks are checked off in the Tasks sidebar.
 
 ## Phase 6 — Integration, docs, and runtime validation
+
+Status: tasks 1–5 done; task 6, the runtime test pass, is pending. Notes on what was built:
+
+- Task 1 was already in place from Phase 4: each workspace window subscribes to its index's snapshots and forwards them to its editor.
+- Snapshots sent to the editor carry `indexing` (the first scan is still running) and `truncated` (the scan stopped at the file cap). The `#`/`@`/`+` menu shows either as a note under its rows (`footer` in `completion.js`, `role="status"`), so the note appears only when there are suggestions to qualify; it is never a selectable row. The note names no number because `MarkdownRenderExtension.swift` is also built into Quick Look, which has no `ProjectFileIndex`; README.md states the limits.
+- **File → Rebuild Workspace Index** calls `WorkspaceMetadataIndex.rebuildCache(root:)`; it is enabled while the window holds an index.
+- Task-metadata badges were re-checked: the `task-metadata` extension renders them in Read mode and the editor, and Quick Look and exports stay literal.
 
 ### Goal
 
@@ -302,7 +319,7 @@ Ship coherent behavior with accurate documentation and end-to-end validation.
 3. Add "Rebuild Workspace Index" UI/action for the current workspace.
 4. Update `README.md`, samples, and behavior comments only after final behavior exists.
 5. Task metadata badges render in the editor and Read mode (`task-metadata` render extension); Quick Look and exports stay literal. Re-check this when wiring Phase 6 runtime tests.
-6. Perform runtime tests for keyboard navigation, mouse selection, VoiceOver labels/selection state, date chooser cancel/accept, two-tab overlays, Initialize and Remove Workspace, marker detection on every folder-open route including last-session restore, folders without a marker staying unindexed, a Finder-opened file joining an open workspace window that contains it and staying plain when none is open, overlapping workspaces, unresolvable bookmarks, synced folders (nothing written but the marker and explicitly opened pages), metadata link click and Cmd+click in both modes, page creation, large workspaces, and cache corruption.
+6. Perform runtime tests for keyboard navigation, mouse selection, VoiceOver labels/selection state, date chooser cancel/accept, two-tab overlays, Initialize and Remove Workspace, marker detection on every folder-open route including last-session restore, folders without a marker staying unindexed, a Finder-opened file joining an open workspace window that contains it and staying plain when none is open, overlapping workspaces, unresolvable bookmarks, synced folders (nothing written but the marker, explicitly opened pages and journal entries, and carry-over's earlier entries), metadata link click and Cmd+click in both modes, page creation, large workspaces, and cache corruption.
 
 ### Exit criteria
 

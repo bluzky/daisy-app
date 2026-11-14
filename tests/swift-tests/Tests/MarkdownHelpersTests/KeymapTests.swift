@@ -2,6 +2,41 @@ import XCTest
 @testable import MarkdownHelpers
 
 final class KeymapTests: XCTestCase {
+    func testLegacyInspectorBindingLoadsAsTasksWithoutDiagnostics() throws {
+        let file = try KeymapFile(data: Data("""
+        { "global": { "ctrl+shift+cmd+i": "view.toggleInspector" } }
+        """.utf8))
+        let keymap = Keymap(file: file)
+        let binding = KeyBinding(string: "ctrl+shift+cmd+i")!
+        XCTAssertEqual(keymap.command(for: binding, in: .global), .viewToggleTasks)
+        XCTAssertTrue(keymap.diagnostics.isEmpty)
+        XCTAssertEqual(keymap.conflicts(for: binding, in: .global), [.viewToggleTasks])
+    }
+
+    func testTasksIsOnlyCommandInSettingsAndDefaults() {
+        XCTAssertTrue(KeymapCommand.allCases.contains(.viewToggleTasks))
+        XCTAssertFalse(KeymapCommand.allCases.map(\.rawValue).contains("view.toggleInspector"))
+        XCTAssertNil(KeymapCommand(rawValue: "view.toggleInspector"))
+        XCTAssertEqual(KeymapCommand.viewToggleTasks.titleKey, "Tasks")
+        let binding = KeyBinding(string: "shift+cmd+i")!
+        XCTAssertEqual(Keymap.defaultBindings(for: .viewToggleTasks), [binding])
+        XCTAssertEqual(Keymap().conflicts(for: binding, in: .global), [.viewToggleTasks])
+        XCTAssertFalse(Keymap().changeToken.contains("view.toggleInspector"))
+    }
+
+    func testSettingsRewriteMigratesLegacyInspectorID() throws {
+        var file = try KeymapFile(data: Data("""
+        { "global": { "ctrl+shift+cmd+i": "view.toggleInspector" } }
+        """.utf8))
+        try file.set(KeyBinding(string: "ctrl+cmd+k")!, commandID: "file.omniSearch", in: .global)
+        let rewritten = String(decoding: file.serialized(), as: UTF8.self)
+        XCTAssertTrue(rewritten.contains("view.toggleTasks"))
+        XCTAssertFalse(rewritten.contains("view.toggleInspector"))
+
+        try file.removeOverrides(for: KeymapCommand.viewToggleTasks.rawValue, in: .global)
+        XCTAssertFalse(file.entries(in: .global).contains { $0.commandID == "view.toggleTasks" })
+    }
+
     func testDefaultBindingsRoundTrip() {
         for command in KeymapCommand.allCases {
             for binding in Keymap().bindings(for: command) {

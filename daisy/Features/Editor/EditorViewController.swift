@@ -366,6 +366,24 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
         }
     }
 
+    /// Checks or unchecks a task as one undoable edit of its marker, for the
+    /// Tasks sidebar. Completion gets the line used and the updated buffer,
+    /// or nil when the editor isn't ready or the task can't be found.
+    func setTaskChecked(line: Int, checked: Bool, text: String,
+                        completion: @escaping ((line: Int, changed: Bool, markdown: String)?) -> Void) {
+        let script = "window.__mdEditor ? window.__mdEditor.setTaskChecked(\(line), \(checked), \(EditorHTML.jsStringLiteral(text))) : null"
+        webView.evaluateJavaScript(script) { value, _ in
+            guard let result = value as? [String: Any],
+                  let line = (result["line"] as? NSNumber)?.intValue,
+                  let changed = result["changed"] as? Bool,
+                  let markdown = result["markdown"] as? String else {
+                completion(nil)
+                return
+            }
+            completion((line, changed, markdown))
+        }
+    }
+
     func find(_ query: String,
               backwards: Bool = false,
               options: SearchOptions = SearchOptions(),
@@ -550,6 +568,32 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
     func insertLink(text: String, url: String, from: Int, to: Int) {
         let script = "window.__mdEditor && window.__mdEditor.insertLinkFromPopover(\(EditorHTML.jsStringLiteral(text)), \(EditorHTML.jsStringLiteral(url)), \(from), \(to))"
         webView.evaluateJavaScript(script) { _, _ in }
+    }
+
+    /// The selection, and whether it starts at a line's start and ends at
+    /// a line's end: where a block of lines can go without splitting one.
+    func fetchLineInsertionPoint(_ completion: @escaping ((from: Int, to: Int,
+                                                           atLineStart: Bool, atLineEnd: Bool)?) -> Void) {
+        let script = """
+        (() => {
+            const editor = window.__mdEditor;
+            const selection = editor && editor.getLinkSelection(false);
+            if (!selection) return null;
+            const markdown = editor.getMarkdown();
+            return { from: selection.from, to: selection.to,
+                     atLineStart: selection.from === 0 || markdown[selection.from - 1] === "\\n",
+                     atLineEnd: selection.to === markdown.length || markdown[selection.to] === "\\n" };
+        })()
+        """
+        webView.evaluateJavaScript(script) { result, _ in
+            guard let value = result as? [String: Any], let from = value["from"] as? Int,
+                  let to = value["to"] as? Int, let atLineStart = value["atLineStart"] as? Bool,
+                  let atLineEnd = value["atLineEnd"] as? Bool else {
+                completion(nil)
+                return
+            }
+            completion((from, to, atLineStart, atLineEnd))
+        }
     }
 
     func insertMarkdown(_ markdown: String,

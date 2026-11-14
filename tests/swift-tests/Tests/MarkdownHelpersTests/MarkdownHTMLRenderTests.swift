@@ -809,6 +809,24 @@ final class MarkdownHTMLRenderTests: XCTestCase {
         ))
     }
 
+    func testWwwAndEmailAddressesAutolinkLikeGFM() {
+        let html = EscapingHTMLFormatter.format("Visit www.daisy.app. or mail me@example.com, not example.com or `www.code.app`")
+
+        XCTAssertTrue(html.contains("<a href=\"http://www.daisy.app\">www.daisy.app</a>."))
+        XCTAssertTrue(html.contains("<a href=\"mailto:me@example.com\">me@example.com</a>,"))
+        XCTAssertFalse(html.contains("href=\"http://example.com"))
+        XCTAssertTrue(html.contains("<code>www.code.app</code>"))
+    }
+
+    func testEmptyTaskBoxRendersAsCheckbox() {
+        let html = EscapingHTMLFormatter.format("- [ ]\n- [x]\n1. [ ] Numbered\n- [ ] Text")
+
+        XCTAssertEqual(html.components(separatedBy: "class=\"task-list-item-checkbox\"").count - 1, 4)
+        XCTAssertEqual(html.components(separatedBy: "checked=\"\"").count - 1, 1)
+        XCTAssertFalse(html.contains("[ ]"))
+        XCTAssertFalse(html.contains("[x]"))
+    }
+
     func testStandaloneListLikeIndentedCodeRemainsCodeInReadMode() {
         let source = "    - literal code output"
         let articleHTML = EscapingHTMLFormatter.format(

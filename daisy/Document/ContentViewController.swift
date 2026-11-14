@@ -12,6 +12,8 @@ import WebKit
 enum NavigationScrollTarget {
     case anchor(String)
     case position(CGFloat)
+    /// A one-based source line, as the Tasks sidebar opens a task.
+    case sourceLine(Int)
 }
 
 final class ContentViewController: NSViewController {
@@ -306,10 +308,11 @@ final class ContentViewController: NSViewController {
         webView.exportPDF(from: window)
     }
 
-    func exportHTML() {
+    /// `markdown` overrides the rendered source, for Edit Mode's newer buffer.
+    func exportHTML(markdown: String? = nil) {
         guard let window = view.window, let source = exportSource else { return }
         webView.exportHTML(
-            markdown: source.markdown,
+            markdown: markdown ?? source.markdown,
             sourceURL: source.sourceURL,
             assetBaseURL: source.assetBaseURL,
             from: window
@@ -325,10 +328,11 @@ final class ContentViewController: NSViewController {
         )
     }
 
-    func exportWord() {
+    /// `markdown` overrides the rendered source, for Edit Mode's newer buffer.
+    func exportWord(markdown: String? = nil) {
         guard let window = view.window, let source = exportSource else { return }
         webView.exportWord(
-            markdown: source.markdown,
+            markdown: markdown ?? source.markdown,
             sourceURL: source.sourceURL,
             assetBaseURL: source.assetBaseURL,
             from: window
@@ -694,6 +698,13 @@ final class ContentViewController: NSViewController {
         scheduleNavigationTargetAttempt()
     }
 
+    /// Like `scrollToAnchorWhenReady`, for a source line.
+    func scrollToSourceLineWhenReady(_ line: Int) {
+        prepareToScrollAfterNavigation(to: .sourceLine(line))
+        shouldApplyNavigationTargetOnHeight = true
+        scheduleNavigationTargetAttempt()
+    }
+
     /// Immediate fragment scroll within the already-rendered document.
     func scrollToAnchor(_ fragment: String) {
         scrollToElement(id: fragment)
@@ -719,6 +730,17 @@ final class ContentViewController: NSViewController {
                 }
                 self.pendingNavigationScrollTarget = nil
                 self.webView.scrollDocument(to: offset)
+            }
+        case .sourceLine(let line):
+            webView.sourceOffset(forPosition: CGFloat(line)) { [weak self] sourceTop in
+                guard let self,
+                      self.pendingNavigationScrollTarget != nil else { return }
+                guard let sourceTop else {
+                    self.retryNavigationTarget()
+                    return
+                }
+                self.pendingNavigationScrollTarget = nil
+                self.webView.scrollDocument(to: sourceTop * self.webView.pageZoom)
             }
         case .position(let y):
             // Synced geometry can still be the blank page — hold out until

@@ -8,10 +8,12 @@ export const TASK_DATE_KEYS = ["due", "scheduled"];
 export const PRIORITY_KEY = "p";
 export const PRIORITY_VALUES = ["high", "medium", "low"];
 
-// A valid Gregorian calendar date written `YYYY-MM-DD`.
+// A valid Gregorian calendar date written `YYYY-MM-DD`, years 0001–9999 as
+// Swift's `JournalDay` accepts: the index cache rejects anything else on load.
 export function isTaskDate(value) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const [year, month, day] = value.split("-").map(Number);
+  if (year < 1) return false;
   const date = new Date(Date.UTC(year, month - 1, day));
   date.setUTCFullYear(year);
   return (

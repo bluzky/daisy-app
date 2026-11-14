@@ -1,6 +1,6 @@
 import { EditorView, keymap, dropCursor } from "@codemirror/view"
 import { Compartment, EditorState, Prec, Transaction } from "@codemirror/state"
-import { cursorDocEnd, cursorDocStart, defaultKeymap, history, historyKeymap, indentLess, selectDocEnd, selectDocStart } from "@codemirror/commands"
+import { cursorDocEnd, cursorDocStart, cursorLineBoundaryBackward, cursorLineBoundaryLeft, cursorLineStart, defaultKeymap, history, historyKeymap, indentLess, selectDocEnd, selectDocStart, selectLineBoundaryBackward, selectLineBoundaryLeft, selectLineStart } from "@codemirror/commands"
 import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete"
 import { markdown, markdownKeymap, markdownLanguage } from "@codemirror/lang-markdown"
 import { yamlFrontmatter } from "@codemirror/lang-yaml"
@@ -11,15 +11,16 @@ import { convertClipboardToMarkdown } from "../clipboard-markdown.mjs"
 import { codeHighlight } from "./code-highlight.js"
 import { codeModeExtensions } from "./code-mode.js"
 import { codeBackspace, codeDelete, exitCodeBlock, keepCaretOffFences, openCodeFence, pendingFence, settleCodeCaretPlugin } from "./commands/code-fence.js"
-import { applyBlockStyle, applyListStyle, editableListLines, enclosingNode, insertLink, listPrefix, orderedList, setHeading, stylingContext, toggleBlockPrefix, toggleInlineMark } from "./commands/format.js"
-import { deleteEmptyListMarker, indentMarkdownListItems } from "./commands/list-indent.js"
+import { applyBlockStyle, enclosingNode, insertLink, setHeading, stylingContext, toggleBlockPrefix, toggleInlineMark } from "./commands/format.js"
+import { indentMarkdownListItems } from "./commands/list-indent.js"
+import { continueList, deleteListMarker, indentListItems, insertListContinuation, outdentListItems, paragraphAfterList, selectedListStyle, setListStyle, toggleListStyle } from "./commands/lists.js"
 import { deleteTableBackward, deleteTableForward, openLineBelowTable } from "./commands/table-edges.js"
 import { METRICS, directionLines } from "./decoration-parts.js"
 import { editorModuleEnabled, editorModuleExtensions, editorModules } from "./extensions.js"
 import { collectMatches, documentFind, expandReplacement, findTheme, sameSearch, setFind } from "./find.js"
 import { formattingState } from "./formatting-state.js"
 import { codeLanguages } from "./languages.js"
-import { alignInactiveHeadings, livePreview } from "./live-preview/plugins.js"
+import { alignInactiveHeadings, keepCaretAfterListMarker, leaveListMarkerBackward, livePreview, stopAfterListMarker } from "./live-preview/plugins.js"
 import { obsidianHighlight } from "./obsidian-highlight.js"
 import { codeCardWidth } from "./code-card-width.js"
 import { activeCodeBlock, anchoredPointerSelection, pointerPreview, stablePointerPreview } from "./pointer.js"
@@ -30,7 +31,7 @@ import { slashTemplatesChanged } from "./slash.js"
 import { tableEditors } from "./table/editors.js"
 import { escapedTableCell } from "./table/model.js"
 import { captureTableSelection, prepareTableFormatting, restoreTableFormatting, tableCellSourceRange, tableFormattingCallbacks, tableFormattingSelection, tableFormattingTargets, tableInlineCommands } from "./table/selection.js"
-import { continueTaskList, cycleListItemState } from "./task-list.js"
+import { cycleListItemState } from "./task-list.js"
 import { extractMetadata } from "./workspace-metadata.js"
 import { codeCopyHandlers, unwrappedCodeBlocks } from "./widgets/code.js"
 
@@ -119,30 +120,37 @@ window.MDEditor = {
           alignInactiveHeadings,
           pendingFence,
           keepCaretOffFences,
+          keepCaretAfterListMarker,
           settleCodeCaretPlugin,
+          paragraphAfterList,
           closeBrackets(),
           // paragraphReflow deliberately omitted: the preview renders
           // single newlines as hard breaks, so the
           // editor keeps them visible instead of joining lines.
           Prec.highest(keymap.of([
-            { key: "Enter", run: continueTaskList },
             { key: "Mod-Enter", run: cycleListItemState },
             { key: "Enter", run: exitCodeBlock },
             { key: "Enter", run: openCodeFence },
             { key: "Enter", run: openLineBelowTable },
+            { key: "Enter", run: continueList, shift: insertListContinuation },
             { key: "ArrowDown", run: openLineBelowTable },
             { key: "ArrowRight", run: openLineBelowTable },
             { key: "Backspace", run: deleteTableBackward },
             { key: "Backspace", run: codeBackspace },
-            { key: "Backspace", run: deleteEmptyListMarker },
+            { key: "Backspace", run: deleteListMarker },
             { key: "Mod-ArrowUp", run: (v) => jumpToDocEdge(v, cursorDocStart, false), shift: (v) => jumpToDocEdge(v, selectDocStart, false) },
             { key: "Mod-ArrowDown", run: (v) => jumpToDocEdge(v, cursorDocEnd, true), shift: (v) => jumpToDocEdge(v, selectDocEnd, true) },
             { key: "Delete", run: deleteTableForward },
             { key: "Delete", run: codeDelete },
+            { key: "ArrowLeft", run: leaveListMarkerBackward(false), shift: leaveListMarkerBackward(true) },
+            { mac: "Cmd-ArrowLeft", run: stopAfterListMarker(cursorLineBoundaryLeft), shift: stopAfterListMarker(selectLineBoundaryLeft), preventDefault: true },
+            { key: "Home", run: stopAfterListMarker(cursorLineBoundaryBackward), shift: stopAfterListMarker(selectLineBoundaryBackward), preventDefault: true },
+            { mac: "Ctrl-a", run: stopAfterListMarker(cursorLineStart), shift: stopAfterListMarker(selectLineStart) },
           ])),
           keymap.of([
             { key: "Mod-b", run: toggleInlineMark("**") },
             { key: "Mod-i", run: toggleInlineMark("*") },
+            { key: "Tab", run: indentListItems, shift: outdentListItems },
             { key: "Tab", run: indentMarkdownListItems, shift: indentLess },
             ...closeBracketsKeymap,
             ...markdownKeymap,
@@ -201,7 +209,11 @@ window.MDEditor = {
                 return true
               }
               if (hasTabularData && insertMarkdown()) return true
-              if (items.some((item) => String(item.type || "").toLowerCase().startsWith("image/"))) {
+              // Images and files (Finder's Copy) go to the native asset flow,
+              // which copies them beside the document and links them.
+              const hasFiles = Array.from(types || []).includes("Files")
+                || items.some((item) => item.kind === "file")
+              if (hasFiles || items.some((item) => String(item.type || "").toLowerCase().startsWith("image/"))) {
                 if (typeof onPasteImage !== "function") return false
                 event.preventDefault()
                 const selection = view.state.selection.main
@@ -308,9 +320,9 @@ window.MDEditor = {
       h5: setHeading(5),
       h6: setHeading(6),
       quote: toggleBlockPrefix("> ", /^>\s?/),
-      bulletList: toggleBlockPrefix("- ", /^\s*[-*+]\s/),
-      orderedList,
-      taskList: toggleBlockPrefix("- [ ] ", /^\s*[-*+]\s+\[[ xX]\]\s/),
+      bulletList: toggleListStyle("bullet"),
+      orderedList: toggleListStyle("ordered"),
+      taskList: toggleListStyle("task"),
       link: insertLink,
     }
     if (callbacks?.onCopyCode) codeCopyHandlers.set(view, callbacks.onCopyCode)
@@ -332,11 +344,14 @@ window.MDEditor = {
       },
       getListStyle: () => {
         if (tableFormattingTargets.has(view)) return 'none'
-        const styles = editableListLines(view.state).map(line => listPrefix(line.text).style)
-        if (!styles.length) return 'none'
-        return styles.every(style => style === styles[0]) ? styles[0] : 'mixed'
+        return selectedListStyle(view.state)
       },
-      setListStyle: style => !tableFormattingTargets.has(view) && applyListStyle(view, style),
+      setListStyle: (style) => {
+        if (tableFormattingTargets.has(view)) return false
+        const applied = setListStyle(view, style)
+        view.focus()
+        return applied
+      },
       getLinkSelection: (expandLink = false) => {
         if (tableFormattingTargets.has(view) && !prepareTableFormatting(view)) {
           return null
@@ -575,15 +590,43 @@ window.MDEditor = {
         view.dispatch({ effects: slashTemplatesChanged.of(null) })
       },
       // Workspace names for `#`, `@` and `+` suggestions, as
-      // `{ version, tags, contexts, projects }` with `[{ name, count }]` per
-      // kind (names without their marker). A snapshot older than the one held
-      // is ignored; returns whether this one was taken.
+      // `{ version, indexing, truncated, tags, contexts, projects }` with
+      // `[{ name, count }]` per kind (names without their marker). `indexing`
+      // and `truncated` add a note under the suggestions. A snapshot older
+      // than the one held is ignored; returns whether this one was taken.
       setWorkspaceCandidates: (snapshot) => {
         const next = readWorkspaceCandidates(snapshot, moduleHost.workspaceCandidates)
         if (!next) return false
         moduleHost.workspaceCandidates = next
         view.dispatch({ effects: workspaceCandidatesChanged.of(null) })
         return true
+      },
+      // Checks or unchecks one task for the Tasks sidebar, as one undoable
+      // edit of its marker. `line` is the indexed line; `text` the indexed
+      // label. The line is used when it still holds that task, otherwise the
+      // one task with that text. Returns `{ line, changed, markdown }`, or
+      // null when the task cannot be found unambiguously.
+      setTaskChecked: (line, checked, text) => {
+        const source = view.state.doc.toString()
+        const tasks = extractMetadata(source).tasks
+        const matches = (task) => typeof text !== "string" || task.text === text
+        let task = tasks.find((candidate) => candidate.line === line && matches(candidate))
+        if (!task && typeof text === "string") {
+          const same = tasks.filter((candidate) => candidate.text === text)
+          if (same.length === 1) task = same[0]
+        }
+        if (!task || task.line > view.state.doc.lines) return null
+        const docLine = view.state.doc.line(task.line)
+        // Same pattern as Swift's `TaskCheckboxSource`, which flips the
+        // marker for the Read Mode and on-disk paths: change both together.
+        const marker = /^(\s*(?:>\s*)*(?:[-+*]|\d+[.)])\s+\[)([ xX])\]/u.exec(docLine.text)
+        if (!marker) return null
+        const changed = (marker[2] !== " ") !== (checked === true)
+        if (changed) {
+          const from = docLine.from + marker[1].length
+          view.dispatch({ changes: { from, to: from + 1, insert: checked ? "x" : " " }, userEvent: "input.task" })
+        }
+        return { line: task.line, changed, markdown: view.state.doc.toString() }
       },
       // Whether `#tag`, `@context` and `+project` read as links and open
       // their page on Cmd+click: true in a workspace window.

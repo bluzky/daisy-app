@@ -137,19 +137,43 @@ nonisolated enum FileSearchMatcher {
         /// A `/` means the reader is narrowing by directory, which only the
         /// relative path can satisfy.
         let matchesRelativePath: Bool
+        /// The query without spaces, for the whole-path fallback: words typed
+        /// apart (`vifon meeting`) sit in different folders, joined by `/`.
+        let pathFallback: QueryText?
 
         init(_ query: String) {
             let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
             self.text = trimmed
-            self.folded = trimmed.map(FileSearchMatcher.folded)
-            let ascii = folded.compactMap(\.asciiValue)
-            // Character.asciiValue reports LF for CRLF, but matching treats
-            // those as distinct graphemes, so CRLF must stay on the Unicode path.
-            self.ascii = ascii.count == folded.count && !trimmed.utf8.contains(13) ? ascii : nil
+            let text = QueryText(trimmed)
+            self.folded = text.folded
+            self.ascii = text.ascii
             self.matchesRelativePath = trimmed.contains("/")
+            let joined = trimmed.filter { $0 != " " && $0 != "\t" }
+            self.pathFallback = joined.isEmpty ? nil : QueryText(joined)
         }
 
         var isBlank: Bool { text.isEmpty }
+        var queryText: QueryText { QueryText(folded: folded, ascii: ascii) }
+    }
+
+    /// Query characters folded for matching, plus their ASCII bytes when the
+    /// fast path applies.
+    struct QueryText: Sendable {
+        let folded: [Character]
+        let ascii: [UInt8]?
+
+        init(folded: [Character], ascii: [UInt8]?) {
+            self.folded = folded
+            self.ascii = ascii
+        }
+
+        init(_ text: String) {
+            folded = text.map(FileSearchMatcher.folded)
+            let ascii = folded.compactMap(\.asciiValue)
+            // Character.asciiValue reports LF for CRLF, but matching treats
+            // those as distinct graphemes, so CRLF must stay on the Unicode path.
+            self.ascii = ascii.count == folded.count && !text.utf8.contains(13) ? ascii : nil
+        }
     }
 
     static func match(query: PreparedQuery, against candidate: Candidate) -> Match? {
@@ -162,20 +186,28 @@ nonisolated enum FileSearchMatcher {
             return Match(score: alignment.score, pathRanges: alignment.ranges)
         }
 
-        guard let alignment = align(query: query, to: candidate.name) else {
-            return nil
+        if let alignment = align(query: query, to: candidate.name) {
+            return Match(score: alignment.score + nameTierBonus(query: query, name: candidate.name),
+                         nameRanges: alignment.ranges)
         }
-        return Match(score: alignment.score + nameTierBonus(query: query, name: candidate.name),
-                     nameRanges: alignment.ranges)
+        guard let fallback = query.pathFallback,
+              let alignment = align(query: fallback, to: candidate.path) else { return nil }
+        return Match(score: alignment.score + scorePathOnly, pathRanges: alignment.ranges)
     }
 
     /// Ranking needs only scores. Highlight backtracking is reserved for the
     /// visible rows that call `match`, not every matching file in the index.
     static func score(query: PreparedQuery, against candidate: Candidate) -> Int? {
         guard !query.isBlank else { return 0 }
-        let text = query.matchesRelativePath ? candidate.path : candidate.name
-        guard let alignment = align(query: query, to: text, includeRanges: false) else { return nil }
-        return alignment.score + (query.matchesRelativePath ? 0 : nameTierBonus(query: query, name: candidate.name))
+        if query.matchesRelativePath {
+            return align(query: query, to: candidate.path, includeRanges: false)?.score
+        }
+        if let alignment = align(query: query, to: candidate.name, includeRanges: false) {
+            return alignment.score + nameTierBonus(query: query, name: candidate.name)
+        }
+        guard let fallback = query.pathFallback,
+              let alignment = align(query: fallback, to: candidate.path, includeRanges: false) else { return nil }
+        return alignment.score + scorePathOnly
     }
 
     /// Immutable work shared by queries for the lifetime of the index snapshot.
@@ -252,6 +284,11 @@ nonisolated enum FileSearchMatcher {
     /// first letter that fits and so misses the word-boundary hit a little
     /// further along, which is usually the one the reader meant.
     private static func align(query: PreparedQuery, to text: PreparedText,
+                              includeRanges: Bool = true) -> Alignment? {
+        align(query: query.queryText, to: text, includeRanges: includeRanges)
+    }
+
+    private static func align(query: QueryText, to text: PreparedText,
                               includeRanges: Bool = true) -> Alignment? {
         switch text.storage {
         case .ascii(let characters):
@@ -433,6 +470,9 @@ nonisolated enum FileSearchMatcher {
     /// query, which is the point: these are tiers, not nudges.
     private static let scoreExactName = 1_000_000
     private static let scorePrefixName = 100_000
+    /// A query that matches only across the folders, not within the name,
+    /// ranks below every name match.
+    private static let scorePathOnly = -100_000
 
     /// Sentinel for "no alignment reaches this cell". Well away from
     /// `Int.min` so adding a penalty to it cannot overflow.

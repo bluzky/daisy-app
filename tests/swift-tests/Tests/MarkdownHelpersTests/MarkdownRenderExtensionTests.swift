@@ -326,7 +326,9 @@ final class MarkdownRenderExtensionTests: XCTestCase {
     XCTAssertFalse(css.contains("cm-md-slash"))
     XCTAssertTrue(MarkdownHTML.slashCommandsEditorStylesheet.contains(".cm-md-slash-menu[hidden] { display: none; }"))
     XCTAssertTrue(MarkdownHTML.slashCommandsEditorStylesheet.contains(".cm-md-slash-calendar-footer {"))
-    XCTAssertNil(MarkdownHTML.editorExtensionOptions()["metadata-completion"])
+    XCTAssertTrue(css.contains(".cm-md-metadata-footer {"))
+    let options = try XCTUnwrap(MarkdownHTML.editorExtensionOptions()["metadata-completion"])
+    XCTAssertEqual(Set(options.keys), ["label.indexing", "label.truncated"])
   }
 
   func testSlashCommandOptionsCarryEveryLabelKey() throws {

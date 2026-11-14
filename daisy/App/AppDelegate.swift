@@ -104,7 +104,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private weak var outlineMenuItem: NSMenuItem?
     private weak var filesMenuItem: NSMenuItem?
-    private weak var inspectorMenuItem: NSMenuItem?
+    private weak var tasksMenuItem: NSMenuItem?
     private weak var automaticAppearanceMenuItem: NSMenuItem?
     private weak var lightAppearanceMenuItem: NSMenuItem?
     private weak var darkAppearanceMenuItem: NSMenuItem?
@@ -112,6 +112,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private weak var normalContentWidthMenuItem: NSMenuItem?
     private weak var fullContentWidthMenuItem: NSMenuItem?
     private var keymapMenuItems: [KeymapCommand: NSMenuItem] = [:]
+    /// The Go and Insert menus' journal items and their separators, hidden
+    /// while the Journal extension is off.
+    private var journalMenuItems: [NSMenuItem] = []
     private var firstResponderObservation: NSKeyValueObservation?
     private var isDocumentPromptScheduled = false
     private var documentPromptScheduleGeneration = 0
@@ -167,6 +170,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         installWhatsNewMenuItem()
         installViewMenuItemIcons()
         QuickCaptureController.shared.applyEnabledSetting()
+        WorkspaceMetadataIndex.purgeStaleCaches()
         hasFinishedLaunching = true
         if !didReceiveOpenURLsDuringLaunch {
             scheduleDocumentPrompt(requiresNoDocuments: true, followsLaunchBehavior: true)
@@ -414,6 +418,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     /// Re-render open documents with a fresh extension snapshot. Quick Look
     /// reads same app-group value when it creates its next preview.
+    /// Turns the Journal extension on or off: the Go menu's journal items
+    /// and every window's toolbar calendar.
+    func applyJournalEnabledSetting(_ enabled: Bool) {
+        guard enabled != JournalSetting.isEnabled else { return }
+        JournalSetting.isEnabled = enabled
+        journalMenuItems.forEach { $0.isHidden = !enabled }
+        documentWindowControllers.forEach { $0.applyJournalEnabledSetting() }
+    }
+
     func applyRenderExtensionPreferences(_ enabledIDs: Set<String>) {
         let current = RenderExtensionPreferences.currentConfiguration.enabledIDs
         guard enabledIDs != current else { return }
@@ -551,8 +564,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         syncSidebarViewMenuState()
     }
 
-    @objc private func toggleInspectorFromMenu(_ sender: Any?) {
-        activeDocumentWindowController?.toggleInspectorFromMenu()
+    @objc private func toggleTasksFromMenu(_ sender: Any?) {
+        activeDocumentWindowController?.toggleTasksFromMenu()
         syncSidebarViewMenuState()
     }
 
@@ -586,10 +599,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case #selector(toggleSidebarFromMenu(_:)),
              #selector(selectOutlineMode(_:)),
              #selector(selectFilesMode(_:)),
-             #selector(toggleInspectorFromMenu(_:)),
              #selector(performFindPanelAction(_:)),
              #selector(performTextFinderAction(_:)):
             return activeDocumentWindowController != nil
+        case #selector(toggleTasksFromMenu(_:)):
+            let controller = activeDocumentWindowController
+            menuItem.toolTip = controller?.isWorkspace == true ? nil : L("The agenda is available in a workspace.")
+            return controller?.canToggleTasks == true
         case #selector(selectAppearanceMode(_:)):
             return ThemePreset.applied().requiredAppearance == nil
         case #selector(selectContentWidthSetting(_:)):
@@ -607,6 +623,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return activeDocumentWindowController?.canFormatMarkdown ?? false
         case #selector(insertLinkToFileFromMenu(_:)):
             return activeDocumentWindowController?.canInsertLinkToFile ?? false
+        case #selector(insertCarriedOverTasksFromMenu(_:)):
+            return activeDocumentWindowController?.canInsertCarriedOverTasks ?? false
         default:
             return true
         }
@@ -860,7 +878,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         switch item.action {
         case #selector(DocumentWindowController.searchForDocument(_:)): return .fileOmniSearch
         case #selector(toggleSidebarFromMenu(_:)): return .viewToggleSidebar
-        case #selector(toggleInspectorFromMenu(_:)): return .viewToggleInspector
+        case #selector(toggleTasksFromMenu(_:)): return .viewToggleTasks
         case #selector(selectOutlineMode(_:)): return .viewShowOutline
         case #selector(selectFilesMode(_:)): return .viewShowProjectNavigator
         case #selector(toggleEditModeFromMenu(_:)): return .viewToggleEditMode
@@ -877,7 +895,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case #selector(DocumentWindowController.toggleAlwaysOnTop(_:)): return .viewToggleAlwaysOnTop
         case #selector(DocumentWindowController.goBackInHistory(_:)): return .goBack
         case #selector(DocumentWindowController.goForwardInHistory(_:)): return .goForward
+        case #selector(DocumentWindowController.openTodayJournal(_:)): return .goTodayJournal
+        case #selector(DocumentWindowController.openPreviousJournalEntry(_:)): return .goPreviousJournalEntry
+        case #selector(DocumentWindowController.openNextJournalEntry(_:)): return .goNextJournalEntry
         case #selector(insertLinkToFileFromMenu(_:)): return .insertLinkToFile
+        case #selector(insertCarriedOverTasksFromMenu(_:)): return .insertCarriedOverTasks
         case #selector(NSResponder.scrollLineUp(_:)): return .goLineUp
         case #selector(NSResponder.scrollLineDown(_:)): return .goLineDown
         case #selector(NSResponder.scrollPageUp(_:)): return .goPageUp
@@ -955,8 +977,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         fileMenu.insertItem(item, at: openIndex.map { $0 + 1 } ?? 0)
     }
 
-    /// Initialize Workspace and Remove Workspace, after Open Recent. Nil
-    /// targets resolve to the key document window, which knows its folder.
+    /// Initialize Workspace, Remove Workspace and Rebuild Workspace Index,
+    /// after Open Recent. Nil targets resolve to the key document window,
+    /// which knows its folder.
     private func installWorkspaceMenuItems() {
         guard let fileMenu = topLevelSubmenu(matching: Self.fileMenuTitles),
               fileMenu.items.first(where: {
@@ -974,6 +997,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                        keyEquivalent: ""),
             NSMenuItem(title: L("Remove Workspace"),
                        action: #selector(DocumentWindowController.removeWorkspace(_:)),
+                       keyEquivalent: ""),
+            NSMenuItem(title: L("Rebuild Workspace Index"),
+                       action: #selector(DocumentWindowController.rebuildWorkspaceIndex(_:)),
                        keyEquivalent: ""),
         ]
         for (offset, item) in items.enumerated() {
@@ -1079,6 +1105,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                               symbol: "chevron.forward"))
 
         menu.addItem(.separator())
+
+        // Workspace journal; enabled by the key window (see
+        // DocumentWindowController+Journal.swift).
+        let goJournalItems: [NSMenuItem] = [
+            makeItem("Today’s Journal",
+                     action: #selector(DocumentWindowController.openTodayJournal(_:)),
+                     keyEquivalent: "j",
+                     modifiers: [.command, .shift],
+                     symbol: "calendar"),
+            makeItem("Previous Journal Entry",
+                     action: #selector(DocumentWindowController.openPreviousJournalEntry(_:)),
+                     keyEquivalent: arrow(NSLeftArrowFunctionKey),
+                     modifiers: [.command, .option],
+                     symbol: "chevron.left.circle"),
+            makeItem("Next Journal Entry",
+                     action: #selector(DocumentWindowController.openNextJournalEntry(_:)),
+                     keyEquivalent: arrow(NSRightArrowFunctionKey),
+                     modifiers: [.command, .option],
+                     symbol: "chevron.right.circle"),
+            .separator(),
+        ]
+        goJournalItems.forEach(menu.addItem)
+        goJournalItems.forEach { $0.isHidden = !JournalSetting.isEnabled }
+        journalMenuItems += goJournalItems
 
         menu.addItem(makeItem("Up",
                               action: #selector(NSResponder.scrollLineUp(_:)),
@@ -1376,13 +1426,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         filesMenuItem = files
 
         // ⇧⌘I: ⌘I is Italic and ⌥⌘I the Web Inspector.
-        let inspector = makeSidebarViewMenuItem(title: L("Inspector"),
-                                                symbol: "info.circle",
-                                                keyEquivalent: "i",
-                                                modifiers: [.shift, .command],
-                                                action: #selector(toggleInspectorFromMenu(_:)))
-        viewMenu.insertItem(inspector, at: insertIndex + 3)
-        inspectorMenuItem = inspector
+        let tasks = makeSidebarViewMenuItem(title: L("Agenda"),
+                                            symbol: "checklist",
+                                            keyEquivalent: "i",
+                                            modifiers: [.shift, .command],
+                                            action: #selector(toggleTasksFromMenu(_:)))
+        viewMenu.insertItem(tasks, at: insertIndex + 3)
+        tasksMenuItem = tasks
 
         viewMenu.insertItem(.separator(), at: insertIndex + 4)
     }
@@ -1474,6 +1524,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(item("Link to File…", symbol: "link", action: #selector(insertLinkToFileFromMenu(_:))))
         menu.addItem(item("Code Block", symbol: "curlybraces.square", action: #selector(insertCodeBlockFromMenu(_:))))
         menu.addItem(item("Table", symbol: "tablecells", action: #selector(insertTableFromMenu(_:))))
+        // Journal entries only; hidden with the Journal extension.
+        let carryOverItems: [NSMenuItem] = [
+            .separator(),
+            item("Unfinished Tasks from Earlier Days", symbol: "arrow.uturn.forward.square",
+                 action: #selector(insertCarriedOverTasksFromMenu(_:))),
+        ]
+        carryOverItems.forEach(menu.addItem)
+        carryOverItems.forEach { $0.isHidden = !JournalSetting.isEnabled }
+        journalMenuItems += carryOverItems
 
         let rootItem = NSMenuItem(title: insertTitle, action: nil, keyEquivalent: "")
         rootItem.submenu = menu
@@ -1497,6 +1556,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func insertTableFromMenu(_ sender: Any?) {
         activeDocumentWindowController?.insertTableFromMenu()
+    }
+
+    @objc private func insertCarriedOverTasksFromMenu(_ sender: Any?) {
+        activeDocumentWindowController?.insertCarriedOverTasksFromMenu()
     }
 
     @objc private func formatMarkdownFromMenu(_ sender: NSMenuItem) {
@@ -1524,10 +1587,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard let state = activeDocumentWindowController?.sidebarMenuState else {
             outlineMenuItem?.state = .off
             filesMenuItem?.state = .off
-            inspectorMenuItem?.state = .off
+            tasksMenuItem?.state = .off
             return
         }
-        inspectorMenuItem?.state = activeDocumentWindowController?.isInspectorVisible == true ? .on : .off
+        tasksMenuItem?.state = activeDocumentWindowController?.isTasksVisible == true ? .on : .off
         outlineMenuItem?.state = (state.sidebarVisible && state.mode == .outline) ? .on : .off
         filesMenuItem?.state = (state.sidebarVisible && state.mode == .files) ? .on : .off
     }

@@ -141,6 +141,9 @@ nonisolated extension MarkdownHTML {
                     startOnLoad: false,
                     theme,
                     securityLevel: 'strict',
+                    // A syntax error throws instead of drawing Mermaid's
+                    // error graphic, so the figure falls back to its source.
+                    suppressErrorRendering: true,
                     fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif'
                 });
             }
@@ -213,6 +216,9 @@ nonisolated extension MarkdownHTML {
                 }
                 const svg = node.querySelector('svg');
                 if (!svg) {
+                    // Mermaid empties the node before rendering; a syntax error
+                    // leaves it empty, so show the source instead.
+                    if (!node.textContent.trim()) node.textContent = node.__mdSrc || '';
                     figure.classList.add('mermaid-error');
                     return;
                 }
@@ -467,6 +473,11 @@ nonisolated extension MarkdownHTML {
             function bootstrap() {
                 const figures = document.querySelectorAll('.mermaid-figure');
                 if (!figures.length) return;
+                // Configure Mermaid now, before the page's load event: its
+                // default startOnLoad would otherwise render every diagram
+                // itself with default settings, drawing its error graphic for
+                // a syntax error.
+                ensureInit(activeTheme());
                 const io = new IntersectionObserver((entries) => {
                     for (const entry of entries) {
                         if (entry.isIntersecting) {

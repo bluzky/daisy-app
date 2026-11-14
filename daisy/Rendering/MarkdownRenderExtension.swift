@@ -697,6 +697,13 @@ nonisolated extension MarkdownHTML {
       cursor: default;
     }
     .cm-md-\(prefix)-back .cm-md-\(prefix)-chevron { width: 22px; text-align: center; }
+    .cm-md-\(prefix)-footer {
+      padding: 8px 10px 2px;
+      margin-top: 4px;
+      border-top: 0.5px solid color-mix(in srgb, var(--text) 14%, transparent);
+      font-size: 12px;
+      color: var(--secondary);
+    }
     .cm-md-\(prefix)-detail {
       flex: none;
       color: var(--secondary);
@@ -939,9 +946,20 @@ nonisolated extension MarkdownHTML {
     let affectsPreview = false
     let editor: (any EditorCapability)? = EditorModule(
       moduleID: "metadata-completion",
-      css: MarkdownHTML.completionMenuStylesheet(prefix: "metadata")
+      css: MarkdownHTML.completionMenuStylesheet(prefix: "metadata"),
+      options: MarkdownHTML.metadataCompletionLabels()
     )
 
     func isActive(in _: RenderContext) -> Bool { false }
+  }
+
+  /// The note under the suggestions while the workspace's names are
+  /// incomplete. A missing label falls back to the bundle's English one.
+  static func metadataCompletionLabels() -> [String: String] {
+    [
+      "label.indexing": NSLocalizedString("Indexing workspace…", comment: "Metadata suggestions note"),
+      "label.truncated": NSLocalizedString("Some files are not indexed: the workspace is over the file limit.",
+                                           comment: "Metadata suggestions note")
+    ]
   }
 }

@@ -3,10 +3,10 @@
 //  daisy
 //
 //  The inline links a document makes, `[text](destination)`, in reading
-//  order, for the inspector's Links section: web and mail links, links to
-//  other files, and links to a section of this document. Autolinks
-//  (`<https://…>`), reference links (`[text][ref]`), bare URLs and images are
-//  left out.
+//  order: web and mail links, links to other files, and links to a section
+//  of this document. Autolinks (`<https://…>`), reference links
+//  (`[text][ref]`), bare URLs and images are left out. The editor's
+//  Cmd+click resolves a destination with `DocumentLink.target(relativeTo:)`.
 //
 
 import Foundation

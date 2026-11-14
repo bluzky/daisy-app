@@ -323,6 +323,32 @@ for (const [name, source, text] of [
   editor.destroy()
 }
 
+{
+  const { editor } = typed("Text\n\n", "")
+  const note = () => visible() && menu().querySelector(".cm-md-metadata-footer")
+  editor.setWorkspaceCandidates({ version: 1, indexing: true, tags: [{ name: "review", count: 1 }] })
+  type(editor, "#re")
+  check("an indexing snapshot notes it under the rows",
+    note() && note().textContent === "Indexing workspace…" && note().getAttribute("role") === "status")
+  check("the note is not a row", labels().join() === "#review" && !note().hasAttribute("data-metadata-index"))
+  editor.setWorkspaceCandidates({ version: 2, truncated: true, tags: [{ name: "review", count: 1 }] })
+  check("a capped snapshot discloses the limit", note() && /not indexed/.test(note().textContent))
+  editor.setWorkspaceCandidates({ version: 3, tags: [{ name: "review", count: 1 }] })
+  check("a complete snapshot shows no note", visible() && !note())
+  editor.destroy()
+}
+
+{
+  const { editor } = typed("Text\n\n", "", {
+    extensionOptions: { "metadata-completion": { "label.indexing": "正在索引工作区…" } },
+  })
+  editor.setWorkspaceCandidates({ version: 1, indexing: true, tags: [{ name: "review", count: 1 }] })
+  type(editor, "#re")
+  const footer = menu().querySelector(".cm-md-metadata-footer")
+  check("the note uses the host's label", footer && footer.textContent === "正在索引工作区…")
+  editor.destroy()
+}
+
 // --- Task lifecycle -----------------------------------------------------------
 
 {

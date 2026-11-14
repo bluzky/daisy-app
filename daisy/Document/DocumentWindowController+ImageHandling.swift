@@ -7,18 +7,18 @@ import AppKit
 import UniformTypeIdentifiers
 
 extension DocumentWindowController {
-    /// One image going into the editor, from the clipboard or the picker.
+    /// Images or files going into the editor, from the clipboard or the picker.
     private struct ImageInsertion {
-        enum Origin { case pasted, picked }
+        enum Origin { case pasted, pastedFiles, picked }
 
         let origin: Origin
         let markdownURL: URL
         let editor: EditorViewController
         let from: Int
         let to: Int
-        /// Produces the image file. `isNew` marks a file created for this
+        /// Produces the files to link. `isNew` marks a file created for this
         /// insertion, which is removed again if the editor rejects the text.
-        let obtain: () throws -> (url: URL, isNew: Bool)
+        let obtain: () throws -> [(url: URL, isNew: Bool)]
 
         var placementError: String {
             switch origin {
@@ -26,6 +26,11 @@ extension DocumentWindowController {
                 NSLocalizedString(
                     "The pasted image could not be placed next to the Markdown file.",
                     comment: "Image paste destination error"
+                )
+            case .pastedFiles:
+                NSLocalizedString(
+                    "The pasted files could not be placed next to the Markdown file.",
+                    comment: "File paste destination error"
                 )
             case .picked:
                 NSLocalizedString(
@@ -42,6 +47,11 @@ extension DocumentWindowController {
                     "The pasted image could not be inserted into the document.",
                     comment: "Image paste insertion error"
                 )
+            case .pastedFiles:
+                NSLocalizedString(
+                    "The pasted files could not be inserted into the document.",
+                    comment: "File paste insertion error"
+                )
             case .picked:
                 NSLocalizedString(
                     "The image could not be inserted into the document.",
@@ -57,6 +67,11 @@ extension DocumentWindowController {
                     "Choose the folder containing this Markdown file to save the pasted image.",
                     comment: "Image paste permission message"
                 )
+            case .pastedFiles:
+                NSLocalizedString(
+                    "Choose the folder containing this Markdown file to save the pasted files.",
+                    comment: "File paste permission message"
+                )
             case .picked:
                 NSLocalizedString(
                     "Choose the folder containing this Markdown file to save the image.",
@@ -66,15 +81,34 @@ extension DocumentWindowController {
         }
     }
 
+    /// Files copied in Finder are linked like picked ones — copied into the
+    /// assets folder unless already inside the document's folder — so the
+    /// original bytes are kept instead of Finder's icon rendition. Images
+    /// become image Markdown, any other file a plain link. Raw image data
+    /// (screenshots, images copied from apps) is saved as a numbered PNG.
     func pasteImage(at from: Int, replacing to: Int) {
         guard isEditing,
               let markdownURL = currentFileURL,
               let editor = mainSplit?.editorViewController else { return }
+
+        let files = clipboardFileURLs()
+        if !files.isEmpty {
+            insertImage(ImageInsertion(
+                origin: .pastedFiles,
+                markdownURL: markdownURL,
+                editor: editor,
+                from: from,
+                to: to,
+                obtain: { try Self.placeFiles(files, forMarkdownFile: markdownURL) }
+            ))
+            return
+        }
+
         guard let data = clipboardPNGData() else {
             presentImageError(
                 NSError(domain: "MarkdownPreview.ImagePaste", code: 1, userInfo: [
                     NSLocalizedDescriptionKey: NSLocalizedString(
-                        "The clipboard does not contain an image.",
+                        "The clipboard does not contain an image or file.",
                         comment: "Image paste error"
                     )
                 ])
@@ -88,13 +122,38 @@ extension DocumentWindowController {
             editor: editor,
             from: from,
             to: to,
-            obtain: { (try MarkdownAssetResolution.savePastedImage(data, forMarkdownFile: markdownURL), true) }
+            obtain: { [(try MarkdownAssetResolution.savePastedImage(data, forMarkdownFile: markdownURL), true)] }
         ))
+    }
+
+    /// Links files inside the document's folder in place and copies the rest
+    /// into the assets folder. A failure removes the copies already made.
+    private static func placeFiles(_ files: [URL],
+                                   forMarkdownFile markdownURL: URL) throws -> [(url: URL, isNew: Bool)] {
+        var placed: [(url: URL, isNew: Bool)] = []
+        do {
+            for file in files {
+                if MarkdownAssetResolution.isInsideFolder(file, ofMarkdownFile: markdownURL) {
+                    placed.append((file, false))
+                } else {
+                    placed.append((try MarkdownAssetResolution.importFile(
+                        from: file,
+                        forMarkdownFile: markdownURL
+                    ), true))
+                }
+            }
+        } catch {
+            for (url, isNew) in placed where isNew {
+                try? FileManager.default.removeItem(at: url)
+            }
+            throw error
+        }
+        return placed
     }
 
     /// `/image` in the editor: choose a file, then insert it like a paste.
     /// An image already inside the document's folder is linked in place;
-    /// anything else is copied into the pictures folder.
+    /// anything else is copied into the assets folder.
     func pickImage(at from: Int, replacing to: Int) {
         guard isEditing,
               let markdownURL = currentFileURL,
@@ -115,12 +174,12 @@ extension DocumentWindowController {
                 to: to,
                 obtain: {
                     if MarkdownAssetResolution.isInsideFolder(chosen, ofMarkdownFile: markdownURL) {
-                        return (chosen, false)
+                        return [(chosen, false)]
                     }
-                    return (try MarkdownAssetResolution.importImage(
+                    return [(try MarkdownAssetResolution.importFile(
                         from: chosen,
                         forMarkdownFile: markdownURL
-                    ), true)
+                    ), true)]
                 }
             ))
         }
@@ -135,23 +194,30 @@ extension DocumentWindowController {
     }
 
     private func performInsertion(_ insertion: ImageInsertion) throws {
-        let (imageURL, isNew) = try insertion.obtain()
-        guard let markdown = MarkdownAssetResolution.imageMarkdown(
-            for: imageURL,
-            from: insertion.markdownURL
-        ) else {
-            if isNew { try? FileManager.default.removeItem(at: imageURL) }
+        let files = try insertion.obtain()
+        let removeNewFiles = {
+            for (url, isNew) in files where isNew {
+                try? FileManager.default.removeItem(at: url)
+            }
+        }
+        let links = files.compactMap { file in
+            Self.isImageFile(file.url)
+                ? MarkdownAssetResolution.imageMarkdown(for: file.url, from: insertion.markdownURL)
+                : MarkdownAssetResolution.fileLinkMarkdown(for: file.url, from: insertion.markdownURL)
+        }
+        guard !links.isEmpty, links.count == files.count else {
+            removeNewFiles()
             throw NSError(domain: "MarkdownPreview.ImagePaste",
                           code: 2,
                           userInfo: [NSLocalizedDescriptionKey: insertion.placementError])
         }
         insertion.editor.insertMarkdown(
-            markdown,
+            links.joined(separator: "\n"),
             from: insertion.from,
             to: insertion.to
         ) { [weak self] inserted in
             guard inserted else {
-                if isNew { try? FileManager.default.removeItem(at: imageURL) }
+                removeNewFiles()
                 self?.presentImageError(
                     NSError(domain: "MarkdownPreview.ImagePaste",
                             code: 4,
@@ -194,6 +260,22 @@ extension DocumentWindowController {
         }
     }
 
+    private static func isImageFile(_ url: URL) -> Bool {
+        UTType(filenameExtension: url.pathExtension)?.conforms(to: .image) ?? false
+    }
+
+    /// Regular files on the clipboard, as Finder's Copy puts them there.
+    /// Folders are skipped: copying a whole tree on paste is never intended.
+    private func clipboardFileURLs() -> [URL] {
+        let urls = NSPasteboard.general.readObjects(
+            forClasses: [NSURL.self],
+            options: [.urlReadingFileURLsOnly: true]
+        ) as? [URL] ?? []
+        return urls.filter {
+            (try? $0.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true
+        }
+    }
+
     private func clipboardPNGData() -> Data? {
         let pasteboard = NSPasteboard.general
         if let data = pasteboard.data(forType: .png) {
@@ -225,10 +307,11 @@ extension DocumentWindowController {
             return
         }
         guard let markdownURL = currentFileURL else { return }
-        let picturesDirectory = MarkdownAssetResolution.picturesDirectory(
-            forMarkdownFile: markdownURL
-        ).standardizedFileURL
-        guard imageURL.standardizedFileURL.deletingLastPathComponent() == picturesDirectory,
+        let renameableDirectories = [
+            MarkdownAssetResolution.assetsDirectory(forMarkdownFile: markdownURL),
+            MarkdownAssetResolution.legacyPicturesDirectory(forMarkdownFile: markdownURL),
+        ].map(\.standardizedFileURL)
+        guard renameableDirectories.contains(imageURL.standardizedFileURL.deletingLastPathComponent()),
               FileManager.default.fileExists(atPath: imageURL.path) else { return }
 
         let presentRename: (String) -> Void = { [weak self] markdown in

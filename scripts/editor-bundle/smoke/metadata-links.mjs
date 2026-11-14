@@ -94,3 +94,23 @@ for (const [name, source, at] of [
   check("moving without Cmd clears the mark", !root.classList.contains("cm-mod-held"))
   editor.destroy()
 }
+
+// --- Autolinks ---------------------------------------------------------------
+
+{
+  const source = "See https://example.com/a, www.daisy.app and me@example.com or <https://x.y> here\n\nEnd"
+  const { host, editor } = create(source)
+  editor.select(source.length)
+  const linked = Array.from(host.querySelectorAll(".cm-md-link")).map((el) => el.textContent)
+  check("bare URLs, www. and email addresses read as links",
+    json(linked) === json(["https://example.com/a", "www.daisy.app", "me@example.com", "https://x.y"]))
+  check("trailing punctuation stays outside a bare URL", !linked.some((text) => text.endsWith(",")))
+  check("an autolink's brackets hide while the caret is elsewhere", !host.textContent.includes("<https://x.y>"))
+  check("Cmd+click opens a www. address over http",
+    editor.openLinkAt(source.indexOf("www.") + 2)?.destination === "http://www.daisy.app")
+  check("Cmd+click opens an email address as mail",
+    editor.openLinkAt(source.indexOf("me@") + 1)?.destination === "mailto:me@example.com")
+  check("Cmd+click opens a bare URL as written",
+    editor.openLinkAt(source.indexOf("https://ex") + 3)?.destination === "https://example.com/a")
+  editor.destroy()
+}

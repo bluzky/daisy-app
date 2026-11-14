@@ -17,6 +17,17 @@ final class EditorWorkspaceCandidatesTests: XCTestCase {
         XCTAssertEqual(object["tags"] as? [[String: AnyHashable]], [["name": "Roadmap/Q1", "count": 2]])
         XCTAssertEqual(object["contexts"] as? [[String: AnyHashable]], [["name": "alex", "count": 1]])
         XCTAssertEqual(object["projects"] as? [[String: AnyHashable]], [])
+        XCTAssertEqual(object["indexing"] as? Bool, false)
+        XCTAssertEqual(object["truncated"] as? Bool, false)
+    }
+
+    func testLiteralCarriesIndexingAndScanLimitState() throws {
+        let partial = WorkspaceMetadataSnapshot(version: 3, tags: [], contexts: [], projects: [],
+                                                isComplete: false, isTruncated: true)
+        let literal = EditorHTML.workspaceCandidatesLiteral(partial)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(literal.utf8)) as? [String: Any])
+        XCTAssertEqual(object["indexing"] as? Bool, true)
+        XCTAssertEqual(object["truncated"] as? Bool, true)
     }
 
     func testPageKeepsCandidatesForTheNextDocumentAndRefusesStaleOnes() async throws {
