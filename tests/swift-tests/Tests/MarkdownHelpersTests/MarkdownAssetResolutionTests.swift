@@ -89,10 +89,14 @@ final class MarkdownAssetResolutionTests: XCTestCase {
 
     // MARK: - Image storage helpers
 
-    func testPicturesDirectoryUsesMarkdownStem() {
+    func testAssetsDirectoryUsesMarkdownStem() {
         let markdown = URL(fileURLWithPath: "/Users/me/notes/Trip Notes.md")
         XCTAssertEqual(
-            MarkdownAssetResolution.picturesDirectory(forMarkdownFile: markdown).path,
+            MarkdownAssetResolution.assetsDirectory(forMarkdownFile: markdown).path,
+            "/Users/me/notes/Trip Notes-assets"
+        )
+        XCTAssertEqual(
+            MarkdownAssetResolution.legacyPicturesDirectory(forMarkdownFile: markdown).path,
             "/Users/me/notes/Trip Notes-pictures"
         )
     }
@@ -257,7 +261,7 @@ final class MarkdownAssetResolutionTests: XCTestCase {
         XCTAssertEqual(readData, newData)
     }
 
-    func testSavePastedImageCreatesPicturesDirectoryAndRelativePath() throws {
+    func testSavePastedImageCreatesAssetsDirectoryAndRelativePath() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -271,7 +275,7 @@ final class MarkdownAssetResolutionTests: XCTestCase {
         XCTAssertEqual(image.lastPathComponent, "1.png")
         XCTAssertEqual(
             MarkdownAssetResolution.markdownPath(for: image, from: markdown),
-            "notes-pictures/1.png"
+            "notes-assets/1.png"
         )
         XCTAssertEqual(try Data(contentsOf: image), Data([0, 1, 2]))
     }
@@ -310,7 +314,7 @@ final class MarkdownAssetResolutionTests: XCTestCase {
         )
     }
 
-    func testImportImageCopiesIntoPicturesDirectoryKeepingTheName() throws {
+    func testImportFileCopiesIntoAssetsDirectoryKeepingTheName() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -319,10 +323,10 @@ final class MarkdownAssetResolutionTests: XCTestCase {
         let source = root.appendingPathComponent("elsewhere.jpg")
         try Data([1, 2, 3]).write(to: source)
 
-        let first = try MarkdownAssetResolution.importImage(from: source, forMarkdownFile: markdown)
-        let second = try MarkdownAssetResolution.importImage(from: source, forMarkdownFile: markdown)
+        let first = try MarkdownAssetResolution.importFile(from: source, forMarkdownFile: markdown)
+        let second = try MarkdownAssetResolution.importFile(from: source, forMarkdownFile: markdown)
 
-        XCTAssertEqual(first.deletingLastPathComponent().lastPathComponent, "doc-pictures")
+        XCTAssertEqual(first.deletingLastPathComponent().lastPathComponent, "doc-assets")
         XCTAssertEqual(first.lastPathComponent, "elsewhere.jpg")
         XCTAssertEqual(second.lastPathComponent, "elsewhere 2.jpg")
         XCTAssertEqual(try Data(contentsOf: first), Data([1, 2, 3]))
@@ -337,6 +341,17 @@ final class MarkdownAssetResolutionTests: XCTestCase {
                 from: markdown
             ),
             "![My \\[shot\\]](doc-pictures/My%20%5Bshot%5D.png)"
+        )
+    }
+
+    func testFileLinkMarkdownUsesFullFileNameAsEscapedText() {
+        let markdown = URL(fileURLWithPath: "/Users/me/notes/doc.md")
+        XCTAssertEqual(
+            MarkdownAssetResolution.fileLinkMarkdown(
+                for: URL(fileURLWithPath: "/Users/me/notes/doc-assets/Q3 [final].pdf"),
+                from: markdown
+            ),
+            "[Q3 \\[final\\].pdf](doc-assets/Q3%20%5Bfinal%5D.pdf)"
         )
     }
 

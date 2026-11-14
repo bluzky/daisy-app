@@ -392,6 +392,12 @@ nonisolated enum EditorHTML {
             position: relative;
             cursor: pointer;
         }
+        /* A numbered task's number fills the marker box, so its checkbox
+           sits at the start of the text instead of hanging. */
+        .cm-md-task-inline input {
+            margin-inline-start: 0;
+            margin-inline-end: 0.35em;
+        }
         .cm-md-task-marker input:checked {
             border-color: var(--accent);
             background: var(--accent);
@@ -430,23 +436,9 @@ nonisolated enum EditorHTML {
             border: 0.2em solid var(--link);
             border-radius: 50%;
         }
-        /* Keep the active raw "- " marker in the same hanging box as the
-           inactive bullet widget. Revealing Markdown source must not move the
-           item text or make a nested item appear to change indentation. */
-        .cm-md-bullet-source {
-            display: inline-block;
-            width: 2.1em;
-            text-indent: 0;
-            text-align: end;
-            padding-inline-end: 0.75em;
-            box-sizing: border-box;
-            color: var(--secondary);
-        }
         /* Ordered markers share the bullet's hanging box: right-aligned,
-           tabular digits, accent color; the active source marker keeps the
-           same box so item text never moves. */
-        .cm-md-ordered,
-        .cm-md-ordered-source {
+           tabular digits, accent color. */
+        .cm-md-ordered {
             display: inline-block;
             width: 2.1em;
             text-indent: 0;
@@ -456,7 +448,6 @@ nonisolated enum EditorHTML {
             font-variant-numeric: tabular-nums;
         }
         .cm-md-ordered { color: var(--link); }
-        .cm-md-ordered-source { color: var(--secondary); }
         /* Continuation lines of an item keep the depth padding but no hanging
            indent, so they align with the item text like the preview. */
         #editor .cm-md-list-continuation {
@@ -844,6 +835,11 @@ nonisolated enum EditorHTML {
                                 window.mermaid.initialize({
                                     startOnLoad: false,
                                     securityLevel: "strict",
+                                    // A syntax error throws instead of drawing
+                                    // Mermaid's error graphic into the page body.
+                                    suppressErrorRendering: true,
+                                    // Same font as Read Mode, so diagrams match.
+                                    fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif',
                                     theme: window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "default"
                                 });
                             }

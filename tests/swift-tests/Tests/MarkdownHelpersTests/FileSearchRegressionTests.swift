@@ -26,6 +26,9 @@ final class FileSearchRegressionTests: XCTestCase {
     /// algorithm. Keep these expectations independent of the optimized code.
     /// Covers blank/nonmatching queries, score ties, case, word/camel boundaries,
     /// filename/path switching, spaces, composed accents and multi-scalar emoji.
+    /// The baseline predates the whole-path fallback for queries without a
+    /// slash, so those matches (which rank after every baseline match) are
+    /// set aside here and covered in FileSearchMatcherTests.
     func testScoresOrderingAndHighlightsMatchThePreviousImplementation() throws {
         let fixture = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
@@ -35,11 +38,18 @@ final class FileSearchRegressionTests: XCTestCase {
         let candidates = baseline.paths.map { FileSearchMatcher.Candidate(relativePath: $0) }
         for item in baseline.cases {
             let query = FileSearchMatcher.PreparedQuery(item.query)
-            XCTAssertEqual(FileSearchMatcher.rank(query: item.query, candidates: candidates),
+            let isFallback = { (candidate: FileSearchMatcher.Candidate) -> Bool in
+                guard !query.matchesRelativePath,
+                      let match = FileSearchMatcher.match(query: query, against: candidate) else { return false }
+                return match.nameRanges.isEmpty && !match.pathRanges.isEmpty
+            }
+            XCTAssertEqual(FileSearchMatcher.rank(query: item.query, candidates: candidates)
+                .filter { !isFallback(candidates[$0]) },
                            item.matches.map(\.index), item.query)
             // Changing filesystem enumeration order must not change result order.
             let reversed = Array(candidates.reversed())
             XCTAssertEqual(FileSearchMatcher.rank(query: item.query, candidates: reversed)
+                .filter { !isFallback(reversed[$0]) }
                 .map { reversed[$0].relativePath },
                            item.matches.map { baseline.paths[$0.index] }, item.query)
             let expected = Dictionary(uniqueKeysWithValues: item.matches.map { ($0.index, $0) })
@@ -48,6 +58,7 @@ final class FileSearchRegressionTests: XCTestCase {
                 let match = FileSearchMatcher.match(query: query, against: candidate)
                 let score = FileSearchMatcher.score(query: query, against: candidate)
                 guard let expected = expected[index] else {
+                    if isFallback(candidate) { continue }
                     XCTAssertNil(match, context)
                     XCTAssertNil(score, context)
                     continue
@@ -85,7 +96,8 @@ final class FileSearchRegressionTests: XCTestCase {
     func testExplicitFileNameIsPreparedIndependentlyOfPath() {
         let candidate = FileSearchMatcher.Candidate(fileName: "Visible.md", relativePath: "docs/stored.md")
         XCTAssertNotNil(FileSearchMatcher.match(query: "vis", against: candidate))
-        XCTAssertNil(FileSearchMatcher.match(query: "stored", against: candidate))
+        // "stored" is not in the name; only the whole-path fallback finds it.
+        XCTAssertEqual(FileSearchMatcher.match(query: "stored", against: candidate)?.nameRanges, [])
         XCTAssertNotNil(FileSearchMatcher.match(query: "docs/stored", against: candidate))
     }
 }

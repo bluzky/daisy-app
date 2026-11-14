@@ -23,7 +23,13 @@ export function linkDestinationAt(state, pos) {
       const url = node.name === "URL" ? node : node.getChild("URL")
       if (!url) return null
       const destination = state.doc.sliceString(url.from, url.to).replace(/^<(.*)>$/s, "$1").trim()
-      return destination && !destination.startsWith("#") ? destination : null
+      if (!destination || destination.startsWith("#")) return null
+      // GFM autolinks: `www.` addresses open over http, email addresses as mail.
+      if (node.name !== "Link") {
+        if (/^www\./i.test(destination)) return "http://" + destination
+        if (!/^[a-z][a-z0-9+.-]*:/i.test(destination) && destination.includes("@")) return "mailto:" + destination
+      }
+      return destination
     }
   }
   return null
