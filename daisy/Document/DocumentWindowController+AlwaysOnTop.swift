@@ -67,6 +67,9 @@ extension DocumentWindowController {
             menuItem.image = Self.alwaysOnTopMenuImage(isPinned: isAlwaysOnTop)
             return true
         }
+        if let isEnabled = validateWorkspaceMenuItem(menuItem) {
+            return isEnabled
+        }
         syncSidebarToolbarState()
         return true
     }

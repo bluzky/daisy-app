@@ -67,7 +67,10 @@ final class EmptyWindowHintsView: NSView {
     }
 
     private func reloadHints() {
+        // Removing a row leaves its views in the grid, still drawn where the
+        // old layout put them; take them out too.
         while grid.numberOfRows > 0 { grid.removeRow(at: 0) }
+        grid.subviews.forEach { $0.removeFromSuperview() }
         for hint in Self.hints {
             guard let shortcut = Self.shortcut(for: hint.action) else { continue }
             let title = Self.label(hint.title, font: .systemFont(ofSize: 13))

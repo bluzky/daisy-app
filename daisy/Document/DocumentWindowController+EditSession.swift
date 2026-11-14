@@ -36,6 +36,7 @@ extension DocumentWindowController {
             self?.stopAutoSaveTimer()
             self?.startAutoSaveTimerIfNeeded()
             self?.scheduleOutlineRefresh()
+            self?.scheduleWorkspaceOverlay()
         }
         editor.pasteImageRequested = { [weak self] from, to in
             self?.pasteImage(at: from, replacing: to)
@@ -49,6 +50,7 @@ extension DocumentWindowController {
         editor.imageClicked = { [weak self] url in
             self?.renameImage(at: url)
         }
+        editor.setWorkspaceCandidates(workspaceCandidates)
         if editorBaselineMarkdown == nil {
             editorBaselineMarkdown = currentMarkdown
             editorChangeRevision = 0
