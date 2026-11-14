@@ -194,7 +194,8 @@ nonisolated extension MarkdownHTML {
     MermaidExtension(),
     ColorfulHeadersExtension(),
     TaskMetadataExtension(),
-    SlashCommandsExtension()
+    SlashCommandsExtension(),
+    MetadataCompletionExtension()
   ])
 
   static func renderExtensionTitle(for id: String) -> String {
@@ -444,9 +445,11 @@ nonisolated extension MarkdownHTML {
             const start = match.index + match[1].length;
             const end = match.index + match[0].length;
             parts.push(text.slice(last, start));
+            // No `data-mdp-ext`: that keeps a node through a Read mode
+            // morph, and a field wraps source text, so a kept one would sit
+            // beside the fresh text and be decorated again on every update.
             const field = document.createElement('span');
             field.className = 'mdp-task-field';
-            field.dataset.mdpExt = 'task-metadata';
             const source = document.createElement('span');
             source.className = 'mdp-task-field-source';
             source.textContent = text.slice(start, end);
@@ -602,10 +605,13 @@ nonisolated extension MarkdownHTML {
     return labels
   }
 
-  /// The menu is attached to <body>, outside `#editor`, so it is styled with
-  /// the page's own color variables and follows light and dark appearance.
-  static let slashCommandsEditorStylesheet = """
-    .cm-md-slash-menu {
+  /// A completion menu built by `completionExtensions` in the editor bundle,
+  /// whose classes start with `cm-md-<prefix>`. The menu is attached to
+  /// <body>, outside `#editor`, so it is styled with the page's own color
+  /// variables and follows light and dark appearance.
+  static func completionMenuStylesheet(prefix: String) -> String {
+    """
+    .cm-md-\(prefix)-menu {
       position: fixed;
       z-index: 1000;
       box-sizing: border-box;
@@ -629,23 +635,23 @@ nonisolated extension MarkdownHTML {
       -webkit-user-select: none;
       user-select: none;
     }
-    .cm-md-slash-menu[hidden] { display: none; }
-    .cm-md-slash-menu::-webkit-scrollbar { width: 10px; }
-    .cm-md-slash-menu::-webkit-scrollbar-track { background: transparent; }
-    .cm-md-slash-menu::-webkit-scrollbar-thumb {
+    .cm-md-\(prefix)-menu[hidden] { display: none; }
+    .cm-md-\(prefix)-menu::-webkit-scrollbar { width: 10px; }
+    .cm-md-\(prefix)-menu::-webkit-scrollbar-track { background: transparent; }
+    .cm-md-\(prefix)-menu::-webkit-scrollbar-thumb {
       background: color-mix(in srgb, var(--text) 24%, transparent);
       border: 3px solid transparent;
       border-radius: 6px;
       background-clip: content-box;
     }
-    .cm-md-slash-group {
+    .cm-md-\(prefix)-group {
       padding: 8px 10px 4px;
       font-size: 11px;
       font-weight: 500;
       color: var(--secondary);
     }
-    .cm-md-slash-group:first-child { padding-top: 2px; }
-    .cm-md-slash-item {
+    .cm-md-\(prefix)-group:first-child { padding-top: 2px; }
+    .cm-md-\(prefix)-item {
       display: flex;
       align-items: center;
       gap: 14px;
@@ -654,10 +660,10 @@ nonisolated extension MarkdownHTML {
       border-radius: 10px;
       cursor: default;
     }
-    .cm-md-slash-item.cm-md-slash-selected {
+    .cm-md-\(prefix)-item.cm-md-\(prefix)-selected {
       background: color-mix(in srgb, var(--text) 9%, transparent);
     }
-    .cm-md-slash-icon {
+    .cm-md-\(prefix)-icon {
       flex: none;
       display: inline-flex;
       align-items: center;
@@ -665,20 +671,20 @@ nonisolated extension MarkdownHTML {
       width: 22px;
       color: var(--text);
     }
-    .cm-md-slash-label {
+    .cm-md-\(prefix)-label {
       min-width: 0;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    .cm-md-slash-label { flex: 1; }
-    .cm-md-slash-chevron {
+    .cm-md-\(prefix)-label { flex: 1; }
+    .cm-md-\(prefix)-chevron {
       flex: none;
       color: var(--secondary);
       font-size: 18px;
       line-height: 1;
     }
-    .cm-md-slash-back {
+    .cm-md-\(prefix)-back {
       display: flex;
       align-items: center;
       gap: 8px;
@@ -689,7 +695,18 @@ nonisolated extension MarkdownHTML {
       font-weight: 600;
       cursor: default;
     }
-    .cm-md-slash-back .cm-md-slash-chevron { width: 22px; text-align: center; }
+    .cm-md-\(prefix)-back .cm-md-\(prefix)-chevron { width: 22px; text-align: center; }
+    .cm-md-\(prefix)-detail {
+      flex: none;
+      color: var(--secondary);
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+    }
+    """
+  }
+
+  /// The slash menu: the shared menu plus priority tints and the date picker.
+  static let slashCommandsEditorStylesheet = completionMenuStylesheet(prefix: "slash") + "\n" + """
     .cm-md-slash-tint-high { color: #ff3b30; }
     .cm-md-slash-tint-medium { color: #ff9500; }
     .cm-md-slash-tint-low { color: #007aff; }
@@ -697,12 +714,6 @@ nonisolated extension MarkdownHTML {
       .cm-md-slash-tint-high { color: #ff453a; }
       .cm-md-slash-tint-medium { color: #ff9f0a; }
       .cm-md-slash-tint-low { color: #0a84ff; }
-    }
-    .cm-md-slash-detail {
-      flex: none;
-      color: var(--secondary);
-      font-size: 12px;
-      font-variant-numeric: tabular-nums;
     }
     /* The month grid has a fixed height, so it never scrolls. */
     .cm-md-slash-menu.cm-md-slash-calendar-menu {
@@ -769,4 +780,26 @@ nonisolated extension MarkdownHTML {
       border-top: 0.5px solid color-mix(in srgb, var(--text) 14%, transparent);
     }
     """
+
+  /// Editor-only: typing `#`, `@` or `+` suggests tags, contexts and projects
+  /// from the document and the workspace (`metadata-completion.js` in the
+  /// editor bundle). This declares the toggle and the menu styling. It never
+  /// touches rendered output.
+  struct MetadataCompletionExtension: MarkdownRenderExtension {
+    let id = "metadata-completion"
+    let descriptor = RenderExtensionDescriptor(
+      titleKey: "Metadata suggestions",
+      descriptionKey: nil,
+      defaultEnabled: true,
+      userToggleable: true
+    )
+    let order = 310
+    let affectsPreview = false
+    let editor: (any EditorCapability)? = EditorModule(
+      moduleID: "metadata-completion",
+      css: MarkdownHTML.completionMenuStylesheet(prefix: "metadata")
+    )
+
+    func isActive(in _: RenderContext) -> Bool { false }
+  }
 }

@@ -12,7 +12,10 @@ import { addDays, addMonths, formatLocalDate, parseLocalDate } from "./dates.js"
 //                          open there (the provider's syntax guard). Returns
 //                          `{ from, to, query, lineFrom, ... }`: `from..to` is the
 //                          typed trigger plus query, `query` the text after the
-//                          trigger. Extra fields ride along to the hooks below.
+//                          trigger. A session lasts while `lineFrom` maps to the
+//                          same position (the start of the line for slash, the
+//                          token's marker for one-token providers). Extra fields
+//                          ride along to the hooks below.
 //   items(level, query, session)
 //                          The rows for a menu level, already ranked for `query`.
 //                          The top level is "root"; an empty list closes the menu.
@@ -23,7 +26,9 @@ import { addDays, addMonths, formatLocalDate, parseLocalDate } from "./dates.js"
 //                          (its source went away while it was showing).
 //   parent(level)          Optional. Where Back goes from a submenu (default root).
 //   apply(view, session, item)
-//                          Perform the row. A row with `submenu: "<level>"` opens
+//                          Perform the row. If the session still matches after
+//                          that, it is dismissed, so an accepted row never leaves
+//                          the menu open. A row with `submenu: "<level>"` opens
 //                          that level instead and is never applied. Opening one
 //                          clears the typed query unless the row says
 //                          `keepQuery: true`, which leaves the document untouched
@@ -77,9 +82,10 @@ export function completionExtensions(provider) {
     update(value, tr) {
       const trigger = provider.trigger(tr.state)
       if (!trigger) return null
-      // Open only from typing or deleting; a loaded document never pops it up.
-      if (!value && !(tr.docChanged && (tr.isUserEvent("input") || tr.isUserEvent("delete")))) return null
       const sameLine = value && tr.changes.mapPos(value.lineFrom, -1) === trigger.lineFrom
+      // Open only from typing or deleting; a loaded document never pops it up,
+      // and neither does a host edit that lands the caret on another trigger.
+      if (!sameLine && !(tr.docChanged && (tr.isUserEvent("input") || tr.isUserEvent("delete")))) return null
       let level = sameLine ? value.level : "root"
       // The part of the query typed before the current submenu opened.
       let base = sameLine ? value.base : ""
@@ -126,7 +132,9 @@ export function completionExtensions(provider) {
   })
 
   const active = (view) => {
-    if (view.composing) return null
+    // From compositionstart on, not only once composed text exists, so a key
+    // that commits an IME candidate never picks a row.
+    if (view.composing || view.compositionStarted) return null
     const state = view.state.field(field, false)
     return state && !state.dismissed ? state : null
   }
@@ -143,8 +151,9 @@ export function completionExtensions(provider) {
   }
   // A submenu row opens its list; anything else is applied.
   const choose = (view, state, item) => {
-    if (item.submenu) openSubmenu(view, state, item)
-    else provider.apply(view, state, item)
+    if (item.submenu) return openSubmenu(view, state, item)
+    provider.apply(view, state, item)
+    if (active(view)) view.dispatch({ effects: dismiss.of(null) })
   }
   const accept = (view) => {
     const state = active(view)
@@ -217,6 +226,13 @@ export function completionExtensions(provider) {
     }
 
     update() { this.sync() }
+
+    // The menu hides while an IME composes, and committing a candidate need
+    // not change the document again, so show it once composition ends. IMEs
+    // such as Vietnamese Telex compose every letter.
+    compositionEnded() {
+      setTimeout(() => { if (this.view.dom.isConnected) this.sync() }, 0)
+    }
 
     sync() {
       const state = active(this.view)
@@ -377,6 +393,8 @@ export function completionExtensions(provider) {
     }
 
     destroy() { this.dom.remove() }
+  }, {
+    eventHandlers: { compositionend() { this.compositionEnded() } },
   })
 
   return [

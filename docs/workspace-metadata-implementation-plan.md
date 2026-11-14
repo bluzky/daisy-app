@@ -1,13 +1,13 @@
 # Workspace metadata implementation plan
 
-Status: Phases 1, 2a, and 2c complete; 2b and 3–6 planned. This plan implements [`workspace-metadata-proposal.md`](workspace-metadata-proposal.md) in independently testable phases. It does not imply a release or version bump.
+Status: Phases 1 and 2 (2a, 2c, 2b) complete; 3–6 planned. This plan implements [`workspace-metadata-proposal.md`](workspace-metadata-proposal.md) in independently testable phases. It does not imply a release or version bump.
 
 ## Sequencing
 
 ```text
 1. Grammar and single extractor — complete
         ↓
-2. Shared completion controller (2a → 2c → 2b) — 2a and 2c complete
+2. Shared completion controller (2a → 2c → 2b) — complete
         ↓
 3. Open Workspace
         ↓
@@ -114,6 +114,8 @@ Set priorities and dates from the slash menu on checkbox task lines.
 
 ### Phase 2b — Tag, context, and project suggestions
 
+Status: complete. The provider is `scripts/editor-bundle/src/metadata-completion.js` (editor module and Settings toggle `metadata-completion`, "Metadata suggestions"); name rules shared with the extractor are in `scripts/editor-bundle/src/metadata-names.js`; the snapshot API is `setWorkspaceCandidates` in `scripts/editor-bundle/src/api.js`; tests are in `scripts/editor-bundle/smoke/metadata-completion.mjs`. Swift does not call `setWorkspaceCandidates` yet (Phase 4).
+
 #### Goal
 
 Suggest `#`, `@`, and `+` names while typing, from the current document and from host-supplied workspace candidates.
@@ -129,7 +131,7 @@ Suggest `#`, `@`, and `+` names while typing, from the current document and from
 - Entire active token gets replaced; one undoable transaction per accepted value.
 - Escape, stale session, empty result, nonempty/multiple selection, and IME composition behavior.
 - Blocked Markdown contexts and heading/list collisions.
-- Ranking: exact, prefix, hierarchy segment, usage frequency, lexical tie-break; “Use <token>” for unknown names.
+- Ranking: exact, prefix, hierarchy segment, usage frequency, lexical tie-break; unknown names list nothing and keep the typed text.
 - Stale snapshot versions are ignored.
 - Task continuation does not copy context or project tokens.
 

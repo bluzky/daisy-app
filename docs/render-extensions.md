@@ -44,7 +44,7 @@ editor or losing selection and undo history. A module the host does not
 mention stays enabled. Quick Look never loads the editor, so it only sees the
 render side.
 
-An extension may also be editor-only (`SlashCommandsExtension`): it returns
+An extension may also be editor-only (`SlashCommandsExtension`, `MetadataCompletionExtension`): it returns
 `false` from `isActive` and `affectsPreview`, so it never touches rendered
 output and Settings captions it "Editor". The capability can also carry
 `css` (static, emitted into the editor page, so scope it to a class the module
@@ -65,6 +65,16 @@ Templates are not part of `options`, which are fixed when the editor is created.
 `window.__mdEditor.setSlashTemplates([{ name, body }])` when the page is ready and
 whenever `TemplateStore.didChangeNotification` fires. The slash menu lists them
 behind a **Templates** row, a second menu level. Variables (`{{date}}`, `{{time}}`, `{{datetime}}`, `{{weekday}}`, `{{cursor}}`) are expanded in the editor bundle when a template is picked (`slashExpandTemplate`), using the `locale` option for day names; `slashClock` in the page callbacks overrides the clock in tests. Opening it clears the typed query, and the level searches template names only; the top level never lists templates.
+
+Both editor menus are built on the completion controller in
+`scripts/editor-bundle/src/completion.js`, which takes a provider (trigger,
+rows, apply) and draws the menu with classes named after the provider's
+`classPrefix`. `MarkdownHTML.completionMenuStylesheet(prefix:)` supplies the
+shared menu CSS for a prefix (`slash`, `metadata`). The metadata module
+(`metadata-completion.js`) suggests `#` tags, `@` contexts and `+` projects from
+the document and from the names the host passes with
+`window.__mdEditor.setWorkspaceCandidates({ version, tags, contexts, projects })`;
+a snapshot older than the one held is ignored.
 
 ## Assets and fast path
 
