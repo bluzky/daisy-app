@@ -439,6 +439,46 @@ final class EditorFormattingTests: XCTestCase {
         }
     }
 
+    /// Typing right after a rendered checkbox goes through WebKit's own text
+    /// insertion, at the boundary of a non-editable widget. Each character
+    /// must land after the previous one.
+    func testTypingAfterTaskCheckboxKeepsCharacterOrder() async throws {
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
+        let html = EditorHTML.render(markdown: "- [ ] Literal\n- [ ] ", editorJavaScript: script)
+            .replacingOccurrences(of: "editor = window.MDEditor.create(",
+                                  with: "editor = window.__typingEditor = window.MDEditor.create(")
+        let editor = WebViewLayoutHarness(html: html, width: 650, isEditor: true, height: 400)
+        defer { editor.close() }
+        _ = try await editor.layout(texts: [], imageCount: 0)
+        let result = try await editor.webView.callAsyncJavaScript("""
+            document.hasFocus = () => true;
+            const api = window.__typingEditor;
+            const settle = async () => {
+                for (let i = 0; i < 12; i++) { window.__layoutTestFrame(); await Promise.resolve(); }
+                await new Promise(resolve => setTimeout(resolve, 20));
+            };
+            const results = [];
+            const content = document.querySelector('.cm-content');
+            const key = (name) => content.dispatchEvent(new KeyboardEvent('keydown', { key: name, bubbles: true, cancelable: true }));
+            // Caret placed directly, and reached with Right from the line start.
+            for (const [start, right] of [[6, false], [26, false], [0, true]]) {
+                api.focus(); api.select(start); await settle();
+                if (right) { key('ArrowRight'); await settle(); }
+                for (const char of 'p:high') {
+                    document.execCommand('insertText', false, char); await settle();
+                }
+                results.push({ source: api.getMarkdown(), caret: api.getLinkSelection().from });
+            }
+            return results;
+            """, arguments: [:], in: nil, contentWorld: .page) as? [[String: Any]]
+        XCTAssertEqual(result?[0]["source"] as? String, "- [ ] p:highLiteral\n- [ ] ")
+        XCTAssertEqual(result?[0]["caret"] as? Int, 12)
+        XCTAssertEqual(result?[1]["source"] as? String, "- [ ] p:highLiteral\n- [ ] p:high")
+        XCTAssertEqual(result?[1]["caret"] as? Int, 32)
+        XCTAssertEqual(result?[2]["source"] as? String, "- [ ] p:highp:highLiteral\n- [ ] p:high")
+        XCTAssertEqual(result?[2]["caret"] as? Int, 12)
+    }
+
     func testTypedTaskCheckboxContinuesAndExitsOnEmptyItem() async throws {
         let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         let editor = WebViewLayoutHarness(html: EditorHTML.render(markdown: "", editorJavaScript: script),

@@ -1,16 +1,30 @@
-import { EditorView, ViewPlugin, BlockWrapper } from "@codemirror/view"
+import { Decoration, EditorView, ViewPlugin, BlockWrapper } from "@codemirror/view"
+import { RangeSetBuilder } from "@codemirror/state"
 import { syntaxTree } from "@codemirror/language"
 import { codeBlockWrappers } from "../decoration-parts.js"
 import { documentFind } from "../find.js"
 import { buildDecorations } from "./build-decorations.js"
 import { pointerPreview } from "../pointer.js"
 import { unwrappedCodeBlocks } from "../widgets/code.js"
+import { TaskCheckboxWidget } from "../task-list.js"
+
+// A rendered checkbox stands for `- [ ] `: the caret steps over it as one
+// unit. Otherwise Right stops inside the hidden marker, where the caret looks
+// like it follows the checkbox but typing comes out reversed in WebKit.
+function taskMarkerRanges(decorations) {
+  const builder = new RangeSetBuilder()
+  decorations.between(0, 1e9, (from, to, value) => {
+    if (value.spec.widget instanceof TaskCheckboxWidget) builder.add(from, to, value)
+  })
+  return builder.finish()
+}
 
 export const livePreview = ViewPlugin.fromClass(class {
   constructor(view) {
     this.detectedCodeCache = new Map()
     this.decorations = buildDecorations(view, this.detectedCodeCache)
     this.codeWrappers = codeBlockWrappers(this.decorations, view.state)
+    this.taskMarkers = taskMarkerRanges(this.decorations)
   }
   update(update) {
     if (update.docChanged) this.detectedCodeCache.clear()
@@ -23,11 +37,15 @@ export const livePreview = ViewPlugin.fromClass(class {
         || update.startState.field(documentFind) !== update.state.field(documentFind)) {
       this.decorations = buildDecorations(update.view, this.detectedCodeCache)
       this.codeWrappers = codeBlockWrappers(this.decorations, update.state)
+      this.taskMarkers = taskMarkerRanges(this.decorations)
     }
   }
 }, {
   decorations: (v) => v.decorations,
-  provide: plugin => EditorView.blockWrappers.of(view => view.plugin(plugin)?.codeWrappers ?? BlockWrapper.set([])),
+  provide: plugin => [
+    EditorView.blockWrappers.of(view => view.plugin(plugin)?.codeWrappers ?? BlockWrapper.set([])),
+    EditorView.atomicRanges.of(view => view.plugin(plugin)?.taskMarkers ?? Decoration.none),
+  ],
 })
 
 // Align inactive headings with the document column. Active headings show

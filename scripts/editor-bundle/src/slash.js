@@ -1,8 +1,10 @@
-import { EditorView, keymap, ViewPlugin } from "@codemirror/view"
-import { EditorSelection, StateEffect, StateField } from "@codemirror/state"
+import { EditorSelection, StateEffect } from "@codemirror/state"
 import { syntaxTree } from "@codemirror/language"
-import { tags as t } from "@lezer/highlight"
 import { registerEditorExtension } from "./extensions.js"
+import { completionExtensions } from "./completion.js"
+import { formatLocalDate, parseLocalDate } from "./dates.js"
+import { PRIORITY_KEY, TASK_DATE_KEYS, isTaskDate } from "./task-fields.js"
+import { taskFieldChange, taskLine } from "./task-field-commands.js"
 
 // Slash commands: typing `/` at the start of a line or after a space opens a
 // menu of blocks; picking one converts that line. Labels come from the host
@@ -13,6 +15,7 @@ const SLASH_GROUPS = [
   { id: "lists", label: "Lists" },
   { id: "blocks", label: "Blocks" },
   { id: "insert", label: "Insert" },
+  { id: "task", label: "Task" },
 ]
 
 // An existing block marker on the converted line is replaced, not stacked.
@@ -58,6 +61,11 @@ const SLASH_ICONS = {
   caution: '<path d="M7 3.5h6l3.5 3.5v6L13 16.5H7L3.5 13V7z"/><path d="M10 7v3.5M10 12.8v.1"/>',
   today: '<rect x="3.5" y="4.5" width="13" height="12" rx="2"/><path d="M3.5 8.5h13M7 3v3M13 3v3"/>',
   now: '<circle cx="10" cy="10" r="6.5"/><path d="M10 6.5V10l2.5 1.5"/>',
+  priority: '<path d="M5.5 16.5v-13M5.5 4h9l-2 3.25 2 3.25h-9"/>',
+  due: '<rect x="3.5" y="4.5" width="13" height="12" rx="2"/><path d="M3.5 8.5h13M7 3v3M13 3v3M10 10.5v2.6M10 14.9v.1"/>',
+  schedule: '<rect x="3.5" y="4.5" width="13" height="12" rx="2"/><path d="M3.5 8.5h13M7 3v3M13 3v3M7.5 12.5l1.8 1.8 3.4-3.6"/>',
+  clear: '<path d="M6 6l8 8M14 6l-8 8"/>',
+  field: '<path d="M4 10.5V4.5a1 1 0 011-1h6l5.5 5.5-7 7L4 10.5z"/><circle cx="7.5" cy="7" r="1"/>',
   templates: '<path d="M6 3.5h5.5L15 7v8.5a1 1 0 01-1 1H6a1 1 0 01-1-1v-11a1 1 0 011-1z"/><path d="M11.5 3.5V7H15M7.5 10.5h5M7.5 13.5h5"/>',
 }
 
@@ -133,6 +141,48 @@ const SLASH_COMMANDS = [
   { id: "now", group: "insert", label: "Now", aliases: ["now", "time", "datetime", "date"],
     insert: (now) => `${slashDate(now)} ${slashTime(now)}` },
 ]
+
+// Task fields, offered only on a checkbox task's marker line and listed after
+// everything else, so they never push an existing command down. Each priority
+// is its own top-level row; Due Date and Schedule open a date picker straight
+// away, and their Clear rows appear only when the task has that date.
+const TASK_FIELD_COMMANDS = [
+  { id: "priority-high", group: "task", label: "Priority: High", aliases: ["priority", "high"],
+    icon: "priority", tint: "high", field: PRIORITY_KEY, value: "high" },
+  { id: "priority-medium", group: "task", label: "Priority: Medium", aliases: ["priority", "medium"],
+    icon: "priority", tint: "medium", field: PRIORITY_KEY, value: "medium" },
+  { id: "priority-low", group: "task", label: "Priority: Low", aliases: ["priority", "low"],
+    icon: "priority", tint: "low", field: PRIORITY_KEY, value: "low" },
+  { id: "priority-none", group: "task", label: "Priority: None", aliases: ["priority", "none"],
+    icon: "clear", field: PRIORITY_KEY, value: null },
+  { id: "due", group: "task", label: "Due Date", aliases: ["due", "deadline", "date"],
+    icon: "due", dateField: "due" },
+  { id: "schedule", group: "task", label: "Schedule", aliases: ["schedule", "scheduled", "plan", "date"],
+    icon: "schedule", dateField: "scheduled" },
+  { id: "due-clear", group: "task", label: "Clear Due Date", aliases: ["due", "deadline", "clear", "remove"],
+    icon: "clear", clearField: "due" },
+  { id: "schedule-clear", group: "task", label: "Clear Schedule", aliases: ["schedule", "scheduled", "clear", "remove"],
+    icon: "clear", clearField: "scheduled" },
+]
+
+// Field submenus are named by path: `due/calendar` (the date picker),
+// `due/1/calendar` (the picker for the second `due:` on the line), `due` and
+// `due/clear` (which `due:` to change or clear when there are several), and
+// `p/high` (which `p:` to set when there are several).
+function taskFieldLevel(level) {
+  const parts = level.split("/")
+  if (parts[0] === PRIORITY_KEY) {
+    return parts.length === 2 ? { key: PRIORITY_KEY, value: parts[1] === "none" ? null : parts[1], occurrence: null } : null
+  }
+  if (!TASK_DATE_KEYS.includes(parts[0])) return null
+  if (parts.length === 1) return { key: parts[0], occurrence: null, pick: true }
+  if (parts.length === 2 && parts[1] === "clear") return { key: parts[0], occurrence: null, pick: true, clear: true }
+  if (parts.length === 2 && parts[1] === "calendar") return { key: parts[0], occurrence: null, calendar: true }
+  if (parts.length === 3 && /^\d+$/.test(parts[1]) && parts[2] === "calendar") {
+    return { key: parts[0], occurrence: Number(parts[1]), calendar: true }
+  }
+  return null
+}
 
 // Templates come from the host's template file (`setSlashTemplates`). They sit
 // behind one "Templates" row, a second menu level that searches template names
@@ -299,259 +349,155 @@ function applySlashCommand(view, trigger, command, host, clock) {
 }
 
 function slashExtensions(options, host) {
-  const commands = SLASH_COMMANDS.filter(
-    (command) => !command.host || SLASH_HOST_ACTIONS[command.host].available(host.callbacks)
-  ).map((command) => {
+  // The English name and aliases stay searchable in any language.
+  const localize = (command) => {
     const label = options[`cmd.${command.id}`] || command.label
     const labelNames = [label.toLowerCase(), command.label.toLowerCase()]
-    return {
-      ...command,
-      label,
-      labelNames,
-      // The English name and aliases stay searchable in any language.
-      names: [...labelNames, ...command.aliases],
-    }
+    return { ...command, label, labelNames, names: [...labelNames, ...(command.aliases || [])] }
+  }
+  const commands = SLASH_COMMANDS.filter(
+    (command) => !command.host || SLASH_HOST_ACTIONS[command.host].available(host.callbacks)
+  ).map(localize)
+  // Field commands match on their aliases (and a translated label), not the
+  // English label, so they rank below every existing label match: `/p` and
+  // `/s` keep their results, and `/pri` lists the priorities in order.
+  const fieldCommands = TASK_FIELD_COMMANDS.map((command) => {
+    const localized = localize(command)
+    const translated = localized.label !== command.label ? [localized.label.toLowerCase()] : []
+    return { ...localized, labelNames: translated, names: [...translated, ...command.aliases] }
   })
   const groupLabel = (id) => options[`group.${id}`] || SLASH_GROUPS.find((group) => group.id === id).label
   const templatesLabel = options["cmd.templates"] || SLASH_TEMPLATES_ENTRY.label
   const clock = () => (host.callbacks.slashClock ? host.callbacks.slashClock() : new Date())
   const templateContext = { now: clock, locale: options.locale }
+  const longDate = (value) => {
+    const format = { weekday: "long", year: "numeric", month: "long", day: "numeric" }
+    try { return new Intl.DateTimeFormat(options.locale || undefined, format).format(parseLocalDate(value)) }
+    catch (_) { return new Intl.DateTimeFormat("en", format).format(parseLocalDate(value)) }
+  }
+  const commandLabel = (id) => fieldCommands.find((command) => command.id === id).label
+  const dateLabel = (key, clear) => commandLabel(`${key === "due" ? "due" : "schedule"}${clear ? "-clear" : ""}`)
+
+  // Which field occurrence a field submenu edits: the one it names, else the
+  // only one on the line, else none (the value is added).
+  const fieldTarget = (field, session) => {
+    const found = session.task.occurrences[field.key]
+    return field.occurrence != null ? found[field.occurrence] : found.length === 1 ? found[0] : null
+  }
+
+  // The top-level rows for a task line. With duplicate fields a command opens
+  // a list of them to choose from instead of picking one silently.
+  const fieldRoot = (session) => fieldCommands.flatMap((command) => {
+    const key = command.dateField || command.clearField || PRIORITY_KEY
+    const several = session.task.occurrences[key].length > 1
+    if (command.dateField) {
+      return [{ ...command, submenu: several ? key : `${key}/calendar`, keepQuery: true, chevron: false }]
+    }
+    if (command.clearField) {
+      if (!session.task.occurrences[key].length) return []
+      return [several
+        ? { ...command, submenu: `${key}/clear`, keepQuery: true }
+        : { ...command, field: key, value: null }]
+    }
+    return [several ? { ...command, submenu: `${PRIORITY_KEY}/${command.value || "none"}`, keepQuery: true } : command]
+  })
+
+  // Lists of duplicate occurrences, one row each.
+  const fieldItems = (level, session) => {
+    const field = taskFieldLevel(level)
+    const found = session.task.occurrences[field.key]
+    return found.map((occurrence, index) => ({
+      id: `occurrence-${index}`,
+      label: occurrence.text,
+      detail: `${index + 1}/${found.length}`,
+      icon: "field",
+      names: [occurrence.text.toLowerCase()],
+      ...(field.pick && !field.clear
+        ? { submenu: `${field.key}/${index}/calendar`, keepQuery: true, chevron: false }
+        : { field: field.key, value: field.clear ? null : field.value, occurrence: index }),
+    }))
+  }
 
   // What each level lists. The top level has one Templates row (searchable as
   // "templates") and never the templates themselves.
-  const levelCommands = (level) => {
+  const levelCommands = (level, session) => {
     const templates = host.slashTemplates || []
     if (level === "templates") return slashTemplateCommands(templates, templateContext)
-    if (!templates.length) return commands
+    if (level !== "root") return fieldItems(level, session)
     const label = templatesLabel
-    return [...commands, {
-      ...SLASH_TEMPLATES_ENTRY,
-      label,
-      labelNames: [label.toLowerCase(), SLASH_TEMPLATES_ENTRY.label.toLowerCase()],
-      names: [label.toLowerCase(), SLASH_TEMPLATES_ENTRY.label.toLowerCase(), "template"],
-    }]
+    return [
+      ...commands,
+      ...(templates.length ? [{
+        ...SLASH_TEMPLATES_ENTRY,
+        label,
+        labelNames: [label.toLowerCase(), SLASH_TEMPLATES_ENTRY.label.toLowerCase()],
+        names: [label.toLowerCase(), SLASH_TEMPLATES_ENTRY.label.toLowerCase(), "template"],
+      }] : []),
+      ...(session.task ? fieldRoot(session) : []),
+    ]
   }
 
-  const move = StateEffect.define()
-  const pick = StateEffect.define()
-  const dismiss = StateEffect.define()
-  const enter = StateEffect.define()
-  const back = StateEffect.define()
+  const hasLevel = (level, session) => {
+    // Templates edited away while their list is open: fall back to the root.
+    if (level === "templates") return (host.slashTemplates || []).length > 0
+    const field = taskFieldLevel(level)
+    if (!field || !session.task) return false
+    const found = session.task.occurrences[field.key]
+    if (field.key === PRIORITY_KEY || field.pick) return found.length > 1
+    if (field.occurrence != null) return field.occurrence < found.length
+    return found.length <= 1
+  }
 
-  const field = StateField.define({
-    create: () => null,
-    update(value, tr) {
-      const trigger = slashTrigger(tr.state)
-      if (!trigger) return null
-      // Open only from typing or deleting; a loaded document never pops it up.
-      if (!value && !(tr.docChanged && (tr.isUserEvent("input") || tr.isUserEvent("delete")))) return null
-      const sameLine = value && tr.changes.mapPos(value.lineFrom, -1) === trigger.lineFrom
-      let level = sameLine ? value.level : "root"
-      let navigated = false
-      for (const effect of tr.effects) {
-        if (effect.is(enter)) { level = "templates"; navigated = true }
-        else if (effect.is(back)) { level = "root"; navigated = true }
-      }
-      // Templates edited away while their list is open: fall back to the root.
-      if (level === "templates" && !(host.slashTemplates || []).length) level = "root"
-      const items = slashMatches(levelCommands(level), trigger.query)
-      if (!items.length) return null
-      const sameList = sameLine && !navigated && value.level === level && value.query === trigger.query
-      let index = sameList ? Math.min(value.index, items.length - 1) : 0
-      let dismissed = !!(sameLine && value.dismissed)
-      for (const effect of tr.effects) {
-        if (effect.is(move)) index = (index + effect.value + items.length) % items.length
-        else if (effect.is(pick)) index = Math.max(0, Math.min(effect.value, items.length - 1))
-        else if (effect.is(dismiss)) dismissed = true
-      }
-      return { ...trigger, items, index, dismissed, level }
+  return completionExtensions({
+    classPrefix: "slash",
+    trigger: (state) => {
+      const trigger = slashTrigger(state)
+      return trigger && { ...trigger, task: taskLine(state, state.doc.lineAt(trigger.from)) }
     },
+    items: (level, query, session) => slashMatches(levelCommands(level, session), query),
+    hasLevel,
+    // A duplicate's picker goes back to the list of duplicates.
+    parent: (level) => {
+      const field = taskFieldLevel(level)
+      return field && field.calendar && field.occurrence != null ? field.key : "root"
+    },
+    apply: (view, session, command) => {
+      if (!command.field) return applySlashCommand(view, session, command, host, clock)
+      const spec = taskFieldChange(view.state, session, command.field, command.value, command.occurrence)
+      if (spec) view.dispatch(spec)
+    },
+    calendar: (level, session) => {
+      const field = taskFieldLevel(level)
+      if (!field || !field.calendar || !session.task) return null
+      const today = formatLocalDate(clock())
+      const target = fieldTarget(field, session)
+      return {
+        initial: target && isTaskDate(target.value) ? target.value : today,
+        today,
+        locale: options.locale,
+        describe: longDate,
+      }
+    },
+    applyDate: (view, session, date) => {
+      const field = taskFieldLevel(session.level)
+      const spec = field && taskFieldChange(view.state, session, field.key, date, field.occurrence)
+      if (spec) view.dispatch(spec)
+    },
+    // `tint` colors a priority's flag (see `.cm-md-slash-tint-*` in the host CSS).
+    icon: (command) => `<svg${command.tint ? ` class="cm-md-slash-tint-${command.tint}"` : ""} viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SLASH_ICONS[command.icon || command.id] || (command.template ? SLASH_ICONS.templates : "")}</svg>`,
+    detail: (command) => command.detail,
+    // Group headers only on the unfiltered top level.
+    group: (command, session) => (!session.query && session.level === "root" ? command.group : null),
+    groupLabel,
+    levelLabel: (level, session) => {
+      if (level === "templates") return templatesLabel
+      const field = taskFieldLevel(level)
+      if (field.key === PRIORITY_KEY) return commandLabel(`priority-${field.value || "none"}`)
+      if (field.occurrence != null) return session.task.occurrences[field.key][field.occurrence].text
+      return dateLabel(field.key, field.clear)
+    },
+    text: (key, fallback) => options[`label.${key}`] || fallback,
   })
-
-  const active = (view) => {
-    if (view.composing) return null
-    const state = view.state.field(field, false)
-    return state && !state.dismissed ? state : null
-  }
-  // Opening the list clears the typed query (the `/` stays), so what is typed
-  // next searches template names rather than the word that got here.
-  const openTemplates = (view, state) => {
-    view.dispatch({
-      changes: state.query ? { from: state.from + 1, to: state.to, insert: "" } : undefined,
-      selection: EditorSelection.cursor(state.from + 1),
-      effects: enter.of(null),
-    })
-  }
-  // A submenu row opens its list; anything else is applied to the line.
-  const choose = (view, state, command) => {
-    if (command.submenu) openTemplates(view, state)
-    else applySlashCommand(view, state, command, host, clock)
-  }
-  const accept = (view) => {
-    const state = active(view)
-    if (!state) return false
-    choose(view, state, state.items[state.index])
-    return true
-  }
-  const into = (view) => {
-    const state = active(view)
-    if (!state || !state.items[state.index].submenu) return false
-    openTemplates(view, state)
-    return true
-  }
-  // Left always leaves the list; Backspace only once nothing is left to delete.
-  const out = (onlyWhenEmpty) => (view) => {
-    const state = active(view)
-    if (!state || state.level !== "templates" || (onlyWhenEmpty && state.query)) return false
-    view.dispatch({ effects: back.of(null) })
-    return true
-  }
-  const step = (delta) => (view) => {
-    if (!active(view)) return false
-    view.dispatch({ effects: move.of(delta) })
-    return true
-  }
-
-  const menu = ViewPlugin.fromClass(class {
-    constructor(view) {
-      this.view = view
-      this.key = null
-      const doc = view.dom.ownerDocument
-      this.dom = doc.createElement("div")
-      this.dom.className = "cm-md-slash-menu"
-      this.dom.setAttribute("role", "listbox")
-      this.dom.hidden = true
-      // Keep focus in the editor: a click must never blur it.
-      this.dom.addEventListener("mousedown", (event) => {
-        event.preventDefault()
-        const row = event.target.closest && event.target.closest("[data-slash-index]")
-        const state = active(this.view)
-        if (!state) return
-        if (event.target.closest && event.target.closest("[data-slash-back]")) {
-          this.view.dispatch({ effects: back.of(null) })
-        } else if (row) {
-          choose(this.view, state, state.items[Number(row.dataset.slashIndex)])
-        }
-      })
-      this.dom.addEventListener("mousemove", (event) => {
-        const row = event.target.closest && event.target.closest("[data-slash-index]")
-        const state = active(this.view)
-        const index = row ? Number(row.dataset.slashIndex) : -1
-        if (state && index >= 0 && index !== state.index) this.view.dispatch({ effects: pick.of(index) })
-      })
-      doc.body.appendChild(this.dom)
-      this.sync()
-    }
-
-    update() { this.sync() }
-
-    sync() {
-      const state = active(this.view)
-      if (!state) {
-        this.dom.hidden = true
-        this.key = null
-        return
-      }
-      const key = `${state.level}|${state.query}|${state.items.map((item) => item.id).join(",")}`
-      if (this.key !== key || this.dom.hidden) this.rebuild(state)
-      this.key = key
-      let selected = null
-      for (const row of this.dom.querySelectorAll("[data-slash-index]")) {
-        const isSelected = Number(row.dataset.slashIndex) === state.index
-        row.classList.toggle("cm-md-slash-selected", isSelected)
-        row.setAttribute("aria-selected", String(isSelected))
-        if (isSelected) selected = row
-      }
-      this.dom.hidden = false
-      if (selected) {
-        if (selected.offsetTop < this.dom.scrollTop) this.dom.scrollTop = selected.offsetTop
-        else if (selected.offsetTop + selected.offsetHeight > this.dom.scrollTop + this.dom.clientHeight) {
-          this.dom.scrollTop = selected.offsetTop + selected.offsetHeight - this.dom.clientHeight
-        }
-      }
-      this.view.requestMeasure({
-        key: this,
-        read: (view) => {
-          try { return view.coordsAtPos(state.to) } catch (_) { return null }
-        },
-        write: (coords) => this.place(coords),
-      })
-    }
-
-    rebuild(state) {
-      const doc = this.dom.ownerDocument
-      const make = (tag, className, text) => {
-        const element = doc.createElement(tag)
-        element.className = className
-        if (text !== undefined) element.textContent = text
-        return element
-      }
-      this.dom.textContent = ""
-      if (state.level === "templates") {
-        const header = make("div", "cm-md-slash-back")
-        header.dataset.slashBack = ""
-        header.appendChild(make("span", "cm-md-slash-chevron", "‹"))
-        header.appendChild(make("span", "cm-md-slash-label", templatesLabel))
-        this.dom.appendChild(header)
-      }
-      let group = null
-      state.items.forEach((command, index) => {
-        if (!state.query && state.level === "root" && command.group !== group) {
-          group = command.group
-          this.dom.appendChild(make("div", "cm-md-slash-group", groupLabel(group)))
-        }
-        const row = make("div", "cm-md-slash-item")
-        row.setAttribute("role", "option")
-        row.dataset.slashIndex = String(index)
-        const icon = make("span", "cm-md-slash-icon")
-        icon.innerHTML = `<svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SLASH_ICONS[command.id] || (command.template ? SLASH_ICONS.templates : "")}</svg>`
-        row.appendChild(icon)
-        row.appendChild(make("span", "cm-md-slash-label", command.label))
-        if (command.submenu) row.appendChild(make("span", "cm-md-slash-chevron", "›"))
-        this.dom.appendChild(row)
-      })
-      this.dom.scrollTop = 0
-    }
-
-    place(coords) {
-      if (!coords || this.dom.hidden) return
-      const win = this.dom.ownerDocument.defaultView
-      const width = this.dom.offsetWidth
-      const height = this.dom.offsetHeight
-      const below = win.innerHeight - coords.bottom
-      const flip = height > below - 8 && coords.top > below
-      const top = flip ? Math.max(8, coords.top - height - 4) : coords.bottom + 4
-      const left = Math.max(8, Math.min(coords.left, win.innerWidth - width - 8))
-      this.dom.style.top = `${top}px`
-      this.dom.style.left = `${left}px`
-    }
-
-    destroy() { this.dom.remove() }
-  })
-
-  return [
-    field,
-    menu,
-    keymap.of([
-      { key: "ArrowDown", run: step(1) },
-      { key: "ArrowUp", run: step(-1) },
-      { key: "ArrowRight", run: into },
-      { key: "ArrowLeft", run: out(false) },
-      { key: "Backspace", run: out(true) },
-      { key: "Enter", run: accept },
-      { key: "Tab", run: accept },
-      { key: "Escape", run: (view) => {
-        if (!active(view)) return false
-        view.dispatch({ effects: dismiss.of(null) })
-        return true
-      } },
-    ]),
-    EditorView.domEventHandlers({
-      blur(_event, view) {
-        if (active(view)) view.dispatch({ effects: dismiss.of(null) })
-      },
-    }),
-  ]
 }
 
 registerEditorExtension({ id: "slash-commands", precedence: "highest", extensions: slashExtensions })

@@ -193,6 +193,7 @@ nonisolated extension MarkdownHTML {
     KaTeXExtension(),
     MermaidExtension(),
     ColorfulHeadersExtension(),
+    TaskMetadataExtension(),
     SlashCommandsExtension()
   ])
 
@@ -291,6 +292,255 @@ nonisolated extension MarkdownHTML {
     }
   }
 
+  /// Shows `due:`, `scheduled:` and `p:` on checkbox task lines as badges, in
+  /// the editor (the `task-metadata` module) and in Read mode. The Markdown is
+  /// never changed. Quick Look and HTML export never load the page script, and
+  /// PDF/PNG export switch the page back to the literal text, so the badges
+  /// stay an in-app presentation.
+  struct TaskMetadataExtension: MarkdownRenderExtension {
+    let id = "task-metadata"
+    let descriptor = RenderExtensionDescriptor(
+      titleKey: "Task metadata",
+      descriptionKey: nil,
+      defaultEnabled: true,
+      userToggleable: true
+    )
+    let order = 200
+    let editor: (any EditorCapability)? = EditorModule(
+      moduleID: "task-metadata",
+      css: MarkdownHTML.taskMetadataStylesheet,
+      options: MarkdownHTML.taskMetadataLabels()
+    )
+
+    /// Mirrors the extractor's field grammar closely enough to load the script
+    /// only for documents that can have a badge; the script validates.
+    func isActive(in context: RenderContext) -> Bool {
+      context.markdown.contains(Self.fieldPattern)
+    }
+
+    func assets(mode: VendorLoading) -> RenderAssets {
+      guard mode == .lazy else { return RenderAssets(css: MarkdownHTML.taskMetadataStylesheet) }
+      return RenderAssets(
+        css: MarkdownHTML.taskMetadataStylesheet,
+        bodyJS: MarkdownHTML.taskMetadataScript(labels: MarkdownHTML.taskMetadataLabels()),
+        scriptAssetIDs: [id]
+      )
+    }
+
+    nonisolated(unsafe) private static let fieldPattern =
+      /(?:^|\s)(?:(?:due|scheduled):\d{4}-\d{2}-\d{2}|p:(?:high|medium|low))/
+  }
+
+  /// Badge text and accessibility names, shared by the editor module and the
+  /// Read mode script.
+  static func taskMetadataLabels() -> [String: String] {
+    let keys: [(id: String, key: String)] = [
+      ("due", "Due"), ("scheduled", "Scheduled"), ("overdue", "Overdue"), ("priority", "Priority"),
+      ("high", "High"), ("medium", "Medium"), ("low", "Low")
+    ]
+    var labels: [String: String] = ["locale": Bundle.main.preferredLocalizations.first ?? "en"]
+    for entry in keys {
+      labels[entry.id] = NSLocalizedString(entry.key, comment: "Task metadata badge")
+    }
+    return labels
+  }
+
+  /// Read mode: wraps each valid field on a task's first line in
+  /// `.mdp-task-field`, holding the literal text (shown when printing or
+  /// exporting) and the badge. The rules match the extractor in
+  /// `scripts/editor-bundle/src/workspace-metadata.js`.
+  static func taskMetadataScript(labels: [String: String]) -> String {
+    let data = (try? JSONSerialization.data(withJSONObject: labels, options: [.sortedKeys])) ?? Data("{}".utf8)
+    let json = String(decoding: data, as: UTF8.self).replacingOccurrences(of: "</", with: "<\\/")
+    return """
+    <script>
+    (function() {
+      const labels = \(json);
+      const FIELD = /(^|\\s)(?:(due|scheduled):(\\d{4}-\\d{2}-\\d{2})|p:(high|medium|low))(?=$|[\\s,;.!?])/g;
+      const SKIP = 'code, pre, a, kbd, script, style, .mdp-task-field, .katex, .mermaid';
+      const ICONS = {
+        due: '<circle cx="10" cy="10" r="6.5"/><path d="M10 6.5V10l2.5 1.5"/>',
+        scheduled: '<rect x="3.5" y="4.5" width="13" height="12" rx="2"/><path d="M3.5 8.5h13M7 3v3M13 3v3"/>',
+      };
+      const pad = (n) => String(n).padStart(2, '0');
+      const localDate = (value) => {
+        const [y, m, d] = value.split('-').map(Number);
+        const date = new Date(2000, 0, 1);
+        date.setFullYear(y, m - 1, d);
+        return date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === d ? date : null;
+      };
+      const today = () => {
+        const now = new Date();
+        return `${String(now.getFullYear()).padStart(4, '0')}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+      };
+      const format = (date, options) => {
+        try { return new Intl.DateTimeFormat(labels.locale, options).format(date); }
+        catch (e) { return new Intl.DateTimeFormat('en', options).format(date); }
+      };
+      function badge(key, value, done) {
+        const element = document.createElement('span');
+        element.className = 'mdp-task-badge mdp-task-badge-' + key;
+        element.setAttribute('role', 'img');
+        if (key === 'p') {
+          const text = labels[value] || value;
+          element.classList.add('mdp-task-badge-priority', 'mdp-task-badge-' + value);
+          element.textContent = text.toLocaleUpperCase(labels.locale);
+          element.setAttribute('aria-label', labels.priority + ': ' + text);
+          return element;
+        }
+        const date = localDate(value);
+        const overdue = key === 'due' && !done && value < today();
+        if (overdue) element.classList.add('mdp-task-badge-overdue');
+        element.innerHTML = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICONS[key] + '</svg>';
+        element.appendChild(document.createTextNode(value + ' ' + format(date, { weekday: 'short' })));
+        element.setAttribute('aria-label', labels[key] + ': ' + format(date, { dateStyle: 'full' })
+          + (overdue ? ', ' + labels.overdue : ''));
+        return element;
+      }
+      // Text nodes of a task's first line: up to the first line break or
+      // nested block, skipping code, links and other literal content. The
+      // item's text is either inline or in its first paragraph.
+      function firstLineTextNodes(item) {
+        const nodes = [];
+        const paragraph = item.querySelector(':scope > p');
+        const walker = document.createTreeWalker(item, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, {
+          acceptNode(node) {
+            if (node.nodeType === Node.TEXT_NODE) return NodeFilter.FILTER_ACCEPT;
+            if (node.matches(SKIP)) return NodeFilter.FILTER_REJECT;
+            return NodeFilter.FILTER_SKIP;
+          }
+        });
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+          if (node.nodeType !== Node.TEXT_NODE) continue;
+          let stop = false;
+          for (let ancestor = node.parentNode; ancestor && ancestor !== item; ancestor = ancestor.parentNode) {
+            if (ancestor === paragraph) continue;
+            if (/^(UL|OL|P|BLOCKQUOTE|TABLE|DIV|PRE)$/.test(ancestor.tagName)) { stop = true; break; }
+          }
+          if (stop) break;
+          nodes.push(node);
+          if (node.nodeValue.includes('\\n')) break;
+          if (node.nextSibling && node.nextSibling.nodeName === 'BR') break;
+        }
+        return nodes;
+      }
+      function decorate(item) {
+        const box = item.querySelector(':scope > .task-list-item-checkbox, :scope > p:first-of-type > .task-list-item-checkbox');
+        if (!box) return;
+        const done = box.checked;
+        let previous = ' ';
+        for (const node of firstLineTextNodes(item)) {
+          const text = node.nodeValue.split('\\n')[0];
+          const startsAfterSpace = /\\s/.test(previous);
+          previous = node.nodeValue.slice(-1) || previous;
+          const parts = [];
+          let last = 0;
+          FIELD.lastIndex = 0;
+          for (let match; (match = FIELD.exec(text));) {
+            if (match.index === 0 && !match[1] && !startsAfterSpace) continue;
+            const key = match[2] || 'p';
+            const value = match[3] || match[4];
+            if (match[3] && !localDate(value)) continue;
+            const start = match.index + match[1].length;
+            const end = match.index + match[0].length;
+            parts.push(text.slice(last, start));
+            const field = document.createElement('span');
+            field.className = 'mdp-task-field';
+            field.dataset.mdpExt = 'task-metadata';
+            const source = document.createElement('span');
+            source.className = 'mdp-task-field-source';
+            source.textContent = text.slice(start, end);
+            field.append(source, badge(key, value, done));
+            parts.push(field);
+            last = end;
+          }
+          if (!parts.length) continue;
+          parts.push(node.nodeValue.slice(last));
+          node.replaceWith(...parts);
+        }
+      }
+      window.MdPreview?.registerExtension({
+        id: 'task-metadata',
+        render(root) { root.querySelectorAll('li.task-list-item').forEach(decorate); }
+      });
+    })();
+    </script>
+    """
+  }
+
+  /// Badges for the editor and Read mode. `.mdp-task-field-source` is the
+  /// literal Markdown kept beside a Read mode badge; printing (PDF) and
+  /// `data-mdp-literal-task-metadata` (set around PNG capture) show it instead.
+  static let taskMetadataStylesheet = """
+    :root {
+      --mdp-task-red: #d70015;
+      --mdp-task-orange: #c45500;
+      --mdp-task-blue: #0062cc;
+    }
+    :root[data-mdp-color-scheme="dark"] {
+      --mdp-task-red: #ff6961;
+      --mdp-task-orange: #ffa94d;
+      --mdp-task-blue: #64a8ff;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-mdp-color-scheme="light"]) {
+        --mdp-task-red: #ff6961;
+        --mdp-task-orange: #ffa94d;
+        --mdp-task-blue: #64a8ff;
+      }
+    }
+    .mdp-task-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3em;
+      padding: 0.08em 0.55em;
+      border-radius: 0.55em;
+      background: color-mix(in srgb, var(--text) 8%, transparent);
+      color: var(--secondary);
+      font: 500 0.82em/1.45 -apple-system, system-ui, sans-serif;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: normal;
+      white-space: nowrap;
+      /* Center on the text: a pill's baseline would otherwise come from its
+         first child (the icon), lifting date pills above priority tags. */
+      vertical-align: middle;
+      text-decoration: none;
+      cursor: text;
+    }
+    .mdp-task-badge svg { flex: none; width: 1.05em; height: 1.05em; }
+    .mdp-task-badge-overdue {
+      color: var(--mdp-task-red);
+      background: color-mix(in srgb, var(--mdp-task-red) 12%, transparent);
+    }
+    /* Smaller type in a box as tall as a date pill: 0.82 × 1.45 = 0.72 × 1.65. */
+    .mdp-task-badge-priority {
+      font-size: 0.72em;
+      line-height: 1.65;
+      padding-block: 0.09em;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+    .mdp-task-badge-high {
+      color: var(--mdp-task-red);
+      background: color-mix(in srgb, var(--mdp-task-red) 12%, transparent);
+    }
+    .mdp-task-badge-medium {
+      color: var(--mdp-task-orange);
+      background: color-mix(in srgb, var(--mdp-task-orange) 13%, transparent);
+    }
+    .mdp-task-badge-low {
+      color: var(--mdp-task-blue);
+      background: color-mix(in srgb, var(--mdp-task-blue) 12%, transparent);
+    }
+    .mdp-task-field-source { display: none; }
+    :root[data-mdp-literal-task-metadata] .mdp-task-field-source { display: inline; }
+    :root[data-mdp-literal-task-metadata] .mdp-task-field .mdp-task-badge { display: none; }
+    @media print {
+      .mdp-task-field-source { display: inline; }
+      .mdp-task-field .mdp-task-badge { display: none; }
+    }
+    """
+
   /// Editor-only: typing `/` on an empty line opens a block menu. The commands
   /// live in the editor bundle; this declares the toggle, the menu styling and
   /// the localized labels. It never touches rendered output.
@@ -313,8 +563,8 @@ nonisolated extension MarkdownHTML {
     func isActive(in _: RenderContext) -> Bool { false }
   }
 
-  /// Command ids match `SLASH_COMMANDS` in the editor bundle. A missing label
-  /// falls back to the bundle's English one.
+  /// Command ids match `SLASH_COMMANDS` and `TASK_FIELD_COMMANDS` in the
+  /// editor bundle. A missing label falls back to the bundle's English one.
   static func slashCommandLabels() -> [String: String] {
     let commands: [(id: String, key: String)] = [
       ("h1", "Heading 1"), ("h2", "Heading 2"), ("h3", "Heading 3"),
@@ -324,10 +574,19 @@ nonisolated extension MarkdownHTML {
       ("link", "Link to File"), ("mermaid", "Mermaid diagram"),
       ("math", "Math Block"), ("note", "Note"), ("tip", "Tip"),
       ("important", "Important"), ("warning", "Warning"), ("caution", "Caution"),
-      ("today", "Today"), ("now", "Now"), ("templates", "Templates")
+      ("today", "Today"), ("now", "Now"), ("templates", "Templates"),
+      ("priority-high", "Priority: High"), ("priority-medium", "Priority: Medium"),
+      ("priority-low", "Priority: Low"), ("priority-none", "Priority: None"),
+      ("due", "Due Date"), ("schedule", "Schedule"),
+      ("due-clear", "Clear Due Date"), ("schedule-clear", "Clear Schedule")
     ]
     let groups: [(id: String, key: String)] = [
-      ("text", "Text"), ("lists", "Lists"), ("blocks", "Blocks"), ("insert", "Insert")
+      ("text", "Text"), ("lists", "Lists"), ("blocks", "Blocks"), ("insert", "Insert"),
+      ("task", "Task")
+    ]
+    // Accessibility names for the date picker's month buttons.
+    let interfaceLabels: [(id: String, key: String)] = [
+      ("previousMonth", "Previous Month"), ("nextMonth", "Next Month")
     ]
     // Language for the names a template variable writes, such as {{weekday}}.
     var labels: [String: String] = ["locale": Bundle.main.preferredLocalizations.first ?? "en"]
@@ -336,6 +595,9 @@ nonisolated extension MarkdownHTML {
     }
     for group in groups {
       labels["group.\(group.id)"] = NSLocalizedString(group.key, comment: "Slash command group")
+    }
+    for label in interfaceLabels {
+      labels["label.\(label.id)"] = NSLocalizedString(label.key, comment: "Slash command date picker")
     }
     return labels
   }
@@ -428,5 +690,83 @@ nonisolated extension MarkdownHTML {
       cursor: default;
     }
     .cm-md-slash-back .cm-md-slash-chevron { width: 22px; text-align: center; }
+    .cm-md-slash-tint-high { color: #ff3b30; }
+    .cm-md-slash-tint-medium { color: #ff9500; }
+    .cm-md-slash-tint-low { color: #007aff; }
+    @media (prefers-color-scheme: dark) {
+      .cm-md-slash-tint-high { color: #ff453a; }
+      .cm-md-slash-tint-medium { color: #ff9f0a; }
+      .cm-md-slash-tint-low { color: #0a84ff; }
+    }
+    .cm-md-slash-detail {
+      flex: none;
+      color: var(--secondary);
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+    }
+    /* The month grid has a fixed height, so it never scrolls. */
+    .cm-md-slash-menu.cm-md-slash-calendar-menu {
+      max-height: none;
+      overflow: visible;
+    }
+    .cm-md-slash-calendar-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 30px;
+      padding: 0 4px;
+    }
+    .cm-md-slash-calendar-title { font-weight: 600; }
+    .cm-md-slash-calendar-nav {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      color: var(--secondary);
+      font-size: 18px;
+      line-height: 1;
+      cursor: default;
+    }
+    .cm-md-slash-calendar-nav:hover {
+      background: color-mix(in srgb, var(--text) 9%, transparent);
+    }
+    .cm-md-slash-calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 2px;
+      padding: 4px 0;
+    }
+    .cm-md-slash-weekday {
+      padding: 4px 0;
+      font-size: 11px;
+      font-weight: 500;
+      text-align: center;
+      color: var(--secondary);
+    }
+    .cm-md-slash-day {
+      height: 32px;
+      line-height: 32px;
+      border-radius: 8px;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+      cursor: default;
+    }
+    .cm-md-slash-day:hover {
+      background: color-mix(in srgb, var(--text) 6%, transparent);
+    }
+    .cm-md-slash-day-outside { color: var(--secondary); opacity: 0.6; }
+    .cm-md-slash-day-today { font-weight: 700; }
+    .cm-md-slash-day.cm-md-slash-selected,
+    .cm-md-slash-day.cm-md-slash-selected:hover {
+      background: var(--accent);
+      color: #fff;
+      opacity: 1;
+    }
+    .cm-md-slash-calendar-footer {
+      padding: 8px 6px 2px;
+      border-top: 0.5px solid color-mix(in srgb, var(--text) 14%, transparent);
+    }
     """
 }

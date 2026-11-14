@@ -69,7 +69,9 @@ behind a **Templates** row, a second menu level. Variables (`{{date}}`, `{{time}
 ## Assets and fast path
 
 Every page shell emits CSS for every enabled extension. JavaScript emits only
-for active extensions. `RenderedHTML.scriptAssetIDs` records required runtime
+for active extensions. An extension whose page script is an in-app presentation
+returns it only for `.lazy` (the app's Read mode), so Quick Look and HTML export,
+which render `.inline`, never run it (`TaskMetadataExtension`). `RenderedHTML.scriptAssetIDs` records required runtime
 capabilities; a body swap runs only when next set is subset of loaded set.
 
 ## Page lifecycle
