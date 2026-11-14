@@ -309,7 +309,7 @@ for (const [name, source, text] of [
   const { editor } = typed("#Release #Release\n\n", "")
   editor.setWorkspaceCandidates({ version: 1, tags: [{ name: "release", count: 1 }, { name: "review", count: 1 }] })
   type(editor, "#re")
-  check("the document's spelling and count win for its own names", labels().join() === "#Release,#review")
+  check("the document's spelling wins for its own names, and its count adds to the workspace's", labels().join() === "#Release,#review")
   editor.destroy()
 }
 

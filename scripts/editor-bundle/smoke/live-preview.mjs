@@ -46,6 +46,24 @@ const frontmatterHost = dom.window.document.createElement("div")
 dom.window.document.body.appendChild(frontmatterHost)
 const frontmatterDoc = "---\nname: \"openai-docs\"\ntags:\n  - links\n---\n# Body heading"
 const frontmatterEditor = dom.window.MDEditor.create(frontmatterHost, frontmatterDoc, {})
+const frontmatterHeader = () => frontmatterHost.querySelector(".cm-md-frontmatter-header")
+const toggleFrontmatterHeader = () => frontmatterHeader().dispatchEvent(
+  new dom.window.MouseEvent("mousedown", { bubbles: true, cancelable: true }))
+check("frontmatter starts collapsed to one Properties row",
+  frontmatterHeader() != null
+    && frontmatterHeader().getAttribute("aria-expanded") === "false"
+    && frontmatterHeader().querySelector(".cm-md-frontmatter-summary")?.textContent === "name, tags"
+    && frontmatterHost.querySelector(".cm-md-frontmatter") == null
+    && frontmatterHost.querySelector(".cm-md-frontmatter-delim") == null)
+check("body markdown still live-previews below the collapsed frontmatter",
+  frontmatterHost.querySelector(".cm-md-h1") != null)
+check("collapsed frontmatter round-trips byte-faithfully",
+  frontmatterEditor.getMarkdown() === frontmatterDoc)
+toggleFrontmatterHeader()
+check("toggling the row opens the frontmatter",
+  frontmatterHeader().getAttribute("aria-expanded") === "true"
+    && frontmatterHeader().classList.contains("is-expanded")
+    && frontmatterHeader().querySelector(".cm-md-frontmatter-summary") == null)
 check("frontmatter renders as a metadata card, not markdown blocks",
   frontmatterHost.querySelectorAll(".cm-md-frontmatter").length === 5
     && frontmatterHost.querySelector(".cm-md-frontmatter-first") != null
@@ -58,6 +76,24 @@ check("body markdown still live-previews below frontmatter",
   frontmatterHost.querySelector(".cm-md-h1") != null)
 check("frontmatter round-trips byte-faithfully",
   frontmatterEditor.getMarkdown() === frontmatterDoc)
+toggleFrontmatterHeader()
+check("toggling the row again collapses it",
+  frontmatterHeader().getAttribute("aria-expanded") === "false"
+    && frontmatterHost.querySelector(".cm-md-frontmatter") == null)
+const collapsedFrontmatterDoc = frontmatterEditor.getMarkdown()
+frontmatterEditor.insertTextAt("x", 0, 0)
+check("typing before a collapsed frontmatter block is ignored",
+  frontmatterEditor.getMarkdown() === collapsedFrontmatterDoc)
+frontmatterEditor.insertTextAt("", 5, 9)
+check("deleting inside a collapsed frontmatter block is ignored",
+  frontmatterEditor.getMarkdown() === collapsedFrontmatterDoc)
+frontmatterEditor.insertTextAt("\nAppended", collapsedFrontmatterDoc.length, collapsedFrontmatterDoc.length)
+check("lines added at the end of the document still go through",
+  frontmatterEditor.getMarkdown() === collapsedFrontmatterDoc + "\nAppended")
+toggleFrontmatterHeader()
+frontmatterEditor.insertTextAt("x", 0, 0)
+check("an open frontmatter block takes edits like any text",
+  frontmatterEditor.getMarkdown().startsWith("x---"))
 frontmatterEditor.destroy()
 
 const headingHost = dom.window.document.createElement("div")
@@ -67,8 +103,8 @@ check("unfocused leading heading source stays hidden",
   headingHost.querySelector(".cm-md-heading-source-hidden")?.textContent === "### ")
 headingEditor.focus()
 headingEditor.select(4, 10)
-check("ordinary heading range selection keeps source hidden",
-  headingHost.querySelector(".cm-md-heading-source-hidden")?.textContent === "### ")
+check("a range selection inside a heading keeps its source revealed",
+  headingHost.querySelector(".cm-md-heading-source-hidden") == null)
 const headingContent = headingHost.querySelector(".cm-content")
 headingContent.dispatchEvent(new dom.window.CompositionEvent("compositionstart", { bubbles: true }))
 headingEditor.select(4, 9)
@@ -79,6 +115,23 @@ headingEditor.exec("h0")
 check("Normal Text removes the heading marker",
   headingEditor.getMarkdown() === "Stable heading")
 headingEditor.destroy()
+
+{
+  const host = dom.window.document.createElement("div")
+  dom.window.document.body.appendChild(host)
+  const source = "[Real link](https://example.com)\n\n## Middle heading\n\n## Last heading"
+  const editor = dom.window.MDEditor.create(host, source, {})
+  editor.focus()
+  editor.select(3, 7)
+  check("a range selection inside a link keeps its URL revealed", host.querySelector(".cm-md-url") != null)
+  editor.select(3, 40)
+  check("a selection leaving a link keeps the link it started in revealed", host.querySelector(".cm-md-url") != null)
+  editor.select(3, source.length - 2)
+  const hidden = Array.from(host.querySelectorAll(".cm-md-heading-source-hidden"), (node) => node.textContent)
+  check("a long selection reveals only what holds its ends", hidden.join() === "## "
+    && host.querySelector(".cm-md-url") != null)
+  editor.destroy()
+}
 
 const inactiveHeadingHost = dom.window.document.createElement("div")
 dom.window.document.body.appendChild(inactiveHeadingHost)
@@ -336,3 +389,25 @@ for (const position of [0, preprocessorSource.indexOf("include")]) {
     preprocessorHost.querySelector(".hl-meta")?.textContent.includes("#include"))
 }
 preprocessorEditor.destroy()
+
+const alertHost = dom.window.document.createElement("div")
+dom.window.document.body.appendChild(alertHost)
+const alertSource = "intro\n\n> [!WARNING]\n> Careful here\n> second line\n\n> [!NOTE] Custom\n> body\n\n> plain quote"
+const alertEditor = dom.window.MDEditor.create(alertHost, alertSource, {})
+alertEditor.select(0)
+check("callout lines get kind, first and last classes",
+  alertHost.querySelectorAll(".cm-md-alert-warning").length === 3
+    && alertHost.querySelectorAll(".cm-md-alert-warning.cm-md-alert-first").length === 1
+    && alertHost.querySelectorAll(".cm-md-alert-warning.cm-md-alert-last").length === 1)
+check("callout title token is replaced by an icon and default title",
+  [...alertHost.querySelectorAll(".cm-md-alert-title")].some((el) => el.textContent === "Warning" && el.querySelector("svg")))
+check("a custom callout title keeps its text and only gets the icon",
+  [...alertHost.querySelectorAll(".cm-md-alert-title")].some((el) => el.textContent === "" && el.querySelector("svg")))
+check("plain blockquotes are not styled as callouts",
+  alertHost.querySelectorAll(".cm-md-alert").length === 5 && alertHost.querySelectorAll(".cm-md-quote").length === 1)
+alertEditor.focus()
+alertEditor.select(alertSource.indexOf("[!WARNING]") + 2)
+check("caret on the title line reveals the callout source",
+  ![...alertHost.querySelectorAll(".cm-md-alert-title")].some((el) => el.textContent === "Warning"))
+check("callout styling preserves Markdown source", alertEditor.getMarkdown() === alertSource)
+alertEditor.destroy()

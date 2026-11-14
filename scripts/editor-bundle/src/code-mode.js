@@ -16,6 +16,12 @@ import { codeLanguages } from "./languages.js"
 // list differs. The language is a fence name or alias, "" for plain text.
 // ---------------------------------------------------------------------------
 
+// ⌘[ and ⌘] are the app's Back and Forward, so CodeMirror's indent bindings
+// for them must not swallow the keys; Tab and Shift-Tab indent instead.
+export const editorDefaultKeymap = defaultKeymap.filter(
+  (binding) => binding.key !== "Mod-[" && binding.key !== "Mod-]",
+)
+
 export function codeModeExtensions(language) {
   const description = language
     ? LanguageDescription.matchLanguageName(codeLanguages, language, true)
@@ -35,7 +41,7 @@ export function codeModeExtensions(language) {
     keymap.of([
       indentWithTab,
       ...closeBracketsKeymap,
-      ...defaultKeymap,
+      ...editorDefaultKeymap,
       ...historyKeymap,
     ]),
   ]

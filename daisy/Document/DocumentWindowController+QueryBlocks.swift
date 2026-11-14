@@ -68,12 +68,9 @@ extension DocumentWindowController {
         case let .task(task)?:
             openTask(task, inNewTab: false)
         case .file?:
-            guard let root = workspaceIndex?.root,
-                  (try? WorkspaceFileWriter.components(of: path)) != nil else {
-                NSSound.beep()
-                return
-            }
-            mainSplit?.openLink(.file(root.appending(path: path, directoryHint: .notDirectory), fragment: nil))
+            // Like a task row: a tab already showing the note comes forward
+            // where the reader left it, rather than the note opening twice.
+            openWorkspaceFile(path, line: 1, inNewTab: false) { _ in }
         case nil:
             NSSound.beep()
         }

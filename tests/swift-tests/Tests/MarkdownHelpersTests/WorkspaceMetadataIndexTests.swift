@@ -226,6 +226,24 @@ final class WorkspaceMetadataIndexTests: XCTestCase {
         await assertTags(index, ["draft": 1])
     }
 
+    func testSnapshotExcludingAFileLeavesOutItsNames() async throws {
+        let a = try write("@Minh #shared", to: "a.md")
+        let b = try write("@Minh @mike #shared", to: "b.md")
+        let index = await scanned()
+
+        // A half-typed `@M` in a's unsaved buffer.
+        await index.setOverlay("@Minh #shared @M", for: a, owner: UUID())
+        let all = await index.snapshot()
+        let withoutA = await index.snapshot(excludingNamesOf: a)
+        let withoutB = await index.snapshot(excludingNamesOf: b)
+        let withoutNone = await index.snapshot(excludingNamesOf: nil)
+        XCTAssertEqual(names(all, .context), ["Minh": 2, "mike": 1, "M": 1])
+        XCTAssertEqual(names(withoutA, .context), ["Minh": 1, "mike": 1], "the editor on a supplies a's names itself")
+        XCTAssertEqual(names(withoutA, .tag), ["shared": 1])
+        XCTAssertEqual(names(withoutB, .context), ["Minh": 1, "M": 1])
+        XCTAssertEqual(names(withoutNone, .context), names(all, .context))
+    }
+
     func testTwoTabsOnOneFileCountItOnce() async throws {
         let a = try write("#saved", to: "a.md")
         let index = await scanned()

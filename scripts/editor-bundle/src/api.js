@@ -1,6 +1,6 @@
 import { EditorView, keymap, dropCursor } from "@codemirror/view"
 import { Compartment, EditorState, Prec, Transaction } from "@codemirror/state"
-import { cursorDocEnd, cursorDocStart, cursorLineBoundaryBackward, cursorLineBoundaryLeft, cursorLineStart, defaultKeymap, history, historyKeymap, indentLess, selectDocEnd, selectDocStart, selectLineBoundaryBackward, selectLineBoundaryLeft, selectLineStart } from "@codemirror/commands"
+import { cursorDocEnd, cursorDocStart, cursorLineBoundaryBackward, cursorLineBoundaryLeft, cursorLineStart, history, historyKeymap, indentLess, selectDocEnd, selectDocStart, selectLineBoundaryBackward, selectLineBoundaryLeft, selectLineStart } from "@codemirror/commands"
 import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete"
 import { markdown, markdownKeymap, markdownLanguage } from "@codemirror/lang-markdown"
 import { yamlFrontmatter } from "@codemirror/lang-yaml"
@@ -9,17 +9,18 @@ import { tags as t } from "@lezer/highlight"
 import { html } from "@codemirror/lang-html"
 import { convertClipboardToMarkdown } from "../clipboard-markdown.mjs"
 import { codeHighlight } from "./code-highlight.js"
-import { codeModeExtensions } from "./code-mode.js"
+import { codeModeExtensions, editorDefaultKeymap } from "./code-mode.js"
 import { codeBackspace, codeDelete, exitCodeBlock, keepCaretOffFences, openCodeFence, pendingFence, settleCodeCaretPlugin } from "./commands/code-fence.js"
 import { applyBlockStyle, enclosingNode, insertLink, setHeading, stylingContext, toggleBlockPrefix, toggleInlineMark } from "./commands/format.js"
 import { indentMarkdownListItems } from "./commands/list-indent.js"
 import { continueList, deleteListMarker, indentListItems, insertListContinuation, outdentListItems, paragraphAfterList, selectedListStyle, setListStyle, toggleListStyle } from "./commands/lists.js"
 import { deleteTableBackward, deleteTableForward, openLineBelowTable } from "./commands/table-edges.js"
 import { METRICS, directionLines } from "./decoration-parts.js"
-import { editorModuleEnabled, editorModuleExtensions, editorModules } from "./extensions.js"
+import { editorModuleEnabled, editorModuleExtensions, editorModules, hostStateChanged } from "./extensions.js"
 import { collectMatches, documentFind, expandReplacement, findTheme, sameSearch, setFind } from "./find.js"
 import { formattingState } from "./formatting-state.js"
 import { codeLanguages } from "./languages.js"
+import { frontmatterCollapse } from "./frontmatter-collapse.js"
 import { alignInactiveHeadings, keepCaretAfterListMarker, leaveListMarkerBackward, livePreview, stopAfterListMarker } from "./live-preview/plugins.js"
 import { obsidianHighlight } from "./obsidian-highlight.js"
 import { codeCardWidth } from "./code-card-width.js"
@@ -27,7 +28,7 @@ import { activeCodeBlock, anchoredPointerSelection, pointerPreview, stablePointe
 import { readWorkspaceCandidates, workspaceCandidatesChanged } from "./metadata-completion.js"
 import { metadataLinksChanged } from "./metadata-links.js"
 import { queryResultsChanged, readQueryResults } from "./query-blocks.js"
-import { linkOpening, openLinkAt } from "./link-open.js"
+import { linkOpening, openLinkAt, openLinkAtCaret } from "./link-open.js"
 import { applyMove, completeMove, forgetMove, moveTracking, removalPreview, replaceIfUnchanged, undoMove } from "./move-block.js"
 import { slashTemplatesChanged } from "./slash.js"
 import { tableEditors } from "./table/editors.js"
@@ -54,7 +55,7 @@ window.MDEditor = {
     const moduleEnabled = new Map()
     // Handed to every module: the callbacks the page gave this editor.
     const moduleHost = { callbacks: callbacks || {}, slashTemplates: [], workspaceCandidates: null, metadataLinks: false,
-      queryResults: new Map(), moveBlocks: false }
+      queryResults: new Map(), moveBlocks: false, carryOver: false, hostState: {} }
     const moduleOptions = (id) => (callbacks && callbacks.extensionOptions && callbacks.extensionOptions[id]) || {}
     for (const module of editorModules.values()) {
       const enabled = editorModuleEnabled(callbacks && callbacks.extensionState, module.id)
@@ -105,6 +106,7 @@ window.MDEditor = {
           }),
           activeCodeBlock,
           unwrappedCodeBlocks,
+          frontmatterCollapse,
           pointerPreview,
           stablePointerPreview,
           codeCardWidth,
@@ -158,7 +160,7 @@ window.MDEditor = {
             { key: "Tab", run: indentMarkdownListItems, shift: indentLess },
             ...closeBracketsKeymap,
             ...markdownKeymap,
-            ...defaultKeymap,
+            ...editorDefaultKeymap,
             ...historyKeymap,
           ]),
           // Fires on every change; the host debounces for autosave.
@@ -673,11 +675,15 @@ window.MDEditor = {
       // Whether the slash menu offers `/move`: a saved document in a
       // project folder.
       setMoveBlocks: (enabled) => { moduleHost.moveBlocks = enabled === true },
+      // Whether the slash menu offers `/carryover`: today's journal entry.
+      setCarryOver: (enabled) => { moduleHost.carryOver = enabled === true },
       // Whether `#tag`, `@context` and `+project` read as links and open
       // their page on Cmd+click: true in a workspace window.
       // What Cmd+click at `pos` does: sends the link there to `onOpenLink`
       // and returns it, or returns null.
       openLinkAt: (pos) => openLinkAt(view, pos, callbacks),
+      // The same for the link at the caret (Go ▸ Open Link at Caret).
+      openLinkAtCaret: () => openLinkAtCaret(view, callbacks),
       // Results for the document's ```tasks and ```notes blocks, as
       // `[{ id, source, problems, rows, empty }]`, replacing the ones held;
       // null clears them, so every block shows as code again.
@@ -688,6 +694,12 @@ window.MDEditor = {
       setMetadataLinks: (enabled) => {
         moduleHost.metadataLinks = enabled === true
         view.dispatch({ effects: metadataLinksChanged.of(moduleHost.metadataLinks) })
+      },
+      // Per-window module state from the host, `{ moduleID: Bool }`,
+      // replacing the map held; modules read it through `hostFlag`.
+      setHostState: (state) => {
+        moduleHost.hostState = { ...(state || {}) }
+        view.dispatch({ effects: hostStateChanged.of(moduleHost.hostState) })
       },
       setExtensionState: (state) => {
         const effects = []

@@ -269,9 +269,9 @@ After a successful write, update the task list straight away, as an index update
 ## Documentation to update with the change
 
 - `README.md`: Read Mode's inspector panel (line 43), a Tasks sidebar entry in the features list, and the list of what Daisy writes into a workspace (line 49), which gains checking tasks off from the sidebar.
-- `docs/workspace-metadata-proposal.md`: line 19, line 199, and the workspace-write statements at lines 24 and 238.
-- `docs/workspace-metadata-implementation-plan.md`: the workspace-write statements at lines 237, 294, 300 and 322.
-- `docs/open-any-file-proposal.md`: the inspector mention at line 215.
+- `docs/technical/workspace-metadata-proposal.md`: line 19, line 199, and the workspace-write statements at lines 24 and 238.
+- `docs/technical/workspace-metadata-implementation-plan.md`: the workspace-write statements at lines 237, 294, 300 and 322.
+- `docs/technical/open-any-file-proposal.md`: the inspector mention at line 215.
 - Comments that mention the inspector in `LinkTarget.swift`, `LinkHandler.swift` and `MarkdownFrontmatter.swift`.
 
 ## Implementation phases

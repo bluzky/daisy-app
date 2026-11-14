@@ -3,7 +3,7 @@ import { ensureSyntaxTree, syntaxTree } from "@codemirror/language"
 import { isolateHistory, undo } from "@codemirror/commands"
 import { listItemExtent } from "./commands/lists.js"
 
-// `/move` (docs/move-to-file-proposal.md): the block under the caret goes to
+// `/move` (docs/technical/move-to-file-proposal.md): the block under the caret goes to
 // another file, or another section of this one. The host picks the target
 // and writes it first; only then does the editor remove the block, and only
 // while it still holds what was picked. The removal is one undo step of its

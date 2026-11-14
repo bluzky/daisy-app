@@ -17,7 +17,14 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
 
     /// Fired on every document change — the host debounces for autosave.
     var contentDidChange: (() -> Void)?
+    /// Also fired on every document change, for the Slide Preview pane;
+    /// separate so autosave's handler stays its own.
+    var textDidChangeForSlidePreview: (() -> Void)?
     var formattingDidChange: ((Int, Set<String>) -> Void)?
+    /// The caret's one-based line, each time the selection or text changes.
+    var caretLineDidChange: ((Int) -> Void)?
+    /// The caret's line as last reported, or nil before the first report.
+    private(set) var caretLine: Int?
     /// Fired after CodeMirror has constructed and painted its initial document.
     /// The split view uses this to avoid replacing the preview with a blank WKWebView.
     var editorDidBecomeReady: (() -> Void)?
@@ -32,7 +39,7 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
     var pickLinkRequested: ((Int, Int) -> Void)?
     /// The slash menu's `/move`: the block on the caret's line, waiting for
     /// the host to pick where it goes. Nothing is removed until
-    /// `completeMove` (see docs/move-to-file-proposal.md).
+    /// `completeMove` (see docs/technical/move-to-file-proposal.md).
     struct MoveRequest: Equatable {
         let id: Int
         let kind: MarkdownSectionInsertion.BlockKind
@@ -42,6 +49,9 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
         let lastLine: Int
     }
     var pickMoveTargetRequested: ((MoveRequest) -> Void)?
+    /// The slash menu's `/carryover`: the host moves the earlier days'
+    /// unfinished tasks to the caret, where the typed `/carryover` was.
+    var insertCarryOverRequested: (() -> Void)?
     /// Files dragged from the Files sidebar and dropped at a document
     /// position; the host inserts them like pasted files. Nil refuses drops.
     var projectFilesDropped: (([URL], Int) -> Void)?
@@ -263,8 +273,13 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
     /// Whether metadata tokens read as links (workspace windows). Kept here
     /// and sent again to each fresh page, like the candidates.
     private var metadataLinksEnabled = false
+    /// Per-window state for editor modules, keyed by module id. Kept like
+    /// the metadata links.
+    private var extensionHostState: [String: Bool] = [:]
     /// Whether the slash menu offers `/move`. Kept like the metadata links.
     private var moveBlocksEnabled = false
+    /// Whether the slash menu offers `/carryover`. Kept like the metadata links.
+    private var carryOverEnabled = false
 
     /// Shows `results` in place of their blocks; nil shows every block as code.
     func showQueryResults(_ results: [QueryBlockResult]?) {
@@ -282,6 +297,13 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
         applyMetadataLinksEnabled()
     }
 
+    func setExtensionHostState(_ state: [String: Bool]) {
+        guard state != extensionHostState else { return }
+        extensionHostState = state
+        guard hasLoadedEditorPage else { return }
+        applyExtensionHostState()
+    }
+
     func setMoveBlocksEnabled(_ enabled: Bool) {
         guard enabled != moveBlocksEnabled else { return }
         moveBlocksEnabled = enabled
@@ -292,6 +314,19 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
     private func applyMoveBlocksEnabled() {
         webView.evaluateJavaScript(
             "window.__mdEditor && window.__mdEditor.setMoveBlocks(\(moveBlocksEnabled))"
+        ) { _, _ in }
+    }
+
+    func setCarryOverEnabled(_ enabled: Bool) {
+        guard enabled != carryOverEnabled else { return }
+        carryOverEnabled = enabled
+        guard hasLoadedEditorPage else { return }
+        applyCarryOverEnabled()
+    }
+
+    private func applyCarryOverEnabled() {
+        webView.evaluateJavaScript(
+            "window.__mdEditor && window.__mdEditor.setCarryOver(\(carryOverEnabled))"
         ) { _, _ in }
     }
 
@@ -344,6 +379,12 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
                 continuation.resume(returning: (value as? Bool) == true)
             }
         }
+    }
+
+    private func applyExtensionHostState() {
+        webView.evaluateJavaScript(
+            "window.__mdEditor && window.__mdEditor.setHostState(\(EditorHTML.jsonObjectLiteral(extensionHostState)))"
+        ) { _, _ in }
     }
 
     private func applyMetadataLinksEnabled() {
@@ -652,6 +693,28 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
         }
     }
 
+    /// Scrolls to `line` of `markdown`, the editor's current text, puts the
+    /// caret at the start of it and focuses the editor.
+    func placeCaret(atLine line: Int, in markdown: String) {
+        let nsText = markdown as NSString
+        var offset = 0
+        var current = 1
+        while current < line, offset < nsText.length {
+            let range = nsText.lineRange(for: NSRange(location: offset, length: 0))
+            offset = NSMaxRange(range)
+            current += 1
+        }
+        let target = offset
+        applyScrollProgress(
+            0,
+            sourceAnchor: SourceScrollAnchor(sourcePosition: CGFloat(line), topGap: 0)
+        ) { [weak self] in
+            self?.webView.evaluateJavaScript(
+                "window.__mdEditor && (window.__mdEditor.select(\(target), \(target)), window.__mdEditor.focus())"
+            ) { _, _ in }
+        }
+    }
+
     func fetchScrollAnchor(_ completion: @escaping (SourceScrollAnchor?) -> Void) {
         webView.evaluateJavaScript(
             "window.__mdEditor && window.__mdEditor.getScrollAnchor()"
@@ -707,6 +770,14 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
                 return
             }
             completion(LinkSelection(text: text, from: from, to: to))
+        }
+    }
+
+    /// Opens the link, `#tag`, `@context` or `+project` at the caret through
+    /// `linkActivated`, like Cmd+click; false when there is none.
+    func openLinkAtCaret(_ completion: @escaping (Bool) -> Void) {
+        webView.evaluateJavaScript("window.__mdEditor && window.__mdEditor.openLinkAtCaret() !== null") { result, _ in
+            completion(result as? Bool ?? false)
         }
     }
 
@@ -770,6 +841,7 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
             case "dirty":
                 hasChanges = true
                 contentDidChange?()
+                textDidChangeForSlidePreview?()
             case "ready":
                 hasLoadedEditorPage = true
                 updateChromeZoom()
@@ -782,7 +854,9 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
                 applySlashTemplates()
                 applyWorkspaceCandidates()
                 applyMetadataLinksEnabled()
+                applyExtensionHostState()
                 applyMoveBlocksEnabled()
+                applyCarryOverEnabled()
                 editorDidBecomeReady?()
             case "cancel":
                 cancelRequested?()
@@ -806,6 +880,10 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
                   (0...6).contains(heading),
                   let commands = payload["commands"] as? [String] else { return }
             formattingDidChange?(heading, Set(commands))
+            if let line = payload["line"] as? Int, line > 0, line != caretLine {
+                caretLine = line
+                caretLineDidChange?(line)
+            }
         case "findResult":
             guard let result = FindResult(scriptResult: payload) else { return }
             findCompletion?(result)
@@ -821,6 +899,8 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
             guard let from = payload["from"] as? NSNumber,
                   let to = payload["to"] as? NSNumber else { return }
             pickLinkRequested?(from.intValue, to.intValue)
+        case "insertCarryOver":
+            insertCarryOverRequested?()
         case "pickMoveTarget":
             guard let id = payload["id"] as? Int,
                   let kind = (payload["blockKind"] as? String).flatMap(MarkdownSectionInsertion.BlockKind.init),

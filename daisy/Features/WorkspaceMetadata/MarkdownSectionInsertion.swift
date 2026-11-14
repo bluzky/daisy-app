@@ -3,7 +3,7 @@
 //  daisy
 //
 //  Where `/move` puts a block in its target file (see
-//  docs/move-to-file-proposal.md): the headings the picker offers, the
+//  docs/technical/move-to-file-proposal.md): the headings the picker offers, the
 //  insertion at the end of the file or of a heading's whole section, the
 //  block's relative links rewritten for the target's folder, and taking the
 //  copy out again for the Undo button. Line-based: headings inside fences

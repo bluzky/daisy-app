@@ -18,9 +18,29 @@ extension provides:
 - `transform(_:)` — optional HTML rewrite; identity by default.
 - `assets(mode:)` — static CSS and JavaScript declaration.
 
-Colorful headings are user-toggleable. Highlight, Callout,
-KaTeX, and Mermaid participate in the same registry but are always enabled
-and do not appear in Settings.
+Highlight, Callout, KaTeX, and Mermaid participate in the same registry but
+are always enabled and do not appear in Settings. Heading color is a theme
+setting (`--heading`), not an extension. Table colors and style are theme
+settings too (`--table-border`, `--table-header-bg`, `--table-stripe`, and a
+style of `lines`, `grid`, `striped` or `minimal`), in Customize Theme and in
+slide themes.
+
+Slides (`SlidesExtension`) is registered too, but is not toggleable: a deck
+is something the document asks for, not a reading preference. Splitting a
+document into slides happens earlier, in the formatter: when frontmatter has
+`slides: true`, or the host passes `forcesSlides`,
+`EscapingHTMLFormatter` walks `SlideDeck` instead of the document's blocks and
+emits `.mdp-deck` with one `section.mdp-slide-frame` per slide. Slide directives
+(`layout`, `_class`, `color`, `step`) are HTML comments, which the sanitizer
+removes, so `SlideDeck` reads them in Swift and the formatter writes them as
+classes and `data-*` attributes. The extension activates on that markup and
+adds the slide stylesheet and the `MdPreviewSlides` script in every host: the
+script applies image sizes and slide colors (styles the sanitizer would
+strip) and, while presenting, marks the current and next slide and the
+revealed steps. The presentation windows turn presenting on with the
+`slides-presenting` and `slides-presenter` host states, and the Slide Preview
+pane uses `slides-pane`. A deck's theme is emitted by `render` itself, in the
+page head, not by the extension.
 
 ## Editor capability
 
@@ -51,6 +71,28 @@ output and Settings captions it "Editor". The capability can also carry
 adds) and `options` (plain string pairs, such as localized labels, passed to
 the module's `extensions(options, host)` at creation; `host.callbacks` holds the
 callbacks the page gave the editor).
+
+### Host state
+
+The Settings toggle is app-wide. An extension that also needs a value per
+window, such as whether the window hides completed tasks, reads it as host
+state: `MainSplitViewController.setExtensionHostState(_:for:)` keeps a
+`[extension id: Bool]` map for the window and sends it to both surfaces,
+including an editor created later.
+
+- **Read mode:** `MarkdownWebView.extensionHostState` writes each entry as a
+  `data-mdp-<id>` attribute on `<html>`, present while the value is true, on
+  every page load and on each change, then calls `MdPreview.reapplyExtensions`.
+  A stylesheet keyed on the attribute needs no script.
+- **Editor:** `EditorViewController.setExtensionHostState` sends the map with
+  `__mdEditor.setHostState`. A module reads its own value with
+  `hostFlag(host, id)` from `scripts/editor-bundle/src/extensions.js`, a state
+  field that starts false and follows the host.
+
+Quick Look and export never set host state. `hide-completed-tasks` is the
+first extension built on it (`HideCompletedTasksExtension`,
+`scripts/editor-bundle/src/hide-completed-tasks.js`); its value comes from the
+app-wide View ▸ Hide Completed Tasks setting, which every window passes in.
 
 A slash command normally carries a template (`convert`). One with `host` names a
 host action instead (`SLASH_HOST_ACTIONS`, e.g. `pickImage`), posts a message to
@@ -117,6 +159,8 @@ mirrors excluded from find use `data-mdp-search-exclude`.
    module with `registerEditorExtension` (see `scripts/editor-bundle/src/`), rebuild with `npm run build`
    there, and add a case to the matching section in `scripts/editor-bundle/smoke/`
    (`smoke-test.mjs` runs the sections in order).
+7. For a value per window, pass it as host state (see [Host state](#host-state))
+   rather than adding a separate setter through each layer.
 
 Run:
 
