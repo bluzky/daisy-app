@@ -195,6 +195,7 @@ nonisolated extension MarkdownHTML {
     ColorfulHeadersExtension(),
     TaskMetadataExtension(),
     MetadataLinksExtension(),
+    QueryBlocksExtension(),
     SlashCommandsExtension(),
     MetadataCompletionExtension()
   ])
@@ -932,6 +933,366 @@ nonisolated extension MarkdownHTML {
     @media print {
       :root[data-mdp-workspace] .mdp-metadata-link { color: inherit; }
     }
+    """
+
+  /// ```` ```tasks ```` and ```` ```notes ```` blocks list what their query
+  /// matches in the workspace, in Read mode in a workspace window. The page
+  /// posts each block's text to the host (`runQueries`), which parses it
+  /// (`WorkspaceQueryParser`), runs it on the workspace index and answers
+  /// through `MdPreview.queryResults`, again whenever the index changes. The
+  /// block's source stays in the page and shows wherever results don't:
+  /// outside a workspace, before the first answer, when printing, and in PNG
+  /// export (`data-mdp-literal-task-metadata`). Quick Look and HTML export
+  /// never load the script. The editor module (`query-blocks` in
+  /// `scripts/editor-bundle/src/query-blocks.js`) shows the same results in
+  /// place of the block until the caret enters it, like a Mermaid diagram.
+  struct QueryBlocksExtension: MarkdownRenderExtension {
+    let id = "query-blocks"
+    let descriptor = RenderExtensionDescriptor(
+      titleKey: "Query blocks",
+      descriptionKey: nil,
+      defaultEnabled: true,
+      userToggleable: true
+    )
+    let order = 220
+    let editor: (any EditorCapability)? = EditorModule(
+      moduleID: "query-blocks",
+      css: MarkdownHTML.queryBlocksEditorStylesheet,
+      options: MarkdownHTML.taskMetadataLabels()
+    )
+
+    func isActive(in context: RenderContext) -> Bool {
+      context.markdown.contains(Self.fencePattern)
+    }
+
+    func assets(mode: VendorLoading) -> RenderAssets {
+      guard mode == .lazy else { return RenderAssets() }
+      return RenderAssets(
+        // Task badges and name links look as they do in the document, even
+        // where it has none of its own and those extensions stay unloaded.
+        css: MarkdownHTML.queryBlocksStylesheet + "\n" + MarkdownHTML.taskMetadataStylesheet,
+        bodyJS: MarkdownHTML.queryBlocksScript(labels: MarkdownHTML.taskMetadataLabels()),
+        scriptAssetIDs: [id]
+      )
+    }
+
+    nonisolated(unsafe) private static let fencePattern = /(?m)^[ \t]{0,3}(?:```|~~~)[ \t]*(?:tasks|notes)[ \t]*$/
+  }
+
+  /// Read mode half of `query-blocks`. Every string it shows comes from the
+  /// host and is set as text, never as HTML.
+  static func queryBlocksScript(labels: [String: String]) -> String {
+    let data = (try? JSONSerialization.data(withJSONObject: labels, options: [.sortedKeys])) ?? Data("{}".utf8)
+    let json = String(decoding: data, as: UTF8.self).replacingOccurrences(of: "</", with: "<\\/")
+    return #"""
+    <script>
+    (function() {
+      const SELECTOR = 'pre > code.language-tasks, pre > code.language-notes';
+      const isWorkspace = () => document.documentElement.hasAttribute('data-mdp-workspace');
+      const post = (message) => {
+        try { window.webkit.messageHandlers.mdPreviewHost.postMessage(message); } catch (e) {}
+      };
+      const hash = (text) => {
+        let h = 5381;
+        for (let i = 0; i < text.length; i++) h = ((h << 5) + h + text.charCodeAt(i)) >>> 0;
+        return h.toString(36);
+      };
+      const results = new Map();
+      let requested = null;
+
+      // A task row shows its line as the document does: `due:`,
+      // `scheduled:` and `p:` as the task-metadata badges, `#`/`@`/`+`
+      // names as links to their pages. The rules mirror
+      // `scripts/editor-bundle/src/task-line-segments.js`.
+      const labels = \#(json);
+      const FIELD = /^(?:(due|scheduled):(\d{4}-\d{2}-\d{2})|p:(high|medium|low))(?=$|[\s,;.!?])/u;
+      const TOKEN = /^([#@+])([\p{L}\p{N}_-][\p{L}\p{M}\p{N}_\-\/]*)/u;
+      const LETTER = /\p{L}/u;
+      const ICONS = {
+        due: '<circle cx="10" cy="10" r="6.5"/><path d="M10 6.5V10l2.5 1.5"/>',
+        scheduled: '<rect x="3.5" y="4.5" width="13" height="12" rx="2"/><path d="M3.5 8.5h13M7 3v3M13 3v3"/>',
+      };
+      const pad = (n) => String(n).padStart(2, '0');
+      const localDate = (value) => {
+        const [y, m, d] = value.split('-').map(Number);
+        const date = new Date(2000, 0, 1);
+        date.setFullYear(y, m - 1, d);
+        return date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === d ? date : null;
+      };
+      const today = () => {
+        const now = new Date();
+        return `${String(now.getFullYear()).padStart(4, '0')}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+      };
+      const format = (date, options) => {
+        try { return new Intl.DateTimeFormat(labels.locale, options).format(date); }
+        catch (e) { return new Intl.DateTimeFormat('en', options).format(date); }
+      };
+      function badge(key, value, done) {
+        const node = document.createElement('span');
+        node.className = 'mdp-task-badge mdp-task-badge-' + (key === 'p' ? 'priority' : key);
+        node.setAttribute('role', 'img');
+        if (key === 'p') {
+          const text = labels[value] || value;
+          node.classList.add('mdp-task-badge-' + value);
+          node.textContent = text.toLocaleUpperCase(labels.locale);
+          node.setAttribute('aria-label', labels.priority + ': ' + text);
+          return node;
+        }
+        const date = localDate(value);
+        const overdue = key === 'due' && !done && value < today();
+        if (overdue) node.classList.add('mdp-task-badge-overdue');
+        node.innerHTML = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICONS[key] + '</svg>';
+        node.appendChild(document.createTextNode(value + ' ' + format(date, { weekday: 'short' })));
+        node.setAttribute('aria-label', labels[key] + ': ' + format(date, { dateStyle: 'full' })
+          + (overdue ? ', ' + labels.overdue : ''));
+        return node;
+      }
+      function rowText(row, done) {
+        const text = element('span', 'mdp-query-text');
+        const source = Array.from(row.source || row.text);
+        let plain = '';
+        const flush = () => { if (plain) text.append(element('span', 'mdp-query-plain', plain)); plain = ''; };
+        for (let index = 0; index < source.length;) {
+          const atBoundary = index === 0 || /\s/.test(source[index - 1]);
+          const rest = source.slice(index).join('');
+          const field = row.source && atBoundary ? FIELD.exec(rest) : null;
+          if (field && (!field[2] || localDate(field[2]))) {
+            flush();
+            text.append(badge(field[1] || 'p', field[2] || field[3], done));
+            index += Array.from(field[0]).length;
+            continue;
+          }
+          const token = atBoundary ? TOKEN.exec(rest) : null;
+          if (token && LETTER.test(token[2]) && token[2].split('/').every(Boolean)) {
+            flush();
+            const link = element('span', 'mdp-query-token', token[0]);
+            link.setAttribute('role', 'link');
+            text.append(link);
+            index += Array.from(token[0]).length;
+            continue;
+          }
+          plain += source[index];
+          index++;
+        }
+        flush();
+        return text;
+      }
+
+      // An empty block is not a query: it stays code and is never run.
+      function blocks(root) {
+        return Array.from(root.querySelectorAll(SELECTOR), (code) => {
+          const source = code.classList.contains('language-tasks') ? 'tasks' : 'notes';
+          const text = code.textContent;
+          return { pre: code.parentElement, source, text, id: source + ':' + hash(text) };
+        }).filter((block) => block.text.trim());
+      }
+
+      function element(tag, className, text) {
+        const node = document.createElement(tag);
+        if (className) node.className = className;
+        if (text != null) node.textContent = text;
+        return node;
+      }
+
+      function fill(container, result) {
+        container.replaceChildren();
+        container.classList.toggle('mdp-query-pending', !result);
+        if (!result) return;
+        if (result.problems.length) {
+          const problems = element('ul', 'mdp-query-problems');
+          for (const problem of result.problems) problems.append(element('li', null, problem));
+          container.append(problems);
+        }
+        if (!result.rows.length) {
+          container.append(element('p', 'mdp-query-empty', result.empty));
+          return;
+        }
+        // The article's own list markup, so rows look like the document's
+        // tasks and lists.
+        const list = element('ul', 'mdp-query-results mdp-query-' + result.source);
+        for (const row of result.rows) {
+          const item = element('li', 'mdp-query-row' + (result.source === 'tasks' ? ' task-list-item' : ''));
+          if (result.source === 'tasks') {
+            const box = element('input', 'task-list-item-checkbox mdp-query-checkbox');
+            box.type = 'checkbox';
+            box.checked = row.checked;
+            box.dataset.path = row.path;
+            box.dataset.line = row.line;
+            box.setAttribute('aria-label', row.text);
+            // The space the document's own task items have after the box.
+            item.append(box, document.createTextNode(' '));
+          }
+          const link = rowText(row, result.source === 'tasks' && row.checked);
+          link.classList.add('mdp-query-link');
+          link.setAttribute('role', 'link');
+          link.setAttribute('aria-label', row.text);
+          link.dataset.path = row.path;
+          link.dataset.line = row.line;
+          item.append(link);
+          if (row.detail) {
+            const detail = element('span', 'mdp-query-detail', row.detail);
+            detail.title = row.path;
+            item.append(detail);
+          }
+          list.append(item);
+        }
+        container.append(list);
+      }
+
+      // The block's frame: the code wrapper with its header, once the page
+      // has added it, otherwise the `pre` itself.
+      const frame = (pre) => pre.parentElement && pre.parentElement.classList.contains('md-code-wrap')
+        ? pre.parentElement : pre;
+
+      function render(root) {
+        const found = isWorkspace() ? blocks(root) : [];
+        const wanted = new Set();
+        for (const block of found) {
+          const anchor = frame(block.pre);
+          let container = Array.from(root.querySelectorAll('.mdp-query'))
+            .find((node) => node.dataset.queryId === block.id && !wanted.has(node)
+              && (node.previousElementSibling === anchor || node.previousElementSibling === block.pre));
+          if (!container) {
+            // Kept through a Read mode morph, like other extension controls.
+            container = element('div', 'mdp-query');
+            container.setAttribute('data-mdp-ext', '');
+            container.dataset.queryId = block.id;
+          }
+          if (container.previousElementSibling !== anchor) anchor.after(container);
+          wanted.add(container);
+          fill(container, results.get(block.id));
+        }
+        for (const container of root.querySelectorAll('.mdp-query')) {
+          if (!wanted.has(container)) container.remove();
+        }
+        const queries = found.map(({ id, source, text }) => ({ id, source, text }));
+        const key = JSON.stringify(queries);
+        if (key !== requested) {
+          requested = key;
+          post({ kind: 'runQueries', queries });
+        }
+      }
+
+      window.MdPreview && (window.MdPreview.queryResults = (list) => {
+        for (const result of list) results.set(result.id, result);
+        for (const container of document.querySelectorAll('.mdp-query')) {
+          fill(container, results.get(container.dataset.queryId));
+        }
+      });
+      document.addEventListener('click', (event) => {
+        const token = event.target.closest && event.target.closest('.mdp-query-token');
+        if (token) {
+          event.preventDefault();
+          event.stopPropagation();
+          post({ kind: 'openMetadata', token: token.textContent });
+          return;
+        }
+        const link = event.target.closest && event.target.closest('.mdp-query-link');
+        if (!link) return;
+        event.preventDefault();
+        event.stopPropagation();
+        post({ kind: 'openQueryResult', path: link.dataset.path, line: Number(link.dataset.line) });
+      }, true);
+      // Capturing, and stopped here: the page's own task checkboxes share
+      // the class and would otherwise post a change to this document.
+      document.addEventListener('change', (event) => {
+        const box = event.target;
+        if (!box.matches || !box.matches('.mdp-query-checkbox')) return;
+        event.stopImmediatePropagation();
+        post({ kind: 'queryTaskCheckbox', path: box.dataset.path, line: Number(box.dataset.line),
+               checked: box.checked });
+      }, true);
+      window.MdPreview?.registerExtension({ id: 'query-blocks', render });
+    })();
+    </script>
+    """#
+  }
+
+  /// Results replace the block's source on screen only; print and PNG
+  /// export show the source.
+  static let queryBlocksStylesheet = """
+    @media screen {
+      :root[data-mdp-workspace]:not([data-mdp-literal-task-metadata]) :is(pre, .md-code-wrap):has(+ .mdp-query:not(.mdp-query-pending)) {
+        display: none;
+      }
+    }
+    .mdp-query-pending { display: none; }
+    .mdp-query-problems { color: var(--mdp-task-red, #d70015); }
+    .mdp-query-link { cursor: pointer; }
+    .mdp-query-link:hover .mdp-query-plain { text-decoration: underline; }
+    .mdp-query-token { color: var(--link); cursor: pointer; }
+    .mdp-query-token:hover { text-decoration: underline; }
+    .mdp-query-detail {
+      float: inline-end;
+      margin-inline-start: 1em;
+      color: var(--secondary);
+      font-size: 0.85em;
+      text-decoration: none;
+    }
+    .mdp-query-empty { color: var(--secondary); }
+    :root[data-mdp-literal-task-metadata] .mdp-query { display: none; }
+    @media print {
+      .mdp-query { display: none; }
+    }
+    """
+
+  /// The editor's results, laid out like the document's task list: the
+  /// checkbox hangs in the marker column, as `.cm-md-task-marker` does.
+  static let queryBlocksEditorStylesheet = """
+    .cm-md-query { cursor: text; }
+    .cm-md-query ul { list-style: none; margin: 0; padding: 0; padding-inline-start: 2.1em; }
+    .cm-md-query-problems { color: var(--mdp-task-red, #d70015); }
+    .cm-md-query-row { position: relative; }
+    /* Notes are an unordered list: the circle `.cm-md-bullet` paints. */
+    .cm-md-query-notes > .cm-md-query-row::before {
+      content: "";
+      position: absolute;
+      inset-inline-start: calc(-0.75em - 0.4em);
+      top: calc(0.5lh - 0.2em);
+      width: 0;
+      height: 0;
+      border: 0.2em solid var(--link);
+      border-radius: 50%;
+    }
+    /* Rows after the first are spaced like list items (`.cm-md-list-item-gap`). */
+    .cm-md-query-row + .cm-md-query-row { padding-top: \(MarkdownHTML.textScaled(MarkdownHTML.listItemSpacing)); }
+    .cm-md-query-done { color: var(--secondary); text-decoration: line-through; }
+    .cm-md-query-checkbox {
+      appearance: none;
+      -webkit-appearance: none;
+      font: inherit;
+      width: 0.9em;
+      height: 0.9em;
+      margin: 0;
+      margin-inline-start: calc(-0.9em - 0.25em);
+      margin-inline-end: 0.25em;
+      vertical-align: calc(0.5cap - 0.45em);
+      border: 1.5px solid var(--grid);
+      border-radius: 25%;
+      background: transparent;
+      position: relative;
+      cursor: pointer;
+    }
+    .cm-md-query-checkbox:checked { border-color: var(--accent); background: var(--accent); }
+    .cm-md-query-checkbox:checked::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M4.4 8.4 L7 11 L11.6 5.4" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>');
+      background-repeat: no-repeat;
+      background-position: center;
+      background-size: 100% 100%;
+    }
+    .cm-md-query-link { cursor: pointer; }
+    .cm-md-query-link:hover .cm-md-query-plain { text-decoration: underline; }
+    .cm-md-query-token:hover { text-decoration: underline; cursor: pointer; }
+    .cm-md-query-detail {
+      float: inline-end;
+      margin-inline-start: 1em;
+      color: var(--secondary);
+      font-size: 0.85em;
+    }
+    .cm-md-query-empty { margin: 0; padding-inline-start: 2.1em; color: var(--secondary); }
     """
 
   struct MetadataCompletionExtension: MarkdownRenderExtension {

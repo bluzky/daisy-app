@@ -1,6 +1,6 @@
 # Workspace metadata implementation plan
 
-Status: Phases 1, 2 (2a, 2c, 2b), 3, 4, 4.5, and 5 complete; 6 in progress (tasks 1–5 done, runtime tests pending). This plan implements [`workspace-metadata-proposal.md`](workspace-metadata-proposal.md) in independently testable phases. It does not imply a release or version bump.
+Status: Phases 1, 2 (2a, 2c, 2b), 3, 4, 4.5, 5, and 6 complete; 7 in progress (7a, 7b and 7d; 7c deferred). This plan implements [`workspace-metadata-proposal.md`](workspace-metadata-proposal.md) in independently testable phases. It does not imply a release or version bump.
 
 ## Sequencing
 
@@ -17,7 +17,9 @@ Status: Phases 1, 2 (2a, 2c, 2b), 3, 4, 4.5, and 5 complete; 6 in progress (task
         ↓
 5. Persistent cache and lifecycle — complete
         ↓
-6. Integration, documentation, runtime validation — in progress
+6. Integration, documentation, runtime validation — complete
+        ↓
+7. File records, references, and queries — in progress (7a → 7b → 7d; 7c deferred)
 ```
 
 Do not begin a later phase until its predecessor has passing automated tests. Phase 5 can begin only after Phase 4 has stable index semantics.
@@ -30,7 +32,7 @@ Define one metadata grammar with one implementation, in JavaScript, that both th
 
 ### Tasks
 
-1. Add a fixture corpus at `tests/fixtures/workspace-metadata.json`.
+1. Add a fixture corpus at `tests/fixtures/workspace-metadata/grammar.json`.
 2. Specify token boundaries and a shared normalization algorithm.
 3. Add the extractor in `scripts/editor-bundle/src/workspace-metadata.js`, importing only `@lezer/markdown` and its GFM extensions (no `@codemirror/view`, no DOM). Expose `extractMetadata(markdown)`.
 4. Add a second esbuild output in `scripts/editor-bundle/build.mjs` (for example `daisy/Vendor/CodeMirror/metadata-extract.min.js`) and include it in the app bundle the same way as `mdedit.min.js`.
@@ -190,7 +192,7 @@ Aggregate saved-file and unsaved-buffer name metadata per resolved workspace.
 
 ### Tasks
 
-1. Add root-scoped actor/service under `daisy/Features/WorkspaceMetadata/WorkspaceMetadataIndex.swift`, shared by `indexedWorkspaceRootURL` through a static weak lookup inside the service (this replaces a separate registry).
+1. Add root-scoped actor/service under `daisy/Features/WorkspaceMetadata/WorkspaceMetadataIndex.swift`, shared by `indexedWorkspaceRootURL` through a static lookup inside the service that counts its users (this replaces a separate registry).
 2. Reuse Markdown discovery rules, exclusions, caps, and file classification from `daisy/Features/FileSearch/ProjectFileIndex.swift`.
 3. Index only saved Markdown tags, contexts, and projects. Do not index dates or priorities.
 4. Exclude hidden/pruned paths, oversized files, inaccessible files, and symlink targets outside the workspace root. Index overlapping workspaces independently.
@@ -301,7 +303,7 @@ Persist disposable derived index data outside the workspace, with graceful fallb
 
 ## Phase 6 — Integration, docs, and runtime validation
 
-Status: tasks 1–5 done; task 6, the runtime test pass, is pending. Notes on what was built:
+Status: complete. Notes on what was built:
 
 - Task 1 was already in place from Phase 4: each workspace window subscribes to its index's snapshots and forwards them to its editor.
 - Snapshots sent to the editor carry `indexing` (the first scan is still running) and `truncated` (the scan stopped at the file cap). The `#`/`@`/`+` menu shows either as a note under its rows (`footer` in `completion.js`, `role="status"`), so the note appears only when there are suggestions to qualify; it is never a selectable row. The note names no number because `MarkdownRenderExtension.swift` is also built into Quick Look, which has no `ProjectFileIndex`; README.md states the limits.
@@ -326,6 +328,211 @@ Ship coherent behavior with accurate documentation and end-to-end validation.
 - Documentation matches shipped behavior.
 - Metadata remains readable outside Daisy.
 - No release/version bump unless separately requested.
+
+## Phase 7 — File records, references, and queries
+
+Status: 7a, 7b and 7d built, with passing automated tests; their in-app runtime pass is pending. 7c, the References panel, is deferred; the References query itself is part of 7b (`WorkspaceMetadataIndex.references(to:)`). The model is `daisy/Features/WorkspaceMetadata/WorkspaceFileRecord.swift`, queries are `WorkspaceQuery.swift`, the parser is `WorkspaceQueryParser.swift`, block results are `WorkspaceQueryBlocks.swift` and `daisy/Document/DocumentWindowController+QueryBlocks.swift`, and Read mode is the `query-blocks` render extension in `daisy/Rendering/MarkdownRenderExtension.swift` (Settings toggle "Query blocks"). Tests are the new fixtures in `grammar.json`, replayed through the bridge by `WorkspaceMetadataExtractorTests.swift`, `WorkspaceQueryTests.swift`, `WorkspaceQueryParserTests.swift`, the schema v4 cases in `WorkspaceIndexStoreTests.swift`, the `query-blocks` cases in `MarkdownRenderExtensionTests.swift`, and `scripts/editor-bundle/smoke/query-blocks.mjs`. Differences from the text below:
+
+- `WorkspaceMetadataContribution` stays, only as the name counts summed from records for completion. Tasks remain `WorkspaceTaskMetadata`, which gained `tokens` and an `attributes` accessor (`due`, `scheduled`, `priority`), so the Agenda's types did not change.
+- `AttributeValue` is `WorkspaceAttributeValue` and `Predicate` is `WorkspacePredicate`, since Foundation already has a `Predicate`. Dates are `JournalDay`, not `DateComponents`. Each value keeps its source text. A link value is a frontmatter value written as a quoted Markdown link, `parent: "[Up](../index.md)"`, and holds both its destination and its resolved target. `.hasToken` takes `includingDescendants`, which query blocks set and References does not. `file.path` is a built-in too.
+- Frontmatter is read as a YAML subset: top-level `key: value` scalars, `[a, b]` flow lists and `- item` block lists. Values are typed as bool, number, `YYYY-MM-DD` date, link or text. Nested maps and block scalars are skipped, ` #` starts a comment as in YAML, and a repeated key keeps its first value. Excerpts are cut at 200 characters.
+- Each task also keeps `source`, its line as written after the checkbox, so query results can show a task the way the document does: fields as badges, names as links. That column made the cache schema v4.
+- The `attributes` table has `line`, `item` (a list item's position; NULL for the attribute's own row), `num`, `destination` and `target` columns, and stores dates as text. Task fields are rows with `task_line` set. `tokens` has one row per occurrence, so two equal rows are valid. A task's tokens are not stored; they are the file's tokens on the task's line.
+- In a query block, a bare word is a problem that suggests `text:`. An empty block is not a query: it is never run and stays code. A block of only `sort:`/`limit:` lists everything, but a group whose every term had a problem matches nothing rather than everything. `is:` in a `notes` block matches nothing. A frontmatter key no file uses is a problem, with the known key at most two edits away (or a third of its length) as the suggestion.
+- The block for files is named `notes`, not `files`, and lists them as an unordered list; tasks keep their checkboxes.
+- The page posts its blocks to the host (`runQueries`) and the host answers through `MdPreview.queryResults`, so the index never runs in the page.
+- The editor shows results too, unlike task 5: the `query-blocks` editor module (`scripts/editor-bundle/src/query-blocks.js`) replaces a block that has results with the same rows, checkboxes and links, until the caret enters it, as a Mermaid diagram does. It posts its own blocks and the host answers it through `setQueryResults`; the window keeps Read mode's and the editor's requests apart (`QueryBlockTarget`). PNG export shows the source through the same `data-mdp-literal-task-metadata` switch the task badges use.
+
+### Goal
+
+List the files that refer to the open file: through a Markdown link, or by using the `#tag`, `@context` or `+project` whose page it is. Build this on a per-file record model that can later answer task and file queries, with files carrying attributes from their frontmatter. References and the Agenda become the first two queries; a query syntax comes later and only has to produce the same query value.
+
+### Model
+
+One record per indexed file, built from one extractor run. It replaces `WorkspaceMetadataContribution` as what the index keeps per path; completion's name counts are summed from the records, as they are today from contributions.
+
+```swift
+struct WorkspaceFileRecord: Sendable, Equatable {
+    let path: String                              // root-relative, the key
+    var attributes: [String: AttributeValue]      // from frontmatter
+    var tokens: [WorkspaceTokenOccurrence]        // kind, key, spelling, line, excerpt
+    var links: [WorkspaceLinkOccurrence]          // destination, target, line, excerpt
+    var tasks: [WorkspaceTask]
+}
+
+struct WorkspaceTask: Sendable, Equatable {
+    let line: Int
+    var text: String
+    var checked: Bool
+    var attributes: [String: AttributeValue]      // due, scheduled, priority, later others
+    var tokens: [WorkspaceTokenOccurrence]        // the tokens on the task's line
+}
+
+enum AttributeValue: Sendable, Equatable {
+    case text(String), number(Double), bool(Bool), date(DateComponents)
+    case list([AttributeValue])
+    case link(path: String)                       // a value that resolves to a file in the root
+}
+```
+
+- **Files and tasks share one attribute type**, so one predicate language queries both. A task's `due` and a file's `due:` are the same kind of value. `due`, `scheduled` and `priority` stay available as named accessors, so the Agenda does not change.
+- **Values are typed when extracted.** YAML dates become `.date`, numbers become `.number`, sequences become `.list`. Each value keeps its source text for display.
+- **Attribute keys are normalized** like token keys (NFKC, lowercase); the first spelling is kept for display.
+- **Built-in file attributes** are computed from the walk and never stored: `file.name`, `file.folder`, `file.modified`, `file.created`, `file.size`.
+- **Lines** are 1-based throughout, as the extractor already numbers tokens and tasks.
+- **Frontmatter `tags`** (a list or a single value) counts as `#` tokens on the frontmatter line where each value is written, so `tags: [a, b]` makes the file show up for `#a` and `#b`, in completion counts too. `contexts` and `projects` keys do the same for `@` and `+`.
+- **Links** keep both the raw destination, for a later rename-rewrite, and the resolved `target`: the destination taken relative to the source file, then made relative to the root, or nil when it points outside the root. A destination starting with `/` or `~/` is a filesystem path, as `DocumentLink.target(relativeTo:)` reads it, so it has a target only when that path is inside the root. Only inline `[text](destination)` links are indexed. Section links (`#…`), web links, images, autolinks, reference links, `[[wikilinks]]` and bare file names are not.
+
+### Query
+
+A query is a value, separate from any syntax:
+
+```swift
+struct WorkspaceQuery {
+    enum Source { case files, tasks }
+    var source: Source
+    var filter: Predicate
+    var sort: [SortKey]
+    var limit: Int?
+}
+
+indirect enum Predicate {
+    case and([Predicate]), or([Predicate]), not(Predicate)
+    case attribute(String, Comparison, AttributeValue)
+    case hasAttribute(String)
+    case hasToken(WorkspaceMetadataKind, key: String)
+    case linksTo(path: String)
+    case inFolder(String)
+    case checked(Bool)
+    case textContains(String)
+}
+```
+
+- `WorkspaceMetadataIndex.run(_ query:)` evaluates the query in memory over each path's effective record (an overlay if one exists, otherwise the file's record), so unsaved buffers count. This is enough up to `ProjectFileIndex.maximumFileCount`. If it becomes slow, the same `Predicate` is compiled to SQL against the store, with overlays applied on top; callers do not change.
+- **References to file F** = `.files` where `.linksTo(F)`, or, when F is a page in `pages/`, `.hasToken` for each indexed key whose `WorkspacePage.fileName(for:)` matches F's name, ignoring case. Comparing in that direction, rather than turning the file name back into a token, covers `#area/sub` and `#area--sub` sharing one page. A file never lists itself.
+- **Agenda** = `.tasks` filtered on `due`/`scheduled`. Moving it onto `run` proves the task half of the model without a visible change.
+- A change stream, like `taskChanges()`, tells subscribers when the records behind a query may have changed; they re-run their query.
+
+### Store (schema v3, shipped as v4)
+
+```
+files(path PRIMARY KEY, modified, size, hash)
+attributes(path, task_line NULL, key, spelling, type, text, num, date, ord)  -- task_line NULL: the file's own
+tokens(path, line, kind, key, spelling, excerpt)
+links(path, line, destination, target, excerpt)
+tasks(path, line, text, checked)
+```
+
+Index `attributes(key, text)`, `attributes(key, date)`, `tokens(kind, key)` and `links(target)`. Token counts are no longer stored; they are counted from `tokens` rows. Bumping `schemaVersion` and the extractor's SHA-256 changing both rebuild old caches, as Phase 5 already handles.
+
+### Phase 7a — Extractor
+
+1. In `scripts/editor-bundle/src/workspace-metadata.js`, parse the frontmatter that `frontmatterRange` already finds into typed attributes, and turn `tags`, `contexts` and `projects` keys into tokens on the lines where their values are written. The frontmatter body stays blocked for inline token scanning.
+2. While `syntaxContexts` walks the tree, read each `Link` node's `URL` child and add `{ destination, line }` to a new `links` array. Leave out destinations starting with `#` and those with a scheme other than `file:` (the rule in `DocumentLink.kind`, `daisy/Document/DocumentLinks.swift`).
+3. Add an `excerpt` (the trimmed source line) to every token and link, and the line's tokens to every task.
+4. Extend `tests/fixtures/workspace-metadata/grammar.json` and `workspace-metadata.test.mjs`: typed frontmatter values, frontmatter tags, links in code or tables (blocked), percent-encoded and `../` destinations, and links inside task lines.
+
+### Phase 7b — Records, query, and store
+
+1. Add `WorkspaceFileRecord`, `WorkspaceTask`, `AttributeValue`, `WorkspaceQuery` and `Predicate` under `daisy/Features/WorkspaceMetadata/`, free of AppKit so they link into `tests/swift-tests`.
+2. Make `WorkspaceMetadataIndex` keep a record per path instead of a contribution. Resolve link targets while reading. Keep `snapshots()` producing the same candidates.
+3. Add `run(_:)` and a record change stream, and move `tasks()` onto `run`.
+4. Move `WorkspaceIndexStore` to schema v3 (v4 as built; see the differences above).
+
+### Phase 7c — References panel
+
+Status: deferred. The References query is in 7b; the panel is built later.
+
+1. **Placement.** The right sidebar shows one panel at a time: the Agenda or References. There are no tabs.
+2. **Commands.** View → Toggle Agenda and View → Toggle References, each with a shortcut, in the Keymap settings and in `OmniSearchCommandCatalog`.
+   - Sidebar closed: open it on that panel.
+   - Open on the other panel: switch in place, without closing and reopening.
+   - Open on that panel: close it.
+   Both panels use the same sidebar width, so switching does not reflow the document. The last panel shown is restored with the window.
+3. **Toolbar.** One button per panel; the button of the panel on screen is highlighted.
+4. **Content.** Rows are grouped by source file, under "Linked" (Markdown links) and "Mentions" (tokens). Each row shows the excerpt. Clicking a row opens the file through `LinkHandler.open` and moves to the line.
+5. **Outside a workspace**, References shows the Agenda's empty state, and its command is enabled or disabled the same way as the Agenda's.
+6. Localize the new strings in `en.lproj` and `zh-Hans.lproj`.
+
+### Phase 7d — Query blocks
+
+Begins after 7a and 7b; it does not need 7c. A fenced block lists matching tasks or files in Read mode:
+
+````markdown
+```tasks
++daisy,site -is:done due:<=7d
+sort:due
+```
+````
+
+The block's name sets the source: ```` ```tasks ```` or ```` ```notes ```` (Markdown files; the query source is still `.files`). The syntax is a flat list of terms built from what users already write in tasks. It has no keywords besides `OR`, no parentheses and no natural language, so the parser stays small.
+
+#### Terms
+
+Terms are separated by spaces or newlines. Quotes keep spaces in a value: `title:"weekly sync"`.
+
+| Term | Meaning |
+| --- | --- |
+| `#x` `@x` `+x` | Has the token. The name follows the extractor's token rule; a hierarchical `#area` also matches `#area/sub`. |
+| `key:value` | The attribute equals the value; for a list attribute, contains it. |
+| `key:<v` `key:<=v` `key:>v` `key:>=v` | Compares dates, numbers or text. |
+| `key:a,b` / `+a,b` / `#a,b` | Either value, as in `p:high,medium`. A comma cannot occur in a token name, so this never clashes. |
+| `has:key` | The attribute is set. |
+| `-term` | Not. `-#a,b` is neither `#a` nor `#b`. |
+| `OR` | Splits the query into groups (see below). |
+
+Reserved keys; every other key is a frontmatter attribute:
+
+| Key | Source | Meaning |
+| --- | --- | --- |
+| `is:open` / `is:done` | tasks | The checkbox. `is` is used because `status` is a common frontmatter key. |
+| `due`, `scheduled`, `p` | tasks | The task fields, spelled as in tasks. |
+| `in:folder/` | both | The file is in that folder or below it. |
+| `links:path` | notes | The file links to `path` (root-relative). |
+| `text:word` | both | The task text, or for files the name, contains the word, ignoring case. |
+| `sort:key` / `sort:-key` | both | Order, ascending or descending; may repeat. Default: path, then line. |
+| `limit:n` | both | At most `n` results. |
+
+Date values: `today`, a signed offset in days or weeks (`7d`, `-2w`) from today, or `YYYY-MM-DD`. They resolve with the same local-date parsing `due:` uses.
+
+#### Boolean logic
+
+- **AND:** the terms in a group must all match.
+- **NOT:** a leading `-` on any term.
+- **OR inside one key:** comma-separated values, `p:high,medium`.
+- **OR across keys:** `OR`, uppercase and standing alone, splits the query into groups that are ORed. AND binds tighter, so `+daisy p:high OR @phone due:today` is `(+daisy AND p:high) OR (@phone AND due:today)`. A lowercase `or`, or `OR` inside a value, is ordinary text.
+- `sort:` and `limit:` apply to the whole query, wherever they are written.
+
+There are no parentheses. Any condition can still be written as ORed groups of ANDed, optionally negated terms: `NOT (A OR B)` is `-A -B`, `NOT (A AND B)` is `-A OR -B`, and `A AND (B OR C)` is `A key:b,c` when B and C share a key, otherwise `A B OR A C`.
+
+#### Implementation
+
+1. Add `WorkspaceQueryParser` under `daisy/Features/WorkspaceMetadata/`, in Swift only and free of AppKit. It splits on whitespace (respecting quotes), splits the terms on `OR` into groups, and maps each term to one `Predicate`: a token or `key:` with an optional operator and value, a comma value to `.or`, `-` to `.not`. The query is `.or(groups.map { .and(…) })`. There is no separate AST.
+2. It returns a `WorkspaceQuery` plus a list of problems: an unknown reserved form, a bad date, a bad operator, an empty group. A term with a problem is left out and the rest still runs. A frontmatter key that no file uses gives a problem with the closest known key as a suggestion.
+3. Add a `query-blocks` render extension next to `task-metadata` in `daisy/Rendering/MarkdownRenderExtension.swift`. In a workspace window, Read mode replaces each `tasks` / `notes` block with its results from `WorkspaceMetadataIndex.run`, with its problems listed above them. Rows link to their file and line. Task rows have a checkbox that checks off through the Agenda's path. Results update with the record change stream.
+4. Outside a workspace, in Quick Look and in exports, the block shows as its source.
+5. The editor shows the block as code. Tokens inside it are highlighted as tokens already are. Completion for keys and dates is left for later.
+6. Localize problem messages and the empty result ("No matching tasks" / "No matching notes") in `en.lproj` and `zh-Hans.lproj`.
+
+### Required tests
+
+- Extractor: the fixture cases in 7a, replayed by the Swift bridge test as for Phase 1.
+- Records: the same Markdown produces the same tokens and tasks as before 7b; completion snapshots are unchanged.
+- Link resolution: relative, `../`, absolute inside and outside the root, percent-encoded, `file:` URLs, a document at the root and in a subfolder.
+- Query: each predicate on files and tasks; `and`/`or`/`not`; sorting by date, number and text; an overlay adding and removing a reference; a deleted source file dropping its references.
+- References: links to F; tokens of F's page, including case variants and `/` vs `--`; F never lists itself.
+- Store: v2 and v3 caches rebuilt as v4; attributes, links and tokens round-trip; a cache path escape in `links.target` is rejected.
+- Runtime: both toggle commands in each sidebar state, toolbar highlighting, a row opening its file at the line, a non-workspace window, and VoiceOver labels.
+- Query parser (7d), table-driven, input → expected `Predicate` and problems: each term shape, each operator, `-`, comma values (including negated), `OR` groups, a lowercase `or` and `OR` inside quotes staying text, `sort:`/`limit:` anywhere, quotes, each date form, unknown keys and bad values left out with the rest still running.
+- Query blocks (7d): results match `run` for the parsed query; checking a task off in a result updates the file; the block shows as source outside a workspace, in Quick Look and in exports.
+
+### Exit criteria
+
+- References lists every indexed file that links to the open file or uses its page's token, and updates for unsaved edits.
+- The Agenda behaves as before, running on `run`.
+- A `tasks` or `notes` block lists what its query matches in a workspace window, and shows as plain source everywhere else.
+- Indexing still only reads; Phase 7 adds no writes to the workspace.
+- `README.md` describes References and frontmatter tags, in the same change that adds them.
 
 ## Verification commands
 
@@ -352,4 +559,6 @@ Run targeted JS and Swift tests during each phase. Before merge, run all command
 | Multiple tabs double-count metadata | Workspace service owns one document overlay per shared document identity. |
 | SQLite cache corrupts, cannot write, or is purged | Treat cache as untrusted/disposable; transactional store; memory fallback; rebuild on absence. |
 | Filesystem watcher misses changes | Coalesce watcher events and reconcile on focus/lost-event conditions. |
+| Moved or renamed files leave references pointing nowhere | Links store the raw destination beside the resolved target; a source is re-resolved when it is re-read; a later rename-rewrite can use the raw destination. |
+| Frontmatter tags change completion counts | Counted as tokens on their frontmatter lines by the same extractor in both hosts; fixtures cover it before 7b ships. |
 | Rich presentation harms portability | Badges are presentation only: the Markdown is unchanged, Quick Look and exports show literal text, the caret reveals the source, and each badge has an accessible name. |

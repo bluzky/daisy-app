@@ -52,6 +52,15 @@ extension DocumentWindowController {
         }
         editor.setWorkspaceCandidates(workspaceCandidates)
         editor.setMetadataLinksEnabled(isWorkspace)
+        editor.queryBlocksRequested = { [weak self] requests in
+            self?.runQueryBlocks(requests, for: .editor)
+        }
+        editor.queryResultOpened = { [weak self] path, line in
+            self?.openQueryResult(path: path, line: line)
+        }
+        editor.queryTaskToggled = { [weak self] path, line, checked in
+            self?.setQueryTaskChecked(path: path, line: line, checked: checked)
+        }
         editor.linkActivated = { [weak self] request in
             guard let self else { return }
             switch request {
@@ -500,6 +509,10 @@ extension DocumentWindowController {
         split.editorViewController?.pickLinkRequested = nil
         split.editorViewController?.imageClicked = nil
         split.editorViewController?.linkActivated = nil
+        split.editorViewController?.queryBlocksRequested = nil
+        split.editorViewController?.queryResultOpened = nil
+        split.editorViewController?.queryTaskToggled = nil
+        runQueryBlocks([], for: .editor)
         documentWindow.makeFirstResponder(nil)
         let overlayHidden: @MainActor () -> Void = { [weak self] in
             if hidesAccessoryAfterSwap { self?.dismissEditChrome() }

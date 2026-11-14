@@ -88,6 +88,12 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     var taskRootIdentity: WorkspaceFileWriter.RootIdentity?
     /// Check-offs from the Tasks sidebar, run one after another.
     var taskWrites: Task<Void, Never>?
+    /// The `tasks`/`notes` blocks the preview shows, and the task answering
+    /// them while the index changes.
+    var queryBlockRequests: [QueryBlockTarget: [QueryBlockRequest]] = [:]
+    var queryBlockTask: Task<Void, Never>?
+    /// What each result row stands for, by path and line, for its clicks.
+    var queryBlockMatches: [String: WorkspaceQueryMatch] = [:]
     /// Fallback for controller-driven untitled content outside an NSDocument.
     let untitledDocumentID = UUID().uuidString
     var backHistory: [HistoryEntry] = []

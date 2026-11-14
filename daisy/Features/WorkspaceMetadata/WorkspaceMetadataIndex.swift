@@ -2,10 +2,11 @@
 //  WorkspaceMetadataIndex.swift
 //  daisy
 //
-//  The tags, contexts and projects of one workspace's saved Markdown files,
-//  and each file's tasks for the Tasks sidebar, with unsaved buffers
-//  standing in for their files. Tasks have their own revision and stream,
-//  apart from the name snapshots editors get. One index serves every
+//  One record per saved Markdown file in a workspace (`WorkspaceFileRecord`:
+//  its frontmatter, tags, contexts, projects, links and tasks), with unsaved
+//  buffers standing in for their files. Editors get name snapshots summed
+//  from the records; the Tasks sidebar and query blocks `run` queries over
+//  them and re-run when a change stream says the records changed. One index serves every
 //  workspace window on a root. It only reads the workspace; what it read is
 //  kept in memory and copied to a `WorkspaceIndexStore` outside the
 //  workspace, so the next open starts from the copy instead of an empty
@@ -65,32 +66,17 @@ nonisolated struct WorkspaceMetadataSnapshot: Sendable, Equatable {
     }
 }
 
-/// One file's names: normalized key → source spelling (marker stripped) →
-/// occurrences.
+/// Name counts: normalized key → source spelling (marker stripped) →
+/// occurrences. One file's, or summed over the workspace.
 nonisolated struct WorkspaceMetadataContribution: Sendable, Equatable {
     typealias Spellings = [String: Int]
     private(set) var names: [WorkspaceMetadataKind: [String: Spellings]] = [:]
-    /// Per-file only; merge deliberately aggregates names, never tasks.
-    var tasks: [WorkspaceTaskMetadata] = []
 
     init() {}
 
-    init(_ metadata: WorkspaceMetadata) {
-        tasks = metadata.tasks
-        add(metadata.tags, as: .tag)
-        add(metadata.contexts, as: .context)
-        add(metadata.projects, as: .project)
-    }
-
-    /// `count` more occurrences of `spelling`, as a stored row records them.
-    mutating func add(kind: WorkspaceMetadataKind, key: String, spelling: String, count: Int) {
-        names[kind, default: [:]][key, default: [:]][spelling, default: 0] += count
-    }
-
-    private mutating func add(_ tokens: [WorkspaceMetadataToken], as kind: WorkspaceMetadataKind) {
+    init(_ tokens: [WorkspaceTokenOccurrence]) {
         for token in tokens {
-            // Every marker is one character: `#`, `@` or `+`.
-            names[kind, default: [:]][token.key, default: [:]][String(token.source.dropFirst()), default: 0] += 1
+            names[token.kind, default: [:]][token.key, default: [:]][token.spelling, default: 0] += 1
         }
     }
 
@@ -153,26 +139,29 @@ actor WorkspaceMetadataIndex {
 
     private nonisolated struct FileEntry: Sendable, Equatable {
         let fingerprint: Fingerprint
-        /// SHA-256 of the bytes the contribution was extracted from.
+        /// SHA-256 of the bytes the record was extracted from.
         let hash: Data
-        let contribution: WorkspaceMetadataContribution
+        let record: WorkspaceFileRecord
     }
 
     private nonisolated struct DiscoveredFile: Sendable {
         let relativePath: String
         let url: URL
         let fingerprint: Fingerprint
+        var created: Date?
     }
 
     private nonisolated enum FileRead: Sendable {
-        case parsed(FileEntry)
+        case parsed(FileEntry, created: Date?)
         /// Gone, or too large, unreadable or not UTF-8: it contributes nothing.
         case excluded
     }
 
     private var files: [String: FileEntry] = [:]
+    /// When each file was created, as last read; never stored.
+    private var createdDates: [String: Date] = [:]
     /// Unsaved buffers by file, latest last; the latest stands in for the file.
-    private var overlays: [String: [(owner: UUID, contribution: WorkspaceMetadataContribution)]] = [:]
+    private var overlays: [String: [(owner: UUID, record: WorkspaceFileRecord)]] = [:]
     private var aggregate = WorkspaceMetadataContribution()
     /// Reads per path, so a slow read cannot overwrite a newer one.
     private var readGenerations: [String: Int] = [:]
@@ -198,11 +187,63 @@ actor WorkspaceMetadataIndex {
     private var latest: WorkspaceMetadataSnapshot?
     private(set) var taskRevision = 0
     private var taskSubscribers: [UUID: AsyncStream<Int>.Continuation] = [:]
+    private(set) var recordRevision = 0
+    private var recordSubscribers: [UUID: AsyncStream<Int>.Continuation] = [:]
 
     func tasks() -> [WorkspaceIndexedTask] {
-        Set(files.keys).union(overlays.keys).sorted().flatMap { path in
-            (effectiveContribution(at: path)?.tasks ?? []).map { WorkspaceIndexedTask(path: path, task: $0) }
+        run(.allTasks).compactMap { match in
+            if case let .task(task) = match { return task }
+            return nil
         }
+    }
+
+    // MARK: - Queries
+
+    /// Answers `query` over each file's effective record: its unsaved buffer
+    /// when it has one, otherwise what was read from disk.
+    func run(_ query: WorkspaceQuery, calendar: Calendar = .current) -> [WorkspaceQueryMatch] {
+        let records = Set(files.keys).union(overlays.keys).sorted().compactMap(effectiveRecord(at:))
+        return query.evaluate(records, info: { path in
+            WorkspaceFileInfo(modified: self.files[path]?.fingerprint.modificationDate,
+                              created: self.createdDates[path],
+                              size: self.files[path]?.fingerprint.size)
+        }, calendar: calendar)
+    }
+
+    /// Every frontmatter key some file's effective record has, normalized.
+    func attributeKeys() -> Set<String> {
+        var keys: Set<String> = []
+        for path in Set(files.keys).union(overlays.keys) {
+            if let record = effectiveRecord(at: path) { keys.formUnion(record.attributes.keys) }
+        }
+        return keys
+    }
+
+    /// Files that link to `path`, or use the token whose page it is.
+    func references(to path: String) -> [WorkspaceQueryMatch] {
+        var tokens: [(kind: WorkspaceMetadataKind, key: String)] = []
+        for kind in WorkspaceMetadataKind.allCases {
+            for key in (aggregate.names[kind] ?? [:]).keys.sorted() { tokens.append((kind, key)) }
+        }
+        return run(.references(to: path, tokens: tokens))
+    }
+
+    /// Tells subscribers, with a new revision, whenever any file's effective
+    /// record may have changed, so they re-run their queries.
+    func recordChanges() -> AsyncStream<Int> {
+        let id = UUID()
+        let (stream, continuation) = AsyncStream.makeStream(of: Int.self, bufferingPolicy: .bufferingNewest(1))
+        recordSubscribers[id] = continuation
+        continuation.yield(recordRevision)
+        continuation.onTermination = { [weak self] _ in Task { await self?.unsubscribeRecords(id) } }
+        return stream
+    }
+
+    private func unsubscribeRecords(_ id: UUID) { recordSubscribers[id] = nil }
+
+    private func publishRecords() {
+        recordRevision += 1
+        for continuation in recordSubscribers.values { continuation.yield(recordRevision) }
     }
 
     func taskChanges() -> AsyncStream<Int> {
@@ -226,11 +267,12 @@ actor WorkspaceMetadataIndex {
         guard let path = relativePath(of: url) else { return }
         let generation = (readGenerations[path] ?? 0) + 1
         readGenerations[path] = generation
-        guard let metadata = await Self.extract(markdown), readGenerations[path] == generation else { return }
+        guard let record = await Self.record(markdown, path: path, root: root),
+              readGenerations[path] == generation else { return }
         // Unknown fingerprint forces the watcher/reconcile to confirm the actual disk bytes.
         setFile(FileEntry(fingerprint: Fingerprint(modificationDate: nil, size: nil),
                           hash: Data(SHA256.hash(data: Data(markdown.utf8))),
-                          contribution: WorkspaceMetadataContribution(metadata)), at: path)
+                          record: record), at: path)
         publish()
         scheduleFlush()
     }
@@ -307,6 +349,8 @@ actor WorkspaceMetadataIndex {
         subscribers.removeAll()
         for continuation in taskSubscribers.values { continuation.finish() }
         taskSubscribers.removeAll()
+        for continuation in recordSubscribers.values { continuation.finish() }
+        recordSubscribers.removeAll()
         await flushCache()
         await closeStore()
     }
@@ -361,6 +405,8 @@ actor WorkspaceMetadataIndex {
         for path in files.keys where !present.contains(path) {
             setFile(nil, at: path)
         }
+        createdDates = Dictionary(discovered.compactMap { file in file.created.map { (file.relativePath, $0) } },
+                                  uniquingKeysWith: { first, _ in first })
 
         let pending = discovered.filter { files[$0.relativePath]?.fingerprint != $0.fingerprint }
         var start = 0
@@ -403,14 +449,18 @@ actor WorkspaceMetadataIndex {
             generations[file.relativePath] = generation
         }
         let limits = limits
-        // Bytes that hash the same as last time keep their names unread.
+        let root = root
+        // Bytes that hash the same as last time keep their records unread.
         let known = files
         let results = await withTaskGroup(of: (String, FileRead).self) { group in
             var results: [(String, FileRead)] = []
             var iterator = batch.makeIterator()
             func addRead(_ file: DiscoveredFile) {
                 let previous = known[file.relativePath]
-                group.addTask { (file.relativePath, await Self.readFile(file.url, limits: limits, previous: previous)) }
+                group.addTask {
+                    (file.relativePath, await Self.readFile(file.url, path: file.relativePath, root: root,
+                                                            limits: limits, previous: previous))
+                }
             }
             for _ in 0..<limits.concurrency {
                 guard let file = iterator.next() else { break }
@@ -429,9 +479,11 @@ actor WorkspaceMetadataIndex {
 
     private func apply(_ result: FileRead, at path: String) {
         switch result {
-        case let .parsed(entry):
+        case let .parsed(entry, created):
+            createdDates[path] = created
             setFile(entry, at: path)
         case .excluded:
+            createdDates[path] = nil
             setFile(nil, at: path)
         }
     }
@@ -461,7 +513,7 @@ actor WorkspaceMetadataIndex {
             // A file read while the store opened is newer than its row.
             for (path, record) in records where files[path] == nil && readGenerations[path] == nil {
                 setFile(FileEntry(fingerprint: Fingerprint(modificationDate: record.modificationDate, size: record.size),
-                                  hash: record.hash, contribution: record.contribution), at: path)
+                                  hash: record.hash, record: record.record), at: path)
                 // The store already has it.
                 unsavedPaths.remove(path)
             }
@@ -491,7 +543,7 @@ actor WorkspaceMetadataIndex {
                 (path: path, record: files[path].map {
                     WorkspaceIndexStore.Record(modificationDate: $0.fingerprint.modificationDate,
                                                size: $0.fingerprint.size, hash: $0.hash,
-                                               contribution: $0.contribution)
+                                               record: $0.record)
                 })
             }
             unsavedPaths.removeAll()
@@ -556,11 +608,11 @@ actor WorkspaceMetadataIndex {
     /// tabs on one file never count it twice.
     func setOverlay(_ markdown: String, for url: URL, owner: UUID) async {
         guard let path = relativePath(of: url) else { return }
-        guard let metadata = await Self.extract(markdown) else { return }
-        let effective = effectiveContribution(at: path)
+        guard let record = await Self.record(markdown, path: path, root: root) else { return }
+        let effective = effectiveRecord(at: path)
         var stack = overlays[path] ?? []
         stack.removeAll { $0.owner == owner }
-        stack.append((owner, WorkspaceMetadataContribution(metadata)))
+        stack.append((owner, record))
         overlays[path] = stack
         replaceEffective(effective, at: path)
         publish()
@@ -576,7 +628,7 @@ actor WorkspaceMetadataIndex {
             await read([file])
             scheduleFlush()
         }
-        let effective = effectiveContribution(at: path)
+        let effective = effectiveRecord(at: path)
         overlays[path]?.removeAll { $0.owner == owner }
         if overlays[path]?.isEmpty == true { overlays[path] = nil }
         replaceEffective(effective, at: path)
@@ -585,23 +637,26 @@ actor WorkspaceMetadataIndex {
 
     // MARK: - Aggregate
 
-    private func effectiveContribution(at path: String) -> WorkspaceMetadataContribution? {
-        overlays[path]?.last?.contribution ?? files[path]?.contribution
+    private func effectiveRecord(at path: String) -> WorkspaceFileRecord? {
+        overlays[path]?.last?.record ?? files[path]?.record
     }
 
     private func setFile(_ entry: FileEntry?, at path: String) {
-        let effective = effectiveContribution(at: path)
+        let effective = effectiveRecord(at: path)
         if files[path] != entry { unsavedPaths.insert(path) }
         files[path] = entry
         replaceEffective(effective, at: path)
     }
 
-    private func replaceEffective(_ old: WorkspaceMetadataContribution?, at path: String) {
-        let new = effectiveContribution(at: path)
+    private func replaceEffective(_ old: WorkspaceFileRecord?, at path: String) {
+        let new = effectiveRecord(at: path)
         if (old?.tasks ?? []) != (new?.tasks ?? []) { publishTasks() }
         guard old != new else { return }
-        if let old { aggregate.merge(old, sign: -1) }
-        if let new { aggregate.merge(new, sign: 1) }
+        publishRecords()
+        let oldNames = old?.contribution, newNames = new?.contribution
+        guard oldNames != newNames else { return }
+        if let oldNames { aggregate.merge(oldNames, sign: -1) }
+        if let newNames { aggregate.merge(newNames, sign: 1) }
     }
 
     // MARK: - Files
@@ -645,17 +700,21 @@ actor WorkspaceMetadataIndex {
                   let path = relativePath(of: url, root: root, limits: limits),
                   seen.insert(path).inserted else { continue }
             let target = root.appending(path: path)
-            let values = try? target.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey])
+            let values = try? target.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey,
+                                                              .creationDateKey])
             discovered.append(DiscoveredFile(relativePath: path, url: target,
                                              fingerprint: Fingerprint(modificationDate: values?.contentModificationDate,
-                                                                      size: values?.fileSize)))
+                                                                      size: values?.fileSize),
+                                             created: values?.creationDate))
         }
         return (discovered, walk.isTruncated)
     }
 
     @concurrent
-    nonisolated private static func readFile(_ url: URL, limits: Limits, previous: FileEntry?) async -> FileRead {
-        let keys: Set<URLResourceKey> = [.contentModificationDateKey, .fileSizeKey, .isRegularFileKey]
+    nonisolated private static func readFile(_ url: URL, path: String, root: URL, limits: Limits,
+                                             previous: FileEntry?) async -> FileRead {
+        let keys: Set<URLResourceKey> = [.contentModificationDateKey, .fileSizeKey, .isRegularFileKey,
+                                         .creationDateKey]
         guard let values = try? url.resourceValues(forKeys: keys),
               values.isRegularFile == true else { return .excluded }
         guard let size = values.fileSize, size <= limits.maximumFileSize,
@@ -663,17 +722,19 @@ actor WorkspaceMetadataIndex {
         let fingerprint = Fingerprint(modificationDate: values.contentModificationDate, size: size)
         let hash = Data(SHA256.hash(data: data))
         if let previous, previous.hash == hash {
-            return .parsed(FileEntry(fingerprint: fingerprint, hash: hash, contribution: previous.contribution))
+            return .parsed(FileEntry(fingerprint: fingerprint, hash: hash, record: previous.record),
+                           created: values.creationDate)
         }
         guard let markdown = String(data: data, encoding: .utf8),
               let metadata = WorkspaceMetadataExtractor.extract(markdown) else { return .excluded }
         return .parsed(FileEntry(fingerprint: fingerprint, hash: hash,
-                                 contribution: WorkspaceMetadataContribution(metadata)))
+                                 record: WorkspaceFileRecord(path: path, metadata: metadata, root: root)),
+                       created: values.creationDate)
     }
 
     @concurrent
-    nonisolated private static func extract(_ markdown: String) async -> WorkspaceMetadata? {
-        WorkspaceMetadataExtractor.extract(markdown)
+    nonisolated private static func record(_ markdown: String, path: String, root: URL) async -> WorkspaceFileRecord? {
+        WorkspaceMetadataExtractor.extract(markdown).map { WorkspaceFileRecord(path: path, metadata: $0, root: root) }
     }
 }
 

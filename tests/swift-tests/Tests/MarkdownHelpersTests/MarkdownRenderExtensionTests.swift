@@ -10,7 +10,7 @@ final class MarkdownRenderExtensionTests: XCTestCase {
       MarkdownHTML.renderExtensions.map(\.id),
       [
         "highlight", "callout", "katex", "mermaid", "colorful-headings",
-        "task-metadata", "metadata-links", "slash-commands", "metadata-completion"
+        "task-metadata", "metadata-links", "query-blocks", "slash-commands", "metadata-completion"
       ]
     )
     let orders = MarkdownHTML.renderExtensions.map(\.order)
@@ -60,6 +60,12 @@ final class MarkdownRenderExtensionTests: XCTestCase {
         ),
         .init(
           titleKey: "Metadata links",
+          descriptionKey: nil,
+          defaultEnabled: true,
+          userToggleable: true
+        ),
+        .init(
+          titleKey: "Query blocks",
           descriptionKey: nil,
           defaultEnabled: true,
           userToggleable: true
@@ -269,7 +275,7 @@ final class MarkdownRenderExtensionTests: XCTestCase {
     XCTAssertEqual(
       state,
       [
-        "mermaid": true, "colorful-headings": true, "task-metadata": true, "metadata-links": true,
+        "mermaid": true, "colorful-headings": true, "task-metadata": true, "metadata-links": true, "query-blocks": true,
         "slash-commands": true, "metadata-completion": true
       ]
     )
@@ -282,7 +288,7 @@ final class MarkdownRenderExtensionTests: XCTestCase {
     XCTAssertEqual(
       MarkdownHTML.editorExtensionState(configuration: configuration),
       [
-        "mermaid": false, "colorful-headings": true, "task-metadata": true, "metadata-links": true,
+        "mermaid": false, "colorful-headings": true, "task-metadata": true, "metadata-links": true, "query-blocks": true,
         "slash-commands": true, "metadata-completion": true
       ]
     )
@@ -485,6 +491,158 @@ final class MarkdownRenderExtensionTests: XCTestCase {
     (\(tokens)) + '/' + document.querySelector('p').textContent.startsWith('Plan #review with')
     """)
     XCTAssertEqual(left, "/true", "leaving the workspace restores the text")
+  }
+
+  func testQueryBlocksActivateOnlyForTasksAndNotesFences() throws {
+    let blocks = try XCTUnwrap(MarkdownHTML.renderExtensions.first { $0.id == "query-blocks" })
+    for markdown in ["```tasks\n#a\n```", "Intro\n\n~~~notes\nin:notes/\n~~~", "  ```tasks  \n```"] {
+      XCTAssertTrue(blocks.isActive(in: .init(html: "", markdown: markdown)), markdown)
+    }
+    for markdown in ["```task\n```", "```files\n#a\n```", "```swift\ntasks\n```", "Plain tasks and files", "    ```tasks"] {
+      XCTAssertFalse(blocks.isActive(in: .init(html: "", markdown: markdown)), markdown)
+    }
+    // Quick Look and HTML export never load the script.
+    XCTAssertTrue(blocks.assets(mode: .inline).bodyJS.isEmpty)
+    XCTAssertEqual(blocks.assets(mode: .lazy).scriptAssetIDs, ["query-blocks"])
+  }
+
+  @MainActor
+  func testReadModeShowsQueryResultsOnlyInAWorkspace() async throws {
+    let rendered = MarkdownHTML.render(
+      markdown: """
+      # Plan
+
+      ```tasks
+      +daisy -is:done
+      ```
+
+      ```swift
+      let tasks = 1
+      ```
+      """,
+      vendorLoading: .lazy
+    )
+    XCTAssertTrue(rendered.scriptAssetIDs.contains("query-blocks"))
+    let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 900, height: 600))
+    webView.loadHTMLString(rendered.html, baseURL: nil)
+    let deadline = Date().addingTimeInterval(10)
+    while webView.isLoading && Date() < deadline { try await Task.sleep(for: .milliseconds(50)) }
+    func evaluate(_ script: String) async throws -> String? {
+      try await webView.evaluateJavaScript(script) as? String
+    }
+    let state = """
+    [document.querySelectorAll('.mdp-query').length,
+     document.querySelector('pre:has(> code.language-tasks)').getClientRects().length ? 'shown' : 'hidden',
+     Array.from(document.querySelectorAll('.mdp-query-row'), r => r.textContent).join('|'),
+     document.querySelector('.mdp-query-problems')?.textContent ?? ''].join(';')
+    """
+    var outside: String?
+    while Date() < deadline {
+      outside = try await evaluate("window.MdPreview && window.MdPreview.queryResults ? (\(state)) : null")
+      if outside != nil { break }
+      try await Task.sleep(for: .milliseconds(50))
+    }
+    XCTAssertEqual(outside, "0;shown;;", "outside a workspace the block is its source")
+
+    let pending = try await evaluate("""
+    document.documentElement.setAttribute('data-mdp-workspace', '');
+    window.MdPreview.reapplyExtensions();
+    \(state)
+    """)
+    XCTAssertEqual(pending, "1;shown;;", "the source shows until the host answers")
+
+    let id = try await evaluate("document.querySelector('.mdp-query').dataset.queryId")
+    let answered = try await evaluate("""
+    window.MdPreview.queryResults([{ id: '\(id ?? "")', source: 'tasks', problems: ['bad <b>term</b>'],
+      empty: 'No matching tasks',
+      rows: [{ path: 'a.md', line: 3, text: 'Ship <i>it</i>', checked: false, detail: 'a' }] }]);
+    \(state)
+    """)
+    XCTAssertEqual(answered, "1;hidden; Ship <i>it</i>a;bad <b>term</b>", "rows replace the source, as text")
+    let layout = try await evaluate("""
+    const query = document.querySelector('.mdp-query');
+    [query.previousElementSibling.className, query.closest('.md-code-wrap') ? 'inside' : 'outside',
+     document.querySelector('.mdp-query-row').className,
+     document.querySelector('.mdp-query-checkbox').className].join(';')
+    """)
+    XCTAssertEqual(layout, "md-code-wrap is-wrapped;outside;mdp-query-row task-list-item;task-list-item-checkbox mdp-query-checkbox",
+                   "results follow the code frame and use the document's task markup")
+
+    let decorated = try await evaluate("""
+    window.MdPreview.queryResults([{ id: '\(id ?? "")', source: 'tasks', problems: [], empty: '',
+      rows: [{ path: 'a.md', line: 3, text: 'Water plants @Daniel', checked: false, detail: 'a',
+               source: 'p:medium Water plants due:2026-10-24 @Daniel email@x.com C#' }] }]);
+    const row = document.querySelector('.mdp-query-row');
+    [Array.from(row.querySelectorAll('.mdp-task-badge'), b => b.className.split(' ').slice(1).join('+')).join(','),
+     Array.from(row.querySelectorAll('.mdp-query-token'), t => t.textContent).join(','),
+     row.querySelector('.mdp-query-link').textContent.includes('due:'),
+     row.querySelector('.mdp-query-link').getAttribute('aria-label')].join(';')
+    """)
+    XCTAssertEqual(decorated,
+                   "mdp-task-badge-priority+mdp-task-badge-medium,mdp-task-badge-due;@Daniel;false;Water plants @Daniel",
+                   "a task row shows its fields as badges and its names as links")
+
+    let literal = try await evaluate("""
+    document.documentElement.setAttribute('data-mdp-literal-task-metadata', '');
+    const shown = (node) => node.getClientRects().length ? 'shown' : 'hidden';
+    const literal = shown(document.querySelector('pre:has(> code.language-tasks)'))
+      + '/' + shown(document.querySelector('.mdp-query'));
+    document.documentElement.removeAttribute('data-mdp-literal-task-metadata');
+    literal
+    """)
+    XCTAssertEqual(literal, "shown/hidden", "PNG export shows the source")
+
+    let left = try await evaluate("""
+    document.documentElement.removeAttribute('data-mdp-workspace');
+    window.MdPreview.reapplyExtensions();
+    \(state)
+    """)
+    XCTAssertEqual(left, "0;shown;;", "leaving the workspace shows the source again")
+  }
+
+  @MainActor
+  func testReadModeNotesAreAnUnorderedList() async throws {
+    let rendered = MarkdownHTML.render(markdown: "```notes\nstatus:active\n```\n", vendorLoading: .lazy)
+    let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 900, height: 600))
+    webView.loadHTMLString(rendered.html, baseURL: nil)
+    let deadline = Date().addingTimeInterval(10)
+    while webView.isLoading && Date() < deadline { try await Task.sleep(for: .milliseconds(50)) }
+    var id: String?
+    while Date() < deadline {
+      id = try await webView.evaluateJavaScript("""
+      window.MdPreview && window.MdPreview.queryResults ? (document.documentElement.setAttribute('data-mdp-workspace', ''),
+        window.MdPreview.reapplyExtensions(), document.querySelector('.mdp-query')?.dataset.queryId ?? null) : null
+      """) as? String
+      if id != nil { break }
+      try await Task.sleep(for: .milliseconds(50))
+    }
+    let list = try await webView.evaluateJavaScript("""
+    window.MdPreview.queryResults([{ id: '\(id ?? "")', source: 'notes', problems: [], empty: '',
+      rows: [{ path: 'p.md', line: 1, text: 'Plan', checked: false, detail: 'projects' }] }]);
+    const item = document.querySelector('.mdp-query-row');
+    [item.parentElement.tagName, item.classList.contains('task-list-item'), !!item.querySelector('input'),
+     getComputedStyle(item, '::before').content !== 'none'].join(';')
+    """) as? String
+    XCTAssertEqual(list, "UL;false;false;true", "a notes row is a bulleted list item, without a checkbox")
+  }
+
+  @MainActor
+  func testReadModeLeavesAnEmptyQueryBlockAsCode() async throws {
+    let rendered = MarkdownHTML.render(markdown: "```tasks\n\n```\n\n```notes\n  \n```\n", vendorLoading: .lazy)
+    let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 900, height: 600))
+    webView.loadHTMLString(rendered.html, baseURL: nil)
+    let deadline = Date().addingTimeInterval(10)
+    while webView.isLoading && Date() < deadline { try await Task.sleep(for: .milliseconds(50)) }
+    var count: Int?
+    while Date() < deadline {
+      count = try await webView.evaluateJavaScript("""
+      window.MdPreview && window.MdPreview.queryResults ? (document.documentElement.setAttribute('data-mdp-workspace', ''),
+        window.MdPreview.reapplyExtensions(), document.querySelectorAll('.mdp-query').length) : null
+      """) as? Int
+      if count != nil { break }
+      try await Task.sleep(for: .milliseconds(50))
+    }
+    XCTAssertEqual(count, 0, "an empty block is not a query")
   }
 
   func testTaskMetadataPrintsTheLiteralText() {

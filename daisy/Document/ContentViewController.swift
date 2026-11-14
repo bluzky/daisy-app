@@ -72,6 +72,15 @@ final class ContentViewController: NSViewController {
     var activeHeadingDidChange: ((Int?) -> Void)?
     var zoomDidChange: ((CGFloat) -> Void)?
     var linkActivated: ((LinkTarget) -> Void)?
+    private var documentWindowController: DocumentWindowController? {
+        view.window?.windowController as? DocumentWindowController
+    }
+
+    /// Shows query block results in place of their blocks.
+    func showQueryResults(_ results: [QueryBlockResult]) {
+        webView.showQueryResults(results)
+    }
+
     /// Metadata tokens read as links to their workspace pages.
     var metadataLinksEnabled: Bool {
         get { webView.metadataLinksEnabled }
@@ -124,6 +133,15 @@ final class ContentViewController: NSViewController {
         }
         webView.linkActivated = { [weak self] link in
             self?.linkActivated?(link)
+        }
+        webView.queryBlocksRequested = { [weak self] requests in
+            self?.documentWindowController?.runQueryBlocks(requests, for: .preview)
+        }
+        webView.queryResultOpened = { [weak self] path, line in
+            self?.documentWindowController?.openQueryResult(path: path, line: line)
+        }
+        webView.queryTaskToggled = { [weak self] path, line, checked in
+            self?.documentWindowController?.setQueryTaskChecked(path: path, line: line, checked: checked)
         }
         webView.zoomDidChange = { [weak self] zoom in
             self?.zoomDidChange?(zoom)
