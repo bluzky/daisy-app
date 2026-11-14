@@ -280,4 +280,20 @@ extension DocumentWindowController {
         split.showSidebar()
         syncSidebarToolbarState()
     }
+
+    /// View ▸ Table of Contents / Project Navigator (⌘1 / ⌘2): shows the
+    /// sidebar on that pane, or hides it when it already shows that pane.
+    /// The toolbar's segments only ever select.
+    func toggleSidebarMode(_ mode: SidebarViewController.Mode) {
+        guard let split = documentWindow.contentViewController as? MainSplitViewController else { return }
+        if split.isSidebarVisible, split.sidebarMode == mode {
+            split.hideSidebar()
+            syncSidebarToolbarState()
+            return
+        }
+        switch mode {
+        case .outline: selectOutlineMode(nil)
+        case .files: selectFilesMode(nil)
+        }
+    }
 }

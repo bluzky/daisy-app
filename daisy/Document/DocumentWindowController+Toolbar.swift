@@ -30,6 +30,7 @@ extension NSToolbarItem.Identifier {
     static let editDocument = NSToolbarItem.Identifier("EditDocument")
     static let navigation = NSToolbarItem.Identifier("Navigation")
     static let alwaysOnTop = NSToolbarItem.Identifier("AlwaysOnTop")
+    static let hideCompletedTasks = NSToolbarItem.Identifier("HideCompletedTasks")
     static let journalCalendar = NSToolbarItem.Identifier("JournalCalendar")
 }
 
@@ -113,6 +114,7 @@ extension DocumentWindowController {
             .themesAndSettings,
             .zoom,
             .alwaysOnTop,
+            .hideCompletedTasks,
             .journalCalendar
         ]
         if hasLLMTargetsAvailable {
@@ -200,6 +202,7 @@ extension DocumentWindowController {
         case .tasks: return makeTasksItem(willBeInsertedIntoToolbar: flag)
         case .references: return makeReferencesItem(willBeInsertedIntoToolbar: flag)
         case .alwaysOnTop: return makeAlwaysOnTopItem(willBeInsertedIntoToolbar: flag)
+        case .hideCompletedTasks: return makeHideCompletedTasksItem(willBeInsertedIntoToolbar: flag)
         case .share: return makeShareItem()
         case .searchForDocument: return makeSearchForDocumentItem()
         case .printDocument: return makePrintItem()
@@ -374,6 +377,39 @@ extension DocumentWindowController {
             alwaysOnTopButton = button
         }
         return item
+    }
+
+    private func makeHideCompletedTasksItem(willBeInsertedIntoToolbar: Bool) -> NSToolbarItem {
+        let label = NSLocalizedString("Hide Completed Tasks", comment: "Hide Completed Tasks toolbar item label")
+        let (item, button) = makeToggleButtonItem(
+            identifier: .hideCompletedTasks,
+            image: Self.hideCompletedTasksImage(isHiding: HideCompletedTasksSetting.isEnabled),
+            label: label,
+            action: #selector(toggleHideCompletedTasks(_:))
+        )
+        item.toolTip = NSLocalizedString("Hide checked tasks in every window",
+                                         comment: "Hide Completed Tasks toolbar item tooltip")
+        button.toolTip = item.toolTip
+        // The extension's Settings toggle decides availability, not validation.
+        item.autovalidates = false
+        if willBeInsertedIntoToolbar {
+            hideCompletedTasksItem = item
+            hideCompletedTasksButton = button
+            refreshHideCompletedTasksItem()
+        } else {
+            button.state = HideCompletedTasksSetting.isEnabled ? .on : .off
+        }
+        return item
+    }
+
+    /// An open eye while completed tasks show, a crossed-out one while they
+    /// are hidden.
+    static func hideCompletedTasksImage(isHiding: Bool) -> NSImage {
+        let image = NSImage(systemSymbolName: isHiding ? "eye.slash" : "eye",
+                            accessibilityDescription: NSLocalizedString("Hide Completed Tasks",
+                                                                        comment: "Hide Completed Tasks toolbar image")) ?? NSImage()
+        image.isTemplate = true
+        return image
     }
 
     private func alwaysOnTopImage() -> NSImage {

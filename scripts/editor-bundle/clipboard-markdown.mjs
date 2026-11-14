@@ -10,8 +10,24 @@ const BLOCKED_TAGS = new Set([
   "svg", "math", "canvas", "video", "audio", "source", "picture",
 ])
 
+// A bare URL as GFM autolinks it: trailing sentence punctuation is not part
+// of it. Backslash escapes stay in such a link's address, so the URL is
+// copied as is.
+const BARE_URL = /(?<![\p{L}\p{N}])(?:https?:\/\/|mailto:|www\.)[^\s<>]*[^\s<>?!.,:;*_~'")\]]/giu
+
 function escapeText(value) {
-  return String(value || "")
+  const source = String(value || "")
+  let result = ""
+  let last = 0
+  for (const match of source.matchAll(BARE_URL)) {
+    result += escapeProse(source.slice(last, match.index)) + match[0]
+    last = match.index + match[0].length
+  }
+  return result + escapeProse(source.slice(last))
+}
+
+function escapeProse(value) {
+  return value
     .replace(/\\/g, "\\\\")
     .replace(/[\[\]]/g, "\\$&")
     .replace(/([*~])/g, "\\$1")

@@ -80,7 +80,7 @@ const result = (id, rows = [{ path: "a.md", line: 3, text: "Ship it", checked: f
   const id = sent.queries.at(-1)[0].id
   editor.setQueryResults([{ id, source: "tasks", problems: [], empty: "", groups: ungrouped([{
     path: "a.md", line: 3, text: "Water plants @Daniel", checked: false, detail: "a",
-    source: "p:medium Water plants due:2026-10-24 @Daniel email@x.com C#",
+    source: "p:medium Water plants due:2099-12-31 @Daniel email@x.com C#",
   }]) }])
   const row = host.querySelector(".cm-md-query-row")
   check("a task row shows its fields as badges", Array.from(row.querySelectorAll(".mdp-task-badge"),

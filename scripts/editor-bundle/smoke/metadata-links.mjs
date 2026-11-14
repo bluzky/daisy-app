@@ -114,3 +114,23 @@ for (const [name, source, at] of [
     editor.openLinkAt(source.indexOf("https://ex") + 3)?.destination === "https://example.com/a")
   editor.destroy()
 }
+
+// --- Open Link at Caret ---------------------------------------------------------
+
+{
+  const source = "See [docs](a.md) and #review, @alex +daisy\nplain\n"
+  const { editor, opened } = create(source)
+  editor.setMetadataLinks(true)
+  const at = (offset) => { editor.select(offset); return editor.openLinkAtCaret() }
+  check("the caret inside a link opens it", json(at(source.indexOf("docs") + 2)) === json({ destination: "a.md" }))
+  check("the caret right after a link opens it", json(at(source.indexOf(")") + 1)) === json({ destination: "a.md" }))
+  for (const token of ["#review", "@alex", "+daisy"]) {
+    const from = source.indexOf(token)
+    check(`the caret before, inside and after ${token} opens it`,
+      [from, from + 2, from + token.length].every((offset) => json(at(offset)) === json({ token })))
+  }
+  const count = opened.length
+  check("the caret in plain text opens nothing",
+    at(source.indexOf("See") + 1) === null && at(source.indexOf("plain")) === null && opened.length === count)
+  editor.destroy()
+}

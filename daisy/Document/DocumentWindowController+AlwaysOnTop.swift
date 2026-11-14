@@ -67,6 +67,9 @@ extension DocumentWindowController {
             menuItem.image = Self.alwaysOnTopMenuImage(isPinned: isAlwaysOnTop)
             return true
         }
+        if menuItem.action == #selector(toggleHideCompletedTasks(_:)) {
+            return validateHideCompletedTasksMenuItem(menuItem)
+        }
         if let isEnabled = validateWorkspaceMenuItem(menuItem) {
             return isEnabled
         }

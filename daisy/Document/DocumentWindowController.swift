@@ -116,6 +116,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     weak var referencesButton: NSButton?
     weak var referencesItem: NSToolbarItem?
     weak var alwaysOnTopButton: NSButton?
+    weak var hideCompletedTasksButton: NSButton?
+    weak var hideCompletedTasksItem: NSToolbarItem?
     weak var editButton: NSButton?
     var editorChangeRevision = 0
     /// In-memory source shown by preview before the user saves it.
@@ -338,6 +340,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
             self?.keepTab(showing: url)
         }
         documentWindow.contentViewController = split
+        applyHideCompletedTasksSetting()
         documentWindow.setContentSize(NSSize(width: 1100, height: 720))
         documentWindow.center()
         documentWindow.setFrameAutosaveName("MainWindow")
@@ -378,7 +381,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         findBarOverlay?.needsDisplay = true
         // Toggles whose on state is drawn in the theme accent. An on button
         // repaints its fill only when the state changes, so step it through.
-        for case let button? in [tasksButton, referencesButton, alwaysOnTopButton] {
+        for case let button? in [tasksButton, referencesButton, alwaysOnTopButton, hideCompletedTasksButton] {
             button.bezelColor = Self.makeThemeAccent()
             let state = button.state
             button.state = .off
