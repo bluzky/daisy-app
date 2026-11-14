@@ -9,9 +9,9 @@ final class MarkdownRenderExtensionTests: XCTestCase {
     XCTAssertEqual(
       MarkdownHTML.renderExtensions.map(\.id),
       [
-        "highlight", "callout", "katex", "mermaid", "colorful-headings",
+        "highlight", "callout", "katex", "mermaid",
         "task-metadata", "hide-completed-tasks", "metadata-links", "query-blocks", "slash-commands",
-        "metadata-completion"
+        "metadata-completion", "slides"
       ]
     )
     let orders = MarkdownHTML.renderExtensions.map(\.order)
@@ -43,12 +43,6 @@ final class MarkdownRenderExtensionTests: XCTestCase {
         ),
         .init(
           titleKey: "Mermaid",
-          descriptionKey: nil,
-          defaultEnabled: true,
-          userToggleable: true
-        ),
-        .init(
-          titleKey: "Colorful headings",
           descriptionKey: nil,
           defaultEnabled: true,
           userToggleable: true
@@ -88,6 +82,12 @@ final class MarkdownRenderExtensionTests: XCTestCase {
           descriptionKey: nil,
           defaultEnabled: true,
           userToggleable: true
+        ),
+        .init(
+          titleKey: "Slides",
+          descriptionKey: nil,
+          defaultEnabled: true,
+          userToggleable: false
         )
       ]
     )
@@ -100,7 +100,7 @@ final class MarkdownRenderExtensionTests: XCTestCase {
       renderExtensionConfiguration: .init(enabledIDs: [])
     )
 
-    XCTAssertFalse(rendered.html.contains("--mdp-heading-h1"))
+    XCTAssertFalse(rendered.html.contains("hljs-keyword"))
   }
 
   func testDisabledCoreExtensionsPreserveSourceAndEmitNoAssets() {
@@ -182,15 +182,6 @@ final class MarkdownRenderExtensionTests: XCTestCase {
     return (defaults, suite)
   }
 
-  func testHeadingExtensionsEmitDocumentStylesOnlyWhenActive() {
-    let headings = MarkdownHTML.render(
-      markdown: "# First\n\nIntro\n\n## Nested\n\nDetails\n\n# Second",
-      vendorLoading: .lazy
-    )
-    XCTAssertTrue(headings.html.contains("--mdp-heading-h1: #d14f6a"))
-    XCTAssertTrue(headings.scriptAssetIDs.isEmpty)
-  }
-
   func testWarmupEmitsEnabledExtensionCSSWithoutDocumentScripts() {
     let warmup = MarkdownHTML.render(
       markdown: "Plain text.",
@@ -198,7 +189,6 @@ final class MarkdownRenderExtensionTests: XCTestCase {
       warmup: true
     )
 
-    XCTAssertTrue(warmup.html.contains("--mdp-heading-h1: #d14f6a"))
     XCTAssertTrue(warmup.scriptAssetIDs.isEmpty)
   }
 
@@ -230,15 +220,6 @@ final class MarkdownRenderExtensionTests: XCTestCase {
     XCTAssertTrue(rendered.html.contains("MdPreviewLazy.lazyExtension"))
     XCTAssertFalse(rendered.html.contains("MdPreviewLazy.lazyRenderer"))
     XCTAssertFalse(rendered.html.contains("registerReapplier(highlightAll)"))
-  }
-
-  func testHeadingExtensionsActivateForHeadingsOnlyInFootnoteDefinitions() {
-    let rendered = MarkdownHTML.render(
-      markdown: "Body text with no heading.[^1]\n\n[^1]: ## Footnote heading",
-      vendorLoading: .lazy
-    )
-    XCTAssertTrue(rendered.html.contains("<h2"))
-    XCTAssertTrue(rendered.html.contains("--mdp-heading-h1: #d14f6a"))
   }
 
   func testActivationRunsOnceInExplicitOrderAgainstEarlierTransforms() {
@@ -282,7 +263,7 @@ final class MarkdownRenderExtensionTests: XCTestCase {
     XCTAssertEqual(
       state,
       [
-        "mermaid": true, "colorful-headings": true, "task-metadata": true, "hide-completed-tasks": true, "metadata-links": true,
+        "mermaid": true, "task-metadata": true, "hide-completed-tasks": true, "metadata-links": true,
         "query-blocks": true,
         "slash-commands": true, "metadata-completion": true
       ]
@@ -296,7 +277,7 @@ final class MarkdownRenderExtensionTests: XCTestCase {
     XCTAssertEqual(
       MarkdownHTML.editorExtensionState(configuration: configuration),
       [
-        "mermaid": false, "colorful-headings": true, "task-metadata": true, "hide-completed-tasks": true, "metadata-links": true,
+        "mermaid": false, "task-metadata": true, "hide-completed-tasks": true, "metadata-links": true,
         "query-blocks": true,
         "slash-commands": true, "metadata-completion": true
       ]
@@ -307,7 +288,7 @@ final class MarkdownRenderExtensionTests: XCTestCase {
     let renderOnly = MarkdownHTML.renderExtensions.filter { $0.editor == nil }.map(\.id)
     XCTAssertEqual(
       renderOnly,
-      ["highlight", "callout", "katex"]
+      ["highlight", "callout", "katex", "slides"]
     )
   }
 
@@ -374,24 +355,13 @@ final class MarkdownRenderExtensionTests: XCTestCase {
     XCTAssertTrue(html.contains(#"extensionOptions: {"slash-commands":{"cmd.h1":"标题 1\u003c\/script>"}}"#))
   }
 
-  func testColorfulHeadingsEditorCSSIsScopedToTheModuleClass() {
-    let css = MarkdownHTML.editorExtensionCSS()
-    XCTAssertTrue(css.contains("--mdp-heading-h1: #d14f6a"))
-    for level in 1...6 {
-      XCTAssertTrue(
-        css.contains("#editor .cm-colorful-headings .cm-md-h\(level) { color: var(--mdp-heading-h\(level)); }")
-      )
-    }
-    XCTAssertFalse(css.contains(".markdown-body"))
-  }
-
   func testEditorPageEmbedsExtensionCSS() {
     let html = EditorHTML.render(
       markdown: "x",
       editorJavaScript: "",
-      configuration: .init(extensionCSS: ".cm-colorful-headings-marker{}")
+      configuration: .init(extensionCSS: ".cm-editor-extension-marker{}")
     )
-    XCTAssertTrue(html.contains(".cm-colorful-headings-marker{}"))
+    XCTAssertTrue(html.contains(".cm-editor-extension-marker{}"))
   }
 
   func testEditorExtensionStateLiteralIsSortedAndScriptSafe() {

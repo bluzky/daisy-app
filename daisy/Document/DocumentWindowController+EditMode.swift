@@ -60,14 +60,13 @@ extension DocumentWindowController {
 
     func makeEditItem(willBeInsertedIntoToolbar: Bool) -> NSToolbarItem {
         let edit = NSLocalizedString("Edit", comment: "Edit toolbar item label")
-        let image = editToolbarImage(editing: isEditing)
+        let image = editToolbarImage()
 
         let (item, button) = makeToggleButtonItem(identifier: .editDocument,
                                                   image: image,
                                                   label: edit,
                                                   action: #selector(toggleEditAction(_:)))
         item.autovalidates = false
-        button.setButtonType(.momentaryPushIn)
         button.widthAnchor.constraint(equalToConstant: 30).isActive = true
         button.heightAnchor.constraint(equalToConstant: 30).isActive = true
 
@@ -87,20 +86,18 @@ extension DocumentWindowController {
 
     private func applyEditToolbarState(to button: NSButton) {
         let editing = isEditing
-        button.image = editToolbarImage(editing: editing)
-        button.state = .off
+        // One icon; the pressed (accent) state shows edit mode is on.
+        button.image = editToolbarImage()
+        button.state = editing ? .on : .off
         button.toolTip = editing
             ? NSLocalizedString("Stop editing and return to preview", comment: "Edit toolbar item tooltip while editing")
             : NSLocalizedString("Edit document", comment: "Edit toolbar item tooltip")
         button.isEnabled = canToggleEditMode
     }
 
-    private func editToolbarImage(editing: Bool) -> NSImage {
-        let symbol = editing ? "play.tv" : "highlighter"
-        let description = editing
-            ? NSLocalizedString("Preview document", comment: "Edit toolbar play TV image")
-            : NSLocalizedString("Edit document", comment: "Edit toolbar highlighter image")
-        let image = NSImage(systemSymbolName: symbol, accessibilityDescription: description) ?? NSImage()
+    private func editToolbarImage() -> NSImage {
+        let description = NSLocalizedString("Edit document", comment: "Edit toolbar highlighter image")
+        let image = NSImage(systemSymbolName: "highlighter", accessibilityDescription: description) ?? NSImage()
         image.isTemplate = true
         return image
     }

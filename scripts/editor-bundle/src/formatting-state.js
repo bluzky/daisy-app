@@ -14,5 +14,8 @@ export function formattingState(state) {
       FencedCode: 'fenced', CodeBlock: 'plain', Table: 'table' }[node.name]
     if (command) commands.add(command)
   }
-  return { heading, commands: [...commands].sort() }
+  // The caret's one-based line, so the host can follow it (the slide
+  // preview shows the slide the caret is on).
+  const line = state.doc.lineAt(selection.head).number
+  return { heading, commands: [...commands].sort(), line }
 }

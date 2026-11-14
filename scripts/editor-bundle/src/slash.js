@@ -18,6 +18,7 @@ const SLASH_GROUPS = [
   { id: "insert", label: "Insert" },
   { id: "task", label: "Task" },
   { id: "actions", label: "Actions" },
+  { id: "slides", label: "Slides" },
 ]
 
 // An existing block marker on the converted line is replaced, not stacked.
@@ -47,6 +48,10 @@ const SLASH_ICONS = {
   h3: SLASH_ICON_TEXT("H3"),
   quote: '<path d="M5 4.5v11M9 6.5h6.5M9 10h6.5M9 13.5h4"/>',
   divider: '<path d="M3.5 10h13"/>',
+  slide: '<rect x="3" y="4.5" width="14" height="9" rx="1.5"/><path d="M7 16.5h6"/>',
+  notes: '<rect x="3" y="4.5" width="14" height="11" rx="1.5"/><path d="M6.5 8.5h7M6.5 11.5h4.5"/>',
+  step: '<path d="M4 6h6M4 10h9M4 14h12"/><path d="M14.5 4.5l2 1.5-2 1.5"/>',
+  column: '<rect x="3" y="4.5" width="14" height="11" rx="1.5"/><path d="M10 4.5v11"/>',
   bullet: '<path d="M8.5 6h8M8.5 10h8M8.5 14h8"/><circle cx="4.7" cy="6" r=".9" fill="currentColor" stroke="none"/><circle cx="4.7" cy="10" r=".9" fill="currentColor" stroke="none"/><circle cx="4.7" cy="14" r=".9" fill="currentColor" stroke="none"/>',
   ordered: '<path d="M9 6h7.5M9 10h7.5M9 14h7.5"/><text x="3" y="7.6" font-size="5.6" font-weight="700" fill="currentColor" stroke="none" font-family="-apple-system, system-ui, sans-serif">1</text><text x="3" y="11.6" font-size="5.6" font-weight="700" fill="currentColor" stroke="none" font-family="-apple-system, system-ui, sans-serif">2</text><text x="3" y="15.6" font-size="5.6" font-weight="700" fill="currentColor" stroke="none" font-family="-apple-system, system-ui, sans-serif">3</text>',
   task: '<rect x="3.5" y="4" width="5" height="5" rx="1.2"/><path d="M4.8 6.6l1.1 1.1 1.8-2.1M11.5 6.5h5M11.5 14h5"/><rect x="3.5" y="11" width="5" height="5" rx="1.2"/>',
@@ -155,6 +160,24 @@ const SLASH_COMMANDS = [
     insert: (now) => slashDate(now) },
   { id: "now", group: "insert", label: "Now", aliases: ["now", "time", "datetime", "date"],
     insert: (now) => `${slashDate(now)} ${slashTime(now)}` },
+  // Slide deck commands, listed only in a deck (`slides: true` in the
+  // frontmatter); see `slashIsDeck`.
+  { id: "slide", group: "slides", label: "New Slide", aliases: ["slide", "page", "break", "next"],
+    // A blank line keeps `text\n---` from becoming a setext heading.
+    convert: (raw) => raw
+      ? { lines: [raw, "", "---", ""], caret: { line: 3, ch: 0 } }
+      : { lines: ["---", ""], caret: { line: 1, ch: 0 } } },
+  { id: "notes", group: "slides", label: "Speaker Notes", aliases: ["notes", "speaker", "presenter"],
+    convert: (raw) => ({ lines: ["???", raw], caret: { line: 1, ch: raw.length } }) },
+  { id: "step", group: "slides", label: "Reveal Step", aliases: ["step", "reveal", "build", "click"],
+    // At the end of text it reveals that line; alone, the block below it.
+    convert: (raw) => raw
+      ? { lines: [`${raw} <!-- step -->`], caret: { line: 0, ch: raw.length } }
+      : { lines: ["<!-- step -->", ""], caret: { line: 1, ch: 0 } } },
+  { id: "column", group: "slides", label: "New Column", aliases: ["column", "columns", "split"],
+    convert: (raw) => raw
+      ? { lines: [raw, "", "<!-- column -->", ""], caret: { line: 3, ch: 0 } }
+      : { lines: ["<!-- column -->", ""], caret: { line: 1, ch: 0 } } },
   // Only on today's journal entry; see `setCarryOver`.
   { id: "carryover", group: "insert", label: "Carry over unfinished tasks",
     aliases: ["carryover", "carry", "unfinished", "tasks", "journal"], host: "insertCarryOver" },
@@ -294,7 +317,22 @@ function slashTrigger(state) {
     // Whether `/move` has a block to take: text besides the query, outside
     // a quote or callout.
     movable: rest.trim() !== "" && !/^[ \t]*>/.test(rest),
+    deck: slashIsDeck(state),
   }
+}
+
+// A deck turns slides on in its frontmatter, as the preview does
+// (`SlideDeck.isDeck`): `slides: true`, YAML or TOML.
+function slashIsDeck(state) {
+  const doc = state.doc
+  const fence = doc.line(1).text.trim()
+  if (fence !== "---" && fence !== "+++") return false
+  for (let number = 2; number <= Math.min(doc.lines, 200); number++) {
+    const text = doc.line(number).text
+    if (text.trim() === fence) return false
+    if (/^slides\s*[:=]\s*["']?true["']?\s*$/i.test(text)) return true
+  }
+  return false
 }
 
 // How a query matches one name: whole name, start of the name, or start of a
@@ -458,7 +496,8 @@ function slashExtensions(options, host) {
     const label = templatesLabel
     return [
       ...commands.filter((command) => (command.id !== "move" || (session.movable && host.moveBlocks)) &&
-        (command.id !== "carryover" || host.carryOver)),
+        (command.id !== "carryover" || host.carryOver) &&
+        (command.group !== "slides" || session.deck)),
       ...(templates.length ? [{
         ...SLASH_TEMPLATES_ENTRY,
         label,
