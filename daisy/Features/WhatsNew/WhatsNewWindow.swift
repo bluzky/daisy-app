@@ -18,29 +18,32 @@ struct WhatsNewFeature: Identifiable {
     /// The features of `WhatsNewPolicy.featuresVersion`. Features
     /// the running system cannot show are left out rather than announced.
     static var current: [WhatsNewFeature] {
-        var features = [
+        [
             WhatsNewFeature(
-                id: "search-for-document",
-                symbol: "doc.text.magnifyingglass",
-                title: L("Find any document fast"),
-                detail: L("Press ⌘K and type part of a file name to open it from the current project.")
+                id: "workspace-tabs",
+                symbol: "rectangle.stack",
+                title: L("Files open as tabs"),
+                detail: L("Every file from a folder opens as a tab in its window. Click once to preview, double-click to keep it.")
+            ),
+            WhatsNewFeature(
+                id: "link-to-file",
+                symbol: "link.badge.plus",
+                title: L("Link to project files"),
+                detail: L("Type /link in Edit Mode to find a file in the project and insert a relative link to it.")
+            ),
+            WhatsNewFeature(
+                id: "cycle-list-items",
+                symbol: "checklist",
+                title: L("Faster checklists"),
+                detail: L("Press ⌘↩ on a list item to turn it into a checklist item, check it, and back.")
+            ),
+            WhatsNewFeature(
+                id: "read-files-from-finder",
+                symbol: "book",
+                title: L("Read files from Finder"),
+                detail: L("Files opened from Finder start in Read Mode, in a narrower window sized for reading.")
             ),
         ]
-        if #available(macOS 26.0, *) {
-            features.append(WhatsNewFeature(
-                id: "floating-formatting-controls",
-                symbol: "textformat",
-                title: L("Redesigned formatting bar"),
-                detail: L("On macOS 26 and later, the formatting bar uses Liquid Glass, with headings, links, lists, and styles in compact groups.")
-            ))
-        }
-        features.append(WhatsNewFeature(
-            id: "code-block-controls",
-            symbol: "curlybraces.square",
-            title: L("Redesigned code blocks"),
-            detail: L("Wrap long lines with one click. Code blocks now use rounded cards that show their language.")
-        ))
-        return features
     }
 }
 
