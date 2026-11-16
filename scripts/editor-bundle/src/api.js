@@ -23,6 +23,7 @@ import { codeLanguages } from "./languages.js"
 import { frontmatterCollapse } from "./frontmatter-collapse.js"
 import { alignInactiveHeadings, keepCaretAfterListMarker, leaveListMarkerBackward, livePreview, stopAfterListMarker } from "./live-preview/plugins.js"
 import { obsidianHighlight } from "./obsidian-highlight.js"
+import { insertComment } from "./comments.js"
 import { codeCardWidth } from "./code-card-width.js"
 import { activeCodeBlock, anchoredPointerSelection, pointerPreview, stablePointerPreview } from "./pointer.js"
 import { readWorkspaceCandidates, workspaceCandidatesChanged } from "./metadata-completion.js"
@@ -339,6 +340,7 @@ window.MDEditor = {
       orderedList: toggleListStyle("ordered"),
       taskList: toggleListStyle("task"),
       link: insertLink,
+      comment: insertComment,
     }
     if (callbacks?.onCopyCode) codeCopyHandlers.set(view, callbacks.onCopyCode)
     if (callbacks?.onFormattingChange) tableFormattingCallbacks.set(view, callbacks.onFormattingChange)

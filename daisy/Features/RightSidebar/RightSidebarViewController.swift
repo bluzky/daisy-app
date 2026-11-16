@@ -3,7 +3,7 @@
 //  daisy
 //
 //  The window's right-hand pane, which shows one panel at a time: the
-//  Agenda, References or, for a slide deck, Slide Preview. Both live in the same split view item, so
+//  Agenda, References, Comments or, for a slide deck, Slide Preview. Both live in the same split view item, so
 //  switching between them keeps the pane's width and does not reflow the
 //  document. The last panel shown is remembered for every window.
 //
@@ -14,12 +14,14 @@ import SwiftUI
 enum RightSidebarPanel: String {
     case agenda
     case references
+    case comments
     case slides
 }
 
 final class RightSidebarViewController: NSViewController {
     let agenda = TaskCalendarViewController()
     let references = ReferencesViewController()
+    let comments = CommentsViewController()
     let slidePreview = SlidePreviewViewController()
 
     private static let panelKey = "MainSplitView.rightPanel"
@@ -29,7 +31,7 @@ final class RightSidebarViewController: NSViewController {
 
     override func loadView() {
         view = NSView()
-        for child in [agenda, references, slidePreview] as [NSViewController] {
+        for child in [agenda, references, comments, slidePreview] as [NSViewController] {
             addChild(child)
             child.view.translatesAutoresizingMaskIntoConstraints = false
             view.addSubview(child.view)
@@ -65,6 +67,7 @@ final class RightSidebarViewController: NSViewController {
         let focused = view.window?.firstResponder as? NSView
         agenda.view.isHidden = panel != .agenda
         references.view.isHidden = panel != .references
+        comments.view.isHidden = panel != .comments
         slidePreview.view.isHidden = panel != .slides
         // Focus must not stay in the panel that was just hidden.
         if let focused, focused.isDescendant(of: view), focused.isHiddenOrHasHiddenAncestor {

@@ -9,7 +9,7 @@ final class MarkdownRenderExtensionTests: XCTestCase {
     XCTAssertEqual(
       MarkdownHTML.renderExtensions.map(\.id),
       [
-        "highlight", "callout", "katex", "mermaid",
+        "highlight", "callout", "comments", "katex", "mermaid",
         "task-metadata", "hide-completed-tasks", "metadata-links", "query-blocks", "slash-commands",
         "metadata-completion", "slides"
       ]
@@ -31,6 +31,12 @@ final class MarkdownRenderExtensionTests: XCTestCase {
         ),
         .init(
           titleKey: "Callouts",
+          descriptionKey: nil,
+          defaultEnabled: true,
+          userToggleable: true
+        ),
+        .init(
+          titleKey: "Comments",
           descriptionKey: nil,
           defaultEnabled: true,
           userToggleable: true
@@ -263,7 +269,7 @@ final class MarkdownRenderExtensionTests: XCTestCase {
     XCTAssertEqual(
       state,
       [
-        "mermaid": true, "task-metadata": true, "hide-completed-tasks": true, "metadata-links": true,
+        "mermaid": true, "comments": true, "task-metadata": true, "hide-completed-tasks": true, "metadata-links": true,
         "query-blocks": true,
         "slash-commands": true, "metadata-completion": true
       ]
@@ -277,7 +283,7 @@ final class MarkdownRenderExtensionTests: XCTestCase {
     XCTAssertEqual(
       MarkdownHTML.editorExtensionState(configuration: configuration),
       [
-        "mermaid": false, "task-metadata": true, "hide-completed-tasks": true, "metadata-links": true,
+        "mermaid": false, "comments": true, "task-metadata": true, "hide-completed-tasks": true, "metadata-links": true,
         "query-blocks": true,
         "slash-commands": true, "metadata-completion": true
       ]

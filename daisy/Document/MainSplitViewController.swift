@@ -175,6 +175,7 @@ final class MainSplitViewController: NSSplitViewController {
                  assetBaseURL: URL?,
                  documentID: String) {
         let previewMarkdown = showsPreview ? markdown : ""
+        commentsViewController?.setMarkdown(markdown)
         slidePreview?.display(markdown: previewMarkdown, assetBaseURL: assetBaseURL)
         if let presentation = presentationController, url != nil,
            presentation.sourceURL == url {
@@ -258,6 +259,11 @@ final class MainSplitViewController: NSSplitViewController {
         } else {
             contentViewController?.find(query, backwards: backwards, options: options, completion: completion)
         }
+    }
+
+    /// Read mode's comment bubble: called with the selection and the note typed.
+    func setCommentAddedHandler(_ handler: ((MarkdownComments.PageSelection, String) -> Void)?) {
+        contentViewController?.commentAddedHandler = handler
     }
 
     /// The visible document's text selection, whichever view is showing.
@@ -445,6 +451,10 @@ final class MainSplitViewController: NSSplitViewController {
         isRightSidebarVisible && rightSidebarViewController?.panel == .references
     }
 
+    var isCommentsVisible: Bool {
+        isRightSidebarVisible && rightSidebarViewController?.panel == .comments
+    }
+
     /// An edit session is closing: its buffer has been or is being committed.
     var isEditorExitInProgress: Bool { isEditorExiting }
 
@@ -515,6 +525,26 @@ final class MainSplitViewController: NSSplitViewController {
             }
         }
         slidePreviewUpdate = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: work)
+    }
+
+    // MARK: Comments
+
+    private var commentsUpdate: DispatchWorkItem?
+
+    /// While the editor changes, the Comments panel follows what is in the
+    /// buffer, a moment after the typing pauses.
+    private func scheduleCommentsUpdate() {
+        guard isCommentsVisible else { return }
+        commentsUpdate?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, let editor = self.editorViewController else { return }
+            editor.fetchMarkdown { [weak self] markdown in
+                guard let markdown else { return }
+                self?.commentsViewController?.setMarkdown(markdown)
+            }
+        }
+        commentsUpdate = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: work)
     }
 
@@ -594,6 +624,13 @@ final class MainSplitViewController: NSSplitViewController {
         sidebar.isCollapsed = true
     }
 
+    /// Closes the right-hand pane, whichever panel it shows. Its toolbar
+    /// buttons follow through `tasksCollapseObservation`.
+    func hideRightSidebar() {
+        guard let pane = splitViewItems.last, !pane.isCollapsed else { return }
+        pane.isCollapsed = true
+    }
+
     var sidebarMode: SidebarViewController.Mode {
         sidebarViewController?.currentMode ?? .outline
     }
@@ -622,6 +659,7 @@ final class MainSplitViewController: NSSplitViewController {
         sidebarViewController?.refreshRowTextColors()
         taskCalendarViewController?.themeColorsDidChange()
         referencesViewController?.themeColorsDidChange()
+        commentsViewController?.themeColorsDidChange()
     }
 
     private static func makeSidebarItem(for viewController: SidebarViewController,
@@ -723,7 +761,10 @@ final class MainSplitViewController: NSSplitViewController {
             editorVC.view.alphaValue = 0
             contentHost.installEditorOverlay(editorVC)
             editorVC.findOverlay = findOverlayView
-            editorVC.textDidChangeForSlidePreview = { [weak self] in self?.scheduleSlidePreviewUpdate() }
+            editorVC.textDidChangeForSlidePreview = { [weak self] in
+                self?.scheduleSlidePreviewUpdate()
+                self?.scheduleCommentsUpdate()
+            }
             editorVC.caretLineDidChange = { [weak self] line in self?.slidePreview?.followCaret(toLine: line) }
             editorVC.setExtensionHostState(extensionHostState)
             cachedEditorViewController = editorVC
@@ -1018,8 +1059,13 @@ final class MainSplitViewController: NSSplitViewController {
         rightSidebarViewController?.references
     }
 
+    var commentsViewController: CommentsViewController? {
+        rightSidebarViewController?.comments
+    }
+
     override func viewDidAppear() {
         super.viewDidAppear()
+        (view.window?.windowController as? DocumentWindowController)?.configureCommentsPanel()
         defer {
             syncTasksPaneVisibility()
             (view.window?.windowController as? DocumentWindowController)?.syncSidebarToolbarState()

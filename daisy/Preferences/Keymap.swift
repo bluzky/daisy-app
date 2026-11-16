@@ -25,6 +25,7 @@ enum KeymapCommand: String, CaseIterable, Hashable {
     case viewToggleToolbar = "view.toggleToolbar"
     case viewToggleAlwaysOnTop = "view.toggleAlwaysOnTop"
     case viewToggleCompletedTasks = "view.toggleCompletedTasks"
+    case viewToggleComments = "view.toggleComments"
     case viewPresent = "view.present"
     case viewPresentFromCurrentSlide = "view.presentFromCurrentSlide"
     case viewToggleSlidePreview = "view.toggleSlidePreview"
@@ -67,6 +68,7 @@ enum KeymapCommand: String, CaseIterable, Hashable {
     case formatQuote = "format.quote"
     case insertLinkToFile = "insert.linkToFile"
     case insertCarriedOverTasks = "insert.carriedOverTasks"
+    case insertComment = "insert.comment"
 
     case searchSelectPrevious = "search.selectPrevious"
     case searchSelectNext = "search.selectNext"
@@ -85,7 +87,7 @@ enum KeymapCommand: String, CaseIterable, Hashable {
              .viewToggleSidebar, .viewShowOutline,
              .viewShowProjectNavigator, .viewToggleTasks, .viewToggleReferences, .viewToggleEditMode,
              .viewToggleToolbar,
-             .viewToggleAlwaysOnTop, .viewToggleCompletedTasks, .viewPresent, .viewPresentFromCurrentSlide, .viewToggleSlidePreview,
+             .viewToggleAlwaysOnTop, .viewToggleCompletedTasks, .viewToggleComments, .viewPresent, .viewPresentFromCurrentSlide, .viewToggleSlidePreview,
              .findFind, .findReplace, .findNext,
              .findPrevious, .findJumpToSelection, .goBack, .goForward,
              .goTodayJournal, .goPreviousJournalEntry, .goNextJournalEntry:
@@ -97,7 +99,7 @@ enum KeymapCommand: String, CaseIterable, Hashable {
              .formatBold, .formatItalic, .formatStrikethrough,
              .formatInlineCode, .formatLink, .formatBulletList,
              .formatOrderedList, .formatChecklist, .formatQuote,
-             .insertLinkToFile, .insertCarriedOverTasks, .goOpenLinkAtCaret:
+             .insertLinkToFile, .insertCarriedOverTasks, .insertComment, .goOpenLinkAtCaret:
             .editing
         case .searchSelectPrevious, .searchSelectNext, .searchOpenResult,
              .searchOpenResultInNewTab, .searchOpenResultInNewWindow:
@@ -117,6 +119,7 @@ enum KeymapCommand: String, CaseIterable, Hashable {
         case .viewToggleToolbar: "Show Toolbar"
         case .viewToggleAlwaysOnTop: "Always on Top"
         case .viewToggleCompletedTasks: "Hide Completed Tasks"
+        case .viewToggleComments: "Comments"
         case .viewPresent: "Present"
         case .viewPresentFromCurrentSlide: "Present from Current Slide"
         case .viewToggleSlidePreview: "Slide Preview"
@@ -155,6 +158,7 @@ enum KeymapCommand: String, CaseIterable, Hashable {
         case .formatQuote: "Block Quote"
         case .insertLinkToFile: "Link to File…"
         case .insertCarriedOverTasks: "Unfinished Tasks from Earlier Days"
+        case .insertComment: "Comment"
         case .searchSelectPrevious: "Previous Result"
         case .searchSelectNext: "Next Result"
         case .searchOpenResult: "Open Result"
@@ -492,7 +496,8 @@ struct Keymap {
             ("shift+cmd+i", .viewToggleTasks), ("shift+cmd+r", .viewToggleReferences),
             ("cmd+e", .viewToggleEditMode),
             ("opt+cmd+t", .viewToggleToolbar), ("ctrl+cmd+t", .viewToggleAlwaysOnTop),
-            ("shift+cmd+h", .viewToggleCompletedTasks), ("opt+cmd+p", .viewPresent),
+            ("shift+cmd+h", .viewToggleCompletedTasks), ("ctrl+cmd+c", .viewToggleComments),
+            ("opt+cmd+p", .viewPresent),
             ("opt+shift+cmd+p", .viewPresentFromCurrentSlide), ("cmd+9", .viewToggleSlidePreview),
             ("cmd+f", .findFind), ("opt+cmd+f", .findReplace), ("cmd+g", .findNext),
             ("shift+cmd+g", .findPrevious), ("cmd+j", .findJumpToSelection),
@@ -510,7 +515,8 @@ struct Keymap {
             ("opt+cmd+0", .formatBody), ("opt+cmd+1", .formatHeading1),
             ("opt+cmd+2", .formatHeading2), ("opt+cmd+3", .formatHeading3),
             ("cmd+b", .formatBold), ("cmd+i", .formatItalic),
-            ("shift+cmd+x", .formatStrikethrough), ("shift+cmd+m", .formatInlineCode),
+            ("shift+cmd+x", .formatStrikethrough), ("opt+cmd+c", .formatInlineCode),
+            ("shift+cmd+m", .insertComment),
             ("shift+cmd+7", .formatBulletList),
             ("shift+cmd+9", .formatOrderedList), ("shift+cmd+l", .formatChecklist),
             ("cmd+'", .formatQuote), ("cmd+.", .goOpenLinkAtCaret)

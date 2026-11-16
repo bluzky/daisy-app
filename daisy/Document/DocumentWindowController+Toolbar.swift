@@ -15,6 +15,7 @@ extension NSToolbarItem.Identifier {
     /// Preserve the saved toolbar position while replacing the old pane.
     static let tasks = NSToolbarItem.Identifier("Inspector")
     static let references = NSToolbarItem.Identifier("References")
+    static let comments = NSToolbarItem.Identifier("Comments")
     static let share = NSToolbarItem.Identifier("Share")
     static let searchForDocument = NSToolbarItem.Identifier("SearchForDocument")
     /// The sidebar show/hide toggle. The raw value predates the mode picker
@@ -66,6 +67,7 @@ extension DocumentWindowController {
             .space,
             .tasks,
             .references,
+            .comments,
             .share,
             .editDocument
         ]
@@ -105,6 +107,7 @@ extension DocumentWindowController {
             .editDocument,
             .tasks,
             .references,
+            .comments,
             .share,
             .searchForDocument,
             .printDocument,
@@ -201,6 +204,7 @@ extension DocumentWindowController {
         case .editDocument: return makeEditItem(willBeInsertedIntoToolbar: flag)
         case .tasks: return makeTasksItem(willBeInsertedIntoToolbar: flag)
         case .references: return makeReferencesItem(willBeInsertedIntoToolbar: flag)
+        case .comments: return makeCommentsItem(willBeInsertedIntoToolbar: flag)
         case .alwaysOnTop: return makeAlwaysOnTopItem(willBeInsertedIntoToolbar: flag)
         case .hideCompletedTasks: return makeHideCompletedTasksItem(willBeInsertedIntoToolbar: flag)
         case .share: return makeShareItem()
@@ -687,8 +691,9 @@ extension DocumentWindowController {
         let isVisible = (documentWindow.contentViewController as? MainSplitViewController)?
             .toggleRightPanel(.agenda) ?? false
         setTasksToggleSelected(isVisible)
-        // One panel at a time: the other is off either way.
+        // One panel at a time: the others are off either way.
         setReferencesToggleSelected(false)
+        refreshCommentsToggleItem()
     }
 
     /// View > Tasks: the same toggle as the toolbar button, which may
@@ -717,6 +722,7 @@ extension DocumentWindowController {
     func refreshRightPanelToggleItems() {
         refreshTasksToggleItem()
         refreshReferencesToggleItem()
+        refreshCommentsToggleItem()
     }
 
     func refreshTasksToggleItem() {
@@ -755,6 +761,7 @@ extension DocumentWindowController {
             .toggleRightPanel(.references) ?? false
         setReferencesToggleSelected(isVisible)
         setTasksToggleSelected(false)
+        refreshCommentsToggleItem()
     }
 
     /// View > References: the same toggle as the toolbar button.

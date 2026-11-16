@@ -828,6 +828,13 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
         }
     }
 
+    /// Replaces `from..<to` (UTF-16 offsets, as the editor counts) with `text`,
+    /// as typing would: it can be undone, and the caret lands after it.
+    func replaceRange(_ text: String, from: Int, to: Int) {
+        let script = "window.__mdEditor && window.__mdEditor.insertTextAt(\(EditorHTML.jsStringLiteral(text)), \(from), \(to))"
+        webView.evaluateJavaScript(script) { _, _ in }
+    }
+
     /// Replaces the source after an image rename without rebuilding the page,
     /// preserving the editor's selection and scroll position.
     func replaceMarkdown(_ markdown: String) {

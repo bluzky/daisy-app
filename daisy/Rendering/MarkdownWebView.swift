@@ -129,6 +129,8 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
     var queryTaskToggled: ((String, Int, Bool) -> Void)?
     /// A slide the reader clicked in the Slide Preview pane, by index.
     var slideClicked: ((Int) -> Void)?
+    /// The Read mode comment bubble's field was submitted: the selection and the note.
+    var commentAdded: ((MarkdownComments.PageSelection, String) -> Void)?
     #endif
     var scrollDidChange: (() -> Void)?
     /// Render every document as slides, frontmatter or not. Set by the
@@ -631,6 +633,11 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         case "slideClicked":
             guard let index = dict["index"] as? Int, index >= 0 else { return }
             slideClicked?(index)
+        case "addComment":
+            guard let note = dict["note"] as? String, let text = dict["text"] as? String,
+                  let start = dict["start"] as? Int, let end = dict["end"] as? Int,
+                  let occurrence = dict["occurrence"] as? Int else { return }
+            commentAdded?(.init(text: text, startLine: start, endLine: end, occurrence: occurrence), note)
         case "openMetadata":
             guard let token = dict["token"] as? String else { return }
             linkActivated?(.metadata(token))

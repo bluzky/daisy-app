@@ -106,6 +106,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private weak var filesMenuItem: NSMenuItem?
     private weak var tasksMenuItem: NSMenuItem?
     private weak var referencesMenuItem: NSMenuItem?
+    private weak var commentsMenuItem: NSMenuItem?
     private weak var automaticAppearanceMenuItem: NSMenuItem?
     private weak var lightAppearanceMenuItem: NSMenuItem?
     private weak var darkAppearanceMenuItem: NSMenuItem?
@@ -145,6 +146,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         installEditModeMenuItem()
         installFormatMenu()
         installInsertMenu()
+        installCopyCommentsMenuItem()
         installSearchForDocumentMenuItem()
         installWorkspaceMenuItems()
         installFileExportMenuItems()
@@ -579,6 +581,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         syncSidebarViewMenuState()
     }
 
+    @objc private func toggleCommentsFromMenu(_ sender: Any?) {
+        activeDocumentWindowController?.toggleCommentsFromMenu()
+    }
+
     @objc private func toggleReferencesFromMenu(_ sender: Any?) {
         activeDocumentWindowController?.toggleReferencesFromMenu()
         syncSidebarViewMenuState()
@@ -621,6 +627,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let controller = activeDocumentWindowController
             menuItem.toolTip = controller?.isWorkspace == true ? nil : L("The agenda is available in a workspace.")
             return controller?.canToggleTasks == true
+        case #selector(toggleCommentsFromMenu(_:)):
+            return activeDocumentWindowController != nil
         case #selector(toggleReferencesFromMenu(_:)):
             let controller = activeDocumentWindowController
             menuItem.toolTip = controller?.isWorkspace == true ? nil : L("References are available in a workspace.")
@@ -639,6 +647,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
              #selector(insertImageFromMenu(_:)),
              #selector(insertCodeBlockFromMenu(_:)),
              #selector(insertTableFromMenu(_:)):
+            return activeDocumentWindowController?.canFormatMarkdown ?? false
+        case #selector(insertCommentFromMenu(_:)):
             return activeDocumentWindowController?.canFormatMarkdown ?? false
         case #selector(insertLinkToFileFromMenu(_:)):
             return activeDocumentWindowController?.canInsertLinkToFile ?? false
@@ -901,6 +911,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case #selector(toggleSidebarFromMenu(_:)): return .viewToggleSidebar
         case #selector(toggleTasksFromMenu(_:)): return .viewToggleTasks
         case #selector(toggleReferencesFromMenu(_:)): return .viewToggleReferences
+        case #selector(toggleCommentsFromMenu(_:)): return .viewToggleComments
         case #selector(selectOutlineMode(_:)): return .viewShowOutline
         case #selector(selectFilesMode(_:)): return .viewShowProjectNavigator
         case #selector(toggleEditModeFromMenu(_:)): return .viewToggleEditMode
@@ -925,6 +936,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case #selector(DocumentWindowController.openPreviousJournalEntry(_:)): return .goPreviousJournalEntry
         case #selector(DocumentWindowController.openNextJournalEntry(_:)): return .goNextJournalEntry
         case #selector(insertLinkToFileFromMenu(_:)): return .insertLinkToFile
+        case #selector(insertCommentFromMenu(_:)): return .insertComment
         case #selector(insertCarriedOverTasksFromMenu(_:)): return .insertCarriedOverTasks
         case #selector(openLinkAtCaretFromMenu(_:)): return .goOpenLinkAtCaret
         case #selector(NSResponder.scrollLineUp(_:)): return .goLineUp
@@ -1479,7 +1491,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         viewMenu.insertItem(references, at: insertIndex + 4)
         referencesMenuItem = references
 
-        viewMenu.insertItem(.separator(), at: insertIndex + 5)
+        let comments = makeSidebarViewMenuItem(title: L("Comments"),
+                                               symbol: "text.bubble",
+                                               keyEquivalent: "c",
+                                               modifiers: [.control, .command],
+                                               action: #selector(toggleCommentsFromMenu(_:)))
+        viewMenu.insertItem(comments, at: insertIndex + 5)
+        commentsMenuItem = comments
+
+        viewMenu.insertItem(.separator(), at: insertIndex + 6)
     }
 
     private func installEditModeMenuItem() {
@@ -1549,8 +1569,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let formatTitle = L("Format")
         let menu = NSMenu(title: formatTitle)
         // ⇧⌘3/4/5 are captured system-wide for screenshots and ⌘` cycles
-        // app windows (HIG), so headings live on ⌥⌘ and inline code on
-        // ⇧⌘M — Apple Notes' Monostyled shortcut.
+        // app windows (HIG), so headings live on ⌥⌘ and inline code on ⌥⌘C.
+        // ⇧⌘M is Insert ▸ Comment.
         menu.addItem(item("Body", command: "h0", key: "0", modifiers: [.option, .command]))
         menu.addItem(item("Heading 1", command: "h1", key: "1", modifiers: [.option, .command]))
         menu.addItem(item("Heading 2", command: "h2", key: "2", modifiers: [.option, .command]))
@@ -1559,7 +1579,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(item("Bold", command: "bold", key: "b"))
         menu.addItem(item("Italic", command: "italic", key: "i"))
         menu.addItem(item("Strikethrough", command: "strikethrough", key: "x", modifiers: [.shift, .command]))
-        menu.addItem(item("Inline Code", command: "code", key: "m", modifiers: [.shift, .command]))
+        menu.addItem(item("Inline Code", command: "code", key: "c", modifiers: [.option, .command]))
         menu.addItem(item("Link", command: "link"))
         menu.addItem(.separator())
         menu.addItem(item("Bulleted List", command: "bulletList", key: "7", modifiers: [.shift, .command]))
@@ -1593,6 +1613,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(item("Link to File…", symbol: "link", action: #selector(insertLinkToFileFromMenu(_:))))
         menu.addItem(item("Code Block", symbol: "curlybraces.square", action: #selector(insertCodeBlockFromMenu(_:))))
         menu.addItem(item("Table", symbol: "tablecells", action: #selector(insertTableFromMenu(_:))))
+        let comment = item("Comment", symbol: "text.bubble", action: #selector(insertCommentFromMenu(_:)))
+        comment.keyEquivalent = "m"
+        comment.keyEquivalentModifierMask = [.shift, .command]
+        menu.addItem(comment)
         // Journal entries only; hidden with the Journal extension.
         let carryOverItems: [NSMenuItem] = [
             .separator(),
@@ -1611,12 +1635,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         mainMenu.insertItem(rootItem, at: insertIndex)
     }
 
+    /// Edit ▸ Copy Comments for AI, straight under Copy.
+    private func installCopyCommentsMenuItem() {
+        guard let editMenu = topLevelSubmenu(matching: Self.editMenuTitles),
+              editMenu.items.first(where: {
+                  $0.action == #selector(DocumentWindowController.copyCommentsForAI(_:))
+              }) == nil else { return }
+        // Sent down the responder chain: the window validates it.
+        let item = NSMenuItem(title: L("Copy Comments for AI"),
+                              action: #selector(DocumentWindowController.copyCommentsForAI(_:)),
+                              keyEquivalent: "c")
+        item.keyEquivalentModifierMask = [.shift, .command]
+        let copyIndex = editMenu.items.firstIndex { $0.action == #selector(NSText.copy(_:)) }
+        editMenu.insertItem(item, at: copyIndex.map { $0 + 1 } ?? editMenu.numberOfItems)
+    }
+
     @objc private func insertImageFromMenu(_ sender: Any?) {
         activeDocumentWindowController?.insertImageFromMenu()
     }
 
     @objc private func insertLinkToFileFromMenu(_ sender: Any?) {
         activeDocumentWindowController?.insertLinkToFileFromMenu()
+    }
+
+    @objc private func insertCommentFromMenu(_ sender: Any?) {
+        activeDocumentWindowController?.formatMarkdown("comment")
     }
 
     @objc private func insertCodeBlockFromMenu(_ sender: Any?) {
@@ -1662,10 +1705,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             filesMenuItem?.state = .off
             tasksMenuItem?.state = .off
             referencesMenuItem?.state = .off
+            commentsMenuItem?.state = .off
             return
         }
         tasksMenuItem?.state = activeDocumentWindowController?.isTasksVisible == true ? .on : .off
         referencesMenuItem?.state = activeDocumentWindowController?.isReferencesVisible == true ? .on : .off
+        commentsMenuItem?.state = activeDocumentWindowController?.isCommentsVisible == true ? .on : .off
         outlineMenuItem?.state = (state.sidebarVisible && state.mode == .outline) ? .on : .off
         filesMenuItem?.state = (state.sidebarVisible && state.mode == .files) ? .on : .off
     }
@@ -1687,6 +1732,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private static let windowMenuTitles: Set<String> = ["Window", "窗口"]
     private static let formatMenuTitles: Set<String> = ["Format", "格式"]
     private static let insertMenuTitles: Set<String> = ["Insert", "插入"]
+    private static let editMenuTitles: Set<String> = ["Edit", "编辑"]
     private static let goMenuTitles: Set<String> = ["Go", "前往"]
     private static let appearanceMenuTitles: Set<String> = ["Appearance", "外观"]
     private static let contentWidthMenuTitles: Set<String> = ["Content Width", "内容宽度"]

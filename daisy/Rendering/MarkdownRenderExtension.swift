@@ -190,6 +190,7 @@ nonisolated extension MarkdownHTML {
   static let renderExtensions: [any MarkdownRenderExtension] = validatedAndOrdered([
     HighlightExtension(),
     CalloutExtension(),
+    CommentsExtension(),
     KaTeXExtension(),
     MermaidExtension(),
     TaskMetadataExtension(),

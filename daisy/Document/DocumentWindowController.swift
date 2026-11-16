@@ -108,6 +108,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     private let fullscreenToolbarTheme = FullscreenToolbarTheme()
     var isTasksToggleSelected = false
     var isReferencesToggleSelected = false
+    var isCommentsToggleSelected = false
     weak var openActionsItem: NSMenuToolbarItem?
     weak var openWithItem: NSMenuToolbarItem?
     weak var openInLLMItem: NSMenuToolbarItem?
@@ -115,6 +116,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     weak var tasksItem: NSToolbarItem?
     weak var referencesButton: NSButton?
     weak var referencesItem: NSToolbarItem?
+    weak var commentsButton: NSButton?
+    weak var commentsItem: NSToolbarItem?
     weak var alwaysOnTopButton: NSButton?
     weak var hideCompletedTasksButton: NSButton?
     weak var hideCompletedTasksItem: NSToolbarItem?
@@ -250,7 +253,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     }
 
     init() {
-        let window = NSWindow(
+        let window = DocumentWindow(
             contentRect: NSRect(x: 0, y: 0, width: 480, height: 360),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
@@ -364,6 +367,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         observeAndPersistToolbarPreferences(toolbar)
         addJournalToolbarItemIfNeeded()
         addReferencesToolbarItemIfNeeded()
+        addCommentsToolbarItemIfNeeded()
 
         installFindBar()
         applyWindowBackgroundTheme()
@@ -381,7 +385,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         findBarOverlay?.needsDisplay = true
         // Toggles whose on state is drawn in the theme accent. An on button
         // repaints its fill only when the state changes, so step it through.
-        for case let button? in [tasksButton, referencesButton, alwaysOnTopButton, hideCompletedTasksButton] {
+        for case let button? in [tasksButton, referencesButton, commentsButton, alwaysOnTopButton, hideCompletedTasksButton] {
             button.bezelColor = Self.makeThemeAccent()
             let state = button.state
             button.state = .off

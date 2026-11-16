@@ -29,6 +29,9 @@ export const obsidianHighlight = {
       while (cx.char(runEnd) === 61) runEnd++
       const pairStart = runStart + ((runEnd - runStart) % 2)
       if (pos < pairStart || (pos - pairStart) % 2 !== 0) return -1
+      // `{==text==}` is CriticMarkup, a reader comment's anchor (comments.js),
+      // not a highlight: leave both of its delimiters to that module.
+      if (cx.char(runStart - 1) === 123 || cx.char(runEnd) === 125) return -1
       let backslashes = 0
       for (let cursor = runStart - 1;
            cursor >= cx.offset && cx.char(cursor) === 92;

@@ -25,6 +25,7 @@ When a Global shortcut and a Reading, Editing or Search shortcut use the same ke
 | <kbd>⌥⌘T</kbd> | Show Toolbar | `view.toggleToolbar` |
 | <kbd>⌃⌘T</kbd> | Always on Top | `view.toggleAlwaysOnTop` |
 | <kbd>⇧⌘H</kbd> | Hide Completed Tasks | `view.toggleCompletedTasks` |
+| <kbd>⌃⌘C</kbd> | Comments | `view.toggleComments` |
 | <kbd>⌥⌘P</kbd> | Present | `view.present` |
 | <kbd>⇧⌥⌘P</kbd> | Present from Current Slide | `view.presentFromCurrentSlide` |
 | <kbd>⌘9</kbd> | Slide Preview | `view.toggleSlidePreview` |
@@ -66,7 +67,8 @@ The journal commands appear only while the Journal extension is on.
 | <kbd>⌘B</kbd> | Bold | `format.bold` |
 | <kbd>⌘I</kbd> | Italic | `format.italic` |
 | <kbd>⇧⌘X</kbd> | Strikethrough | `format.strikethrough` |
-| <kbd>⇧⌘M</kbd> | Inline Code | `format.inlineCode` |
+| <kbd>⌥⌘C</kbd> | Inline Code | `format.inlineCode` |
+| <kbd>⇧⌘M</kbd> | Comment | `insert.comment` |
 | <kbd>⇧⌘7</kbd> | Bulleted List | `format.bulletList` |
 | <kbd>⇧⌘9</kbd> | Numbered List | `format.orderedList` |
 | <kbd>⇧⌘L</kbd> | Checklist | `format.checklist` |
@@ -80,7 +82,9 @@ The last three have no default shortcut. Bind one if you want it.
 
 Open Link at Caret opens the Markdown link, URL, `#tag`, `@context` or `+project` that the caret is in or right next to, the same way Cmd+click does. Tags, contexts and projects open only in a workspace window.
 
-Headings use <kbd>⌥⌘</kbd> because macOS reserves <kbd>⇧⌘3</kbd>–<kbd>⇧⌘5</kbd> for screenshots. Inline Code uses <kbd>⇧⌘M</kbd>, Apple Notes' Monostyled shortcut.
+Headings use <kbd>⌥⌘</kbd> because macOS reserves <kbd>⇧⌘3</kbd>–<kbd>⇧⌘5</kbd> for screenshots. Inline Code uses <kbd>⌥⌘C</kbd>.
+
+Comment (**Insert → Comment**) works in the editor: it wraps the selection as a `{==…==}{>>…<<}` comment and puts the caret in the note, or adds a reply when the caret is already in a comment. In Read mode you add a comment from the bubble that appears at the end of selected text instead. **Edit → Copy Comments for AI** is <kbd>⇧⌘C</kbd>. That one is a fixed menu shortcut, so it isn't in the tables above and can't be rebound here.
 
 ## Search
 

@@ -67,6 +67,9 @@ extension DocumentWindowController {
             menuItem.image = Self.alwaysOnTopMenuImage(isPinned: isAlwaysOnTop)
             return true
         }
+        if menuItem.action == #selector(copyCommentsForAI(_:)) {
+            return validateCopyCommentsMenuItem(menuItem)
+        }
         if menuItem.action == #selector(toggleHideCompletedTasks(_:)) {
             return validateHideCompletedTasksMenuItem(menuItem)
         }

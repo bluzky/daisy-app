@@ -307,6 +307,11 @@ final class ContentViewController: NSViewController {
         }
     }
 
+    var commentAddedHandler: ((MarkdownComments.PageSelection, String) -> Void)? {
+        get { webView.commentAdded }
+        set { webView.commentAdded = newValue }
+    }
+
     func fetchSelectedText(_ completion: @escaping (String?) -> Void) {
         webView.fetchSelectedText(completion)
     }

@@ -401,7 +401,12 @@ nonisolated enum MarkdownHTML {
         let rendersHighlights = renderExtensionConfiguration.isEnabled("highlight")
         let rendersCallouts = renderExtensionConfiguration.isEnabled("callout")
         let rendersMath = renderExtensionConfiguration.isEnabled("katex")
-        let footnotes = extractFootnotes(from: body)
+        // Comments become inline HTML before anything parses the text, and
+        // keep every line break, so the source lines below still line up.
+        let commentedBody = renderExtensionConfiguration.isEnabled("comments")
+            ? MarkdownComments.rendering(body)
+            : body
+        let footnotes = extractFootnotes(from: commentedBody)
         let math = rendersMath
             ? extractMath(from: footnotes.markdown)
             : MathExtraction(

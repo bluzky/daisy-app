@@ -95,11 +95,12 @@ extension DocumentWindowController {
     private static let singleFileContentWidth: CGFloat = 860
 
     /// A file opened on its own, outside every open workspace, is for
-    /// reading: the sidebar starts hidden and the window is sized to the
-    /// text. It no longer saves its frame, so the workspace window size
-    /// stays as it was.
+    /// reading: both sidebars start hidden, the left and the right, whatever
+    /// the last window left open, and the window is sized to the text. It no
+    /// longer saves its frame, so the workspace window size stays as it was.
     func prepareForSingleFile() {
         mainSplit?.hideSidebar()
+        mainSplit?.hideRightSidebar()
         syncSidebarToolbarState()
         let window = documentWindow
         window.setFrameAutosaveName("")
