@@ -1,5 +1,38 @@
 # Changelog
 
+## [1.0.0] – 2026-11-17
+
+Daisy 1.0 turns a folder of Markdown into a workspace: tasks, notes and journals you can query, slide decks you can present, and comments on any selection.
+
+### Added
+
+- **Workspaces with a metadata index.** Folders marked with `.daisy` index tags, contexts and projects, suggest them as you type, and link them to workspace pages. Daisy shows indexing status and adds *Rebuild Workspace Index*.
+- **Query blocks for tasks and notes.** Embed live task and note queries in any document; results link to their source files, which open in their own tab ([#50](https://github.com/bluzky/daisy-app/pull/50)).
+- **Journal and Agenda.** Open a workspace journal from the toolbar calendar, start entries from templates, and carry unfinished tasks forward with `/carryover`. The Agenda sidebar replaces the Inspector and offers a week view ([#48](https://github.com/bluzky/daisy-app/pull/48)).
+- **References panel.** The right sidebar is now shared between the Agenda and a new References panel ([#51](https://github.com/bluzky/daisy-app/pull/51)).
+- **Slide decks.** Turn a document into slides with `slides: true`, then choose *View → Present*. Decks support themes, backgrounds, columns, step reveals, a presenter view and a Slide Preview panel.
+- **Comments on selections.** Select text in Read or Edit mode to attach a comment, and review them in the Comments sidebar.
+- **Move and open faster.** Use `/move` to relocate a note, drag files from the Files sidebar into the editor, and press ⌘. to open the link at the caret.
+- **Hide Completed Tasks.** Hide finished tasks in the editor.
+
+### Changed
+
+- **Ember follows the system appearance.**
+- **Headings use theme colors.** Colorful headings are replaced by per-theme heading colors, including the Paper preset.
+- **Frontmatter collapses in the editor** until you toggle it, and callouts render in the editor as they do in Read mode.
+- **The Edit toolbar button uses a single toggle-state icon.**
+- **Mermaid is upgraded** to a newer version.
+- **Simplified Chinese localization is removed.**
+
+### Fixed
+
+- **Inline code stays whole in table cells.**
+- **Completed tasks strike through only their own text.**
+- **Rich-text paste keeps bare URLs unescaped.**
+- **The Files tree no longer jumps** on saves, drops and clicks.
+- **Search no longer suggests the name you are typing**, and only saved files are indexed.
+
+
 ## [0.10.0] – 2026-10-20
 
 Each workspace now lives in one window with its files as tabs, and Daisy adds links to project files, an Inspector links list and quicker list editing.

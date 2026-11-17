@@ -2593,7 +2593,7 @@ final class MarkdownHTMLRenderTests: XCTestCase {
         )
 
         XCTAssertTrue(rendered.articleHTML.contains("<code>mapped_status</code>"))
-        XCTAssertTrue(rendered.html.contains(":is(th, td) :not(pre) > code {"))
+        XCTAssertTrue(rendered.html.contains(":is(th, td) code:not(pre > code) {"))
         XCTAssertTrue(rendered.html.contains("overflow-wrap: normal;"))
         XCTAssertTrue(rendered.html.contains("white-space: nowrap;"))
     }
