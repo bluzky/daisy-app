@@ -11,7 +11,7 @@ Step 4. Runs as the **implementer** (implement mode). One phase ticket per run; 
 ## Steps
 
 1. **Read the phase ticket.** Get `P<n>` from the title tag and the design ticket (the linked task whose title starts with `[DESIGN]`; the parent is the epic). No `[P<n>]` tag or no design ticket: stop and ask the engineer.
-2. **Gate check (FLOW-02).** Confirm the spec is approved as the tracker defines it (`docs/ai/flow/tracker.md`). If not, or unknown, stop and tell the engineer. Don't continue on "it's approved, trust me": ask them to get the tech lead to move it to `done`.
+2. **Gate check (FLOW-02).** Confirm the spec is approved as the tracker defines it (`docs/ai/flow/tracker.md`), or, in the auto flow, that the spec and plan headers carry the engineer's recorded approval (FLOW-11). If not, or unknown, stop and tell the engineer. Don't continue on "it's approved, trust me": ask them to get the tech lead to move it to `done`.
 3. **Dependencies.** If a phase in "Depends on" isn't merged yet (`dev ready` or later), warn the engineer and ask whether to continue.
    Once the checks pass, move the phase ticket to `in progress` before coding (`docs/ai/flow/tracker.md`; no tracker: skip).
 4. Load `docs/ai/roles/implementer.md` (Implement mode). From the target branch, read phase `P<n>` in the plan, then spec §1, §2 and only this phase's stories in §3. The spec is the source of truth; if the ticket or the plan differs from it, flag it.

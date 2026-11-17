@@ -2,6 +2,10 @@
 
 The harness view of the [[Development flow]]: each step's ticket, entry and exit criteria, and what the harness checks. Ticket model: `docs/ai/flow/tracker.md` (ClickUp details: `docs/ai/flow/clickup.md`). Ticket words below (design ticket, phase ticket, `done`, `in review`) map to the repo's tracker: GitHub uses issues, labels and closing; with no tracker the merged spec and plan are the approval. Where the spec lives and how it's reviewed: `docs/ai/flow/spec.md`.
 
+## Auto flow
+
+The engineer can ask Lucy to run the whole flow (`auto`, FLOW-11): she defines the spec and the plan from the engineer's requirement, asks for **one review** of both, then implements every phase, self-reviews and fixes, and asks for **final verification** before opening the PRs. The steps and gates below are the same; the engineer's recorded approval at the first checkpoint replaces the spec PR and plan PR merges, and PRs open only after the engineer verifies.
+
 ## When the flow applies
 
 Full flow if **any** is true: new feature or user-facing flow · new DB table · more than one service or an external integration · changes money, stock, order status or permissions · more than ~3 days of dev.

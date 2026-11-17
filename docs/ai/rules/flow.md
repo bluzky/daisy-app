@@ -16,6 +16,7 @@ Apply to every feature or big improvement covered by the Design-Before-Code flow
 
 - Don't write production code until the spec is **approved** at Gate 1: the design ticket is `done` or `complete` (ClickUp), closed as completed (GitHub), or the spec and plan are merged on the target branch (no tracker). What "approved" means is set by the tracker, `docs/ai/flow/tracker.md`.
 - Don't create phase tickets before that, and before the implementation plan is merged into the target branch (FLOW-10).
+- In the auto flow (FLOW-11), the engineer's recorded approval of the spec and plan counts as approved.
 - Allowed before approval: the spec, the plan draft, `spec-draft`, `tech-design`, `impact-scan`, a `mockup/<feature>` branch (FE only, mock data), throwaway spikes on `spike/*` branches.
 
 ## FLOW-03 — Stable IDs
@@ -93,3 +94,14 @@ Apply to every feature or big improvement covered by the Design-Before-Code flow
 - Each phase lists: stories, depends on, a **breakdown** by context / module (what to do there, with file paths and spec refs), the test per AC, migration/config notes and risks.
 - The plan never adds or changes requirements. A gap found while planning is a spec change (FLOW-05).
 - Changing the plan after approval: a new plan PR. Don't reshape phases already in progress or merged; add a new phase instead.
+
+## FLOW-11 — Auto flow
+
+**Severity:** MUST
+
+- The **auto flow** (`auto` workflow) is opt-in: it runs only when the engineer asks for it ("Lucy, auto: …", "build this end to end"). It runs the normal steps in order with the engineer as the human in the loop.
+- It has exactly **two human checkpoints**: (1) review of the spec **and** the plan together, (2) final verification of the finished work. Between them Lucy keeps going without asking, and she stops at once on a stop condition (see the `auto` workflow).
+- At checkpoint 1 the engineer's explicit "approved" counts as Gate 1 and Gate 2 for this feature. Lucy **records** it (spec and plan header *Status*: `Approved by <engineer> in chat, <date>`, auto flow) and tells the tracker where she can (a comment); she does not approve anything herself (CORE-02), and she never closes the design issue or sets `done`. Where a workflow's gate check asks for approval (FLOW-02), this record satisfies it **only for a feature run through the auto flow**.
+- Without an explicit approval the gates are the normal ones. Changing the approved spec or plan later (FLOW-05) means a new checkpoint 1.
+- The engineer's request counts as the tech lead's agreement to work phases on stacked branches before the earlier phase is merged (FLOW-07). Merging, approving a PR and any tracker status beyond `in progress` / `in review` stay with humans.
+- Checkpoint 2 is verification by the engineer, not a PR approval: Lucy opens the PRs only after the engineer says it is verified.

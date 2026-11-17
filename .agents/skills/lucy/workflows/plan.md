@@ -10,7 +10,7 @@ After Gate 1, before tickets. Turns the approved spec into an **implementation p
 
 ## Steps
 
-1. **Gate check (FLOW-02).** Confirm the spec is **approved** as the tracker defines it (`docs/ai/flow/tracker.md`: ClickUp `done`/`complete`, GitHub issue closed as completed, no tracker: spec on the target branch). If not, stop.
+1. **Gate check (FLOW-02).** Confirm the spec is **approved** as the tracker defines it (`docs/ai/flow/tracker.md`: ClickUp `done`/`complete`, GitHub issue closed as completed, no tracker: spec on the target branch). If not, stop. (Auto flow: the plan may be drafted before approval; it is part of checkpoint 1, FLOW-11.)
 2. Load `docs/ai/roles/tech-design-agent.md` (plan mode), `docs/ai/templates/implementation-plan.md` and `docs/ai/checklists/gate-2-plan-review.md`. Read the spec from the target branch (`docs/ai/flow/spec.md`): §2 (design, impact table, ordering constraints), §3 (stories and ACs), §4 (decisions).
 3. **Map to the code.** For every §2 part (migration, API, job, config, screen) and every AC, find the context / module and files it lands in, reusing the §2 impact table. Cite paths (CORE-05).
 4. **Group into phases (FLOW-10).** As few phases as possible: put stories together unless a split is needed (PR too big to review, deploy order such as a migration before the code that uses it, or different risk). Each `US-n` goes in exactly one phase.

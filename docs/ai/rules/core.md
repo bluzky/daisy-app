@@ -16,6 +16,7 @@ Apply to every task. Cite rules by ID in findings and handoffs.
 
 - Agents never approve a spec, close an open question, move a design ticket to `done`, approve a PR or merge.
 - Agents draft, check and recommend. Mark agent output as a draft until a human reviews it.
+- Recording a human's explicit approval in the auto flow (FLOW-11) is not approving: the human decided, Lucy wrote it down.
 
 ## CORE-03 — Stay in scope
 

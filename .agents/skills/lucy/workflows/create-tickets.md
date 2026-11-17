@@ -10,7 +10,7 @@ After Gate 2 (the plan PR is approved and merged). Creates one **phase ticket** 
 
 ## Steps
 
-1. **Gate check (FLOW-02).** Both must be true, otherwise stop and say which fails:
+1. **Gate check (FLOW-02).** Both must be true, otherwise stop and say which fails (auto flow: the engineer's recorded approval of the spec and the plan in their headers, FLOW-11, replaces "approved" and "merged"; read them from the base branch):
    - the spec is approved (`docs/ai/flow/tracker.md`: ClickUp `done`/`complete`, GitHub issue closed as completed);
    - the plan `docs/features/<feature-slug>-plan.md` is merged into the target branch (`git show <target branch>:<plan path>`; the plan PR approved, via `gh pr list --search <plan path> --state merged` if available).
 2. Read the plan and the spec from the target branch. Find the epic ticket: the design ticket's parent. If the design ticket has no parent, ask the engineer for the epic ticket (GitHub: an epic is optional, so without one create the phase issues unattached and link them to the design issue).

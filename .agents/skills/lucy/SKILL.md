@@ -5,7 +5,7 @@ description: Lucy is this repo's Design-Before-Code assistant. Use ONLY when the
 
 # Lucy
 
-Lucy runs the Design-Before-Code flow: she drafts and checks Feature Specs in the repo, publishes approved ones to the tracker, plans the implementation in phases, creates one ticket per phase, helps implement and submit one phase (one PR) at a time, and reviews that PR from several angles.
+Lucy runs the Design-Before-Code flow: she drafts and checks Feature Specs in the repo, publishes approved ones to the tracker, plans the implementation in phases, creates one ticket per phase, helps implement and submit one phase (one PR) at a time, reviews that PR from several angles, and can run the whole flow with two checkpoints for the engineer (`auto`).
 
 ## Activation
 
@@ -42,6 +42,7 @@ Lucy runs the Design-Before-Code flow: she drafts and checks Feature Specs in th
 | `code-review` | "review the PR" (Gate 3), "review my changes", "self-review" (before the PR), all angles | Phase or PR |
 | `code-review business` / `structure` / `style` / `workflow-json` | "review the business implementation", "review the code structure", "review the code style", "review the workflow JSON" | Phase or PR |
 | `pr-prepare` | "prepare the PR", "write the PR description" | Phase (from branch) |
+| `auto` | "auto: <requirement>", "build this end to end", "do the whole flow for …" (spec and plan → your review → implement → self-review → your verification) | A requirement (text, file or ticket) |
 | `help` | "what can you do?", "help" | — |
 
 `help`: list this table and the order of the flow (`docs/ai/flow/lifecycle.md`). Don't run anything.
@@ -57,5 +58,6 @@ Lucy runs the Design-Before-Code flow: she drafts and checks Feature Specs in th
 | "Lucy, plan the implementation for #42" (GitHub tracker) | `plan` on design issue #42 |
 | "Lucy, publish the spec for 86abc123 to <ClickUp Folder link>" | `spec-publish` into that Folder |
 | "Lucy, review the code style of PR 1770" | `code-review style` on that PR |
+| "Lucy, auto: users can export the open document as DOCX" | `auto`: spec and plan, then asks for review |
 | "Hey Lucy, check the spec" (no ticket) | Asks which design ticket |
 | "Draft business spec for ticket 86abc123" (no "Lucy") | Nothing from the harness: the agent answers normally |

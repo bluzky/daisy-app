@@ -11,7 +11,7 @@
 | Author (engineer) | <name> |
 | Drafted with | PO agent (§1, §3), Tech design agent (§2) — reviewed by author |
 | Reviewer | <tech lead> |
-| Status | Draft / In review / Approved |
+| Status | Draft / In review / Approved (auto flow: `Approved by <engineer> in chat, <date>`) |
 | Target release | <version or date> |
 | Implementation plan | `docs/features/<feature-slug>-plan.md` (after Gate 1; phases and tickets live there) |
 

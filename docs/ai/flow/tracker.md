@@ -20,7 +20,7 @@ Values: `clickup`, `github`, `none`. Not set: `clickup` (so existing repos keep 
 | **Epic** (optional parent) | Parent task | Parent issue, label `epic`; design and phase issues are its sub-issues | None |
 | **Phase ticket** | Task `[P<n>] <title>` under the epic, linked to the design ticket | Issue `[P<n>] <title>`, label `phase`, body line `Design: #<n>` | A row `P<n>` in the plan. The PR says `Phase: P<n>` |
 | **Naming a ticket in a request** | URL or task ID | `#<n>`, issue URL or the title | The feature slug and `P<n>` |
-| **Approved** (Gate 1 passed, FLOW-02) | Design task `done` or `complete` | Design issue **closed as completed** (the tech lead closes it after the spec PR is merged) | The spec **and** the plan exist on the target branch (their PRs are merged) |
+| **Approved** (Gate 1 passed, FLOW-02; in the auto flow the engineer's recorded approval counts, FLOW-11) | Design task `done` or `complete` | Design issue **closed as completed** (the tech lead closes it after the spec PR is merged) | The spec **and** the plan exist on the target branch (their PRs are merged) |
 | **Status moves by Lucy** | `in progress`, `in review` (statuses) | Labels `in progress`, `in review`; forward only, replace the previous one | None |
 | **Create phase tickets** (`create-tickets`) | ClickUp CLI or MCP | `gh issue create`, see below | Not needed: the plan's phases table is the list. Say so and stop |
 | **Spec publish** (`spec-publish`) | ClickUp Doc, link in a comment | No Doc. Comment on the design issue: `Spec approved: <permalink to the file on the target branch>` | Not needed. Say so and stop |

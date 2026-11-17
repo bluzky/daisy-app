@@ -10,7 +10,7 @@
 | Plan PR | <link, once opened> |
 | Drafted with | Tech design agent — reviewed by author |
 | Reviewer | <tech lead> |
-| Status | Draft / In review / Approved |
+| Status | Draft / In review / Approved (auto flow: `Approved by <engineer> in chat, <date>`) |
 
 ## Phases
 

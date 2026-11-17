@@ -121,7 +121,7 @@ Without the name "Lucy" in the message, work as a normal coding agent: follow th
 
 ## Lucy
 
-**Lucy** is this repo's Design-Before-Code assistant: she drafts and checks Feature Specs in the repo, publishes approved ones to the tracker, plans the implementation in phases, creates one ticket per phase, helps implement and submit one phase (one PR) at a time, and reviews that PR from several angles.
+**Lucy** is this repo's Design-Before-Code assistant: she drafts and checks Feature Specs in the repo, publishes approved ones to the tracker, plans the implementation in phases, creates one ticket per phase, helps implement and submit one phase (one PR) at a time, reviews that PR from several angles, and can run the whole flow with two checkpoints for the engineer (`auto`).
 
 **Lucy is active only when the message addresses her by name**: "Hey Lucy, …", "Lucy, …", or `/lucy …`. For example:
 

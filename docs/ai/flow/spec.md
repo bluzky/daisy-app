@@ -39,4 +39,5 @@ flowchart LR
 - **Never publish a draft.** Publish only a spec merged to the target branch after the tech lead approved its spec PR.
 - **Finding the spec:** search `docs/features/` for the file whose header links the design ticket (or ask the engineer).
 - **Changes after approval:** edit the file in a new spec PR, design ticket back to `in review`. After it merges, publish again and the tech lead moves the ticket back to `done`.
+- **Auto flow:** the spec and plan are written on the base branch the engineer confirmed, and committed there after checkpoint 1. Read them from that branch (FLOW-11).
 - **Reading the spec** (plan, phase tickets, implementation, PR review): always from the target branch, or from the open spec PR's branch while the spec is in review.
