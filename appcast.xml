@@ -6,6 +6,43 @@
         <description>Most recent changes to Daisy</description>
         <language>en</language>
         <item>
+            <title>Version 1.0.0</title>
+            <pubDate>Tue, 17 Nov 2026 00:43:02 GMT</pubDate>
+            <sparkle:version>72</sparkle:version>
+            <sparkle:shortVersionString>1.0.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <description>&lt;p&gt;Daisy 1.0 turns a folder of Markdown into a workspace: tasks, notes and journals you can query, slide decks you can present, and comments on any selection.&lt;/p&gt;
+&lt;h4&gt;Added&lt;/h4&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Workspaces with a metadata index.&lt;/strong&gt; Folders marked with &lt;code&gt;.daisy&lt;/code&gt; index tags, contexts and projects, suggest them as you type, and link them to workspace pages. Daisy shows indexing status and adds *Rebuild Workspace Index*.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Query blocks for tasks and notes.&lt;/strong&gt; Embed live task and note queries in any document; results link to their source files, which open in their own tab ([#50](https://github.com/bluzky/daisy-app/pull/50)).&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Journal and Agenda.&lt;/strong&gt; Open a workspace journal from the toolbar calendar, start entries from templates, and carry unfinished tasks forward with &lt;code&gt;/carryover&lt;/code&gt;. The Agenda sidebar replaces the Inspector and offers a week view ([#48](https://github.com/bluzky/daisy-app/pull/48)).&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;References panel.&lt;/strong&gt; The right sidebar is now shared between the Agenda and a new References panel ([#51](https://github.com/bluzky/daisy-app/pull/51)).&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Slide decks.&lt;/strong&gt; Turn a document into slides with &lt;code&gt;slides: true&lt;/code&gt;, then choose *View → Present*. Decks support themes, backgrounds, columns, step reveals, a presenter view and a Slide Preview panel.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Comments on selections.&lt;/strong&gt; Select text in Read or Edit mode to attach a comment, and review them in the Comments sidebar.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Move and open faster.&lt;/strong&gt; Use &lt;code&gt;/move&lt;/code&gt; to relocate a note, drag files from the Files sidebar into the editor, and press ⌘. to open the link at the caret.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Hide Completed Tasks.&lt;/strong&gt; Hide finished tasks in the editor.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h4&gt;Changed&lt;/h4&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Ember follows the system appearance.&lt;/strong&gt;&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Headings use theme colors.&lt;/strong&gt; Colorful headings are replaced by per-theme heading colors, including the Paper preset.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Frontmatter collapses in the editor&lt;/strong&gt; until you toggle it, and callouts render in the editor as they do in Read mode.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;The Edit toolbar button uses a single toggle-state icon.&lt;/strong&gt;&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Mermaid is upgraded&lt;/strong&gt; to a newer version.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Simplified Chinese localization is removed.&lt;/strong&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h4&gt;Fixed&lt;/h4&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Inline code stays whole in table cells.&lt;/strong&gt;&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Completed tasks strike through only their own text.&lt;/strong&gt;&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Rich-text paste keeps bare URLs unescaped.&lt;/strong&gt;&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;The Files tree no longer jumps&lt;/strong&gt; on saves, drops and clicks.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Search no longer suggests the name you are typing&lt;/strong&gt;, and only saved files are indexed.&lt;/li&gt;
+&lt;/ul&gt;</description>
+            <enclosure url="https://github.com/bluzky/daisy-app/releases/download/v1.0.0/Daisy-1.0.0.dmg" length="17648074" type="application/octet-stream" sparkle:edSignature="oDSF+huOPDaOtwuYI+Y8jgqCPq+6xF+ZNyOoBRvfKP3mnPKZMMzXK9pEql18WWx7DjrrX1RaOHZoEdHUOTuJCA==" />
+        </item>
+        <item>
             <title>Version 0.10.0</title>
             <pubDate>Tue, 20 Oct 2026 13:35:59 GMT</pubDate>
             <sparkle:version>71</sparkle:version>
