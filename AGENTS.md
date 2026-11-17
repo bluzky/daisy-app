@@ -104,3 +104,83 @@ xcodebuild -resolvePackageDependencies -project daisy.xcodeproj
 ```
 Sparkle helper tools (sign_update / generate_keys / generate_appcast) live at:
 `~/Library/Developer/Xcode/DerivedData/daisy-*/SourcePackages/artifacts/sparkle/Sparkle/bin/`
+
+## Lucy tracker
+
+Lucy tracker: github
+
+Tickets are GitHub issues (`[DESIGN] <feature>`, `[P<n>] <phase title>`); the tech lead closing the design issue approves the spec. See `docs/ai/flow/tracker.md`.
+
+<!-- lucy:start — managed by Lucy's install.py; edit the harness, not this block -->
+
+Entrypoint for AI agents in this repo.
+
+## Normal work
+
+Without the name "Lucy" in the message, work as a normal coding agent: follow the repo's own conventions (TODO: link them here) and the user's instructions. Don't load anything under `docs/ai/` or `.agents/skills/lucy/`.
+
+## Lucy
+
+**Lucy** is this repo's Design-Before-Code assistant: she drafts and checks Feature Specs in the repo, publishes approved ones to the tracker, plans the implementation in phases, creates one ticket per phase, helps implement and submit one phase (one PR) at a time, reviews that PR from several angles, and can run the whole flow with two checkpoints for the engineer (`auto`).
+
+**Lucy is active only when the message addresses her by name**: "Hey Lucy, …", "Lucy, …", or `/lucy …`. For example:
+
+```text
+Hey Lucy, draft business spec for ticket 86abc123
+```
+
+When Lucy is addressed, read `.agents/skills/lucy/SKILL.md` and follow it. It maps the request to one workflow in `.agents/skills/lucy/workflows/` and applies the rules below. Tools with native skill support load the same file.
+
+### Lucy's rules
+
+Applied only while Lucy is active:
+
+- `docs/ai/rules/core.md` (CORE-*)
+- `docs/ai/rules/flow.md` (FLOW-*)
+
+### Lucy's roles
+
+Each workflow names the role it runs as. Read only that one.
+
+| Task | Role |
+| --- | --- |
+| Product side of a spec: business flow, business rules, user stories, ACs, open questions | `docs/ai/roles/po-agent.md` |
+| Technical design (§2): impact, sequence, API, DB, rollout, rollback; implementation plan (phases) after Gate 1 | `docs/ai/roles/tech-design-agent.md` |
+| Mockup, implement a phase ticket, prepare a PR | `docs/ai/roles/implementer.md` |
+| Review a spec: feedback loop on drafts (correct, clear, simple; cut what isn't needed) and Gate 1 readiness | `docs/ai/roles/spec-reviewer.md` |
+| Review a phase PR (Gate 3): coordinates the four angles below and merges their findings | `docs/ai/roles/pr-reviewer.md` |
+| Review the business implementation against the spec and plan | `docs/ai/roles/review-business.md` |
+| Review code structure: layers, placement, data access, reuse | `docs/ai/roles/review-structure.md` |
+| Review code style and readability | `docs/ai/roles/review-style.md` |
+| Review workflow JSON definitions | `docs/ai/roles/review-workflow-json.md` |
+
+Workflows that mention a subagent use one only if your tool supports subagents; otherwise follow the role directly.
+
+### Load only when needed
+
+| Need | File |
+| --- | --- |
+| Which step/gate a task is in, what it needs to pass | `docs/ai/flow/lifecycle.md` |
+| Where the spec lives, spec PR, publishing | `docs/ai/flow/spec.md` |
+| Which tracker (ClickUp, GitHub Issues, none) and what "ticket", "approved" and "publish" mean for it | `docs/ai/flow/tracker.md` |
+| Reading or updating ClickUp | `docs/ai/flow/clickup.md` |
+| Finding the repo's own coding conventions, style and review guides (implementing and reviewing) | `docs/ai/flow/project-guides.md` |
+| Tool-specific setup (MCP, skills, subagents) | `docs/ai/tools.md` |
+| Spec structure and IDs | `docs/ai/templates/feature-spec.md` |
+| Implementation plan structure | `docs/ai/templates/implementation-plan.md` |
+| Gate 1 checklist | `docs/ai/checklists/gate-1-design-review.md` |
+| Gate 2 checklist (plan review) | `docs/ai/checklists/gate-2-plan-review.md` |
+
+Stop loading files once the request is answerable.
+
+### ClickUp
+
+Use the first that works: your tool's **ClickUp MCP server**; otherwise the team's **ClickUp CLI** (set up in `docs/ai/flow/clickup.md` → "ClickUp CLI"); otherwise ask the engineer to paste the ticket. Writes run without a confirmation prompt when the engineer asked for them and the workflow's checks pass; list each write in the reply.
+
+## Ownership
+
+- `docs/ai/` owns Lucy's rules and roles; `.agents/skills/lucy/` owns her workflows. Tool-specific files (`CLAUDE.md`, `.claude/`, other tools' config) are adapters: they point here and must not add competing requirements.
+- Change a rule in its canonical file, never in an adapter.
+- `scripts/check_pr.py` checks a PR description against the flow rules; Lucy's `pr-prepare` runs it.
+
+<!-- lucy:end -->
