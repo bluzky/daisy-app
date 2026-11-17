@@ -40,6 +40,12 @@ nonisolated enum FileSearchResults {
         var directory: String { (relativePath as NSString).deletingLastPathComponent }
     }
 
+    /// A place in the file `/move` sends a block to: under a heading, or at
+    /// the end of the file when `heading` is nil.
+    struct SectionChoice: Sendable, Equatable {
+        let heading: MarkdownSectionInsertion.Heading?
+    }
+
     enum Row: Sendable, Equatable {
         case recentHeading
         case filesHeading
@@ -51,6 +57,7 @@ nonisolated enum FileSearchResults {
         case content(ProjectContentSearcher.Hit)
         /// Stands in the contents section until the scan has found anything.
         case searching
+        case section(SectionChoice)
 
         var entry: Entry? {
             if case .file(let entry) = self { return entry }
@@ -60,7 +67,7 @@ nonisolated enum FileSearchResults {
         var isSelectable: Bool {
             switch self {
             case .recentHeading, .filesHeading, .commandsHeading, .contentHeading, .searching: false
-            case .file, .command, .createFile, .content: true
+            case .file, .command, .createFile, .content, .section: true
             }
         }
     }

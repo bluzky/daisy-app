@@ -86,6 +86,7 @@ nonisolated enum EditorHTML {
             --text: -apple-system-label;
             --secondary: -apple-system-secondary-label;
             --quote-border: -apple-system-quaternary-label;
+            --aside-bg: #f5f5f7;
             --grid: -apple-system-separator;
             --accent: var(--link);
             --link: rgb(0, 104, 218);
@@ -98,6 +99,7 @@ nonisolated enum EditorHTML {
         @media (prefers-color-scheme: dark) {
             :root {
                 --link: rgb(65, 156, 255);
+                --aside-bg: #323232;
                 --code-bg: #262626;
                 --code-border: #323232;
                 \(MarkdownHTML.darkCodePaletteCSS)
@@ -137,6 +139,9 @@ nonisolated enum EditorHTML {
             overflow-x: hidden;
             overflow-y: auto;
             overscroll-behavior-x: none;
+            /* Without page scrolling the document scrolls here: the thin
+               bar, matching Read Mode. */
+            scrollbar-width: thin;
             /* Keep page gutters outside the editable content column. */
             padding-inline: var(--mdp-page-padding, \(MarkdownHTML.pagePaddingHorizontal)px);
             /* Document clearance is outside contenteditable and scrolls
@@ -207,6 +212,7 @@ nonisolated enum EditorHTML {
             line-height: 1.25;
             padding-top: calc(0.6rem * var(--mdp-text-scale, 1) + 0.5em);
         }
+        \(MarkdownHTML.headingColorRules(selector: { "#editor .cm-md-h\($0)" }))
         #editor .cm-md-h1 { font-size: 2em; }
         /* Mirror the preview's first-child margin reset so the document
            starts at the same height in both modes. */
@@ -287,6 +293,44 @@ nonisolated enum EditorHTML {
             background-repeat: no-repeat;
             background-size: 4px calc(100% - var(--cm-md-quote-top) - var(--cm-md-quote-bottom) - var(--cm-md-block-gap, 0px));
         }
+        /* Callouts mirror .markdown-alert in the preview stylesheet. The box
+           is a ::before so it stops above the block gap; each line only
+           carries padding. */
+        #editor .cm-content > .cm-line.cm-md-alert {
+            position: relative;
+            isolation: isolate;
+            --alert-color: var(--link);
+            padding-inline: 20px 16px;
+            color: var(--text);
+        }
+        #editor .cm-content > .cm-line.cm-md-alert::before {
+            content: "";
+            position: absolute;
+            inset: 0 0 var(--cm-md-block-gap, 0px) 0;
+            z-index: -1;
+            background: var(--aside-bg);
+            border-inline-start: 4px solid var(--alert-color);
+        }
+        #editor .cm-content > .cm-line.cm-md-alert-first { padding-top: 12px; }
+        #editor .cm-content > .cm-line.cm-md-alert-first::before { border-start-start-radius: 6px; border-start-end-radius: 6px; }
+        #editor .cm-content > .cm-line.cm-md-alert-last {
+            padding-bottom: calc(12px + var(--cm-md-block-gap, 0px));
+        }
+        #editor .cm-content > .cm-line.cm-md-alert-last::before { border-end-start-radius: 6px; border-end-end-radius: 6px; }
+        #editor .cm-content > .cm-line.cm-md-alert-tip { --alert-color: #1a7f37; }
+        #editor .cm-content > .cm-line.cm-md-alert-important { --alert-color: #8250df; }
+        #editor .cm-content > .cm-line.cm-md-alert-warning { --alert-color: #9a6700; }
+        #editor .cm-content > .cm-line.cm-md-alert-caution { --alert-color: #d1242f; }
+        #editor .cm-content > .cm-line.cm-md-alert-first {
+            font-weight: 600;
+            color: var(--alert-color);
+        }
+        .cm-md-alert-title {
+            display: inline-flex;
+            align-items: center;
+            line-height: 1;
+        }
+        .cm-md-alert-icon { width: 1em; height: 1em; margin-right: 0.5em; fill: currentColor; }
         .cm-md-strong { font-weight: 600; }
         .cm-md-emphasis { font-style: italic; }
         .cm-md-strikethrough { text-decoration: line-through; }
@@ -596,6 +640,43 @@ nonisolated enum EditorHTML {
         .cm-md-frontmatter-delim {
             opacity: 0.45;
         }
+        /* The row that opens and closes the card. Collapsed, it is the whole
+           card; open, it is the card's top edge. */
+        #editor .cm-md-frontmatter-header {
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+            padding: 8px 14px;
+            border-radius: 15px;
+            font-family: ui-monospace, "SF Mono", Menlo, monospace;
+            font-size: 0.82em;
+            line-height: 1.6;
+            color: var(--secondary);
+            background: color-mix(in srgb, var(--code-bg) 50%, transparent);
+            cursor: pointer;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        #editor .cm-md-frontmatter-header:hover { color: var(--text); }
+        #editor .cm-md-frontmatter-header.is-expanded {
+            border-radius: 15px 15px 0 0;
+            padding-bottom: 0;
+        }
+        #editor .cm-md-frontmatter-chevron { width: 1em; text-align: center; flex: none; }
+        #editor .cm-md-frontmatter-label { font-weight: 600; flex: none; }
+        #editor .cm-md-frontmatter-summary {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            opacity: 0.7;
+        }
+        /* The open card's first line continues the header instead of
+           starting a second rounded card. */
+        #editor .cm-content > .cm-md-frontmatter-header.is-expanded + .cm-line.cm-md-frontmatter-first {
+            border-radius: 0;
+            padding-top: 0;
+        }
         .cm-md-fence-info { color: var(--secondary); }
         .cm-md-mermaid-preview {
             /* Outer spacing comes from the block separator lines, matching
@@ -710,6 +791,12 @@ nonisolated enum EditorHTML {
             word-break: normal;
             cursor: text;
         }
+        /* Inline code in a cell keeps its natural width, as in Read mode, so
+           auto table layout reserves room for it instead of splitting it. */
+        .cm-md-table-cell .cm-md-inline-code {
+            overflow-wrap: normal;
+            white-space: nowrap;
+        }
         .cm-md-table-grid th .cm-md-table-cell[data-placeholder]:empty::before {
             content: attr(data-placeholder);
             color: var(--secondary);
@@ -796,6 +883,7 @@ nonisolated enum EditorHTML {
         html[data-page-scrolling="true"] {
             overflow-x: hidden;
             overflow-y: auto;
+            scrollbar-width: thin;
         }
         html[data-page-scrolling="true"] #editor,
         html[data-page-scrolling="true"] .cm-editor { height: auto; }
@@ -870,6 +958,9 @@ nonisolated enum EditorHTML {
             let slashTemplates = [];
             let workspaceCandidates = null;
             let metadataLinks = false;
+            let hostState = {};
+            let moveBlocks = false;
+            let carryOver = false;
             window.__mdLoadEditor = function (markdown, baseHref, codeLanguage) {
                 const isCode = typeof codeLanguage === "string";
                 document.documentElement.toggleAttribute("data-code-mode", isCode);
@@ -895,7 +986,7 @@ nonisolated enum EditorHTML {
                         onDirty: function () { post("dirty"); },
                         onCopyCode: function (text) { post({ kind: "copyCode", value: text }); },
                         onFormattingChange: function (state) {
-                            post({ kind: "formattingState", heading: state.heading, commands: state.commands });
+                            post({ kind: "formattingState", heading: state.heading, commands: state.commands, line: state.line });
                         },
                         onSearchChange: function (result) {
                             post({ kind: "findResult", index: result.index, total: result.total, capped: result.capped, error: result.error });
@@ -908,6 +999,16 @@ nonisolated enum EditorHTML {
                         },
                         onPickLink: function (from, to) {
                             post({ kind: "pickLink", from: from, to: to });
+                        },
+                        onPickMoveTarget: function (move) {
+                            post({ kind: "pickMoveTarget", id: move.id, blockKind: move.kind, text: move.text,
+                                   firstLine: move.firstLine, lastLine: move.lastLine });
+                        },
+                        onInsertCarryOver: function (at) {
+                            post({ kind: "insertCarryOver", at: at });
+                        },
+                        onMoveStale: function (id) {
+                            post({ kind: "moveStale", id: id });
                         },
                         onOpenLink: function (link) {
                             post({ kind: "openLink", token: link.token, destination: link.destination });
@@ -937,6 +1038,9 @@ nonisolated enum EditorHTML {
                 editor.setSlashTemplates(slashTemplates);
                 if (workspaceCandidates) editor.setWorkspaceCandidates(workspaceCandidates);
                 editor.setMetadataLinks(metadataLinks);
+                editor.setHostState(hostState);
+                editor.setMoveBlocks(moveBlocks);
+                editor.setCarryOver(carryOver);
                 window.__mdEditor = {
                     find: function (query, backwards, options) {
                         return editor.find(query, backwards, options);
@@ -954,6 +1058,7 @@ nonisolated enum EditorHTML {
                     setBlockStyle: function (style, language) { return editor.setBlockStyle(style, language); },
                     setListStyle: function (style) { return editor.setListStyle(style); },
                     getLinkSelection: function (expandLink) { return editor.getLinkSelection(expandLink); },
+                    openLinkAtCaret: function () { return editor.openLinkAtCaret(); },
                     select: function (anchor, head) { editor.select(anchor, head); },
                     insertLinkFromPopover: function (text, url, from, to) {
                         return editor.insertLinkFromPopover(text, url, from, to);
@@ -973,6 +1078,34 @@ nonisolated enum EditorHTML {
                     setMetadataLinks: function (enabled) {
                         metadataLinks = enabled === true;
                         editor.setMetadataLinks(metadataLinks);
+                    },
+                    // Per-window module state, `{ moduleID: Bool }`. Kept
+                    // like the templates.
+                    setHostState: function (state) {
+                        hostState = state || {};
+                        editor.setHostState(hostState);
+                    },
+                    // Kept like the templates.
+                    setMoveBlocks: function (enabled) {
+                        moveBlocks = enabled === true;
+                        editor.setMoveBlocks(moveBlocks);
+                    },
+                    // Kept like the templates.
+                    setCarryOver: function (enabled) {
+                        carryOver = enabled === true;
+                        editor.setCarryOver(carryOver);
+                    },
+                    completeMove: function (id) { return editor.completeMove(id); },
+                    applyMove: function (id, expected, next) { return editor.applyMove(id, expected, next); },
+                    removalPreview: function (id) { return editor.removalPreview(id); },
+                    replaceIfUnchanged: function (expected, next) { return editor.replaceIfUnchanged(expected, next); },
+                    undoMove: function (id) { return editor.undoMove(id); },
+                    forgetMove: function (id) { return editor.forgetMove(id); },
+                    dragFileCaret: function (x, y) { return editor.dragFileCaret(x, y); },
+                    endFileDrag: function (dropped) { editor.endFileDrag(dropped); },
+                    fileDropPosition: function (x, y) { return editor.fileDropPosition(x, y); },
+                    setTaskChecked: function (line, checked, text) {
+                        return editor.setTaskChecked(line, checked, text);
                     },
                     // Not kept: a fresh page sends its queries again.
                     setQueryResults: function (results) {

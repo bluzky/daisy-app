@@ -61,7 +61,7 @@ struct ThemeSettingsView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(String(format: L("Current theme: %@"),
                                 selected.map { L($0.name) } ?? L("Custom colors")))
-                    Text(L("Each theme remembers its colors, font and layout. Original also remembers your appearance choice. Reset restores the selected theme’s defaults."))
+                    Text(L("Each theme remembers its colors, font and layout. Original and Ember also remember your appearance choice. Reset restores the selected theme’s defaults."))
                 }
             }
 

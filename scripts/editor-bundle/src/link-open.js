@@ -51,6 +51,16 @@ export function openLinkAt(view, pos, callbacks) {
   return link
 }
 
+// Sends the link the caret is in, or ends right after, to the host: the
+// keyboard's Cmd+click. Returns it, or null when there is none.
+export function openLinkAtCaret(view, callbacks) {
+  const { head } = view.state.selection.main
+  const atLineStart = head === view.state.doc.lineAt(head).from
+  const link = linkAt(view, head) ?? (atLineStart ? null : linkAt(view, head - 1))
+  if (link && callbacks && callbacks.onOpenLink) callbacks.onOpenLink(link)
+  return link
+}
+
 // Kept in state so the class goes through `editorAttributes`, which owns
 // the editor's class attribute.
 const modifierHeldChanged = StateEffect.define()

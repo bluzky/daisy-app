@@ -93,6 +93,15 @@ struct CustomizeThemeView: View {
                     colorRow(L("Window background"), slot: .windowBackground)
                     colorRow(L("Code block background"), slot: .codeBlockBackground)
                     colorRow(L("Text"), slot: .textColor)
+                    colorRow(L("Headings"), slot: .headingColor)
+                    Picker(L("Table style"), selection: tableStyleBinding) {
+                        ForEach(MarkdownHTML.TableStyle.allCases, id: \.self) { style in
+                            Text(L(style.displayName)).tag(style)
+                        }
+                    }
+                    colorRow(L("Table header"), slot: .tableHeader)
+                    colorRow(L("Table lines"), slot: .tableBorder)
+                    colorRow(L("Table stripe"), slot: .tableStripe)
                     colorRow(L("Link"), slot: .linkColor)
                 } header: {
                     Text(L("Colors"))
@@ -351,6 +360,13 @@ struct CustomizeThemeView: View {
     /// separate labeled Light/Dark wells only in Automatic, where both
     /// schemes are reachable. Two always-visible wells confused more than
     /// they helped.
+    private var tableStyleBinding: Binding<MarkdownHTML.TableStyle> {
+        Binding(
+            get: { draft.themeColors.tableStyle ?? .lines },
+            set: { draft.themeColors.tableStyle = $0 == .lines ? nil : $0 }
+        )
+    }
+
     private func colorRow(_ title: String, slot: ThemeColorSlot) -> some View {
         LabeledContent {
             HStack(spacing: 16) {

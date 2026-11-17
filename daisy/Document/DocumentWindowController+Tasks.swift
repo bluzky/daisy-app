@@ -4,7 +4,7 @@
 //
 //  What the Tasks sidebar asks of its window: open a task's file at the
 //  task, reveal it in Files, and check it off or back on. A check-off goes
-//  one of three ways (see docs/tasks-sidebar-proposal.md):
+//  one of three ways (see docs/technical/tasks-sidebar-proposal.md):
 //
 //  - The file is open in Edit Mode or has unsaved edits: the marker is
 //    flipped in that window's buffer, and saves with everything else.
@@ -176,7 +176,7 @@ extension DocumentWindowController {
     /// Waits out a commit in flight and an editor that is closing. Changing
     /// the buffer or draft under either would be overwritten when they
     /// finish. False when the commit failed.
-    private func settleEditSession() async -> Bool {
+    func settleEditSession() async -> Bool {
         while true {
             if isEditorCommitInFlight {
                 let committed = await withCheckedContinuation { continuation in
@@ -258,10 +258,12 @@ extension DocumentWindowController {
         return nil
     }
 
-    /// The new buffer stands in for the file in the index now, rather than
-    /// after the usual typing pause. Only when this window counts it in the
-    /// sidebar's index; another workspace sees it once it is saved.
-    private func updateTaskOverlay(_ markdown: String, url: URL, index: WorkspaceMetadataIndex) {
+    /// The new buffer stands in for the file in the index until it is saved
+    /// or discarded, so the Agenda keeps the check rather than showing the
+    /// saved file's. Typed text never does; the index otherwise follows
+    /// saved files. Only when this window counts it in the sidebar's index;
+    /// another workspace sees it once it is saved.
+    func updateTaskOverlay(_ markdown: String, url: URL, index: WorkspaceMetadataIndex) {
         guard workspaceIndex === index else { return }
         if let previous = workspaceOverlayURL, previous != url { restoreWorkspaceOverlay() }
         workspaceOverlayURL = url

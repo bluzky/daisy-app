@@ -17,6 +17,61 @@ final class EditorSearchBridgeTests: XCTestCase {
         }
     }
 
+    /// The Agenda checks a task off in an open editor through the page's
+    /// `__mdEditor`, which must forward it to the editor.
+    func testProductionPageExposesTaskCheckOff() async throws {
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
+        let html = EditorHTML.render(markdown: "# Today\n- [ ] Ship\n- [ ] Test", editorJavaScript: script)
+        let editor = WebViewLayoutHarness(html: html, width: 900, isEditor: true)
+        defer { editor.close() }
+        _ = try await editor.layout(texts: [], imageCount: 0)
+        let result = try await editor.webView.callAsyncJavaScript(
+            "return window.__mdEditor.setTaskChecked(2, true, 'Ship');",
+            arguments: [:], in: nil, contentWorld: .page)
+        let values = try XCTUnwrap(result as? [String: Any])
+        XCTAssertEqual(values["line"] as? Int, 2)
+        XCTAssertEqual(values["changed"] as? Bool, true)
+        XCTAssertEqual(values["markdown"] as? String, "# Today\n- [x] Ship\n- [ ] Test")
+    }
+
+    /// A file dragged from the Files sidebar: the caret follows it, it lands
+    /// where a paste would, never in code, and a drag that leaves puts the
+    /// selection back.
+    func testProductionPageExposesFileDrop() async throws {
+        let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
+        let html = EditorHTML.render(markdown: "Plain paragraph text\n\n```\ncode line\n```\n",
+                                     editorJavaScript: script)
+        let editor = WebViewLayoutHarness(html: html, width: 900, isEditor: true)
+        defer { editor.close() }
+        _ = try await editor.layout(texts: [], imageCount: 0)
+        let result = try await editor.webView.callAsyncJavaScript("""
+            const editor = window.__mdEditor;
+            const point = (text) => {
+                const range = document.createRange();
+                const node = [...document.querySelectorAll('.cm-line')].find((line) => line.textContent.includes(text));
+                const rect = node.getBoundingClientRect();
+                return [rect.left + 20, rect.top + rect.height / 2];
+            };
+            editor.select(0, 0);
+            const [px, py] = point('Plain paragraph');
+            const dragged = editor.dragFileCaret(px, py);
+            const caretWhileDragging = editor.getLinkSelection().from;
+            editor.endFileDrag(false);
+            const restored = editor.getLinkSelection().from;
+            const [cx, cy] = point('code line');
+            return { dragged, caretWhileDragging, restored, inCode: editor.fileDropPosition(cx, cy),
+                     paragraph: editor.fileDropPosition(px, py) };
+            """, arguments: [:], in: nil, contentWorld: .page)
+        let values = try XCTUnwrap(result as? [String: Any])
+        let dragged = try XCTUnwrap(values["dragged"] as? Int)
+        XCTAssertGreaterThan(dragged, 0)
+        XCTAssertLessThan(dragged, "Plain paragraph text".count)
+        XCTAssertEqual(values["caretWhileDragging"] as? Int, dragged)
+        XCTAssertEqual(values["restored"] as? Int, 0)
+        XCTAssertEqual(values["paragraph"] as? Int, dragged)
+        XCTAssertTrue(values["inCode"] is NSNull)
+    }
+
     func testProductionPageExposesSearchAndReportsEditedMatchCounts() async throws {
         let script = try TestVendor.script("daisy/Vendor/CodeMirror/mdedit.min.js")
         let html = EditorHTML.render(markdown: "needle first\n\nneedle second", editorJavaScript: script)

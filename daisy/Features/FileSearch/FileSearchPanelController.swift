@@ -21,9 +21,20 @@ final class FileSearchPanelController: NSViewController {
 
     /// What the palette is for. `.insertLink` searches project file names
     /// only and hands the chosen file to `onInsertLink` instead of opening it.
+    /// `.moveTarget` searches the project's Markdown files for `/move`, then
+    /// lists the chosen file's headings, and hands both to `onMoveTarget`.
     enum Mode {
         case open
         case insertLink
+        case moveTarget
+    }
+
+    /// Where `/move` sends its block.
+    enum MoveDestination {
+        /// Under `heading`, or at the end of the file when it is nil.
+        case file(URL, heading: MarkdownSectionInsertion.Heading?)
+        /// A file to create first, project-relative.
+        case newFile(String)
     }
 
     /// Called with the chosen file once the panel has gone. The controller
@@ -37,6 +48,11 @@ final class FileSearchPanelController: NSViewController {
     /// Called with the chosen file in `.insertLink` mode, after the panel has
     /// gone, so the editor has focus back when the link lands.
     var onInsertLink: ((URL) -> Void)?
+    /// `.moveTarget`: the headings the chosen file offers, or nil when it
+    /// can't be read.
+    var loadMoveSections: ((URL) async -> [MarkdownSectionInsertion.Heading]?)?
+    /// `.moveTarget`: where the block goes, after the panel has gone.
+    var onMoveTarget: ((MoveDestination) -> Void)?
 
     var onDismiss: (() -> Void)?
     private var presentation: FileSearchPanelPresentation?
@@ -111,6 +127,8 @@ final class FileSearchPanelController: NSViewController {
     /// Honoured once the ranking for the current text lands, so the file
     /// opened is the one the reader was about to see at the top.
     private var pendingActivation: OpenTarget?
+    /// `.moveTarget` once a file is chosen: the list shows its sections.
+    private var sectionStage: (url: URL, headings: [MarkdownSectionInsertion.Heading])?
 
     init(projectRoot: URL?, mode: Mode = .open, index: ProjectFileIndex = .shared,
          commands: OmniSearchCommandCatalog? = nil) {
@@ -186,9 +204,7 @@ final class FileSearchPanelController: NSViewController {
         // Open Quickly presents it: in a palette the field is the whole point,
         // so it reads as the subject rather than as one control among several.
         queryField.translatesAutoresizingMaskIntoConstraints = false
-        queryField.placeholderString = mode == .insertLink
-            ? NSLocalizedString("Link to a file in this project", comment: "OmniSearch link mode placeholder")
-            : NSLocalizedString("Search files and commands", comment: "OmniSearch field placeholder")
+        queryField.placeholderString = placeholder
         queryField.delegate = self
         queryField.font = .systemFont(ofSize: 20)
         queryField.isBordered = false
@@ -297,13 +313,16 @@ final class FileSearchPanelController: NSViewController {
         recentURLs = NSDocumentController.shared.recentDocumentURLs.filter {
             $0.isFileURL && FileKind.classify($0).opensInDaisy
         }
-        if mode == .insertLink {
+        if mode == .insertLink || mode == .moveTarget {
             // A link points into the project; recents from elsewhere would
-            // produce paths that climb out of it.
+            // produce paths that climb out of it. A move stays inside it too.
             let rootPath = projectRoot.map { FileSearchResults.resolvedIdentity($0).path + "/" }
             recentURLs = recentURLs.filter { url in
                 rootPath.map { FileSearchResults.resolvedIdentity(url).path.hasPrefix($0) } ?? false
             }
+        }
+        if mode == .moveTarget {
+            recentURLs = recentURLs.filter { FileKind.classify($0) == .markdown }
         }
         refreshResults()
         loadIndex()
@@ -379,10 +398,16 @@ final class FileSearchPanelController: NSViewController {
         debounce?.cancel()
         debounce = nil
         let query = queryField.stringValue
+        if sectionStage != nil {
+            rankTask?.cancel()
+            rankTask = nil
+            apply(sectionRows(for: query), for: query)
+            return
+        }
         let snapshot = snapshot
         let recentURLs = recentURLs
         let commands = commandCatalog?.candidates ?? []
-        let offersCreate = mode == .open
+        let offersCreate = mode == .open || mode == .moveTarget
         rankTask?.cancel()
         if !hasSearchQuery {
             apply((try? FileSearchResults.rows(query: query, recentURLs: recentURLs, snapshot: nil,
@@ -415,6 +440,7 @@ final class FileSearchPanelController: NSViewController {
         // Superseded while the pass was finishing: the field has moved on and
         // a newer ranking is already on its way.
         guard presentation != nil, query == queryField.stringValue else { return }
+        let ranked = mode == .moveTarget && sectionStage == nil ? Self.markdownOnly(ranked) : ranked
         results = ranked
         baseRows = ranked
         rankedQuery = query
@@ -443,6 +469,17 @@ final class FileSearchPanelController: NSViewController {
             keymap.bindings(for: command).first?.displayString
         }
         var hints: [KeyHintFooter.Hint] = []
+        if mode == .moveTarget {
+            if let keys = keys(.searchOpenResult) {
+                hints.append(.init(keys: keys, label: sectionStage == nil
+                    ? NSLocalizedString("choose file", comment: "OmniSearch key hint")
+                    : NSLocalizedString("move here", comment: "OmniSearch key hint")))
+            }
+            if sectionStage != nil {
+                hints.append(.init(keys: "esc", label: NSLocalizedString("back", comment: "OmniSearch key hint")))
+            }
+            return hints
+        }
         if mode == .insertLink {
             if let keys = keys(.searchOpenResult) {
                 hints.append(.init(keys: keys, label: NSLocalizedString("insert link", comment: "OmniSearch key hint")))
@@ -530,11 +567,15 @@ final class FileSearchPanelController: NSViewController {
     private func updateStatus() {
         openFolderButton.isHidden = true
         if results.isEmpty {
-            statusLabel.stringValue = hasSearchQuery
+            statusLabel.stringValue = sectionStage != nil
+                ? NSLocalizedString("No matching headings", comment: "OmniSearch move mode, no heading matches")
+                : hasSearchQuery
                 ? NSLocalizedString("No results", comment: "OmniSearch no results")
                 : mode == .insertLink
                     ? NSLocalizedString("Type a file name to link to", comment: "OmniSearch link mode empty state")
-                    : NSLocalizedString("No recent files", comment: "OmniSearch empty history")
+                    : mode == .moveTarget
+                        ? NSLocalizedString("Type a file name to move to", comment: "OmniSearch move mode empty state")
+                        : NSLocalizedString("No recent files", comment: "OmniSearch empty history")
             openFolderButton.isHidden = projectRoot != nil
             statusLabel.isHidden = false
             return
@@ -685,6 +726,17 @@ final class FileSearchPanelController: NSViewController {
             if let url = row.entry?.url { insertLink(to: url) }
             return
         }
+        if mode == .moveTarget {
+            // Every open target chooses: nothing opens.
+            switch row {
+            case .file(let entry): enterSectionStage(for: entry.url)
+            case .createFile(let newFile): finishMove(.newFile(newFile.relativePath))
+            case .section(let choice):
+                if let url = sectionStage?.url { finishMove(.file(url, heading: choice.heading)) }
+            default: break
+            }
+            return
+        }
         switch row {
         case .file(let entry):
             openFile(at: entry.url, target: target)
@@ -694,9 +746,85 @@ final class FileSearchPanelController: NSViewController {
             runCommand(command)
         case .createFile(let newFile):
             createFile(newFile)
-        case .recentHeading, .filesHeading, .commandsHeading, .contentHeading, .searching:
+        case .recentHeading, .filesHeading, .commandsHeading, .contentHeading, .searching, .section:
             break
         }
+    }
+
+    // MARK: - Move target
+
+    private var placeholder: String {
+        if let stage = sectionStage {
+            return String(format: NSLocalizedString("Where in “%@”?", comment: "OmniSearch move mode, choosing a heading"),
+                          stage.url.lastPathComponent)
+        }
+        switch mode {
+        case .open: return NSLocalizedString("Search files and commands", comment: "OmniSearch field placeholder")
+        case .insertLink: return NSLocalizedString("Link to a file in this project", comment: "OmniSearch link mode placeholder")
+        case .moveTarget: return NSLocalizedString("Move to a file in this project", comment: "OmniSearch move mode placeholder")
+        }
+    }
+
+    /// File rows for Markdown files only, without headings left empty.
+    private static func markdownOnly(_ rows: [FileSearchResults.Row]) -> [FileSearchResults.Row] {
+        let kept = rows.filter { row in
+            guard case .file(let entry) = row else { return true }
+            return FileKind.classify(entry.url) == .markdown
+        }
+        return kept.enumerated().filter { index, row in
+            guard !row.isSelectable else { return true }
+            let next = kept.index(after: index)
+            return next < kept.count && kept[next].isSelectable
+        }.map(\.element)
+    }
+
+    /// "End of file" first, then the headings, narrowed by what was typed.
+    private func sectionRows(for query: String) -> [FileSearchResults.Row] {
+        guard let stage = sectionStage else { return [] }
+        let needle = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let choices = [FileSearchResults.SectionChoice(heading: nil)]
+            + stage.headings.map { FileSearchResults.SectionChoice(heading: $0) }
+        return choices.filter { needle.isEmpty || Self.sectionTitle($0).lowercased().contains(needle) }
+            .map { .section($0) }
+    }
+
+    fileprivate static func sectionTitle(_ choice: FileSearchResults.SectionChoice) -> String {
+        guard let heading = choice.heading else {
+            return NSLocalizedString("End of file", comment: "OmniSearch move mode row")
+        }
+        return heading.title.isEmpty
+            ? NSLocalizedString("Untitled heading", comment: "OmniSearch move mode row for an empty heading")
+            : heading.title
+    }
+
+    private func enterSectionStage(for url: URL) {
+        guard let loadMoveSections else { return }
+        Task { [weak self] in
+            let headings = await loadMoveSections(url)
+            guard let self, self.presentation != nil, self.sectionStage == nil else { return }
+            guard let headings else {
+                NSSound.beep()
+                return
+            }
+            self.setSectionStage((url, headings))
+        }
+    }
+
+    private func setSectionStage(_ stage: (url: URL, headings: [MarkdownSectionInsertion.Heading])?) {
+        sectionStage = stage
+        pendingActivation = nil
+        queryField.stringValue = ""
+        queryField.placeholderString = placeholder
+        footer.update(hints: footerHints())
+        refreshResults()
+    }
+
+    private func finishMove(_ destination: MoveDestination) {
+        let onMoveTarget = onMoveTarget
+        let parent = view.window?.parent
+        closePalette()
+        parent?.makeKeyAndOrderFront(nil)
+        DispatchQueue.main.async { onMoveTarget?(destination) }
     }
 
     private func runCommand(_ command: FileSearchResults.CommandCandidate) {
@@ -806,8 +934,13 @@ extension FileSearchPanelController: NSTextFieldDelegate {
             return activateSelection(target: .currentTab)
         case #selector(NSResponder.cancelOperation(_:)):
             // The field would otherwise just clear itself, which is not what
-            // Escape means when a palette is up.
-            closePalette()
+            // Escape means when a palette is up. Choosing a heading, it goes
+            // back to the files.
+            if sectionStage != nil {
+                setSectionStage(nil)
+            } else {
+                closePalette()
+            }
             return true
         default:
             return false
@@ -885,6 +1018,12 @@ extension FileSearchPanelController: NSTableViewDataSource, NSTableViewDelegate 
             cell.configureCreateFile(fileName: newFile.fileName,
                                      directory: newFile.directory,
                                      projectName: newFile.projectRoot.lastPathComponent)
+            return cell
+
+        case .section(let choice):
+            let cell = rowView()
+            cell.configureSection(title: Self.sectionTitle(choice), level: choice.heading?.level,
+                                  fileName: sectionStage?.url.lastPathComponent ?? "")
             return cell
         }
     }
@@ -1178,6 +1317,24 @@ private final class FileSearchRowView: NSTableCellView {
         path.toolTip = menuPath
         shortcut.stringValue = shortcutText ?? ""
         setSymbol("command")
+    }
+
+    /// A `/move` destination: a heading, indented by its level, or the end
+    /// of the file when `level` is nil.
+    func configureSection(title: String, level: Int?, fileName: String) {
+        let indent = String(repeating: "\u{2003}", count: max(0, (level ?? 1) - 1))
+        name.attributedStringValue = Self.emphasising([], in: indent + title,
+                                                      base: Self.nameFont, emphasis: Self.nameMatchFont,
+                                                      color: .labelColor,
+                                                      paragraphStyle: Self.nameParagraphStyle)
+        let detail = level.map { String(repeating: "#", count: $0) } ?? fileName
+        path.attributedStringValue = Self.emphasising([], in: detail,
+                                                      base: Self.pathFont, emphasis: Self.pathMatchFont,
+                                                      color: .secondaryLabelColor,
+                                                      paragraphStyle: Self.pathParagraphStyle)
+        path.toolTip = nil
+        shortcut.stringValue = ""
+        setSymbol(level == nil ? "arrow.down.to.line" : "number")
     }
 
     /// The "create it" row: what will be made and where.

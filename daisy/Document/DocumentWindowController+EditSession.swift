@@ -36,7 +36,6 @@ extension DocumentWindowController {
             self?.stopAutoSaveTimer()
             self?.startAutoSaveTimerIfNeeded()
             self?.scheduleOutlineRefresh()
-            self?.scheduleWorkspaceOverlay()
         }
         editor.pasteImageRequested = { [weak self] from, to in
             self?.pasteImage(at: from, replacing: to)
@@ -46,6 +45,20 @@ extension DocumentWindowController {
         }
         editor.pickLinkRequested = { [weak self] from, to in
             self?.pickLinkTarget(text: "", from: from, to: to)
+        }
+        editor.setMoveBlocksEnabled(canMoveBlocks)
+        editor.pickMoveTargetRequested = { [weak self] request in
+            self?.pickMoveTarget(request)
+        }
+        editor.moveBecameStale = { [weak self] id in
+            self?.moveBecameStale(id)
+        }
+        editor.setCarryOverEnabled(canCarryOverTasks)
+        editor.insertCarryOverRequested = { [weak self] in
+            self?.insertCarriedOverTasksFromMenu()
+        }
+        editor.projectFilesDropped = { [weak self] files, position in
+            self?.insertDroppedFiles(files, at: position)
         }
         editor.imageClicked = { [weak self] url in
             self?.renameImage(at: url)
@@ -507,6 +520,11 @@ extension DocumentWindowController {
         split.editorViewController?.pasteImageRequested = nil
         split.editorViewController?.pickImageRequested = nil
         split.editorViewController?.pickLinkRequested = nil
+        split.editorViewController?.pickMoveTargetRequested = nil
+        split.editorViewController?.moveBecameStale = nil
+        split.editorViewController?.insertCarryOverRequested = nil
+        split.editorViewController?.projectFilesDropped = nil
+        dismissMoveBanner()
         split.editorViewController?.imageClicked = nil
         split.editorViewController?.linkActivated = nil
         split.editorViewController?.queryBlocksRequested = nil
@@ -607,7 +625,13 @@ extension DocumentWindowController {
             completion?(nil)
             return
         }
+        saveReadModeMarkdown(updated, baseline: baseline, completion: completion)
+    }
 
+    /// Saves `updated` over `baseline`, the Read Mode text, the way a
+    /// checkbox click does. `completion` gets the saved text, or nil when
+    /// the file changed on disk (it is reloaded) or the save was cancelled.
+    func saveReadModeMarkdown(_ updated: String, baseline: String, completion: ((String?) -> Void)? = nil) {
         let diskState = diskFileState(for: currentFileURL, expectedMarkdown: baseline)
         saveEditedMarkdown(updated, diskState: diskState) { [weak self] result in
             guard let self else { return }

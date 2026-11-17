@@ -330,15 +330,31 @@ actor WorkspaceMetadataIndex {
         latest ?? makeSnapshot()
     }
 
+    /// The names without those of the file at `url`, for the editor showing
+    /// it. That editor reads the file's names from its own buffer, leaving
+    /// out the one being typed, so the file's copy here, saved or unsaved,
+    /// must not add a half-typed name back.
+    func snapshot(excludingNamesOf url: URL?) -> WorkspaceMetadataSnapshot {
+        guard let url, let path = relativePath(of: url),
+              let own = effectiveRecord(at: path)?.contribution else { return snapshot() }
+        var names = aggregate
+        names.merge(own, sign: -1)
+        return makeSnapshot(names)
+    }
+
     private func unsubscribe(_ id: UUID) {
         subscribers[id] = nil
     }
 
     private func makeSnapshot() -> WorkspaceMetadataSnapshot {
+        makeSnapshot(aggregate)
+    }
+
+    private func makeSnapshot(_ names: WorkspaceMetadataContribution) -> WorkspaceMetadataSnapshot {
         WorkspaceMetadataSnapshot(version: WorkspaceMetadataSnapshot.nextVersion(),
-                                  tags: aggregate.candidates(.tag),
-                                  contexts: aggregate.candidates(.context),
-                                  projects: aggregate.candidates(.project),
+                                  tags: names.candidates(.tag),
+                                  contexts: names.candidates(.context),
+                                  projects: names.candidates(.project),
                                   isComplete: isComplete,
                                   isTruncated: isTruncated)
     }

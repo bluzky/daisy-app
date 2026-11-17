@@ -5,7 +5,7 @@ import { markdownLanguage } from "@codemirror/lang-markdown"
 import { isolateHistory } from "@codemirror/commands"
 
 // List editing: Enter, Shift-Enter, Backspace, Tab / Shift-Tab and list-style
-// conversion, as specified in docs/list-editing-proposal.md.
+// conversion, as specified in docs/technical/list-editing-proposal.md.
 //
 // Each command reads the list around the selection into a line model, edits
 // the model, renumbers the ordered lists the edit touched, and writes back
@@ -629,6 +629,24 @@ export function outdentListItems(view) {
   if (!selection) return false
   for (const item of selection.items) if (item.parent) outdent(selection.block.lines, item)
   return dispatchSelectionEdit(view, selection.block)
+}
+
+// The list item on line `lineNumber`, for `/move`: its first and last line,
+// children and continuation lines included, and its text moved to the
+// margin with everything under it shifted the same way. A line that
+// continues an item belongs to that item. Null outside a list, in code and
+// in a quote.
+export function listItemExtent(state, lineNumber) {
+  const list = enclosingList(state, lineNumber)
+  if (!list || list === "code") return null
+  const { first, lines } = readBlock(state, list.first, list.last)
+  const line = lines[lineNumber - first]
+  const item = line.kind === "item" ? line : line.owner
+  if (!item || item.quote) return null
+  const own = lines.slice(item.index, item.end + 1)
+  const delta = -item.indent
+  for (const each of own) shiftLine(each, delta)
+  return { first: first + item.index, last: first + item.end, text: own.map(render).join("\n") }
 }
 
 export const LIST_STYLES = ["none", "bullet", "ordered", "task"]

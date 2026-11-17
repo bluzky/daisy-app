@@ -437,6 +437,25 @@ const slashInsertTemplate = (body, { source = "", locale = "en" } = {}) => {
 }
 
 {
+  const { editor } = slashEditor("", { onInsertCarryOver: () => {} })
+  editor.insertTextAt("/carry", 0, 0)
+  check("carry-over command is hidden until the host turns it on",
+    !slashLabels().includes("Carry over unfinished tasks"))
+}
+
+{
+  const requests = []
+  const { host, editor } = slashEditor("Tasks ", { onInsertCarryOver: (at) => requests.push(at) })
+  editor.setCarryOver(true)
+  editor.insertTextAt("/carryover", 6, 6)
+  check("carry-over command is offered on today's entry", slashLabels()[0] === "Carry over unfinished tasks")
+  slashKey(host, "Enter")
+  check("carry-over command removes the typed query and keeps the line", editor.getMarkdown() === "Tasks ")
+  check("carry-over command asks the host at the query position", requests.length === 1 && requests[0] === 6)
+  check("carry-over command closes the menu", !slashVisible())
+}
+
+{
   const { editor } = slashEditor("", { onPickLink: () => {} })
   editor.insertTextAt("/li", 0, 0)
   check("a label prefix outranks an alias prefix", slashLabels()[0] === "Link to File")
@@ -471,4 +490,39 @@ const slashInsertTemplate = (body, { source = "", locale = "en" } = {}) => {
   editor.destroy()
   check("destroying the editor removes its menu",
     dom.window.document.querySelectorAll(".cm-md-slash-menu").length === before)
+}
+
+// --- Slide deck commands ------------------------------------------------------
+{
+  const { editor } = slashEditor("# Notes\n\n")
+  editor.insertTextAt("/", 9, 9)
+  check("slide commands stay out of a document that is not a deck",
+    slashVisible() && !slashLabels().includes("New Slide") && !slashLabels().includes("Speaker Notes"))
+}
+
+{
+  const deck = "---\nslides: true\n---\n\n"
+  const { host, editor } = slashEditor(deck)
+  editor.insertTextAt("/", deck.length, deck.length)
+  check("a deck lists the slide commands",
+    ["New Slide", "Speaker Notes", "Reveal Step", "New Column"].every((label) => slashLabels().includes(label)))
+  editor.insertTextAt("slide", deck.length + 1, deck.length + 1)
+  slashKey(host, "Enter")
+  check("/slide inserts a slide break", editor.getMarkdown() === deck + "---\n")
+}
+
+{
+  const deck = "---\nslides: true\n---\n- Ship "
+  const { host, editor } = slashEditor(deck)
+  editor.insertTextAt("/step", deck.length, deck.length)
+  slashKey(host, "Enter")
+  check("/step at the end of text marks that line", editor.getMarkdown() === "---\nslides: true\n---\n- Ship <!-- step -->")
+}
+
+{
+  const deck = "---\nslides: true\n---\n"
+  const { host, editor } = slashEditor(deck + " Say hello")
+  editor.insertTextAt("/notes", deck.length, deck.length)
+  slashKey(host, "Enter")
+  check("/notes starts the notes with the line's text", editor.getMarkdown() === deck + "???\nSay hello")
 }

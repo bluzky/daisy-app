@@ -33,6 +33,24 @@ nonisolated enum ThemeColorSlot: String, CaseIterable, Codable, Sendable {
     /// Links in the preview and the editor — the `--link` variable. This is
     /// the theme's primary accent.
     case linkColor
+    /// Headings in the preview and the editor — the `--heading` variable.
+    /// Unset, headings use the text color.
+    case headingColor
+    /// One heading level's color (`--heading-1`…`--heading-6`), set by
+    /// presets. `headingColor`, when set, overrides all of them.
+    case heading1, heading2, heading3, heading4, heading5, heading6
+    /// Table header row background (`--table-header-bg`).
+    case tableHeader
+    /// Table lines (`--table-border`).
+    case tableBorder
+    /// Every other row of a striped table (`--table-stripe`).
+    case tableStripe
+
+    /// The slot for heading `level` (1–6).
+    static func heading(level: Int) -> ThemeColorSlot? {
+        let slots: [ThemeColorSlot] = [.heading1, .heading2, .heading3, .heading4, .heading5, .heading6]
+        return slots.indices.contains(level - 1) ? slots[level - 1] : nil
+    }
 }
 
 nonisolated struct ThemeColorsSetting: Equatable, Codable, Sendable {
@@ -40,9 +58,15 @@ nonisolated struct ThemeColorsSetting: Equatable, Codable, Sendable {
     /// "#RRGGBB" per scheme and slot. A missing entry means the default.
     private var values: [ThemeColorScheme: [ThemeColorSlot: String]] = [:]
 
+    /// How tables are drawn; nil is the plain look (`lines`). One value for
+    /// both schemes.
+    var tableStyle: MarkdownHTML.TableStyle?
+
     init() {}
 
     // MARK: - Persistence
+
+    static let tableStyleDefaultsKey = "MarkdownPreview.themeTableStyle"
 
     static func defaultsKey(_ scheme: ThemeColorScheme, _ slot: ThemeColorSlot) -> String {
         "MarkdownPreview.themeColor.\(scheme.rawValue).\(slot.rawValue)"
@@ -69,11 +93,18 @@ nonisolated struct ThemeColorsSetting: Equatable, Codable, Sendable {
                 setting.values[scheme, default: [:]][slot] = hex
             }
         }
+        setting.tableStyle = defaults.string(forKey: tableStyleDefaultsKey)
+            .flatMap(MarkdownHTML.TableStyle.init(rawValue:))
         return setting
     }
 
     static func write(_ setting: Self, to defaults: UserDefaults?) {
         guard let defaults else { return }
+        if let style = setting.tableStyle {
+            defaults.set(style.rawValue, forKey: tableStyleDefaultsKey)
+        } else {
+            defaults.removeObject(forKey: tableStyleDefaultsKey)
+        }
         for scheme in ThemeColorScheme.allCases {
             for slot in ThemeColorSlot.allCases {
                 let key = defaultsKey(scheme, slot)
@@ -89,7 +120,7 @@ nonisolated struct ThemeColorsSetting: Equatable, Codable, Sendable {
     // MARK: - Values
 
     var isCustomized: Bool {
-        values.values.contains { !$0.isEmpty }
+        tableStyle != nil || values.values.contains { !$0.isEmpty }
     }
 
     /// True when either scheme overrides the window background. UI-level
@@ -166,6 +197,22 @@ nonisolated struct ThemeColorsSetting: Equatable, Codable, Sendable {
             return NSColor(srgbRed: 29 / 255, green: 29 / 255, blue: 31 / 255, alpha: 1)
         case (.textColor, .dark):
             return NSColor(srgbRed: 245 / 255, green: 245 / 255, blue: 247 / 255, alpha: 1)
+        case (.headingColor, _), (.heading1, _), (.heading2, _), (.heading3, _),
+             (.heading4, _), (.heading5, _), (.heading6, _):
+            // No override of its own: headings follow the text color.
+            return defaultColor(.textColor, scheme)
+        case (.tableHeader, .light):
+            return defaultColor(.codeBlockBackground, .light)
+        case (.tableHeader, .dark):
+            return defaultColor(.codeBlockBackground, .dark)
+        case (.tableBorder, .light):
+            return NSColor(srgbRed: 210 / 255, green: 210 / 255, blue: 215 / 255, alpha: 1)
+        case (.tableBorder, .dark):
+            return NSColor(srgbRed: 66 / 255, green: 66 / 255, blue: 70 / 255, alpha: 1)
+        case (.tableStripe, .light):
+            return NSColor(srgbRed: 248 / 255, green: 248 / 255, blue: 250 / 255, alpha: 1)
+        case (.tableStripe, .dark):
+            return NSColor(srgbRed: 36 / 255, green: 34 / 255, blue: 34 / 255, alpha: 1)
         case (.linkColor, .light):
             // --link in MarkdownHTML.stylesheet: #0066cc / #2997ff.
             return NSColor(srgbRed: 0, green: 102 / 255, blue: 204 / 255, alpha: 1)
@@ -186,10 +233,35 @@ nonisolated struct ThemeColorsSetting: Equatable, Codable, Sendable {
         let darkText = hexValue(.textColor, .dark)
         let lightLink = hexValue(.linkColor, .light)
         let darkLink = hexValue(.linkColor, .dark)
+        let lightHeading = hexValue(.headingColor, .light)
+        let darkHeading = hexValue(.headingColor, .dark)
+        let levels = (1...6).compactMap { level in
+            ThemeColorSlot.heading(level: level).map { (level, $0) }
+        }
+        let lightLevels = Dictionary(uniqueKeysWithValues: levels.compactMap { level, slot in
+            hexValue(slot, .light).map { (level, $0) }
+        })
+        let darkLevels = Dictionary(uniqueKeysWithValues: levels.compactMap { level, slot in
+            hexValue(slot, .dark).map { (level, $0) }
+        })
+        let tableSlots: [(String, ThemeColorSlot)] = [
+            ("--table-header-bg", .tableHeader), ("--table-border", .tableBorder),
+            ("--table-stripe", .tableStripe),
+        ]
+        func tableColors(_ scheme: ThemeColorScheme) -> [String: String] {
+            Dictionary(uniqueKeysWithValues: tableSlots.compactMap { property, slot in
+                hexValue(slot, scheme).map { (property, $0) }
+            })
+        }
+        let lightTable = tableColors(.light)
+        let darkTable = tableColors(.dark)
         guard lightCode != nil || darkCode != nil
                 || lightPage != nil || darkPage != nil
                 || lightText != nil || darkText != nil
-                || lightLink != nil || darkLink != nil else { return nil }
+                || lightLink != nil || darkLink != nil
+                || lightHeading != nil || darkHeading != nil
+                || !lightLevels.isEmpty || !darkLevels.isEmpty
+                || !lightTable.isEmpty || !darkTable.isEmpty || tableStyle != nil else { return nil }
         return MarkdownHTML.ThemeOverrides(
             lightCodeBackground: lightCode,
             darkCodeBackground: darkCode,
@@ -198,7 +270,14 @@ nonisolated struct ThemeColorsSetting: Equatable, Codable, Sendable {
             lightText: lightText,
             darkText: darkText,
             lightLink: lightLink,
-            darkLink: darkLink
+            darkLink: darkLink,
+            lightHeading: lightHeading,
+            darkHeading: darkHeading,
+            lightHeadingLevels: lightLevels,
+            darkHeadingLevels: darkLevels,
+            lightTableColors: lightTable,
+            darkTableColors: darkTable,
+            tableStyle: tableStyle
         )
     }
 
@@ -216,6 +295,15 @@ nonisolated struct ThemeColorsSetting: Equatable, Codable, Sendable {
             }
             if let link = sanitizedHex(.linkColor, scheme) {
                 lines.append(":root { --link: \(link); }")
+            }
+            if let heading = sanitizedHex(.headingColor, scheme) {
+                lines.append(":root { --heading: \(heading); }")
+            }
+            for level in 1...6 {
+                if let slot = ThemeColorSlot.heading(level: level),
+                   let heading = sanitizedHex(slot, scheme) {
+                    lines.append(":root { --heading-\(level): \(heading); }")
+                }
             }
             // The editor follows the window color unless it has its own
             // override — one picked color themes both modes. Always emitted

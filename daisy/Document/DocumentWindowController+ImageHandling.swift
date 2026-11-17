@@ -9,7 +9,7 @@ import UniformTypeIdentifiers
 extension DocumentWindowController {
     /// Images or files going into the editor, from the clipboard or the picker.
     private struct ImageInsertion {
-        enum Origin { case pasted, pastedFiles, picked }
+        enum Origin { case pasted, pastedFiles, droppedFiles, picked }
 
         let origin: Origin
         let markdownURL: URL
@@ -32,6 +32,11 @@ extension DocumentWindowController {
                     "The pasted files could not be placed next to the Markdown file.",
                     comment: "File paste destination error"
                 )
+            case .droppedFiles:
+                NSLocalizedString(
+                    "The dropped files could not be placed next to the Markdown file.",
+                    comment: "File drop destination error"
+                )
             case .picked:
                 NSLocalizedString(
                     "The image could not be placed next to the Markdown file.",
@@ -52,6 +57,11 @@ extension DocumentWindowController {
                     "The pasted files could not be inserted into the document.",
                     comment: "File paste insertion error"
                 )
+            case .droppedFiles:
+                NSLocalizedString(
+                    "The dropped files could not be inserted into the document.",
+                    comment: "File drop insertion error"
+                )
             case .picked:
                 NSLocalizedString(
                     "The image could not be inserted into the document.",
@@ -71,6 +81,11 @@ extension DocumentWindowController {
                 NSLocalizedString(
                     "Choose the folder containing this Markdown file to save the pasted files.",
                     comment: "File paste permission message"
+                )
+            case .droppedFiles:
+                NSLocalizedString(
+                    "Choose the folder containing this Markdown file to save the dropped files.",
+                    comment: "File drop permission message"
                 )
             case .picked:
                 NSLocalizedString(
@@ -123,6 +138,25 @@ extension DocumentWindowController {
             from: from,
             to: to,
             obtain: { [(try MarkdownAssetResolution.savePastedImage(data, forMarkdownFile: markdownURL), true)] }
+        ))
+    }
+
+    /// Files dragged from the Files sidebar and dropped at `position`, placed
+    /// and linked exactly as pasted ones are.
+    func insertDroppedFiles(_ files: [URL], at position: Int) {
+        guard isEditing,
+              let markdownURL = currentFileURL,
+              let editor = mainSplit?.editorViewController else {
+            NSSound.beep()
+            return
+        }
+        insertImage(ImageInsertion(
+            origin: .droppedFiles,
+            markdownURL: markdownURL,
+            editor: editor,
+            from: position,
+            to: position,
+            obtain: { try Self.placeFiles(files, forMarkdownFile: markdownURL) }
         ))
     }
 

@@ -192,12 +192,13 @@ nonisolated extension MarkdownHTML {
     CalloutExtension(),
     KaTeXExtension(),
     MermaidExtension(),
-    ColorfulHeadersExtension(),
     TaskMetadataExtension(),
+    HideCompletedTasksExtension(),
     MetadataLinksExtension(),
     QueryBlocksExtension(),
     SlashCommandsExtension(),
-    MetadataCompletionExtension()
+    MetadataCompletionExtension(),
+    SlidesExtension()
   ])
 
   static func renderExtensionTitle(for id: String) -> String {
@@ -333,6 +334,41 @@ nonisolated extension MarkdownHTML {
     nonisolated(unsafe) private static let fieldPattern =
       /(?:^|\s)(?:(?:due|scheduled):\d{4}-\d{2}-\d{2}|p:(?:high|medium|low))/
   }
+
+  /// View ▸ Hide Completed Tasks: while it is on, checked task items and
+  /// everything nested in them are left out of Read mode and the editor. The
+  /// setting is app-wide (`HideCompletedTasksSetting`); each window passes it
+  /// as host state under this id. Read mode needs only the stylesheet, keyed
+  /// on `data-mdp-hide-completed-tasks`; the editor module
+  /// (`scripts/editor-bundle/src/hide-completed-tasks.js`) folds the items'
+  /// lines away. Quick Look never sets host state, so it shows every task.
+  struct HideCompletedTasksExtension: MarkdownRenderExtension {
+    let id = "hide-completed-tasks"
+    let descriptor = RenderExtensionDescriptor(
+      titleKey: "Hide completed tasks",
+      descriptionKey: nil,
+      defaultEnabled: true,
+      userToggleable: true
+    )
+    let order = 205
+    let editor: (any EditorCapability)? = EditorModule(moduleID: "hide-completed-tasks")
+
+    func isActive(in context: RenderContext) -> Bool {
+      context.html.contains("task-list-item-checkbox")
+    }
+
+    func assets(mode _: VendorLoading) -> RenderAssets {
+      RenderAssets(css: MarkdownHTML.hideCompletedTasksStylesheet)
+    }
+  }
+
+  /// A loose list item holds its checkbox in its first paragraph.
+  static let hideCompletedTasksStylesheet = """
+    :root[data-mdp-hide-completed-tasks] li.task-list-item:has(> .task-list-item-checkbox:checked),
+    :root[data-mdp-hide-completed-tasks] li.task-list-item:has(> p:first-of-type > .task-list-item-checkbox:checked) {
+      display: none;
+    }
+    """
 
   /// Badge text and accessibility names, shared by the editor module and the
   /// Read mode script.
@@ -513,6 +549,12 @@ nonisolated extension MarkdownHTML {
       cursor: text;
     }
     .mdp-task-badge svg { flex: none; width: 1.05em; height: 1.05em; }
+    /* A done task's line-through stops at a pill (an atomic inline), so the
+       pill strikes its own text. */
+    .cm-md-task-completed .mdp-task-badge,
+    li.task-list-item:has(input.task-list-item-checkbox:checked) .mdp-task-badge {
+      text-decoration: line-through;
+    }
     .mdp-task-badge-overdue {
       color: var(--mdp-task-red);
       background: color-mix(in srgb, var(--mdp-task-red) 12%, transparent);
@@ -579,15 +621,18 @@ nonisolated extension MarkdownHTML {
       ("link", "Link to File"), ("mermaid", "Mermaid diagram"),
       ("math", "Math Block"), ("note", "Note"), ("tip", "Tip"),
       ("important", "Important"), ("warning", "Warning"), ("caution", "Caution"),
-      ("today", "Today"), ("now", "Now"), ("templates", "Templates"),
+      ("today", "Today"), ("now", "Now"), ("carryover", "Carry over unfinished tasks"),
+      ("move", "Move to…"), ("templates", "Templates"),
       ("priority-high", "Priority: High"), ("priority-medium", "Priority: Medium"),
       ("priority-low", "Priority: Low"), ("priority-none", "Priority: None"),
       ("due", "Due Date"), ("schedule", "Schedule"),
-      ("due-clear", "Clear Due Date"), ("schedule-clear", "Clear Schedule")
+      ("due-clear", "Clear Due Date"), ("schedule-clear", "Clear Schedule"),
+      ("slide", "New Slide"), ("notes", "Speaker Notes"), ("step", "Reveal Step"),
+      ("column", "New Column")
     ]
     let groups: [(id: String, key: String)] = [
       ("text", "Text"), ("lists", "Lists"), ("blocks", "Blocks"), ("insert", "Insert"),
-      ("task", "Task")
+      ("task", "Task"), ("actions", "Actions"), ("slides", "Slides")
     ]
     // Accessibility names for the date picker's month buttons.
     let interfaceLabels: [(id: String, key: String)] = [
@@ -1308,6 +1353,8 @@ nonisolated extension MarkdownHTML {
     .mdp-query-problems { color: var(--mdp-task-red, #d70015); }
     .mdp-query-link { cursor: pointer; }
     .mdp-query-link:hover .mdp-query-plain { text-decoration: underline; }
+    /* A table's title and file cells: the link is the text itself. */
+    .mdp-query-values .mdp-query-link:hover { text-decoration: underline; }
     .mdp-query-token { color: var(--link); cursor: pointer; }
     .mdp-query-token:hover { text-decoration: underline; }
     .mdp-query-detail {
@@ -1327,11 +1374,18 @@ nonisolated extension MarkdownHTML {
       border-bottom: 1px solid var(--grid);
       font-weight: 600;
     }
+    /* A pill like the task badges (`.mdp-task-badge`). */
     .mdp-query-group-count {
+      align-self: center;
+      min-width: 1.6em;
+      padding: 0.08em 0.55em;
+      border-radius: 0.55em;
+      box-sizing: border-box;
+      background: color-mix(in srgb, var(--text) 8%, transparent);
       color: var(--secondary);
-      font-size: 0.85em;
-      font-weight: 400;
+      font: 500 0.72em/1.45 -apple-system, system-ui, sans-serif;
       font-variant-numeric: tabular-nums;
+      text-align: center;
     }
     .mdp-query-none { color: var(--secondary); }
     .mdp-query-group > ul { margin-top: 0.5em; }
@@ -1396,6 +1450,8 @@ nonisolated extension MarkdownHTML {
     }
     .cm-md-query-link { cursor: pointer; }
     .cm-md-query-link:hover .cm-md-query-plain { text-decoration: underline; }
+    /* A table's title and file cells: the link is the text itself. */
+    .cm-md-query-link.cm-md-query-plain:hover { text-decoration: underline; }
     .cm-md-query-token:hover { text-decoration: underline; cursor: pointer; }
     .cm-md-query-detail {
       float: inline-end;
@@ -1414,11 +1470,18 @@ nonisolated extension MarkdownHTML {
       border-bottom: 1px solid var(--grid);
       font-weight: 600;
     }
+    /* A pill like the task badges (`.mdp-task-badge`). */
     .cm-md-query-group-count {
+      align-self: center;
+      min-width: 1.6em;
+      padding: 0.08em 0.55em;
+      border-radius: 0.55em;
+      box-sizing: border-box;
+      background: color-mix(in srgb, var(--text) 8%, transparent);
       color: var(--secondary);
-      font-size: 0.85em;
-      font-weight: 400;
+      font: 500 0.72em/1.45 -apple-system, system-ui, sans-serif;
       font-variant-numeric: tabular-nums;
+      text-align: center;
     }
     .cm-md-query-none { color: var(--secondary); }
     /* As the document's tables (`.cm-md-table-grid`). */

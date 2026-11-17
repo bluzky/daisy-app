@@ -110,6 +110,16 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
             applyMetadataLinksState()
         }
     }
+    /// Per-window state for render extensions, keyed by extension id, such
+    /// as `hide-completed-tasks`. Each entry is kept on the page as a
+    /// `data-mdp-<id>` attribute, present while the value is true, so an
+    /// extension's stylesheet or script can follow it.
+    var extensionHostState: [String: Bool] = [:] {
+        didSet {
+            guard extensionHostState != oldValue, isPageReady else { return }
+            applyExtensionHostState()
+        }
+    }
     /// The `tasks`/`notes` blocks on the page, each time they change; an
     /// empty list when there are none, or the page left the workspace.
     var queryBlocksRequested: (([QueryBlockRequest]) -> Void)?
@@ -117,8 +127,17 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
     var queryResultOpened: ((String, Int) -> Void)?
     /// A task's checkbox in a result: path, line and the new state.
     var queryTaskToggled: ((String, Int, Bool) -> Void)?
+    /// A slide the reader clicked in the Slide Preview pane, by index.
+    var slideClicked: ((Int) -> Void)?
     #endif
     var scrollDidChange: (() -> Void)?
+    /// Render every document as slides, frontmatter or not. Set by the
+    /// presentation window before its first `display()`.
+    var forcesSlides = false
+    /// The last displayed document renders as a slide deck.
+    private(set) var isDisplayingSlideDeck = false
+    /// The deck's slide shape, for printing one slide per page.
+    private(set) var slideAspect = SlideDeckSettings.Aspect.wide
     private let assetScheme = MarkdownAssetScheme()
     private var currentAssetBase: URL?
     private let messageBridge = HostBridge()
@@ -328,6 +347,8 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         pendingContentProcessReload = nil
         currentMarkdown = markdown
         currentDocumentID = documentID
+        isDisplayingSlideDeck = forcesSlides || SlideDeck.isDeck(markdown: markdown)
+        slideAspect = isDisplayingSlideDeck ? SlideDeckSettings(markdown: markdown).aspect : .wide
         isPointerOverMermaidFigure = false
         isWebControlFocused = false
         assetScheme.setBaseURL(assetBaseURL)
@@ -339,6 +360,7 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         let textScale = textScale
         let themeOverrides = Self.currentThemeOverrides()
         let renderExtensionConfiguration = RenderExtensionPreferences.currentConfiguration
+        let forcesSlides = forcesSlides
         #if QUICK_LOOK_EXTENSION
         let emptyDocumentHint: String? = nil
         #else
@@ -353,7 +375,8 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
                                             themeOverrides: themeOverrides,
                                             renderExtensionConfiguration: renderExtensionConfiguration,
                                             documentID: documentID,
-                                            emptyDocumentHint: emptyDocumentHint)
+                                            emptyDocumentHint: emptyDocumentHint,
+                                            forcesSlides: forcesSlides)
             #if DEBUG
             let renderFinishedAt = DispatchTime.now().uptimeNanoseconds
             await self?.applyDisplayDebug(
@@ -379,8 +402,18 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
                                                 renderExtensionConfiguration: MarkdownHTML.RenderExtensionConfiguration,
                                                 documentID: String = "page",
                                                 warmup: Bool = false,
-                                                emptyDocumentHint: String? = nil) -> MarkdownHTML.RenderedHTML {
+                                                emptyDocumentHint: String? = nil,
+                                                forcesSlides: Bool = false) -> MarkdownHTML.RenderedHTML {
         let t0 = DispatchTime.now()
+        // A deck reads the reader's theme files; Quick Look keeps the
+        // built-in themes. Off the main actor, so the file reads are free.
+        #if QUICK_LOOK_EXTENSION
+        let slideThemes = SlideTheme.builtInCatalog
+        #else
+        let slideThemes = forcesSlides || SlideDeck.isDeck(markdown: markdown)
+            ? SlideThemeStore.catalog()
+            : SlideTheme.builtInCatalog
+        #endif
         let rendered = MarkdownHTML.render(markdown: markdown,
                                            allowsScroll: true,
                                            assetBaseHref: assetBaseHref,
@@ -392,7 +425,9 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
                                            textScale: textScale,
                                            documentID: documentID,
                                            renderExtensionConfiguration: renderExtensionConfiguration,
-                                           emptyDocumentHint: emptyDocumentHint)
+                                           emptyDocumentHint: emptyDocumentHint,
+                                           forcesSlides: forcesSlides,
+                                           slideThemes: slideThemes)
         let elapsedMs = Int(
             (Double(DispatchTime.now().uptimeNanoseconds - t0.uptimeNanoseconds)
              / 1_000_000).rounded()
@@ -542,6 +577,17 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         webView.evaluateJavaScript("window.MdPreview && window.MdPreview.queryResults && window.MdPreview.queryResults(\(json));") { _, _ in }
     }
 
+    private func applyExtensionHostState() {
+        guard let data = try? JSONSerialization.data(withJSONObject: extensionHostState, options: [.sortedKeys]),
+              let json = String(data: data, encoding: .utf8) else { return }
+        webView.evaluateJavaScript("""
+        (function (state) {
+          for (const id in state) document.documentElement.toggleAttribute('data-mdp-' + id, state[id] === true);
+        })(\(json));
+        window.MdPreview && window.MdPreview.reapplyExtensions && window.MdPreview.reapplyExtensions();
+        """) { _, _ in }
+    }
+
     private func applyMetadataLinksState() {
         webView.evaluateJavaScript("""
         document.documentElement.toggleAttribute('data-mdp-workspace', \(metadataLinksEnabled));
@@ -582,6 +628,9 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
             guard let value = dict["value"] as? NSNumber else { return }
             pointerDocumentYDidChange?(CGFloat(truncating: value))
         #if !QUICK_LOOK_EXTENSION
+        case "slideClicked":
+            guard let index = dict["index"] as? Int, index >= 0 else { return }
+            slideClicked?(index)
         case "openMetadata":
             guard let token = dict["token"] as? String else { return }
             linkActivated?(.metadata(token))
@@ -1318,6 +1367,39 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         return true
     }
 
+    /// The slide at the top of the view in a deck (the first one whose
+    /// bottom is below the top edge), or nil when the page isn't a deck.
+    func topVisibleSlideIndex(completion: @escaping (Int?) -> Void) {
+        webView.evaluateJavaScript("""
+        (() => {
+            const frames = Array.from(document.querySelectorAll('.mdp-slide-frame'));
+            if (!frames.length) return null;
+            const index = frames.findIndex(frame => frame.getBoundingClientRect().bottom > 1);
+            return index < 0 ? frames.length - 1 : index;
+        })();
+        """) { result, _ in
+            completion((result as? NSNumber)?.intValue)
+        }
+    }
+
+    /// Scrolls a deck so the slide at the top of the view starts at the top,
+    /// instead of partway down. Does nothing on other pages.
+    func snapToSlideAtTop(completion: (() -> Void)? = nil) {
+        webView.evaluateJavaScript("""
+        (() => {
+            const frame = Array.from(document.querySelectorAll('.mdp-slide-frame'))
+                .find(frame => frame.getBoundingClientRect().bottom > 1);
+            if (!frame) return null;
+            return frame.getBoundingClientRect().top + (window.scrollY || document.documentElement.scrollTop || 0);
+        })();
+        """) { [weak self] result, _ in
+            if let self, let top = result as? NSNumber {
+                self.scrollDocument(to: self.scaledDocumentOffset(CGFloat(truncating: top)), duration: 0)
+            }
+            completion?()
+        }
+    }
+
     func scrollDocument(to y: CGFloat,
                         topMargin: CGFloat = 12,
                         duration: TimeInterval = 0.25) {
@@ -1642,6 +1724,7 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         // CSS. Re-assert the current theme on the fresh page.
         applyThemeColors()
         if metadataLinksEnabled { applyMetadataLinksState() }
+        if !extensionHostState.isEmpty { applyExtensionHostState() }
         #endif
         contentDidReplace?()
     }

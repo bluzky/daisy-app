@@ -132,7 +132,11 @@ nonisolated enum QueryBlocks {
             var row = makeRow(match.match, detail: showsDetail)
             if isTable {
                 row.cells = display.columns.map { column in
-                    cell(column, values: column.queryField == nil ? [] : values.next() ?? [], row: row)
+                    let shown = cell(column, values: column.queryField == nil ? [] : values.next() ?? [], row: row)
+                    // A title opens its file, as the file column does. Only in
+                    // cells: grouping by title still merges files that share one.
+                    guard column.kind == .attribute("title") else { return shown }
+                    return shown.map { QueryBlockResult.Value(text: $0.text, path: $0.path ?? row.path) }
                 }
             }
             let groupValues = display.group.map { group in

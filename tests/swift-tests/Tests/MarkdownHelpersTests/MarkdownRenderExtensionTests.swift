@@ -9,8 +9,9 @@ final class MarkdownRenderExtensionTests: XCTestCase {
     XCTAssertEqual(
       MarkdownHTML.renderExtensions.map(\.id),
       [
-        "highlight", "callout", "katex", "mermaid", "colorful-headings",
-        "task-metadata", "metadata-links", "query-blocks", "slash-commands", "metadata-completion"
+        "highlight", "callout", "katex", "mermaid",
+        "task-metadata", "hide-completed-tasks", "metadata-links", "query-blocks", "slash-commands",
+        "metadata-completion", "slides"
       ]
     )
     let orders = MarkdownHTML.renderExtensions.map(\.order)
@@ -47,13 +48,13 @@ final class MarkdownRenderExtensionTests: XCTestCase {
           userToggleable: true
         ),
         .init(
-          titleKey: "Colorful headings",
+          titleKey: "Task metadata",
           descriptionKey: nil,
           defaultEnabled: true,
           userToggleable: true
         ),
         .init(
-          titleKey: "Task metadata",
+          titleKey: "Hide completed tasks",
           descriptionKey: nil,
           defaultEnabled: true,
           userToggleable: true
@@ -81,6 +82,12 @@ final class MarkdownRenderExtensionTests: XCTestCase {
           descriptionKey: nil,
           defaultEnabled: true,
           userToggleable: true
+        ),
+        .init(
+          titleKey: "Slides",
+          descriptionKey: nil,
+          defaultEnabled: true,
+          userToggleable: false
         )
       ]
     )
@@ -93,7 +100,7 @@ final class MarkdownRenderExtensionTests: XCTestCase {
       renderExtensionConfiguration: .init(enabledIDs: [])
     )
 
-    XCTAssertFalse(rendered.html.contains("--mdp-heading-h1"))
+    XCTAssertFalse(rendered.html.contains("hljs-keyword"))
   }
 
   func testDisabledCoreExtensionsPreserveSourceAndEmitNoAssets() {
@@ -175,15 +182,6 @@ final class MarkdownRenderExtensionTests: XCTestCase {
     return (defaults, suite)
   }
 
-  func testHeadingExtensionsEmitDocumentStylesOnlyWhenActive() {
-    let headings = MarkdownHTML.render(
-      markdown: "# First\n\nIntro\n\n## Nested\n\nDetails\n\n# Second",
-      vendorLoading: .lazy
-    )
-    XCTAssertTrue(headings.html.contains("--mdp-heading-h1: #d14f6a"))
-    XCTAssertTrue(headings.scriptAssetIDs.isEmpty)
-  }
-
   func testWarmupEmitsEnabledExtensionCSSWithoutDocumentScripts() {
     let warmup = MarkdownHTML.render(
       markdown: "Plain text.",
@@ -191,7 +189,6 @@ final class MarkdownRenderExtensionTests: XCTestCase {
       warmup: true
     )
 
-    XCTAssertTrue(warmup.html.contains("--mdp-heading-h1: #d14f6a"))
     XCTAssertTrue(warmup.scriptAssetIDs.isEmpty)
   }
 
@@ -223,15 +220,6 @@ final class MarkdownRenderExtensionTests: XCTestCase {
     XCTAssertTrue(rendered.html.contains("MdPreviewLazy.lazyExtension"))
     XCTAssertFalse(rendered.html.contains("MdPreviewLazy.lazyRenderer"))
     XCTAssertFalse(rendered.html.contains("registerReapplier(highlightAll)"))
-  }
-
-  func testHeadingExtensionsActivateForHeadingsOnlyInFootnoteDefinitions() {
-    let rendered = MarkdownHTML.render(
-      markdown: "Body text with no heading.[^1]\n\n[^1]: ## Footnote heading",
-      vendorLoading: .lazy
-    )
-    XCTAssertTrue(rendered.html.contains("<h2"))
-    XCTAssertTrue(rendered.html.contains("--mdp-heading-h1: #d14f6a"))
   }
 
   func testActivationRunsOnceInExplicitOrderAgainstEarlierTransforms() {
@@ -275,7 +263,8 @@ final class MarkdownRenderExtensionTests: XCTestCase {
     XCTAssertEqual(
       state,
       [
-        "mermaid": true, "colorful-headings": true, "task-metadata": true, "metadata-links": true, "query-blocks": true,
+        "mermaid": true, "task-metadata": true, "hide-completed-tasks": true, "metadata-links": true,
+        "query-blocks": true,
         "slash-commands": true, "metadata-completion": true
       ]
     )
@@ -288,7 +277,8 @@ final class MarkdownRenderExtensionTests: XCTestCase {
     XCTAssertEqual(
       MarkdownHTML.editorExtensionState(configuration: configuration),
       [
-        "mermaid": false, "colorful-headings": true, "task-metadata": true, "metadata-links": true, "query-blocks": true,
+        "mermaid": false, "task-metadata": true, "hide-completed-tasks": true, "metadata-links": true,
+        "query-blocks": true,
         "slash-commands": true, "metadata-completion": true
       ]
     )
@@ -298,7 +288,7 @@ final class MarkdownRenderExtensionTests: XCTestCase {
     let renderOnly = MarkdownHTML.renderExtensions.filter { $0.editor == nil }.map(\.id)
     XCTAssertEqual(
       renderOnly,
-      ["highlight", "callout", "katex"]
+      ["highlight", "callout", "katex", "slides"]
     )
   }
 
@@ -365,24 +355,13 @@ final class MarkdownRenderExtensionTests: XCTestCase {
     XCTAssertTrue(html.contains(#"extensionOptions: {"slash-commands":{"cmd.h1":"标题 1\u003c\/script>"}}"#))
   }
 
-  func testColorfulHeadingsEditorCSSIsScopedToTheModuleClass() {
-    let css = MarkdownHTML.editorExtensionCSS()
-    XCTAssertTrue(css.contains("--mdp-heading-h1: #d14f6a"))
-    for level in 1...6 {
-      XCTAssertTrue(
-        css.contains("#editor .cm-colorful-headings .cm-md-h\(level) { color: var(--mdp-heading-h\(level)); }")
-      )
-    }
-    XCTAssertFalse(css.contains(".markdown-body"))
-  }
-
   func testEditorPageEmbedsExtensionCSS() {
     let html = EditorHTML.render(
       markdown: "x",
       editorJavaScript: "",
-      configuration: .init(extensionCSS: ".cm-colorful-headings-marker{}")
+      configuration: .init(extensionCSS: ".cm-editor-extension-marker{}")
     )
-    XCTAssertTrue(html.contains(".cm-colorful-headings-marker{}"))
+    XCTAssertTrue(html.contains(".cm-editor-extension-marker{}"))
   }
 
   func testEditorExtensionStateLiteralIsSortedAndScriptSafe() {
@@ -428,6 +407,55 @@ final class MarkdownRenderExtensionTests: XCTestCase {
     let quickLook = MarkdownHTML.render(markdown: "- [ ] Buy due:2026-10-20", vendorLoading: .inline)
     XCTAssertFalse(quickLook.html.contains("mdp-task-field'"))
     XCTAssertFalse(quickLook.scriptAssetIDs.contains("task-metadata"))
+  }
+
+  func testHideCompletedTasksIsStylesheetOnlyInReadMode() throws {
+    let hide = try XCTUnwrap(MarkdownHTML.renderExtensions.first { $0.id == "hide-completed-tasks" })
+    XCTAssertTrue(hide.affectsPreview)
+    XCTAssertEqual(hide.editor?.moduleID, "hide-completed-tasks")
+    for mode in [MarkdownHTML.VendorLoading.lazy, .inline] {
+      let assets = hide.assets(mode: mode)
+      XCTAssertTrue(assets.css.contains(":root[data-mdp-hide-completed-tasks]"))
+      XCTAssertTrue(assets.headJS.isEmpty && assets.bodyJS.isEmpty)
+    }
+  }
+
+  @MainActor
+  func testReadModeHidesCheckedTasksOnlyWithHostState() async throws {
+    let rendered = MarkdownHTML.render(
+      markdown: """
+      - [ ] open
+      - [x] done
+        - [ ] child
+      - [ ] roomy
+
+        paragraph
+
+      - [x] finished
+
+        paragraph
+      """,
+      vendorLoading: .lazy
+    )
+    let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 900, height: 600))
+    webView.loadHTMLString(rendered.html, baseURL: nil)
+    let deadline = Date().addingTimeInterval(10)
+    while webView.isLoading && Date() < deadline { try await Task.sleep(for: .milliseconds(50)) }
+    let visible = """
+    Array.from(document.querySelectorAll('li.task-list-item'))
+      .filter(li => li.offsetParent !== null)
+      .map(li => li.textContent.trim().split(/\\s+/)[0]).join('|')
+    """
+    func evaluate(_ script: String) async throws -> String? {
+      try await webView.evaluateJavaScript(script) as? String
+    }
+    let shown = try await evaluate(visible)
+    XCTAssertEqual(shown, "open|done|child|roomy|finished", "every task without host state")
+    let hidden = try await evaluate("""
+    document.documentElement.setAttribute('data-mdp-hide-completed-tasks', '');
+    \(visible)
+    """)
+    XCTAssertEqual(hidden, "open|roomy", "checked items and their children are hidden")
   }
 
   func testMetadataLinksActivateOnlyForTokens() throws {
@@ -573,7 +601,7 @@ final class MarkdownRenderExtensionTests: XCTestCase {
     window.MdPreview.queryResults([{ id: '\(id ?? "")', source: 'tasks', problems: [], empty: '',
       groups: [{ label: null, kind: 'none',
                  rows: [{ path: 'a.md', line: 3, text: 'Water plants @Daniel', checked: false, detail: 'a',
-                          source: 'p:medium Water plants due:2026-10-24 @Daniel email@x.com C#' }] }] }]);
+                          source: 'p:medium Water plants due:2099-12-31 @Daniel email@x.com C#' }] }] }]);
     const row = document.querySelector('.mdp-query-row');
     [Array.from(row.querySelectorAll('.mdp-task-badge'), b => b.className.split(' ').slice(1).join('+')).join(','),
      Array.from(row.querySelectorAll('.mdp-query-token'), t => t.textContent).join(','),

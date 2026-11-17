@@ -1,4 +1,4 @@
-// Editor smoke tests: list editing as specified in docs/list-editing-proposal.md.
+// Editor smoke tests: list editing as specified in docs/technical/list-editing-proposal.md.
 // Sources mark the caret with `|`, or a selection with `«` and `»`.
 import { dom, check } from "./harness.mjs"
 

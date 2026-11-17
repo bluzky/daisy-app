@@ -117,13 +117,13 @@ function bufferNames() {
 }
 
 // This document's names win for its own suggestions: their spelling replaces
-// the snapshot's. The snapshot already counts this document as saved, so the
-// larger count is kept rather than the sum.
+// the snapshot's. The host leaves this document out of the snapshot, saved
+// or unsaved, so its half-typed name is not listed and the counts add up.
 function mergedNames(buffer, snapshot) {
   const merged = new Map(snapshot || [])
   for (const [key, entry] of buffer) {
     const known = merged.get(key)
-    merged.set(key, { name: entry.name, count: Math.max(entry.count, known ? known.count : 0) })
+    merged.set(key, { name: entry.name, count: entry.count + (known ? known.count : 0) })
   }
   return merged
 }
