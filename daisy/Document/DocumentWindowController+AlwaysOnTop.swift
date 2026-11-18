@@ -70,6 +70,9 @@ extension DocumentWindowController {
         if menuItem.action == #selector(copyCommentsForAI(_:)) {
             return validateCopyCommentsMenuItem(menuItem)
         }
+        if menuItem.action == #selector(toggleHiddenFiles(_:)) {
+            return validateToggleHiddenFilesMenuItem(menuItem)
+        }
         if menuItem.action == #selector(toggleHideCompletedTasks(_:)) {
             return validateHideCompletedTasksMenuItem(menuItem)
         }

@@ -41,6 +41,15 @@ final class KeymapTests: XCTestCase {
         XCTAssertEqual(Keymap().conflicts(for: binding, in: .global), [.viewToggleCompletedTasks])
     }
 
+    func testAC_1_9_toggleHiddenFilesDefaultsToShiftCommandPeriod() {
+        let binding = KeyBinding(string: "shift+cmd+.")!
+        XCTAssertEqual(KeymapCommand.viewToggleHiddenFiles.context, .global)
+        XCTAssertEqual(KeymapCommand.viewToggleHiddenFiles.rawValue, "view.toggleHiddenFiles")
+        XCTAssertEqual(KeymapCommand.viewToggleHiddenFiles.titleKey, "Toggle Hidden Files")
+        XCTAssertEqual(Keymap.defaultBindings(for: .viewToggleHiddenFiles), [binding])
+        XCTAssertEqual(Keymap().conflicts(for: binding, in: .global), [.viewToggleHiddenFiles])
+    }
+
     func testPresentFromCurrentSlideDefaultsToOptionShiftCommandP() {
         let binding = KeyBinding(string: "opt+shift+cmd+p")!
         XCTAssertEqual(KeymapCommand.viewPresentFromCurrentSlide.context, .global)

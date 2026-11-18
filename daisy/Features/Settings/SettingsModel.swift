@@ -165,6 +165,17 @@ final class SettingsModel {
         textFileEntries = TextFileSettings.customText
     }
 
+    /// Typing only changes this text; `applyFileTreeHiddenPatterns` makes it current.
+    var fileTreeHiddenPatterns = FileTreeHiddenPatterns.currentText
+
+    func applyFileTreeHiddenPatterns() {
+        let text = fileTreeHiddenPatterns.trimmingCharacters(in: .whitespacesAndNewlines)
+        fileTreeHiddenPatterns = text
+        guard text != FileTreeHiddenPatterns.currentText else { return }
+        FileTreeHiddenPatterns.currentText = text
+        NotificationCenter.default.post(name: FileTreeHiddenPatterns.didChangeNotification, object: nil)
+    }
+
     func chooseTemplateFile() {
         if TemplateStore.chooseFile() { refreshTemplates() }
     }

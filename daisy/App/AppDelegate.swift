@@ -486,6 +486,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         documentWindowControllers.forEach { $0.applyHideCompletedTasksSetting() }
     }
 
+    /// View ▸ Toggle Hidden Files: one stored value; every Files tree re-reads.
+    func applyShowHiddenFilesSetting(_ isEnabled: Bool) {
+        guard isEnabled != FileTreeHiddenPatterns.showsHiddenFiles else { return }
+        FileTreeHiddenPatterns.showsHiddenFiles = isEnabled
+        NotificationCenter.default.post(name: FileTreeHiddenPatterns.didChangeNotification, object: nil)
+    }
+
     func applyAutoSaveIntervalSetting(_ minutes: Int) {
         AutoSaveSetting.store(minutes: minutes)
         NSDocumentController.shared.documents
@@ -927,6 +934,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case #selector(NSWindow.toggleToolbarShown(_:)): return .viewToggleToolbar
         case #selector(DocumentWindowController.toggleAlwaysOnTop(_:)): return .viewToggleAlwaysOnTop
         case #selector(DocumentWindowController.toggleHideCompletedTasks(_:)): return .viewToggleCompletedTasks
+        case #selector(DocumentWindowController.toggleHiddenFiles(_:)): return .viewToggleHiddenFiles
         case #selector(MainSplitViewController.presentSlides(_:)): return .viewPresent
         case #selector(MainSplitViewController.presentSlidesFromCurrentSlide(_:)): return .viewPresentFromCurrentSlide
         case #selector(MainSplitViewController.toggleSlidePreview(_:)): return .viewToggleSlidePreview
@@ -1520,6 +1528,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                                        keyEquivalent: "h")
         hideCompleted.keyEquivalentModifierMask = [.shift, .command]
 
+        let hiddenFiles = NSMenuItem(title: L("Toggle Hidden Files"),
+                                     action: #selector(DocumentWindowController.toggleHiddenFiles(_:)),
+                                     keyEquivalent: ".")
+        hiddenFiles.keyEquivalentModifierMask = [.shift, .command]
+
         // Also down the responder chain: the split view controller presents.
         let present = NSMenuItem(title: L("Present"),
                                  action: #selector(MainSplitViewController.presentSlides(_:)),
@@ -1539,10 +1552,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }) ?? viewMenu.numberOfItems
         viewMenu.insertItem(item, at: insertIndex)
         viewMenu.insertItem(hideCompleted, at: insertIndex + 1)
-        viewMenu.insertItem(present, at: insertIndex + 2)
-        viewMenu.insertItem(presentFromCurrent, at: insertIndex + 3)
-        viewMenu.insertItem(slidePreview, at: insertIndex + 4)
-        viewMenu.insertItem(.separator(), at: insertIndex + 5)
+        viewMenu.insertItem(hiddenFiles, at: insertIndex + 2)
+        viewMenu.insertItem(present, at: insertIndex + 3)
+        viewMenu.insertItem(presentFromCurrent, at: insertIndex + 4)
+        viewMenu.insertItem(slidePreview, at: insertIndex + 5)
+        viewMenu.insertItem(.separator(), at: insertIndex + 6)
     }
 
     @objc private func toggleEditModeFromMenu(_ sender: Any?) {

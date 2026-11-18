@@ -9,6 +9,7 @@ import SwiftUI
 
 struct GeneralSettingsView: View {
     @Bindable private var model = SettingsModel.shared
+    @FocusState private var isHiddenPatternsFocused: Bool
 
     var body: some View {
         Form {
@@ -62,6 +63,27 @@ struct GeneralSettingsView: View {
             } header: {
                 Text(L("Windows"))
             }
+
+            Section {
+                LabeledContent {
+                    TextField("", text: $model.fileTreeHiddenPatterns, prompt: Text("journals, *.log"))
+                        .labelsHidden()
+                        .multilineTextAlignment(.trailing)
+                        .focused($isHiddenPatternsFocused)
+                        .onSubmit { model.applyFileTreeHiddenPatterns() }
+                        .onChange(of: isHiddenPatternsFocused) { _, isFocused in
+                            if !isFocused { model.applyFileTreeHiddenPatterns() }
+                        }
+                } label: {
+                    Text(L("Hide from file tree"))
+                    Text(L("File and folder names or patterns, separated by commas. View → Toggle Hidden Files shows them again."))
+                }
+            } header: {
+                Text(L("File Tree"))
+            } footer: {
+                Text(L("A name like journals hides it at any depth; a pattern with a / such as notes/journals matches the path from the opened folder. Use * and ? as wildcards. Names starting with a dot stay hidden too."))
+            }
+            .onDisappear { model.applyFileTreeHiddenPatterns() }
 
             Section {
                 Toggle(isOn: $model.quickCaptureEnabled) {

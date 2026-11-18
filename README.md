@@ -33,6 +33,7 @@ Download the signed and notarized DMG from [Releases](https://github.com/bluzky/
 - **Read Mode** — native rendering with a document outline and file navigator; task checkboxes save to the file.
 - **Edit Mode** — edit Markdown in place (<kbd>⌘E</kbd>), with live syntax preview, table editing, rich-text paste, pasted or dropped files copied into a `<document>-assets` folder, and <kbd>⌘.</kbd> to open the link, tag, context or project at the caret.
 - **Workspaces** — one window frame per folder, with files as tabs. A single click in the Files sidebar opens a preview tab (italic) that the next click replaces.
+- **Hide files from the tree** — **Settings → General → Hide from file tree** takes comma-separated names or globs (`journals, *.log`, `notes/drafts`) and keeps matching items out of the Files sidebar. **View → Toggle Hidden Files** (<kbd>⇧⌘.</kbd>) shows them again, along with dot-files.
 - **Bookmarks** — pin files and folders at the top of the Files sidebar.
 - **Slash commands** — type `/` for headings, lists, tables, code, Mermaid, math, callouts, `/today`, `/now`, `/link`, `/move` and `/carryover`.
 - **Tags, contexts and projects** — `#tag`, `@context`, `+project`, plus `due:`, `scheduled:` and `p:` on tasks, with suggestions as you type.
