@@ -1,5 +1,17 @@
 /* App menu */
 "Install CLI..." = "Install CLI...";
+"Install Slides Skill…" = "Install Slides Skill…";
+"Install Slides Skill" = "Install Slides Skill";
+"Choose the folder your AI agent reads skills from. Daisy adds a “daisy-slides” folder inside it." = "Choose the folder your AI agent reads skills from. Daisy adds a “daisy-slides” folder inside it.";
+"Install Here" = "Install Here";
+"Claude Code (~/.claude/skills)" = "Claude Code (~/.claude/skills)";
+"Codex (~/.codex/skills)" = "Codex (~/.codex/skills)";
+"Custom folder…" = "Custom folder…";
+"Install the Daisy slides skill so your AI agent can write decks in Daisy’s format." = "Install the Daisy slides skill so your AI agent can write decks in Daisy’s format.";
+"Slides skill installed" = "Slides skill installed";
+"Daisy installed the slides skill to %@. Restart your AI agent if it was running." = "Daisy installed the slides skill to %@. Restart your AI agent if it was running.";
+"Couldn’t install the slides skill" = "Couldn’t install the slides skill";
+"The bundled slides skill could not be found." = "The bundled slides skill could not be found.";
 "Settings…" = "Settings…";
 
 /* Settings */

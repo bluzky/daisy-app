@@ -532,6 +532,100 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
+    // MARK: - Install Slides Skill
+
+    @objc private func installSlidesSkill(_ sender: Any?) {
+        guard let bundledSkill = Bundle.main.url(forResource: SlidesSkillInstaller.bundledFolderName,
+                                                 withExtension: nil)
+        else {
+            presentSlidesSkillError(L("The bundled slides skill could not be found."))
+            return
+        }
+        guard let target = askSlidesSkillTarget() else { return }
+
+        let folder: URL
+        if let preset = target.defaultFolder(home: FileSearchResults.realHomeDirectory) {
+            folder = preset
+        } else {
+            let panel = NSOpenPanel()
+            panel.message = L("Choose the folder your AI agent reads skills from. Daisy adds a “daisy-slides” folder inside it.")
+            panel.prompt = L("Install Here")
+            panel.canChooseDirectories = true
+            panel.canChooseFiles = false
+            panel.canCreateDirectories = true
+            panel.allowsMultipleSelection = false
+            guard panel.runModal() == .OK, let chosen = panel.url else { return }
+            folder = chosen
+        }
+
+        do {
+            let installed = try SlidesSkillInstaller.install(bundledSkill: bundledSkill, into: folder)
+            presentSlidesSkillInstalled(at: installed)
+        } catch {
+            presentSlidesSkillError(error.localizedDescription)
+        }
+    }
+
+    /// Asks where to install. Claude Code and Codex use their global skills
+    /// folder; Custom folder is followed by a folder selector.
+    private func askSlidesSkillTarget() -> SlidesSkillInstaller.Target? {
+        let titles = [L("Claude Code (~/.claude/skills)"),
+                      L("Codex (~/.codex/skills)"),
+                      L("Custom folder…")]
+        let radios = titles.enumerated().map { index, title -> NSButton in
+            let button = NSButton(radioButtonWithTitle: title,
+                                  target: self,
+                                  action: #selector(slidesSkillRadioChanged(_:)))
+            button.state = index == 0 ? .on : .off
+            return button
+        }
+        let stack = NSStackView(views: radios)
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 6
+        stack.frame = NSRect(origin: .zero, size: stack.fittingSize)
+
+        let alert = NSAlert()
+        alert.messageText = L("Install Slides Skill")
+        alert.informativeText = L("Install the Daisy slides skill so your AI agent can write decks in Daisy’s format.")
+        alert.accessoryView = stack
+        alert.addButton(withTitle: L("Continue"))
+        alert.addButton(withTitle: L("Cancel"))
+        guard alert.runModal() == .alertFirstButtonReturn else { return nil }
+
+        let targets = SlidesSkillInstaller.Target.allCases
+        let index = radios.firstIndex { $0.state == .on } ?? 0
+        return targets[index]
+    }
+
+    @objc private func slidesSkillRadioChanged(_ sender: NSButton) {
+        sender.superview?.subviews
+            .compactMap { $0 as? NSButton }
+            .forEach { $0.state = $0 === sender ? .on : .off }
+    }
+
+    private func presentSlidesSkillInstalled(at url: URL) {
+        let alert = NSAlert()
+        alert.messageText = L("Slides skill installed")
+        alert.informativeText = String(
+            format: L("Daisy installed the slides skill to %@. Restart your AI agent if it was running."),
+            url.path)
+        alert.addButton(withTitle: L("OK"))
+        alert.addButton(withTitle: L("Reveal in Finder"))
+        if alert.runModal() == .alertSecondButtonReturn {
+            NSWorkspace.shared.activateFileViewerSelecting([url])
+        }
+    }
+
+    private func presentSlidesSkillError(_ message: String) {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = L("Couldn’t install the slides skill")
+        alert.informativeText = message
+        alert.addButton(withTitle: L("OK"))
+        alert.runModal()
+    }
+
     @IBAction func openDocument(_ sender: Any?) {
         NSDocumentController.shared.openDocument(sender)
     }
@@ -1433,6 +1527,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         let item = NSMenuItem(title: L("What’s New in Daisy"),
                               action: #selector(showWhatsNew(_:)),
+
+        let skillItem = NSMenuItem(title: L("Install Slides Skill…"),
+                                   action: #selector(installSlidesSkill(_:)),
+                                   keyEquivalent: "")
+        skillItem.target = self
+        appMenu.insertItem(skillItem, at: appMenu.index(of: cliItem) + 1)
                               keyEquivalent: "")
         item.target = self
         helpMenu.addItem(item)
