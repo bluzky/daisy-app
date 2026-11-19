@@ -77,6 +77,12 @@ enum ContentWidthSetting: String, CaseIterable {
         }
     }
 
+    /// CSS `max-width` for the column. `100%` rather than `none` so a change
+    /// between widths can animate.
+    var cssMaxWidth: String {
+        columnWidth.map { "\($0)px" } ?? "100%"
+    }
+
     /// The column measure in CSS px, or nil when the column spans the window.
     var columnWidth: Int? {
         switch self {
@@ -565,6 +571,13 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
     /// renders embed the same CSS via `currentThemeOverrides`.
     /// Restyles the loaded page for a reader-layout change without a reload,
     /// the same way `applyThemeColors` handles a color edit.
+    /// Resizes the loaded page's column after a Content Width change.
+    func applyContentWidth() {
+        webView.evaluateJavaScript(
+            "document.documentElement.style.setProperty('--mdp-column-max-width', '\(ContentWidthSetting.current.cssMaxWidth)')"
+        ) { _, _ in }
+    }
+
     func applyReaderLayout() {
         webView.evaluateJavaScript(
             ReaderLayoutSetting.styleUpdateScript(css: ReaderLayoutSetting.current.pageCSS)

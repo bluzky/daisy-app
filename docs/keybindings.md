@@ -25,6 +25,7 @@ When a Global shortcut and a Reading, Editing or Search shortcut use the same ke
 | <kbd>⌥⌘T</kbd> | Show Toolbar | `view.toggleToolbar` |
 | <kbd>⌃⌘T</kbd> | Always on Top | `view.toggleAlwaysOnTop` |
 | <kbd>⇧⌘H</kbd> | Hide Completed Tasks | `view.toggleCompletedTasks` |
+| <kbd>⇧⌘.</kbd> | Toggle Hidden Files | `view.toggleHiddenFiles` |
 | <kbd>⌃⌘C</kbd> | Comments | `view.toggleComments` |
 | <kbd>⌥⌘P</kbd> | Present | `view.present` |
 | <kbd>⇧⌥⌘P</kbd> | Present from Current Slide | `view.presentFromCurrentSlide` |

@@ -1,0 +1,1 @@
+../../../../daisy/Preferences/FileTreeHiddenPatterns.swift

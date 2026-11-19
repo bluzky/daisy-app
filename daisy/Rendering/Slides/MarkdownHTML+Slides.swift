@@ -592,6 +592,14 @@ nonisolated extension MarkdownHTML {
             box-shadow: none;
         }
         :root[\(slidesPrintAttribute)] .mdp-slide-notes { display: none; }
+        /* Paginated layout doesn't shrink a diagram to the height left on
+           the slide the way the live layout does, so a tall one ran off the
+           page. Giving it a definite height lets it shrink, and the natural
+           height keeps a short diagram from stretching to fill the slide. */
+        :root[\(slidesPrintAttribute)] .mdp-slide :is(.mdp-slide-body, .mdp-slide-column) > .mermaid-figure {
+            height: 100%;
+            max-height: calc(var(--mm-natural-height, 100%) + 1.2em);
+        }
     }
     """
 

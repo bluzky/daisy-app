@@ -1,5 +1,17 @@
 /* App menu */
 "Install CLI..." = "Install CLI...";
+"Install Slides Skill…" = "Install Slides Skill…";
+"Install Slides Skill" = "Install Slides Skill";
+"Choose the folder your AI agent reads skills from. Daisy adds a “daisy-slides” folder inside it." = "Choose the folder your AI agent reads skills from. Daisy adds a “daisy-slides” folder inside it.";
+"Install Here" = "Install Here";
+"Claude Code (~/.claude/skills)" = "Claude Code (~/.claude/skills)";
+"Codex (~/.codex/skills)" = "Codex (~/.codex/skills)";
+"Custom folder…" = "Custom folder…";
+"Install the Daisy slides skill so your AI agent can write decks in Daisy’s format." = "Install the Daisy slides skill so your AI agent can write decks in Daisy’s format.";
+"Slides skill installed" = "Slides skill installed";
+"Daisy installed the slides skill to %@. Restart your AI agent if it was running." = "Daisy installed the slides skill to %@. Restart your AI agent if it was running.";
+"Couldn’t install the slides skill" = "Couldn’t install the slides skill";
+"The bundled slides skill could not be found." = "The bundled slides skill could not be found.";
 "Settings…" = "Settings…";
 
 /* Settings */
@@ -541,6 +553,11 @@
 "Extensions or file names, separated by commas." = "Extensions or file names, separated by commas.";
 "Code and text files" = "Code and text files";
 "Daisy edits common source and text files without a preview, and opens other files in their default app. Files over 5 MB, or not UTF-8, always open in the default app." = "Daisy edits common source and text files without a preview, and opens other files in their default app. Files over 5 MB, or not UTF-8, always open in the default app.";
+"Hide from file tree" = "Hide from file tree";
+"File and folder names or patterns, separated by commas. View → Toggle Hidden Files shows them again." = "File and folder names or patterns, separated by commas. View → Toggle Hidden Files shows them again.";
+"File Tree" = "File Tree";
+"A name like journals hides it at any depth; a pattern with a / such as notes/journals matches the path from the opened folder. Use * and ? as wildcards. Names starting with a dot stay hidden too." = "A name like journals hides it at any depth; a pattern with a / such as notes/journals matches the path from the opened folder. Use * and ? as wildcards. Names starting with a dot stay hidden too.";
+"Toggle Hidden Files" = "Toggle Hidden Files";
 "Today’s Journal" = "Today’s Journal";
 "Previous Journal Entry" = "Previous Journal Entry";
 "Next Journal Entry" = "Next Journal Entry";

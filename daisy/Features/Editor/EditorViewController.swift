@@ -237,6 +237,12 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
         webView.evaluateJavaScript(script) { _, _ in }
     }
 
+    /// Resizes an open editor's column after a Content Width change.
+    func applyContentWidth() {
+        let width = ContentWidthSetting.current.cssMaxWidth
+        webView.evaluateJavaScript("document.documentElement.style.setProperty('--mdp-column-max-width', '\(width)')", completionHandler: nil)
+    }
+
     /// Restyles an open editor after a font, reader-layout or alignment
     /// change in Settings, the way the preview page is restyled in place.
     func applyReaderStyle() {

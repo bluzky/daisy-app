@@ -407,7 +407,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard setting != ContentWidthSetting.current else { return }
         ContentWidthSetting.current = setting
         syncContentWidthMenuState()
-        reloadDocumentPreviewsForSettingChange()
+        applyContentWidthToOpenDocuments()
     }
 
     /// Applies a font chosen in Settings. Open documents re-render rather than
@@ -486,6 +486,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         documentWindowControllers.forEach { $0.applyHideCompletedTasksSetting() }
     }
 
+    /// View ▸ Toggle Hidden Files: one stored value; every Files tree re-reads.
+    func applyShowHiddenFilesSetting(_ isEnabled: Bool) {
+        guard isEnabled != FileTreeHiddenPatterns.showsHiddenFiles else { return }
+        FileTreeHiddenPatterns.showsHiddenFiles = isEnabled
+        NotificationCenter.default.post(name: FileTreeHiddenPatterns.didChangeNotification, object: nil)
+    }
+
     func applyAutoSaveIntervalSetting(_ minutes: Int) {
         AutoSaveSetting.store(minutes: minutes)
         NSDocumentController.shared.documents
@@ -523,6 +530,100 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         } catch {
             NSLog("Failed to run Daisy CLI installer in Terminal: \(error.localizedDescription)")
         }
+    }
+
+    // MARK: - Install Slides Skill
+
+    @objc private func installSlidesSkill(_ sender: Any?) {
+        guard let bundledSkill = Bundle.main.url(forResource: SlidesSkillInstaller.bundledFolderName,
+                                                 withExtension: nil)
+        else {
+            presentSlidesSkillError(L("The bundled slides skill could not be found."))
+            return
+        }
+        guard let target = askSlidesSkillTarget() else { return }
+
+        let folder: URL
+        if let preset = target.defaultFolder(home: FileSearchResults.realHomeDirectory) {
+            folder = preset
+        } else {
+            let panel = NSOpenPanel()
+            panel.message = L("Choose the folder your AI agent reads skills from. Daisy adds a “daisy-slides” folder inside it.")
+            panel.prompt = L("Install Here")
+            panel.canChooseDirectories = true
+            panel.canChooseFiles = false
+            panel.canCreateDirectories = true
+            panel.allowsMultipleSelection = false
+            guard panel.runModal() == .OK, let chosen = panel.url else { return }
+            folder = chosen
+        }
+
+        do {
+            let installed = try SlidesSkillInstaller.install(bundledSkill: bundledSkill, into: folder)
+            presentSlidesSkillInstalled(at: installed)
+        } catch {
+            presentSlidesSkillError(error.localizedDescription)
+        }
+    }
+
+    /// Asks where to install. Claude Code and Codex use their global skills
+    /// folder; Custom folder is followed by a folder selector.
+    private func askSlidesSkillTarget() -> SlidesSkillInstaller.Target? {
+        let titles = [L("Claude Code (~/.claude/skills)"),
+                      L("Codex (~/.codex/skills)"),
+                      L("Custom folder…")]
+        let radios = titles.enumerated().map { index, title -> NSButton in
+            let button = NSButton(radioButtonWithTitle: title,
+                                  target: self,
+                                  action: #selector(slidesSkillRadioChanged(_:)))
+            button.state = index == 0 ? .on : .off
+            return button
+        }
+        let stack = NSStackView(views: radios)
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 6
+        stack.frame = NSRect(origin: .zero, size: stack.fittingSize)
+
+        let alert = NSAlert()
+        alert.messageText = L("Install Slides Skill")
+        alert.informativeText = L("Install the Daisy slides skill so your AI agent can write decks in Daisy’s format.")
+        alert.accessoryView = stack
+        alert.addButton(withTitle: L("Continue"))
+        alert.addButton(withTitle: L("Cancel"))
+        guard alert.runModal() == .alertFirstButtonReturn else { return nil }
+
+        let targets = SlidesSkillInstaller.Target.allCases
+        let index = radios.firstIndex { $0.state == .on } ?? 0
+        return targets[index]
+    }
+
+    @objc private func slidesSkillRadioChanged(_ sender: NSButton) {
+        sender.superview?.subviews
+            .compactMap { $0 as? NSButton }
+            .forEach { $0.state = $0 === sender ? .on : .off }
+    }
+
+    private func presentSlidesSkillInstalled(at url: URL) {
+        let alert = NSAlert()
+        alert.messageText = L("Slides skill installed")
+        alert.informativeText = String(
+            format: L("Daisy installed the slides skill to %@. Restart your AI agent if it was running."),
+            url.path)
+        alert.addButton(withTitle: L("OK"))
+        alert.addButton(withTitle: L("Reveal in Finder"))
+        if alert.runModal() == .alertSecondButtonReturn {
+            NSWorkspace.shared.activateFileViewerSelecting([url])
+        }
+    }
+
+    private func presentSlidesSkillError(_ message: String) {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = L("Couldn’t install the slides skill")
+        alert.informativeText = message
+        alert.addButton(withTitle: L("OK"))
+        alert.runModal()
     }
 
     @IBAction func openDocument(_ sender: Any?) {
@@ -608,7 +709,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         ContentWidthSetting.current = setting
         syncContentWidthMenuState()
-        reloadDocumentPreviewsForSettingChange()
+        applyContentWidthToOpenDocuments()
         SettingsModel.shared.refreshFromExternalSources()
     }
 
@@ -927,6 +1028,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case #selector(NSWindow.toggleToolbarShown(_:)): return .viewToggleToolbar
         case #selector(DocumentWindowController.toggleAlwaysOnTop(_:)): return .viewToggleAlwaysOnTop
         case #selector(DocumentWindowController.toggleHideCompletedTasks(_:)): return .viewToggleCompletedTasks
+        case #selector(DocumentWindowController.toggleHiddenFiles(_:)): return .viewToggleHiddenFiles
         case #selector(MainSplitViewController.presentSlides(_:)): return .viewPresent
         case #selector(MainSplitViewController.presentSlidesFromCurrentSlide(_:)): return .viewPresentFromCurrentSlide
         case #selector(MainSplitViewController.toggleSlidePreview(_:)): return .viewToggleSlidePreview
@@ -1379,6 +1481,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         fullContentWidthMenuItem?.state = setting == .fullWidth ? .on : .off
     }
 
+    /// Content Width resizes open pages in place rather than reloading them,
+    /// so the column animates.
+    private func applyContentWidthToOpenDocuments() {
+        NSDocumentController.shared.documents
+            .flatMap(\.windowControllers)
+            .compactMap { $0 as? DocumentWindowController }
+            .forEach { $0.applyContentWidth() }
+    }
+
     private func reloadDocumentPreviewsForSettingChange() {
         guard coalescedReloadDepth == 0 else {
             needsCoalescedPreviewReload = true
@@ -1416,6 +1527,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                                  keyEquivalent: "")
         cliItem.target = self
         appMenu.insertItem(cliItem, at: appMenu.index(of: updatesItem) + 1)
+
+        let skillItem = NSMenuItem(title: L("Install Slides Skill…"),
+                                   action: #selector(installSlidesSkill(_:)),
+                                   keyEquivalent: "")
+        skillItem.target = self
+        appMenu.insertItem(skillItem, at: appMenu.index(of: cliItem) + 1)
     }
 
     private func installWhatsNewMenuItem() {
@@ -1520,6 +1637,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                                        keyEquivalent: "h")
         hideCompleted.keyEquivalentModifierMask = [.shift, .command]
 
+        let hiddenFiles = NSMenuItem(title: L("Toggle Hidden Files"),
+                                     action: #selector(DocumentWindowController.toggleHiddenFiles(_:)),
+                                     keyEquivalent: ".")
+        hiddenFiles.keyEquivalentModifierMask = [.shift, .command]
+
         // Also down the responder chain: the split view controller presents.
         let present = NSMenuItem(title: L("Present"),
                                  action: #selector(MainSplitViewController.presentSlides(_:)),
@@ -1539,10 +1661,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }) ?? viewMenu.numberOfItems
         viewMenu.insertItem(item, at: insertIndex)
         viewMenu.insertItem(hideCompleted, at: insertIndex + 1)
-        viewMenu.insertItem(present, at: insertIndex + 2)
-        viewMenu.insertItem(presentFromCurrent, at: insertIndex + 3)
-        viewMenu.insertItem(slidePreview, at: insertIndex + 4)
-        viewMenu.insertItem(.separator(), at: insertIndex + 5)
+        viewMenu.insertItem(hiddenFiles, at: insertIndex + 2)
+        viewMenu.insertItem(present, at: insertIndex + 3)
+        viewMenu.insertItem(presentFromCurrent, at: insertIndex + 4)
+        viewMenu.insertItem(slidePreview, at: insertIndex + 5)
+        viewMenu.insertItem(.separator(), at: insertIndex + 6)
     }
 
     @objc private func toggleEditModeFromMenu(_ sender: Any?) {

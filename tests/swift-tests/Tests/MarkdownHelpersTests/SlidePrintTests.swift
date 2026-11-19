@@ -106,4 +106,15 @@ final class SlidePrintTests: XCTestCase {
     XCTAssertEqual(pdf.pageCount, 2)
     XCTAssertEqual(pdf.page(at: 0)?.bounds(for: .mediaBox).size, CGSize(width: 960, height: 720))
   }
+
+  /// Paginated layout doesn't shrink a content-sized diagram into the slide's
+  /// remaining height, so print gives it a definite height capped at its
+  /// natural one; the Mermaid script publishes that height.
+  func testPrintedDiagramsGetADefiniteHeightCappedAtTheirNaturalOne() {
+    let html = MarkdownHTML.render(markdown: "---\nslides: true\n---\n\n# T\n\n```mermaid\nflowchart TD\nA-->B\n```",
+                                   vendorLoading: .inline).html
+    XCTAssertTrue(html.contains("--mm-natural-height"))
+    XCTAssertTrue(html.contains(":root[\(MarkdownHTML.slidesPrintAttribute)] .mdp-slide :is(.mdp-slide-body, .mdp-slide-column) > .mermaid-figure"))
+    XCTAssertTrue(html.contains("max-height: calc(var(--mm-natural-height, 100%) + 1.2em)"))
+  }
 }

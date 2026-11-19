@@ -5,6 +5,13 @@ nonisolated enum EditorHTML {
     /// Space reserved for the editable language control above fenced code.
     static let codeLanguageHeaderHeight: CGFloat = 28
 
+    /// CSS `max-width` for the editor column under a Content Width setting.
+    static func columnMaxWidth(_ columnWidth: Int?) -> String {
+        // `100%`, not `none`: `none` can't be interpolated, so Full Width
+        // would snap instead of animating.
+        columnWidth.map { "\($0)px" } ?? "100%"
+    }
+
     struct Configuration {
         var fullWidth = false
         /// Column measure in CSS px when not `fullWidth`.
@@ -65,9 +72,7 @@ nonisolated enum EditorHTML {
                        includesMermaid: Bool = false,
                        assetBaseURL: URL? = nil,
                        configuration: Configuration = Configuration()) -> String {
-        let columnMaxWidth = configuration.fullWidth
-            ? "none"
-            : "\(configuration.columnWidth)px"
+        let columnMaxWidth = Self.columnMaxWidth(configuration.fullWidth ? nil : configuration.columnWidth)
         let lightPageBackground = configuration.lightPageBackground
         let darkPageBackground = configuration.darkPageBackground
         let usesPageScrolling = configuration.usesPageScrolling
@@ -95,6 +100,7 @@ nonisolated enum EditorHTML {
             /* Same code palette as the preview stylesheet. */
             \(MarkdownHTML.lightCodePaletteCSS)
             --mdp-text-scale: \(configuration.textScale);
+            --mdp-column-max-width: \(columnMaxWidth);
         }
         @media (prefers-color-scheme: dark) {
             :root {
@@ -158,7 +164,8 @@ nonisolated enum EditorHTML {
         }
         #editor .cm-content {
             width: 100%;
-            max-width: \(columnMaxWidth);
+            max-width: var(--mdp-column-max-width);
+            transition: max-width 0.5s cubic-bezier(0.65, 0, 0.35, 1);
             min-height: 100%;
             margin: 0 auto;
             /* Reader margins: symmetric inset inside the column, as in the preview. */
@@ -184,6 +191,9 @@ nonisolated enum EditorHTML {
             font-size: 0.9em;
             line-height: 1.5;
             padding-inline: 0;
+        }
+        @media (prefers-reduced-motion: reduce) {
+            #editor .cm-content { transition: none; }
         }
         html[data-code-mode] #editor .cm-content {
             max-width: none;

@@ -25,6 +25,7 @@ enum KeymapCommand: String, CaseIterable, Hashable {
     case viewToggleToolbar = "view.toggleToolbar"
     case viewToggleAlwaysOnTop = "view.toggleAlwaysOnTop"
     case viewToggleCompletedTasks = "view.toggleCompletedTasks"
+    case viewToggleHiddenFiles = "view.toggleHiddenFiles"
     case viewToggleComments = "view.toggleComments"
     case viewPresent = "view.present"
     case viewPresentFromCurrentSlide = "view.presentFromCurrentSlide"
@@ -87,7 +88,7 @@ enum KeymapCommand: String, CaseIterable, Hashable {
              .viewToggleSidebar, .viewShowOutline,
              .viewShowProjectNavigator, .viewToggleTasks, .viewToggleReferences, .viewToggleEditMode,
              .viewToggleToolbar,
-             .viewToggleAlwaysOnTop, .viewToggleCompletedTasks, .viewToggleComments, .viewPresent, .viewPresentFromCurrentSlide, .viewToggleSlidePreview,
+             .viewToggleAlwaysOnTop, .viewToggleCompletedTasks, .viewToggleHiddenFiles, .viewToggleComments, .viewPresent, .viewPresentFromCurrentSlide, .viewToggleSlidePreview,
              .findFind, .findReplace, .findNext,
              .findPrevious, .findJumpToSelection, .goBack, .goForward,
              .goTodayJournal, .goPreviousJournalEntry, .goNextJournalEntry:
@@ -119,6 +120,7 @@ enum KeymapCommand: String, CaseIterable, Hashable {
         case .viewToggleToolbar: "Show Toolbar"
         case .viewToggleAlwaysOnTop: "Always on Top"
         case .viewToggleCompletedTasks: "Hide Completed Tasks"
+        case .viewToggleHiddenFiles: "Toggle Hidden Files"
         case .viewToggleComments: "Comments"
         case .viewPresent: "Present"
         case .viewPresentFromCurrentSlide: "Present from Current Slide"
@@ -496,7 +498,8 @@ struct Keymap {
             ("shift+cmd+i", .viewToggleTasks), ("shift+cmd+r", .viewToggleReferences),
             ("cmd+e", .viewToggleEditMode),
             ("opt+cmd+t", .viewToggleToolbar), ("ctrl+cmd+t", .viewToggleAlwaysOnTop),
-            ("shift+cmd+h", .viewToggleCompletedTasks), ("ctrl+cmd+c", .viewToggleComments),
+            ("shift+cmd+h", .viewToggleCompletedTasks), ("shift+cmd+.", .viewToggleHiddenFiles),
+            ("ctrl+cmd+c", .viewToggleComments),
             ("opt+cmd+p", .viewPresent),
             ("opt+shift+cmd+p", .viewPresentFromCurrentSlide), ("cmd+9", .viewToggleSlidePreview),
             ("cmd+f", .findFind), ("opt+cmd+f", .findReplace), ("cmd+g", .findNext),

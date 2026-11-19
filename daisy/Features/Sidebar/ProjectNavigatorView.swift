@@ -12,12 +12,16 @@ private final class FileNode {
     /// gone, so there is nothing to preview. The row stays in the tree,
     /// dimmed, with nothing to open.
     let isPreviewable: Bool
+    /// Path from the opened folder, which is "" for the folder itself; what
+    /// the hide patterns match a `/` pattern against.
+    let relativePath: String
     private var loadedChildren: [FileNode]?
 
-    init(url: URL, isDirectory: Bool, isPreviewable: Bool = true) {
+    init(url: URL, isDirectory: Bool, isPreviewable: Bool = true, relativePath: String = "") {
         self.url = url
         self.isDirectory = isDirectory
         self.isPreviewable = isPreviewable
+        self.relativePath = relativePath
     }
 
     var displayName: String { url.lastPathComponent }
@@ -33,7 +37,7 @@ private final class FileNode {
             loadedChildren = []
             return []
         }
-        let sorted = Self.listing(of: url)
+        let sorted = Self.listing(of: url, relativePath: relativePath)
         loadedChildren = sorted
         return sorted
     }
@@ -44,7 +48,7 @@ private final class FileNode {
     /// own loaded children and expansion.
     func reloadChildren() -> Bool {
         guard isDirectory, let cached = loadedChildren else { return false }
-        let fresh = Self.listing(of: url)
+        let fresh = Self.listing(of: url, relativePath: relativePath)
         guard fresh.map(\.signature) != cached.map(\.signature) else { return false }
         var existing: [String: FileNode] = [:]
         for child in cached { existing[child.signature] = child }
@@ -57,20 +61,22 @@ private final class FileNode {
         "\(url.standardizedFileURL.path)|\(isDirectory)|\(isPreviewable)"
     }
 
-    private static func listing(of url: URL) -> [FileNode] {
-        let entries = (try? FileManager.default.contentsOfDirectory(
-            at: url,
-            includingPropertiesForKeys: [.isDirectoryKey, .isReadableKey, .isSymbolicLinkKey],
-            options: [.skipsHiddenFiles])) ?? []
-        let nodes: [FileNode] = entries.map { entry in
-            let values = try? entry.resourceValues(forKeys: [.isDirectoryKey, .isReadableKey, .isSymbolicLinkKey])
-            if values?.isDirectory ?? false { return FileNode(url: entry, isDirectory: true) }
+    /// Dot-files and the items the hide patterns match are left out, unless
+    /// View ▸ Toggle Hidden Files is on, which lists both.
+    private static func listing(of url: URL, relativePath: String) -> [FileNode] {
+        let entries = FileTreeHiddenPatterns.listedEntries(in: url, relativePath: relativePath)
+        let nodes: [FileNode] = entries.map { listed in
+            let entry = listed.url
+            let isDirectory = listed.isDirectory
+            let childPath = listed.relativePath
+            let values = try? entry.resourceValues(forKeys: [.isReadableKey, .isSymbolicLinkKey])
+            if isDirectory { return FileNode(url: entry, isDirectory: true, relativePath: childPath) }
             // A symlink whose target is missing reports as a non-directory
             // and unreadable; `fileExists` follows links, so it catches it.
             let isBroken = (values?.isSymbolicLink ?? false)
                 && !FileManager.default.fileExists(atPath: entry.path)
             let isPreviewable = (values?.isReadable ?? true) && !isBroken
-            return FileNode(url: entry, isDirectory: false, isPreviewable: isPreviewable)
+            return FileNode(url: entry, isDirectory: false, isPreviewable: isPreviewable, relativePath: childPath)
         }
         return nodes.sorted { lhs, rhs in
             if lhs.isDirectory != rhs.isDirectory { return lhs.isDirectory }
@@ -209,6 +215,10 @@ final class ProjectNavigatorView: NSView {
             name: BookmarkStore.didChangeNotification, object: nil
         )
         NotificationCenter.default.addObserver(
+            self, selector: #selector(hiddenPatternsDidChange),
+            name: FileTreeHiddenPatterns.didChangeNotification, object: nil
+        )
+        NotificationCenter.default.addObserver(
             self, selector: #selector(workspaceMarkersDidChange),
             name: WorkspaceMarker.didChangeNotification, object: nil
         )
@@ -274,6 +284,11 @@ final class ProjectNavigatorView: NSView {
         guard !bookmarkNodes.isEmpty else { return }
         let stored = UserDefaults.standard.object(forKey: Self.bookmarksExpandedKey) as? Bool
         if stored ?? true { outlineView.expandItem(bookmarksGroup) }
+    }
+
+    @objc private func hiddenPatternsDidChange() {
+        refreshTree()
+        setCurrentFile(currentFileURL)
     }
 
     @objc private func bookmarksDidChange() {
