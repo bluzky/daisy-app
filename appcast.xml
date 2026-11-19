@@ -6,6 +6,25 @@
         <description>Most recent changes to Daisy</description>
         <language>en</language>
         <item>
+            <title>Version 1.1.0</title>
+            <pubDate>Thu, 19 Nov 2026 13:01:24 GMT</pubDate>
+            <sparkle:version>73</sparkle:version>
+            <sparkle:shortVersionString>1.1.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <description>&lt;p&gt;Tidier file trees, an easier way to install the slides skill, and smoother layout changes.&lt;/p&gt;
+&lt;h4&gt;Added&lt;/h4&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Hide file tree items by pattern.&lt;/strong&gt; Choose glob patterns to keep clutter out of the Files sidebar ([#59](https://github.com/bluzky/daisy-app/issues/59)).&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Install Slides Skill menu action.&lt;/strong&gt; Install Daisy&amp;#x27;s slide-writing skill for your AI assistant from the menu.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h4&gt;Changed&lt;/h4&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Content Width changes animate.&lt;/strong&gt; Switching the reading width now transitions smoothly instead of jumping.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;The search palette opens without delaying the window.&lt;/strong&gt;&lt;/li&gt;
+&lt;/ul&gt;</description>
+            <enclosure url="https://github.com/bluzky/daisy-app/releases/download/v1.1.0/Daisy-1.1.0.dmg" length="17710545" type="application/octet-stream" sparkle:edSignature="OZrKKypRMvrK5Mmq/UuHtsFz4bKStxExBwi/+cTAJpOq43b3evZnFddm1YNGxZVTwwwRfHAxdJM2gCZQ2gBXCA==" />
+        </item>
+        <item>
             <title>Version 1.0.0</title>
             <pubDate>Tue, 17 Nov 2026 00:43:02 GMT</pubDate>
             <sparkle:version>72</sparkle:version>
