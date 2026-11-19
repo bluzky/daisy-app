@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.1.0] – 2026-11-19
+
+Tidier file trees, an easier way to install the slides skill, and smoother layout changes.
+
+### Added
+
+- **Hide file tree items by pattern.** Choose glob patterns to keep clutter out of the Files sidebar ([#59](https://github.com/bluzky/daisy-app/issues/59)).
+- **Install Slides Skill menu action.** Install Daisy's slide-writing skill for your AI assistant from the menu.
+
+### Changed
+
+- **Content Width changes animate.** Switching the reading width now transitions smoothly instead of jumping.
+- **The search palette opens without delaying the window.**
+
 ## [1.0.0] – 2026-11-17
 
 Daisy 1.0 turns a folder of Markdown into a workspace: tasks, notes and journals you can query, slide decks you can present, and comments on any selection.
