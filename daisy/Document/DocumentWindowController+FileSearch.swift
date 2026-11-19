@@ -28,6 +28,18 @@ extension DocumentWindowController {
             existing.view.window?.makeKeyAndOrderFront(nil)
             return
         }
+        // Deferred out of the key-equivalent dispatch: this can be reached from
+        // WebKit's `doneWithKeyEvent` re-sending an unhandled key, and
+        // validating every menu item (which makes the web view validate its own
+        // items) mid-event crashed inside WebKit. The window is still key on
+        // the next turn, so the menus validate against the right responder chain.
+        DispatchQueue.main.async { [weak self] in
+            self?.presentSearchPalette(in: split)
+        }
+    }
+
+    private func presentSearchPalette(in split: MainSplitViewController) {
+        guard fileSearchPalette == nil, documentWindow.attachedSheet == nil else { return }
         // Read the menus now, while this window is still key: once the panel is
         // up the responder chain starts at the panel and every item would
         // validate against it instead.

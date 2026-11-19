@@ -407,7 +407,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard setting != ContentWidthSetting.current else { return }
         ContentWidthSetting.current = setting
         syncContentWidthMenuState()
-        reloadDocumentPreviewsForSettingChange()
+        applyContentWidthToOpenDocuments()
     }
 
     /// Applies a font chosen in Settings. Open documents re-render rather than
@@ -709,7 +709,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         ContentWidthSetting.current = setting
         syncContentWidthMenuState()
-        reloadDocumentPreviewsForSettingChange()
+        applyContentWidthToOpenDocuments()
         SettingsModel.shared.refreshFromExternalSources()
     }
 
@@ -1481,6 +1481,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         fullContentWidthMenuItem?.state = setting == .fullWidth ? .on : .off
     }
 
+    /// Content Width resizes open pages in place rather than reloading them,
+    /// so the column animates.
+    private func applyContentWidthToOpenDocuments() {
+        NSDocumentController.shared.documents
+            .flatMap(\.windowControllers)
+            .compactMap { $0 as? DocumentWindowController }
+            .forEach { $0.applyContentWidth() }
+    }
+
     private func reloadDocumentPreviewsForSettingChange() {
         guard coalescedReloadDepth == 0 else {
             needsCoalescedPreviewReload = true
@@ -1518,6 +1527,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                                  keyEquivalent: "")
         cliItem.target = self
         appMenu.insertItem(cliItem, at: appMenu.index(of: updatesItem) + 1)
+
+        let skillItem = NSMenuItem(title: L("Install Slides Skill…"),
+                                   action: #selector(installSlidesSkill(_:)),
+                                   keyEquivalent: "")
+        skillItem.target = self
+        appMenu.insertItem(skillItem, at: appMenu.index(of: cliItem) + 1)
     }
 
     private func installWhatsNewMenuItem() {
@@ -1527,12 +1542,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         let item = NSMenuItem(title: L("What’s New in Daisy"),
                               action: #selector(showWhatsNew(_:)),
-
-        let skillItem = NSMenuItem(title: L("Install Slides Skill…"),
-                                   action: #selector(installSlidesSkill(_:)),
-                                   keyEquivalent: "")
-        skillItem.target = self
-        appMenu.insertItem(skillItem, at: appMenu.index(of: cliItem) + 1)
                               keyEquivalent: "")
         item.target = self
         helpMenu.addItem(item)

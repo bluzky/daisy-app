@@ -644,6 +644,12 @@ final class MainSplitViewController: NSSplitViewController {
         cachedEditorViewController?.applyReaderStyle()
     }
 
+    /// Content Width restyles the open pages in place, so the column animates.
+    func applyContentWidth() {
+        contentViewController?.applyContentWidth()
+        cachedEditorViewController?.applyContentWidth()
+    }
+
     func reloadPreviewForSettingChange() {
         contentViewController?.reloadPreviewForSettingChange()
         cachedEditorViewController?.applyReaderStyle()

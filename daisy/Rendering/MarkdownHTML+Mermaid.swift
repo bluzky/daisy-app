@@ -251,6 +251,7 @@ nonisolated extension MarkdownHTML {
                 if (vbW > 0 && vbH > 0) {
                     figure.style.setProperty('--mm-aspect', vbW + ' / ' + vbH);
                     figure.style.setProperty('--mm-natural-width', vbW + 'px');
+                    figure.style.setProperty('--mm-natural-height', vbH + 'px');
                 }
 
                 const alreadyWired = states.has(figure);

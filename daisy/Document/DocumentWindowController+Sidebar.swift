@@ -208,6 +208,10 @@ extension DocumentWindowController {
             .reloadPreviewForSettingChange()
     }
 
+    func applyContentWidth() {
+        mainSplit?.applyContentWidth()
+    }
+
     func applyTextSizeSetting() {
         (documentWindow.contentViewController as? MainSplitViewController)?
             .applyTextSizeSetting()

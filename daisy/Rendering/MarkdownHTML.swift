@@ -515,23 +515,27 @@ nonisolated enum MarkdownHTML {
         article.markdown-body { overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; overflow-wrap: anywhere; }
         </style>
         """ : ""
-        let contentWidthOverride: String
+        // The column width is a variable so a Content Width change in the app
+        // can animate the open page instead of reloading it.
+        let columnMaxWidth: String
         switch contentWidth {
-        case .centered:
-            contentWidthOverride = ""
-        case .narrow:
-            contentWidthOverride = """
-            <style>
-            article.markdown-body { max-width: \(narrowColumnWidth)px; }
-            </style>
-            """
-        case .full:
-            contentWidthOverride = """
-            <style>
-            article.markdown-body { max-width: none; }
-            </style>
-            """
+        case .centered: columnMaxWidth = "\(contentColumnWidth)px"
+        case .narrow: columnMaxWidth = "\(narrowColumnWidth)px"
+        // `100%`, not `none`: `none` can't be interpolated.
+        case .full: columnMaxWidth = "100%"
         }
+        let contentWidthOverride = """
+        <style>
+        :root { --mdp-column-max-width: \(columnMaxWidth); }
+        article.markdown-body {
+            max-width: var(--mdp-column-max-width);
+            transition: max-width 0.5s cubic-bezier(0.65, 0, 0.35, 1);
+        }
+        @media (prefers-reduced-motion: reduce) {
+            article.markdown-body { transition: none; }
+        }
+        </style>
+        """
         // Headings inherit the family deliberately: the heading scale is a
         // ratio off the body em, tuned against one x-height, so keeping system
         // headings over a serif body would silently change how big each step

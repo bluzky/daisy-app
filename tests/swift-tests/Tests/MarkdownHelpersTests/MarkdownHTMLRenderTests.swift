@@ -314,19 +314,13 @@ final class MarkdownHTMLRenderTests: XCTestCase {
         XCTAssertEqual(full.width, 1700 - 80, accuracy: 1)
     }
 
-    func testContentWidthModesEmitExpectedArticleOverrides() {
-        let centered = MarkdownHTML.render(
-            markdown: "# Doc", vendorLoading: .lazy, contentWidth: .centered)
-        XCTAssertFalse(centered.html.contains("article.markdown-body { max-width: none; }"))
-        XCTAssertFalse(centered.html.contains("article.markdown-body { max-width: 680px; }"))
-
-        let narrow = MarkdownHTML.render(
-            markdown: "# Doc", vendorLoading: .lazy, contentWidth: .narrow)
-        XCTAssertTrue(narrow.html.contains("article.markdown-body { max-width: 680px; }"))
-
-        let full = MarkdownHTML.render(
-            markdown: "# Doc", vendorLoading: .lazy, contentWidth: .full)
-        XCTAssertTrue(full.html.contains("article.markdown-body { max-width: none; }"))
+    func testContentWidthModesEmitExpectedColumnWidth() {
+        func width(_ mode: MarkdownHTML.ContentWidth) -> String {
+            MarkdownHTML.render(markdown: "# Doc", vendorLoading: .lazy, contentWidth: mode).html
+        }
+        XCTAssertTrue(width(.centered).contains("--mdp-column-max-width: \(MarkdownHTML.contentColumnWidth)px;"))
+        XCTAssertTrue(width(.narrow).contains("--mdp-column-max-width: 680px;"))
+        XCTAssertTrue(width(.full).contains("--mdp-column-max-width: 100%;"))
     }
 
     func testThemeOverridesEmitSanitizedCodeBackgroundRules() {
