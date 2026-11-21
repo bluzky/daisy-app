@@ -2,9 +2,9 @@
 //  ThemesPopoverView.swift
 //  daisy
 //
-//  Content of the toolbar's "aA" popover: text size, appearance, and the
-//  theme preset gallery in one place, with Customize leading to the
-//  Customize Theme panel (fonts and reading layout). Driven by the shared
+//  Content of the toolbar's "aA" popover: text size, appearance, content
+//  width and the theme preset gallery in one place, with Customize leading
+//  to the Customize Theme panel (fonts and reading layout). Driven by the shared
 //  SettingsModel, so a preset or appearance picked here reaches every open
 //  window exactly like a change made in the Settings window.
 //
@@ -62,6 +62,9 @@ struct ThemesPopoverView: View {
                 appearanceButton
             }
             .padding(.top, 12)
+
+            contentWidthControl
+                .padding(.top, 12)
 
             ThemePresetGallery(spacing: 8, cardInset: 2)
             .padding(.top, 6)
@@ -163,6 +166,23 @@ struct ThemesPopoverView: View {
         .buttonStyle(.plain)
         .help(title)
         .accessibilityLabel(title)
+    }
+
+    // MARK: - Content width
+
+    /// The reading column's width, the same setting as View ▸ Content Width
+    /// and Settings ▸ Reading, applied to every open window.
+    private var contentWidthControl: some View {
+        Picker(L("Content width"), selection: $model.contentWidth) {
+            ForEach(ContentWidthSetting.allCases, id: \.self) { setting in
+                Text(setting.title).tag(setting)
+            }
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .controlSize(.small)
+        .accessibilityLabel(L("Content width"))
+        .help(L("Content width"))
     }
 
     // MARK: - Appearance
