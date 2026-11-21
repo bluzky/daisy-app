@@ -1,6 +1,6 @@
 # Daisy — agent guide
 
-A macOS app for previewing Markdown files. AppKit, sandboxed, ships with a Quick Look extension. Updates via Sparkle, distributed via GitHub releases.
+A macOS app for previewing Markdown files. AppKit, ships with a sandboxed Quick Look extension (the main app itself is not sandboxed). Updates via Sparkle, distributed via GitHub releases.
 
 ## Project facts
 
@@ -11,7 +11,7 @@ A macOS app for previewing Markdown files. AppKit, sandboxed, ships with a Quick
 | Scheme            | `daisy`                                                |
 | Quick Look target | `quick-look` (embedded extension)                           |
 | Min macOS         | 15.0                                                        |
-| Sandboxed         | yes — uses Sparkle XPC services for updates                 |
+| Sandboxed         | app: no (`com.apple.security.app-sandbox` = false); `quick-look` extension: yes |
 | Auto-updater      | Sparkle 2.x (Swift package)                                 |
 | Distribution      | GitHub releases + Sparkle appcast on `gh-pages` (Pages) |
 
@@ -71,11 +71,13 @@ grep -rn "<the behaviour you changed>" README.md samples/ tests/fixtures/ docs/
   `Info.plist` or the entitlements' `mach-lookup` names without reading that
   skill first — they're paired with private material outside the repo (login
   Keychain), so an unmatched change breaks Sparkle updates silently.
-- `daisy.entitlements` / `quick-look.entitlements` — the sandbox
-  `temporary-exception` entries (Sparkle XPC mach-lookup names, the read-only
-  filesystem exception) are narrowly scoped, notarization-review-sensitive
-  capabilities. Don't broaden or "clean up" them without understanding why
-  they're there (see the inline comments in each file).
+- `daisy.entitlements` / `quick-look.entitlements` — the app is not sandboxed,
+  so the sandbox keys left in `daisy.entitlements` (the `temporary-exception`
+  entries, Sparkle XPC mach-lookup names) are inert there; the Quick Look
+  extension is sandboxed, and its read-only filesystem exception is a narrowly
+  scoped, notarization-review-sensitive capability. Don't broaden or "clean
+  up" either file without understanding why each entry is there (see the
+  inline comments).
 - A release PR must update **both** `MARKETING_VERSION` and
   `CURRENT_PROJECT_VERSION` in `Version.xcconfig`, together with the matching
   `CHANGELOG.md` entry. Edit the version file directly during PR preparation.

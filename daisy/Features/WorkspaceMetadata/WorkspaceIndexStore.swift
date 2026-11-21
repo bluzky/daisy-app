@@ -2,8 +2,8 @@
 //  WorkspaceIndexStore.swift
 //  daisy
 //
-//  The on-disk copy of one workspace's index: a SQLite file in the app
-//  container's Caches folder, never in the workspace. It only saves the
+//  The on-disk copy of one workspace's index: a SQLite file in the user's
+//  Caches folder, never in the workspace. It only saves the
 //  index from rescanning on the next open. Every byte of it is treated as
 //  untrusted, anything doubtful is thrown away, and a store that cannot be
 //  opened or written leaves the index working in memory. All SQLite calls
@@ -46,7 +46,8 @@ actor WorkspaceIndexStore {
     /// A cache nobody opened for this long is deleted at launch.
     nonisolated static let staleInterval: TimeInterval = 30 * 24 * 60 * 60
 
-    /// `Library/Caches/WorkspaceIndex` inside the app container.
+    /// `~/Library/Caches/WorkspaceIndex`. The app is not sandboxed, so this is
+    /// the user's Caches folder, not a container's.
     nonisolated static var defaultDirectory: URL? {
         FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?
             .appending(path: "WorkspaceIndex", directoryHint: .isDirectory)
