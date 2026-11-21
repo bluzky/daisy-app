@@ -526,3 +526,13 @@ const slashInsertTemplate = (body, { source = "", locale = "en" } = {}) => {
   slashKey(host, "Enter")
   check("/notes starts the notes with the line's text", editor.getMarkdown() === deck + "???\nSay hello")
 }
+
+{
+  const { host, editor } = slashEditor("")
+  editor.insertTextAt("/", 0, 0)
+  editor.insertTextAt("columns", 1, 1)
+  check("Columns is offered in a plain document", slashLabels()[0] === "Columns")
+  slashKey(host, "Enter")
+  check("Columns inserts an opener, a break and a closer",
+    editor.getMarkdown() === "<!-- columns -->\n\n<!-- column -->\n\n<!-- end-columns -->")
+}

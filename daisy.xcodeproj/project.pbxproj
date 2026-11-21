@@ -113,6 +113,7 @@
 				Rendering/CodeHighlighter.swift,
 				Rendering/CommentSelectionScript.swift,
 				Rendering/DocumentFontSetting.swift,
+				"Rendering/EscapingHTMLFormatter+Columns.swift",
 				Rendering/EscapingHTMLFormatter.swift,
 				Rendering/ExternalLinkPolicy.swift,
 				Rendering/MarkdownAssetResolution.swift,

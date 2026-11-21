@@ -16,7 +16,7 @@ import os
 import re
 import sys
 
-DIRECTIVES = {"layout", "_class", "color", "_color", "step", "column", "end-columns",
+DIRECTIVES = {"layout", "_class", "color", "_color", "step", "columns", "column", "end-columns",
               "space", "_paginate", "_header", "_footer", "_font_size"}
 FONT_SIZE = re.compile(r"\d+(\.\d+)?(%|px)?", re.I)
 MARP_GLOBALS = {"paginate", "header", "footer", "class", "theme", "backgroundcolor",
@@ -105,7 +105,7 @@ def check_settings(settings, report):
 
 def check_directive(key, value, line, report, in_list):
     if key in DIRECTIVES:
-        if in_list and key in ("column", "end-columns", "space"):
+        if in_list and key in ("columns", "column", "end-columns", "space"):
             report.error(line, f"`<!-- {key} -->` inside a list is ignored; put it at the top level")
         if key == "layout" and value.lower() not in LAYOUTS:
             report.error(line, f"unknown layout `{value}`; it is ignored")
@@ -184,7 +184,12 @@ def check_slide(slide, number, report, deck_dir):
             for comment in comments:
                 check_comment(comment, line_no, report, in_list)
                 for key in (raw.split(":")[0].strip().lower() for raw in comment.splitlines()):
-                    if key == "column" and not in_list and place != "after":
+                    if key == "columns" and not in_list and place == "before":
+                        # Everything so far stays above the columns; the
+                        # first column starts here.
+                        columns.append(0)
+                        place = "columns"
+                    elif key == "column" and not in_list and place != "after":
                         column_breaks += 1
                         if place == "before":
                             # The opening heading stays above; the rest so

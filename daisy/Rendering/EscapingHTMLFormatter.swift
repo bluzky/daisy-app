@@ -739,6 +739,9 @@ nonisolated enum TaskCheckboxSource {
 nonisolated struct EscapingHTMLFormatter: MarkupWalker {
     private(set) var result = ""
 
+    /// Appends markup for the formatter's extensions in other files.
+    mutating func emit(_ html: String) { result += html }
+
     let options: HTMLFormatterOptions
     let sourceLineOffset: Int
     /// Pre-render fenced code with `CodeHighlighter` so the page paints its
@@ -854,7 +857,7 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
         return " data-source-line=\"\(start)\" data-source-start=\"\(start)\" data-source-end=\"\(end)\""
     }
 
-    private func precedingBlankLineCount(for markup: Markup) -> Int {
+    func precedingBlankLineCount(for markup: Markup) -> Int {
         guard let line = markup.range?.lowerBound.line else { return 0 }
         var precedingLineIndex = line - 2
         var blankLineCount = 0
@@ -899,14 +902,7 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
             visitSlideDeck(SlideDeck(document: document))
             return
         }
-        for child in document.children {
-            // CommonMark discards source blank lines between blocks. Restore
-            // every authored line in addition to the blocks' semantic margins.
-            for _ in 0..<precedingBlankLineCount(for: child) {
-                result += "<div class=\"md-source-blank-line\" aria-hidden=\"true\"></div>\n"
-            }
-            visit(child)
-        }
+        visitDocumentBlocks(document)
     }
 
     /// One `<section>` per slide inside `.mdp-deck`: the slide canvas, then

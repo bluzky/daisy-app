@@ -67,6 +67,27 @@ The steps all show in Read Mode and in a PDF.
 
 ---
 
+## Text above the columns
+
+Anything above `<!-- columns -->` spans the whole slide, not just a heading.
+
+<!-- columns -->
+
+- Add `<!-- columns -->` where the columns begin
+- Lines above it stay across the top
+
+<!-- column -->
+
+- `<!-- column -->` starts the next column
+- Two to four columns share the width
+
+<!-- end-columns -->
+
+???
+The opener is optional; without it only a heading at the top stays above the columns.
+
+---
+
 ## A gallery
 
 ![Daisy icon](../docs/app-icon.png)

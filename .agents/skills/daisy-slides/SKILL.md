@@ -1,6 +1,6 @@
 ---
 name: daisy-slides
-description: Write, convert and fix slide decks in Daisy's Markdown slide format — `slides: true` frontmatter, `---` slide breaks, `???` speaker notes, inferred layouts, `<!-- … -->` directives (layout, _class, color, step, column, end-columns, space, _paginate/_header/_footer), `![bg …]` backgrounds with left/right/fit/dim/blur, `!caption[…]`, themes and theme files. Use this whenever the user wants a presentation, deck, talk, pitch or slides written in Markdown, wants notes or a document turned into slides, mentions Daisy, Daisy slides or presenting a .md file, asks for a Marp/Kova-style deck to open in Daisy, or wants a Daisy slide theme (`~/.config/daisy/slide-themes/*.yaml`) — even if they only say "make slides from this".
+description: Write, convert and fix slide decks in Daisy's Markdown slide format — `slides: true` frontmatter, `---` slide breaks, `???` speaker notes, inferred layouts, `<!-- … -->` directives (layout, _class, color, step, columns, column, end-columns, space, _paginate/_header/_footer), `![bg …]` backgrounds with left/right/fit/dim/blur, `!caption[…]`, themes and theme files. Use this whenever the user wants a presentation, deck, talk, pitch or slides written in Markdown, wants notes or a document turned into slides, mentions Daisy, Daisy slides or presenting a .md file, asks for a Marp/Kova-style deck to open in Daisy, or wants a Daisy slide theme (`~/.config/daisy/slide-themes/*.yaml`) — even if they only say "make slides from this".
 ---
 
 # Daisy slides
@@ -54,7 +54,7 @@ Speaker notes: everything after ??? on this slide.
 | New slide | `---` alone on a line, with a **blank line above it** |
 | Speaker notes | `???` alone on a line; the rest of the slide is notes |
 | Reveal on click | `<!-- step -->` as the **last thing** of a list item or paragraph, or alone on the line above a block; `<!-- step: 2 -->` groups elements |
-| Columns | `<!-- column -->` alone on a line between parts; `<!-- end-columns -->` ends them so what follows spans the slide. A heading at the top stays above. Max 4 columns |
+| Columns | `<!-- column -->` alone on a line between parts; `<!-- columns -->` (optional) marks where they begin, so everything above it (heading, text lines, an image) stays across the slide; `<!-- end-columns -->` ends them so what follows spans the slide. Without the opener, only a heading at the top stays above. Max 4 columns |
 | Empty space | `<!-- space -->` or `<!-- space: 3 -->` (blank lines don't add space on a slide) |
 | Background | `![bg](img.jpg)` alone in its paragraph; keywords in the alt text: `left`, `right`, `fit`, `dim`, `blur`, combinable (`![bg right fit]`, `![bg dim blur]`) |
 | Image width | `![Chart](chart.png "60%")` (also px, em, rem, cqi) |
@@ -76,7 +76,7 @@ Daisy chooses each slide's layout; write the content to get the layout you want,
 
 | Content | Layout |
 | --- | --- |
-| two or more `<!-- column -->` parts | `columns` |
+| two or more `<!-- column -->` parts (from `<!-- columns -->` when used) | `columns` |
 | `![bg left]` / `![bg right]` | `split` — image on one half, text centered on the other |
 | `![bg]` and nothing else | `full-bleed` |
 | an H1 alone, or with one paragraph ≤ 200 characters | `title` — centered |
@@ -98,9 +98,10 @@ These don't produce errors in Daisy — the slide just looks wrong — so check 
 - **`<!-- step -->` mid-sentence** is ignored. It must end the item or paragraph.
 - **A `bg` image with other text** on its line or paragraph renders as a normal inline image.
 - **Kova's `|||`** is not a column break here; use `<!-- column -->`.
+- **`<!-- columns -->` after the first `<!-- column -->`** is ignored; put it before the first column, where the columns should begin.
 - **Marp habits:** HTML comments are *not* notes (only `???` is); `<!-- paginate: true -->`, `class`, `header`, `footer` without `_` are not read — put deck-wide settings in the frontmatter and use `_`-prefixed directives for one slide. Marp's `![bg brightness:.5]` filters aren't supported; use `dim`/`blur`. `marp: true` isn't read; a deck needs `slides: true`.
 - **Values starting with `#`** in YAML must be quoted (`color: "#fff"`), or YAML reads a comment.
-- **Directives inside lists** (`<!-- column -->`, `<!-- space -->` indented under a bullet) are ignored; keep them at the top level.
+- **Directives inside lists** (`<!-- columns -->`, `<!-- column -->`, `<!-- space -->` indented under a bullet) are ignored; keep them at the top level.
 - **A file starting with `---`** and containing another `---` is read as frontmatter. Start decks with real frontmatter.
 
 ## Themes

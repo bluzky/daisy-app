@@ -238,6 +238,25 @@ your settings would look like this:
         ...
     }
 
+## Columns
+
+Daisy lays out blocks side by side when they sit between `<!-- columns -->` and `<!-- end-columns -->` comments, with `<!-- column -->` starting each next column. Other Markdown viewers show the content in order.
+
+<!-- columns -->
+
+**Left**
+
+- First point
+- Second point
+
+<!-- column -->
+
+**Right**
+
+Any blocks fit in a column: text, lists, images, tables and code.
+
+<!-- end-columns -->
+
 ## Examples
 
 ### Tables

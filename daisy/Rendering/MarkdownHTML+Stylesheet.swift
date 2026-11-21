@@ -807,6 +807,33 @@ nonisolated extension MarkdownHTML {
         background-size: 100% 100%;
     }
 
+    /* Columns from `<!-- columns -->` … `<!-- end-columns -->`: equal widths
+       with a gap. A column may shrink below its content (min-width 0), so a
+       wide table or code block scrolls inside it instead of widening the
+       page; below a narrow window they stack. */
+    .md-columns {
+        display: grid;
+        grid-auto-flow: column;
+        grid-auto-columns: minmax(0, 1fr);
+        gap: 0 2em;
+        margin: \(textScaled(largeBlockSpacing)) 0 0;
+    }
+    .md-column { min-width: 0; }
+    .md-column > :first-child { margin-top: 0; }
+    .md-column img, .md-column svg { max-width: 100%; height: auto; }
+    @media screen and (max-width: 600px) {
+        .md-columns { grid-auto-flow: row; grid-auto-columns: minmax(0, 1fr); }
+        .md-column + .md-column { margin-top: \(textScaled(largeBlockSpacing)); }
+    }
+    /* Paper and PDF keep the columns side by side whatever the page width
+       (a letter page's content box is close to the 600px breakpoint), and
+       use flex: WebKit breaks a flex row across pages, where a grid
+       container is cut off. */
+    @media print {
+        .md-columns { display: flex; align-items: flex-start; gap: 0 2em; }
+        .md-column { flex: 1 1 0; }
+    }
+
     /* Tables always span the full column, however little their cells hold.
        The wrapper owns the margin and the horizontal scroll: a table box
        cannot scroll itself and still stretch to the column. */
