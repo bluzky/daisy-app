@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.1] – 2026-11-21
+
+Comments now work on tables and slides in Read mode.
+
+### Fixed
+
+- **Add comments to table cells and slide content in Read mode.** Selecting text in a table cell or on a slide now shows the comment bubble, as speaker notes already did. A comment on a table cell stays in its row.
+
 ## [1.1.0] – 2026-11-19
 
 Tidier file trees, an easier way to install the slides skill, and smoother layout changes.
