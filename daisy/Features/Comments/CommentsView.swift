@@ -73,13 +73,19 @@ struct CommentsView: View {
     // MARK: - List
 
     private var list: some View {
-        ScrollView {
-            LazyVStack(spacing: 8) {
-                ForEach(Array(store.comments.enumerated()), id: \.offset) { index, comment in
-                    card(index, comment)
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 8) {
+                    ForEach(Array(store.comments.enumerated()), id: \.offset) { index, comment in
+                        card(index, comment).id(index)
+                    }
                 }
+                .padding(10)
             }
-            .padding(10)
+            .onChange(of: store.revealCount) {
+                guard let index = store.highlighted else { return }
+                withAnimation(.easeInOut(duration: 0.25)) { proxy.scrollTo(index, anchor: .center) }
+            }
         }
     }
 
@@ -145,6 +151,9 @@ struct CommentsView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 8).fill(Color(nsColor: .controlBackgroundColor)))
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color(nsColor: .separatorColor), lineWidth: 0.5))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(accent, lineWidth: 1.5)
+            .opacity(store.highlighted == index ? 1 : 0))
+        .animation(.easeOut(duration: 0.3), value: store.highlighted)
     }
 
     private func replyField(_ index: Int) -> some View {
