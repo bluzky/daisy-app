@@ -382,3 +382,18 @@ check("pasting a 2x2 grid expands the table to fit (a quoted newline becomes a s
     && gridPasteEditor.getMarkdown().split("\n").map((l) => l.replace(/\s/g, "")).join()
       === "|A|B||,|---|---|---|,|1|x|y|,||zq|w|")
 gridPasteEditor.destroy()
+
+// Cmd/Ctrl-A in a cell selects that cell's content, not the document.
+{
+  const host = dom.window.document.createElement("div")
+  dom.window.document.body.appendChild(host)
+  dom.window.MDEditor.create(host, "| A   | B   |\n| --- | --- |\n| one two | 2 |", {})
+  const cell = host.querySelector('[data-table-row="1"][data-table-column="0"]')
+  const text = cell.firstChild
+  dom.window.getSelection().setBaseAndExtent(text, 0, text, 0)
+  const event = new dom.window.KeyboardEvent("keydown", { key: "a", metaKey: true, bubbles: true, cancelable: true })
+  cell.dispatchEvent(event)
+  const selection = dom.window.getSelection()
+  check("Select All in a table cell selects the whole cell only",
+    event.defaultPrevented && selection.toString() === "one two" && cell.contains(selection.anchorNode))
+}

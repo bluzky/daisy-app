@@ -838,6 +838,9 @@ nonisolated extension MarkdownHTML {
        short columns to one letter per line; break-word keeps each column at
        least as wide as its longest word. */
     th, td { overflow-wrap: break-word; }
+    /* A column never narrows below 100px, however many there are; the
+       wrapper scrolls sideways when they no longer fit. */
+    .md-table-scroll > table :is(th, td) { min-width: 100px; }
     /* Inline code identifies fields such as `mapped_status`. Keep it intact
        so auto table layout reserves its natural width; the wrapper scrolls
        horizontally when a table cannot fit. */
@@ -994,6 +997,8 @@ nonisolated extension MarkdownHTML {
            measure so the size stays honest. */
         :root:not(.\(previewPrintClass)) body { overflow-wrap: break-word; }
         :root:not(.\(previewPrintClass)) table { width: 100%; }
+        /* Paper cannot scroll sideways, so columns may shrink again. */
+        :root:not(.\(previewPrintClass)) .md-table-scroll > table :is(th, td) { min-width: 0; }
         :root:not(.\(previewPrintClass)) th,
         :root:not(.\(previewPrintClass)) td { overflow-wrap: break-word; }
         :root:not(.\(previewPrintClass)) pre,

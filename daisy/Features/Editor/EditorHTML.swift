@@ -773,6 +773,8 @@ nonisolated enum EditorHTML {
             border-bottom: 1px solid var(--grid);
             text-align: left;
             vertical-align: top;
+            /* As in Read mode: a column never narrows below 100px. */
+            min-width: 100px;
         }
         .cm-md-table-grid th {
             font-weight: 600;

@@ -266,6 +266,17 @@ nonisolated extension MarkdownHTML {
             const selection = window.getSelection();
             if (!selection || selection.isCollapsed) clearComment();
         });
+        // A click on commented text tells the app which comment it is, so the
+        // Comments panel can bring that comment's card into view. Not while a
+        // selection is being made.
+        document.addEventListener('click', (event) => {
+            if (!hasHostBridge || !commentsEnabled()) return;
+            const target = event.target.closest ? event.target.closest('.mdp-comment[data-comment-index]') : null;
+            const selection = window.getSelection();
+            if (!target || (selection && !selection.isCollapsed)) return;
+            const index = Number(target.getAttribute('data-comment-index'));
+            if (Number.isInteger(index)) post({ kind: 'commentClicked', index });
+        });
         window.MdPreview.registerExtension({ id: 'comments', render() { clearComment(); } });
         """
     }

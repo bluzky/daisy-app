@@ -45,6 +45,10 @@ extension DocumentWindowController {
         mainSplit?.setCommentAddedHandler { [weak self] selection, note in
             self?.addCommentInReadMode(note: note, selection: selection)
         }
+        mainSplit?.setCommentClickedHandler { [weak self] index in
+            guard let self, self.isCommentsVisible else { return }
+            self.mainSplit?.commentsViewController?.store.reveal(index)
+        }
         guard let store = mainSplit?.commentsViewController?.store else { return }
         store.onJump = { [weak self] line in self?.mainSplit?.scrollToTaskLine(line) }
         store.onCopy = { [weak self] in self?.copyCommentsForAI(nil) }
