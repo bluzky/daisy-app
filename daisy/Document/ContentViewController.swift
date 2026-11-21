@@ -307,6 +307,11 @@ final class ContentViewController: NSViewController {
         }
     }
 
+    var commentClickedHandler: ((Int) -> Void)? {
+        get { webView.commentClicked }
+        set { webView.commentClicked = newValue }
+    }
+
     var commentAddedHandler: ((MarkdownComments.PageSelection, String) -> Void)? {
         get { webView.commentAdded }
         set { webView.commentAdded = newValue }

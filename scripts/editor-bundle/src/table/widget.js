@@ -433,6 +433,15 @@ export class TableEditorWidget extends WidgetType {
             if (target) restoreTableFormatting(view, target)
             return
           }
+          // Select All stays inside the cell instead of reaching the document.
+          if ((event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey
+              && !event.isComposing && event.key.toLowerCase() === "a") {
+            event.preventDefault()
+            event.stopPropagation()
+            const selection = window.getSelection()
+            selection?.selectAllChildren(editor)
+            return
+          }
           if (event.key === "Escape") {
             event.preventDefault()
             active = null

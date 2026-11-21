@@ -22,6 +22,23 @@ final class CommentsStore: ObservableObject {
     /// The comment whose reply field is open.
     @Published var replyingTo: Int?
 
+    /// The comment the reader clicked on the page: the panel scrolls to it and
+    /// lights it for a moment. `revealCount` changes on every click, so the
+    /// same comment clicked twice scrolls again.
+    @Published var highlighted: Int?
+    @Published var revealCount = 0
+    private var highlightReset: DispatchWorkItem?
+
+    func reveal(_ index: Int) {
+        guard comments.indices.contains(index) else { return }
+        highlighted = index
+        revealCount += 1
+        highlightReset?.cancel()
+        let reset = DispatchWorkItem { [weak self] in self?.highlighted = nil }
+        highlightReset = reset
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6, execute: reset)
+    }
+
     /// The text `comments` was read from.
     var snapshot = ""
 

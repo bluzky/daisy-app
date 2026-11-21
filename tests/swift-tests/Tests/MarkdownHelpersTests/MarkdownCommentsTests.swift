@@ -61,7 +61,7 @@ final class MarkdownCommentsTests: XCTestCase {
     func testRenderingWrapsTheAnchorAndKeepsEveryLine() {
         let markdown = "a {==**bold**\ntext==}{>>why <b> & \"q\"<<} z"
         let html = MarkdownComments.rendering(markdown)
-        XCTAssertEqual(html, "a <mark class=\"mdp-comment\" tabindex=\"0\" data-comment=\"why &lt;b&gt; &amp; &quot;q&quot;\">**bold**\ntext</mark> z")
+        XCTAssertEqual(html, "a <mark class=\"mdp-comment\" tabindex=\"0\" data-comment-index=\"0\" data-comment=\"why &lt;b&gt; &amp; &quot;q&quot;\">**bold**\ntext</mark> z")
         XCTAssertEqual(html.filter(\.isNewline).count, markdown.filter(\.isNewline).count)
     }
 
@@ -142,6 +142,12 @@ final class MarkdownCommentsTests: XCTestCase {
         let selection = MarkdownComments.PageSelection(text: text, startLine: lines.lowerBound,
                                                        endLine: lines.upperBound, occurrence: occurrence)
         return MarkdownComments.addEdit(note: note, selection: selection, in: markdown)?.applied(to: markdown)
+    }
+
+    func testRenderedCommentsCarryTheirIndex() {
+        let html = MarkdownComments.rendering("{==a==}{>>one<<} and {>>two<<}")
+        XCTAssertTrue(html.contains("data-comment-index=\"0\""))
+        XCTAssertTrue(html.contains("data-comment-index=\"1\""))
     }
 
     func testTableCellCommentStaysInItsRow() {

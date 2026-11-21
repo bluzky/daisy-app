@@ -56,7 +56,7 @@ nonisolated enum MarkdownComments {
         var output = ""
         output.reserveCapacity(markdown.utf8.count + found.count * 80)
         var cursor = 0
-        for match in found {
+        for (index, match) in found.enumerated() {
             output += String(characters[cursor..<match.range.lowerBound])
             // A comment with replies lists its notes, each behind a bullet, so
             // they read as separate; a single note is shown as it is.
@@ -65,12 +65,12 @@ nonisolated enum MarkdownComments {
             let attribute = notes.map { escapeAttribute(isList ? "\u{2022} " + $0 : $0) }.joined(separator: "&#10;")
             let listMark = isList ? " data-list" : ""
             if let anchorRange = match.anchorRange {
-                output += "<mark class=\"mdp-comment\" tabindex=\"0\" data-comment=\"\(attribute)\"\(listMark)>"
+                output += "<mark class=\"mdp-comment\" tabindex=\"0\" data-comment-index=\"\(index)\" data-comment=\"\(attribute)\"\(listMark)>"
                 output += String(characters[anchorRange])
                 output += "</mark>"
             } else {
                 let spoken = notes.map(escapeAttribute).joined(separator: ". ")
-                output += "<span class=\"mdp-comment mdp-comment-point\" tabindex=\"0\" role=\"note\" "
+                output += "<span class=\"mdp-comment mdp-comment-point\" tabindex=\"0\" role=\"note\" data-comment-index=\"\(index)\" "
                 output += "aria-label=\"\(spoken)\" data-comment=\"\(attribute)\"\(listMark)></span>"
             }
             cursor = match.range.upperBound

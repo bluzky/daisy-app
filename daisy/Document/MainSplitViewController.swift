@@ -266,6 +266,11 @@ final class MainSplitViewController: NSSplitViewController {
         contentViewController?.commentAddedHandler = handler
     }
 
+    /// Read mode's commented text was clicked: called with the comment's index.
+    func setCommentClickedHandler(_ handler: ((Int) -> Void)?) {
+        contentViewController?.commentClickedHandler = handler
+    }
+
     /// The visible document's text selection, whichever view is showing.
     func fetchSelectedText(_ completion: @escaping (String?) -> Void) {
         if let editor = editorViewController {
