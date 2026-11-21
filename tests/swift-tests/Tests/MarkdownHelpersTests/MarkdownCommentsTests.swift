@@ -144,6 +144,12 @@ final class MarkdownCommentsTests: XCTestCase {
         return MarkdownComments.addEdit(note: note, selection: selection, in: markdown)?.applied(to: markdown)
     }
 
+    func testTableCellCommentStaysInItsRow() {
+        let table = "| a | b |\n| - | - |\n| cell | x |"
+        XCTAssertEqual(add("why | how", "cell", lines: 3...3, in: table),
+                       "| a | b |\n| - | - |\n| {==cell==}{>>why &#124; how<<} | x |")
+    }
+
     func testSelectionIsWrappedWhereItSitsInTheSource() {
         XCTAssertEqual(add("why", "second word", in: "first second word third"),
                        "first {==second word==}{>>why<<} third")

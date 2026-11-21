@@ -80,14 +80,31 @@ final class CommentSelectionScriptTests: XCTestCase {
         XCTAssertNil(result)
     }
 
-    func testCodeAndTablesAreUnsupported() async throws {
-        let webView = try await page("```\ncode here\n```\n\n| a | b |\n| - | - |\n| cell | x |")
+    func testCodeIsUnsupported() async throws {
+        let webView = try await page("```\ncode here\n```")
         try await select("code here", in: webView)
         let code = try await run(webView)
         XCTAssertEqual(code?["unsupported"] as? Bool, true)
-        try await select("cell", in: webView)
-        let table = try await run(webView)
-        XCTAssertEqual(table?["unsupported"] as? Bool, true)
+    }
+
+    func testSlideContentIsSupported() async throws {
+        let webView = try await page("---\nslides: true\n---\n\n# Title\n\n---\n\nSlide body text\n")
+        try await select("Slide body", in: webView)
+        let result = try await run(webView)
+        XCTAssertNil(result?["unsupported"])
+        XCTAssertEqual(result?["start"] as? Int, 9)
+    }
+
+    func testTableCellMapsToItsRow() async throws {
+        let webView = try await page("intro\n\n| a | b |\n| - | - |\n| cell | x |\n| more | y |")
+        try await select("more", in: webView)
+        let result = try await run(webView)
+        XCTAssertNil(result?["unsupported"])
+        XCTAssertEqual(result?["start"] as? Int, 6)
+        XCTAssertEqual(result?["end"] as? Int, 6)
+        try await select("a", in: webView)
+        let header = try await run(webView)
+        XCTAssertEqual(header?["start"] as? Int, 3)
     }
 
     func testSelectionAcrossBlocksIsUnsupported() async throws {
