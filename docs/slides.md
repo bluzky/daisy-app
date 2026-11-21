@@ -356,7 +356,7 @@ Next reveals the next step and moves to the next slide after the last one; Previ
 
 ## Columns
 
-`<!-- column -->` on its own line starts a new column. `<!-- end-columns -->` ends them.
+`<!-- column -->` on its own line starts a new column. `<!-- end-columns -->` ends them. `<!-- columns -->` before the first column is optional: it marks where the columns begin, so anything above it stays above them, across the slide. Ordinary documents use the same three comments; see [Columns](columns.md).
 
 ```markdown
 ## Before and after
@@ -375,7 +375,7 @@ Next reveals the next step and moves to the next slide after the last one; Previ
 > Both pipelines ship from the same tag.
 ```
 
-- A heading at the top of the slide stays above the columns, across the slide.
+- Without `<!-- columns -->`, a heading at the top of the slide stays above the columns, across the slide. With it, everything above the comment does: the heading, text lines, an image.
 - Everything after `<!-- end-columns -->` spans the slide below the columns. Without it, the rest of the slide stays in the last column.
 - The columns share the slide's width equally and keep the slide's text size, so keep each one short.
 - A tall image or diagram in a column shrinks to fit the slide; an image alone in its paragraph is centered in its column. For images side by side, put each in its own column.

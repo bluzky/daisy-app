@@ -1,0 +1,1 @@
+../../../../daisy/Rendering/EscapingHTMLFormatter+Columns.swift

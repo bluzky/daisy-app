@@ -620,7 +620,7 @@ nonisolated extension MarkdownHTML {
       ("bullet", "Bulleted List"), ("ordered", "Numbered List"), ("task", "Checklist"),
       ("code", "Code Block"), ("table", "Table"), ("image", "Image"),
       ("link", "Link to File"), ("mermaid", "Mermaid diagram"),
-      ("math", "Math Block"), ("note", "Note"), ("tip", "Tip"),
+      ("math", "Math Block"), ("columns", "Columns"), ("note", "Note"), ("tip", "Tip"),
       ("important", "Important"), ("warning", "Warning"), ("caution", "Caution"),
       ("today", "Today"), ("now", "Now"), ("carryover", "Carry over unfinished tasks"),
       ("move", "Move to…"), ("templates", "Templates"),

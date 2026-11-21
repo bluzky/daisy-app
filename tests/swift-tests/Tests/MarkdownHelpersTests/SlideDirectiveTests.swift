@@ -274,6 +274,24 @@ final class SlideDirectiveTests: XCTestCase {
     XCTAssertEqual(split.columns, [["left"], ["right"]])
   }
 
+  func testTheOpenerKeepsEverythingAboveItAcrossTheSlide() {
+    let split = columnTexts("## Title\n\nan intro line\n\n<!-- columns -->\n\nleft\n\n<!-- column -->\n\nright")
+    XCTAssertEqual(split.header, ["## Title", "an intro line"])
+    XCTAssertEqual(split.columns, [["left"], ["right"]])
+  }
+
+  func testTheOpenerWorksWithoutAHeadingAndAnEnd() {
+    let split = columnTexts("an intro line\n\n<!-- columns -->\n\nleft\n\n<!-- column -->\n\nright\n\n<!-- end-columns -->\n\nafter")
+    XCTAssertEqual(split.header, ["an intro line"])
+    XCTAssertEqual(split.columns, [["left"], ["right"]])
+  }
+
+  func testAnOpenerAfterABreakIsIgnored() {
+    let split = columnTexts("## Title\n\nleft\n\n<!-- column -->\n\n<!-- columns -->\n\nright")
+    XCTAssertEqual(split.header, ["## Title"])
+    XCTAssertEqual(split.columns, [["left"], ["right"]])
+  }
+
   func testColumnsWithoutAHeading() {
     let split = columnTexts("one\n\n<!-- column -->\n\ntwo\n\n<!-- column -->\n\nthree")
     XCTAssertEqual(split.header, [])

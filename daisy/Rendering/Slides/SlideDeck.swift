@@ -120,6 +120,9 @@ nonisolated struct SlideDeck {
         fileprivate var columnBreaks: [Int] = []
         /// Index in `blocks` of the first block after `<!-- end-columns -->`.
         fileprivate var columnsEnd: Int?
+        /// Index in `blocks` of the first block after `<!-- columns -->`: what
+        /// comes before it is shown above the columns, whatever it is.
+        fileprivate var columnsStart: Int?
     }
 
     /// The most columns a slide is split into; later breaks are ignored.
@@ -140,7 +143,8 @@ nonisolated struct SlideDeck {
         var pendingStep: String?
         func finishSlide() {
             (current.columnHeader, current.columns, current.columnFooter) = Self.columns(
-                of: current.blocks, breaks: current.columnBreaks, end: current.columnsEnd
+                of: current.blocks, breaks: current.columnBreaks, end: current.columnsEnd,
+                start: current.columnsStart
             )
             current.layout = current.layoutOverride
                 ?? (current.columns.isEmpty ? nil : .columns)
@@ -292,17 +296,18 @@ nonisolated struct SlideDeck {
 
     // MARK: - Columns
 
-    /// Splits a slide's blocks at its column breaks. A heading opening the
-    /// slide stays above the columns, and blocks after `<!-- end-columns -->`
+    /// Splits a slide's blocks at its column breaks. What comes before
+    /// `<!-- columns -->` stays above the columns; without that comment, a
+    /// heading opening the slide does. Blocks after `<!-- end-columns -->`
     /// go below them; empty columns (a break right after the heading, or
     /// just before the end) are dropped; at most `maximumColumns`. Fewer
     /// than two columns means no columns.
     static func columns(
-        of blocks: [Markup], breaks: [Int], end columnsEnd: Int? = nil
+        of blocks: [Markup], breaks: [Int], end columnsEnd: Int? = nil, start columnsStart: Int? = nil
     ) -> (header: Range<Int>, columns: [Range<Int>], footer: Range<Int>) {
         let none = (0..<0, [Range<Int>](), 0..<0)
         guard !breaks.isEmpty else { return none }
-        let headerEnd = blocks.first is Heading ? 1 : 0
+        let headerEnd = columnsStart.map { min($0, blocks.count) } ?? (blocks.first is Heading ? 1 : 0)
         let lastIndex = max(headerEnd, columnsEnd ?? blocks.count)
         let starts = [headerEnd] + breaks.map { max($0, headerEnd) }
         var columns: [Range<Int>] = []
@@ -570,6 +575,9 @@ nonisolated private extension SlideDeck.Slide {
             if let color = SlideDeck.sanitizedColor(value) { self.color = color }
         case "step":
             pendingStep = value
+        case "columns":
+            // The opener is optional; only the first, before any break.
+            if columnsStart == nil, columnBreaks.isEmpty, columnsEnd == nil { columnsStart = blocks.count }
         case "column":
             if columnsEnd == nil, columnBreaks.last != blocks.count { columnBreaks.append(blocks.count) }
         case "end-columns":
