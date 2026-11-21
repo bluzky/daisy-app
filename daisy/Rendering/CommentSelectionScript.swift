@@ -50,12 +50,29 @@ nonisolated enum CommentSelectionScript {
         }
         if (!first) return null;
         const block = owner(first);
-        if (!block || block !== owner(last)
-            || block.closest('pre, table, figure, .mermaid, .katex, .mdp-slide')) {
+        if (!block || block !== owner(last) || block.closest('pre, figure, .mermaid, .katex')) {
             return { unsupported: true };
         }
+        // A table is commented on one row at a time: the selection must sit in
+        // a single cell, and the row's own source line stands in for the block.
+        let start = Number(block.getAttribute('data-source-start'));
+        let end = Number(block.getAttribute('data-source-end'));
+        let scope = block;
+        const table = block.closest('table');
+        if (table) {
+            const cellOf = (node) => node.parentElement ? node.parentElement.closest('td, th') : null;
+            const cell = cellOf(first);
+            const row = cell ? cell.parentElement : null;
+            if (!cell || !row || cell !== cellOf(last)) return { unsupported: true };
+            // Header on the first line, the delimiter row on the second, then
+            // one line per body row.
+            const line = start + (row.rowIndex === 0 ? 0 : row.rowIndex + 1);
+            if (line > end) return { unsupported: true };
+            start = end = line;
+            scope = row;
+        }
         const before = document.createRange();
-        before.selectNodeContents(block);
+        before.selectNodeContents(scope);
         before.setEnd(first, firstOffset);
         const earlier = before.toString();
         let occurrence = 0;
@@ -67,8 +84,8 @@ nonisolated enum CommentSelectionScript {
         const lineEnd = lines.length ? lines[lines.length - 1] : box;
         return {
             text,
-            start: Number(block.getAttribute('data-source-start')),
-            end: Number(block.getAttribute('data-source-end')),
+            start,
+            end,
             occurrence,
             rect: { x: box.x, y: box.y, width: box.width, height: box.height },
             endRect: { x: lineEnd.x, y: lineEnd.y, width: lineEnd.width, height: lineEnd.height }

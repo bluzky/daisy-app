@@ -176,7 +176,7 @@ nonisolated enum MarkdownComments {
     /// goes at the end of the block instead, so the note is never lost.
     /// Nil when the lines or the note are unusable.
     static func addEdit(note: String, selection: PageSelection, in markdown: String) -> Edit? {
-        let clean = note.split(whereSeparator: \.isNewline).joined(separator: " ")
+        var clean = note.split(whereSeparator: \.isNewline).joined(separator: " ")
             .replacingOccurrences(of: "<<}", with: "<< }")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let wanted = selection.text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -197,6 +197,10 @@ nonisolated enum MarkdownComments {
         var blockEnd = lastLine < lineStarts.count ? lineStarts[lastLine] - 1 : string.length
         blockEnd = max(blockEnd, blockStart)
         let block = string.substring(with: NSRange(location: blockStart, length: blockEnd - blockStart))
+        // A table row: a `|` in the note would split the cell.
+        let isTableRow = selection.startLine == selection.endLine
+            && block.trimmingCharacters(in: .whitespaces).hasPrefix("|")
+        if isTableRow { clean = clean.replacingOccurrences(of: "|", with: "&#124;") }
 
         if let pattern = sourcePattern(for: wanted),
            let expression = try? NSRegularExpression(pattern: pattern, options: [.dotMatchesLineSeparators]) {
@@ -241,6 +245,11 @@ nonisolated enum MarkdownComments {
         // Not found: a comment on the spot, at the end of the block's last line.
         var end = blockEnd
         while end > blockStart, [0x20, 0x09, 0x0D].contains(string.character(at: end - 1)) { end -= 1 }
+        // In a table row, inside the last cell rather than after the row.
+        if isTableRow, end > blockStart, string.character(at: end - 1) == 0x7C {
+            end -= 1
+            while end > blockStart, [0x20, 0x09].contains(string.character(at: end - 1)) { end -= 1 }
+        }
         return Edit(range: end..<end, replacement: " {>>\(clean)<<}")
     }
 
