@@ -6,6 +6,19 @@
         <description>Most recent changes to Daisy</description>
         <language>en</language>
         <item>
+            <title>Version 1.1.1</title>
+            <pubDate>Sat, 21 Nov 2026 04:41:27 GMT</pubDate>
+            <sparkle:version>74</sparkle:version>
+            <sparkle:shortVersionString>1.1.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <description>&lt;p&gt;Comments now work on tables and slides in Read mode.&lt;/p&gt;
+&lt;h4&gt;Fixed&lt;/h4&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Add comments to table cells and slide content in Read mode.&lt;/strong&gt; Selecting text in a table cell or on a slide now shows the comment bubble, as speaker notes already did. A comment on a table cell stays in its row.&lt;/li&gt;
+&lt;/ul&gt;</description>
+            <enclosure url="https://github.com/bluzky/daisy-app/releases/download/v1.1.1/Daisy-1.1.1.dmg" length="17712605" type="application/octet-stream" sparkle:edSignature="xw1tiBt1Nsh3Xt/N/7B+cFE7oYVVGoj3g+hRmhOCZiEx5tR6VIRxmCcIGy0F7mtUxWK9pvru2NeH/tJ2E5gCAw==" />
+        </item>
+        <item>
             <title>Version 1.1.0</title>
             <pubDate>Thu, 19 Nov 2026 13:01:24 GMT</pubDate>
             <sparkle:version>73</sparkle:version>
