@@ -467,13 +467,31 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     }
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {
-        guard hasPendingEditorChanges else { return true }
+        guard hasPendingEditorChanges else {
+            keepFolderOpenIfLastTab()
+            return true
+        }
         requestEndEditing { [weak self] success in
             guard success else { return }
+            self?.keepFolderOpenIfLastTab()
             // close() skips windowShouldClose, so no re-entry loop.
             self?.documentWindow.close()
         }
         return false
+    }
+
+    /// Closing the last tab of a folder window leaves the folder's empty
+    /// start page behind, as Open Folder shows, instead of closing the
+    /// window. A window already showing nothing closes normally.
+    private func keepFolderOpenIfLastTab() {
+        guard let root = folderRootURL, !isShowingNothing,
+              (documentWindow.tabbedWindows?.count ?? 1) <= 1 else { return }
+        DocumentWindowController.markNextWindowAsSeparate()
+        let document = MarkdownDocument()
+        NSDocumentController.shared.addDocument(document)
+        document.makeWindowControllers()
+        document.showWindows()
+        (document.windowControllers.first as? DocumentWindowController)?.openFolder(root)
     }
 
     func windowWillClose(_ notification: Notification) {
