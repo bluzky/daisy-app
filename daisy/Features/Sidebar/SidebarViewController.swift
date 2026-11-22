@@ -96,6 +96,9 @@ final class SidebarViewController: NSViewController {
     private var lastRenderedMarkdown: String?
     private var lastRenderedFileName: String?
     private var mountedWorkspace: SidebarWorkspace?
+    /// Distinguishes "never mounted" from "mounted with no folder", so a
+    /// folderless window still shows the bookmarks.
+    private var hasMountedNavigator = false
     private var pendingWorkspace: SidebarWorkspace?
     private var pendingFileURL: URL?
 
@@ -190,7 +193,8 @@ final class SidebarViewController: NSViewController {
     }
 
     private func refreshNavigatorIfNeeded() {
-        if pendingWorkspace !== mountedWorkspace {
+        if !hasMountedNavigator || pendingWorkspace !== mountedWorkspace {
+            hasMountedNavigator = true
             mountedWorkspace = pendingWorkspace
             projectNavigator.setWorkspace(pendingWorkspace)
         }
