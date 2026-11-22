@@ -162,9 +162,12 @@ nonisolated extension MarkdownHTML {
 
         return """
         <section class="md-frontmatter" data-source-line="1" data-source-start="1" data-source-end="\(max(1, sourceEndLine))">
+        <details class="md-fm-details">
+        <summary><span class="md-fm-label">\(htmlEscape(NSLocalizedString("Properties", comment: "Collapsible frontmatter header")))</span><span class="md-fm-summary" dir="auto">\(htmlEscape(entries.map(\.key).joined(separator: ", ")))</span></summary>
         <table><tbody>
         \(rows)
         </tbody></table>
+        </details>
         </section>
 
         """

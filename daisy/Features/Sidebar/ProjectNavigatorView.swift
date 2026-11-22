@@ -137,6 +137,7 @@ final class ProjectNavigatorView: NSView {
     private let scrollView = NSScrollView()
     private let outlineView = SidebarOutlineView()
     private var rootNode: FileNode?
+    private var hasMounted = false
     private var workspace: SidebarWorkspace?
     private var isApplyingWorkspaceState = false
     private let bookmarksGroup = BookmarksGroupNode()
@@ -234,7 +235,8 @@ final class ProjectNavigatorView: NSView {
     /// Mounts workspace model, not another navigator view. Each navigator
     /// keeps its own selection while folder expansion stays shared.
     func setWorkspace(_ workspace: SidebarWorkspace?) {
-        guard self.workspace !== workspace else { return }
+        guard self.workspace !== workspace || !hasMounted else { return }
+        hasMounted = true
         removeWorkspaceObserver()
         self.workspace = workspace
         if let workspace {

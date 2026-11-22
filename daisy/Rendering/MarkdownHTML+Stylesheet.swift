@@ -283,6 +283,35 @@ nonisolated extension MarkdownHTML {
         padding: 0 0 1em;
         border-bottom: 1px solid var(--grid);
     }
+    /* Collapsed to one "Properties" row until opened, like the editor. */
+    .md-fm-details > summary {
+        display: flex;
+        align-items: baseline;
+        gap: 0.6em;
+        list-style: none;
+        cursor: pointer;
+        font-size: 0.92em;
+        color: var(--secondary);
+    }
+    .md-fm-details > summary::-webkit-details-marker { display: none; }
+    .md-fm-details > summary::before {
+        content: "▸";
+        width: 1em;
+        text-align: center;
+        flex: none;
+    }
+    .md-fm-details[open] > summary::before { content: "▾"; }
+    .md-fm-details > summary:hover { color: var(--text); }
+    .md-fm-label { font-weight: 600; flex: none; }
+    .md-fm-summary {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        opacity: 0.7;
+    }
+    .md-fm-details[open] .md-fm-summary { display: none; }
+    .md-fm-details[open] > summary { margin-bottom: 0.4em; }
     .md-frontmatter table {
         display: table;
         width: 100%;
