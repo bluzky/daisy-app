@@ -148,6 +148,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         installInsertMenu()
         installCopyCommentsMenuItem()
         installSearchForDocumentMenuItem()
+        installBookmarksMenuItem()
         installWorkspaceMenuItems()
         installFileExportMenuItems()
         installGoMenu()
@@ -1118,6 +1119,59 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         fileMenu.insertItem(item, at: openIndex.map { $0 + 1 } ?? 0)
     }
 
+    private static let bookmarksMenu = NSMenu(title: "Bookmarks")
+
+    /// Bookmarks submenu above Open Recent, listing the sidebar's bookmarks.
+    /// Rebuilt each time it opens (see `menuNeedsUpdate`).
+    private func installBookmarksMenuItem() {
+        guard let fileMenu = topLevelSubmenu(matching: Self.fileMenuTitles),
+              !fileMenu.items.contains(where: { $0.submenu === Self.bookmarksMenu }),
+              let recentIndex = fileMenu.items.firstIndex(where: {
+                  $0.submenu?.items.contains { $0.action == #selector(NSDocumentController.clearRecentDocuments(_:)) } == true
+              })
+        else { return }
+        Self.bookmarksMenu.delegate = self
+        let item = NSMenuItem(title: L("Bookmarks"), action: nil, keyEquivalent: "")
+        item.submenu = Self.bookmarksMenu
+        fileMenu.insertItem(item, at: recentIndex)
+    }
+
+    private func rebuildBookmarksMenu(_ menu: NSMenu) {
+        menu.removeAllItems()
+        let store = BookmarkStore.shared
+        for bookmark in store.bookmarks {
+            let item = NSMenuItem(title: bookmark.name, action: #selector(openBookmarkFromMenu(_:)),
+                                  keyEquivalent: "")
+            item.target = self
+            item.representedObject = bookmark.id
+            item.image = NSImage(systemSymbolName: bookmark.isDirectory ? "folder" : "doc.text",
+                                 accessibilityDescription: nil)
+            menu.addItem(item)
+        }
+        if store.bookmarks.isEmpty {
+            let empty = NSMenuItem(title: L("No Bookmarks"), action: nil, keyEquivalent: "")
+            empty.isEnabled = false
+            menu.addItem(empty)
+        }
+    }
+
+    @objc private func openBookmarkFromMenu(_ sender: NSMenuItem) {
+        let store = BookmarkStore.shared
+        guard let id = sender.representedObject as? UUID,
+              let bookmark = store.bookmarks.first(where: { $0.id == id }),
+              let url = store.resolve(bookmark) else {
+            NSSound.beep()
+            return
+        }
+        if bookmark.isDirectory {
+            openFolder(url)
+        } else {
+            NSDocumentController.shared.openDocument(withContentsOf: url, display: true) { _, _, error in
+                if let error { NSApp.presentError(error) }
+            }
+        }
+    }
+
     /// Initialize Workspace, Remove Workspace and Rebuild Workspace Index,
     /// after Open Recent. Nil targets resolve to the key document window,
     /// which knows its folder.
@@ -1866,6 +1920,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
 extension AppDelegate {
     func menuNeedsUpdate(_ menu: NSMenu) {
+        if menu === Self.bookmarksMenu {
+            rebuildBookmarksMenu(menu)
+            return
+        }
         guard menu === NSApp.windowsMenu else { return }
         let entries = menu.items.compactMap { item -> (NSMenuItem, URL)? in
             guard let window = item.target as? NSWindow,
