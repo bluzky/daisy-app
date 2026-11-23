@@ -63,11 +63,14 @@ struct ThemesPopoverView: View {
             }
             .padding(.top, 12)
 
+            // The scale row above already adds 11pt (its gap and dots), so
+            // 1pt more makes this 12pt from the capsule. The gallery's cards
+            // sit 2pt inside their frames, so 12pt below reads as ~12pt too.
             contentWidthControl
-                .padding(.top, 12)
+                .padding(.top, 1)
 
             ThemePresetGallery(spacing: 8, cardInset: 2)
-            .padding(.top, 6)
+            .padding(.top, 12)
 
             Button(action: openCustomize) {
                 Label(L("Customize"), systemImage: "gearshape")
@@ -173,16 +176,65 @@ struct ThemesPopoverView: View {
     /// The reading column's width, the same setting as View ▸ Content Width
     /// and Settings ▸ Reading, applied to every open window.
     private var contentWidthControl: some View {
-        Picker(L("Content width"), selection: $model.contentWidth) {
+        // Built from buttons rather than a segmented Picker: the system
+        // control sizes icon-only segments to their images and ignores the
+        // row's width.
+        HStack(spacing: 2) {
             ForEach(ContentWidthSetting.allCases, id: \.self) { setting in
-                Text(setting.title).tag(setting)
+                let selected = model.contentWidth == setting
+                Button {
+                    model.contentWidth = setting
+                } label: {
+                    Image(nsImage: Self.widthIcon(for: setting))
+                        .foregroundStyle(selected ? Color.primary : Color.secondary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 32)
+                        .background(
+                            Capsule().fill(selected ? Color(nsColor: .controlBackgroundColor) : .clear)
+                                .shadow(color: .black.opacity(selected ? 0.12 : 0), radius: 1, y: 0.5)
+                        )
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .help(setting.title)
+                .accessibilityLabel(setting.title)
+                .accessibilityAddTraits(selected ? .isSelected : [])
             }
         }
-        .pickerStyle(.segmented)
-        .labelsHidden()
-        .controlSize(.small)
+        .padding(2)
+        .background(Capsule().fill(Color.primary.opacity(0.06)))
+        .accessibilityElement(children: .contain)
         .accessibilityLabel(L("Content width"))
-        .help(L("Content width"))
+    }
+
+    /// A page outline drawn in code with an SF Symbol for the width inside
+    /// it. A template image, so the control tints it.
+    private static func widthIcon(for setting: ContentWidthSetting) -> NSImage {
+        let symbolName: String
+        switch setting {
+        case .narrow: symbolName = "rectangle.portrait.fill"
+        case .normal: symbolName = "square.fill"
+        case .fullWidth: symbolName = "rectangle.fill"
+        }
+        let configuration = NSImage.SymbolConfiguration(pointSize: 13, weight: .regular)
+            .applying(.init(paletteColors: [.black]))
+        let symbol = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
+            .withSymbolConfiguration(configuration)
+        let image = NSImage(size: NSSize(width: 30, height: 19), flipped: false) { rect in
+            NSColor.black.setStroke()
+            let frame = rect.insetBy(dx: 1, dy: 1)
+            let outline = NSBezierPath(roundedRect: frame, xRadius: 3.5, yRadius: 3.5)
+            outline.lineWidth = 2
+            outline.stroke()
+            if let symbol {
+                let size = symbol.size
+                symbol.draw(in: NSRect(x: rect.midX - size.width / 2, y: rect.midY - size.height / 2,
+                                       width: size.width, height: size.height))
+            }
+            return true
+        }
+        image.isTemplate = true
+        return image
     }
 
     // MARK: - Appearance
