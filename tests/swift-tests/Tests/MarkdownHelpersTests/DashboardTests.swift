@@ -40,41 +40,29 @@ final class DashboardTests: XCTestCase {
     ```
     """
 
-    private func dashboard(_ body: String) -> String {
-        "---\ndashboard: true\n---\n\n" + body
-    }
+    // MARK: Always on
 
-    // MARK: Opt-in (BR-1)
-
-    func testAC_1_1_WithoutTheFlagWidgetFencesAreOrdinaryCodeBlocks() {
+    func testEveryWidgetFenceIsStampedWithoutFrontmatter() {
         let rendered = MarkdownHTML.render(markdown: widgets)
-        XCTAssertFalse(rendered.articleHTML.contains("data-md-dashboard"))
-        XCTAssertFalse(rendered.html.contains("id: 'dashboard'"), "the script loads only when a widget is stamped")
-        XCTAssertFalse(rendered.scriptAssetIDs.contains("dashboard"))
-        XCTAssertTrue(rendered.articleHTML.contains("language-stat"))
-    }
-
-    func testAC_1_2_WithTheFlagEveryWidgetFenceIsStamped() {
-        let rendered = MarkdownHTML.render(markdown: dashboard(widgets))
         XCTAssertEqual(rendered.articleHTML.components(separatedBy: "data-md-dashboard").count - 1, 4,
                        "stat, progress, badge, chart")
         XCTAssertTrue(rendered.scriptAssetIDs.contains("dashboard"))
     }
 
-    func testAC_1_1_FlagOffValuesAndOtherFencesAreNotStamped() {
-        let off = MarkdownHTML.render(markdown: "---\ndashboard: false\n---\n\n" + widgets)
-        XCTAssertFalse(off.articleHTML.contains("data-md-dashboard"))
-        let other = MarkdownHTML.render(markdown: dashboard("```swift\nlet x = 1\n```"))
+    func testOtherFencesAreNotStampedAndDoNotLoadTheScript() {
+        let other = MarkdownHTML.render(markdown: "```swift\nlet x = 1\n```")
         XCTAssertFalse(other.articleHTML.contains("data-md-dashboard"))
+        XCTAssertFalse(other.html.contains("id: 'dashboard'"), "the script loads only when a widget is stamped")
+        XCTAssertFalse(other.scriptAssetIDs.contains("dashboard"))
     }
 
-    func testAC_1_2_DashboardFlagWorksInTomlFrontmatter() {
-        let rendered = MarkdownHTML.render(markdown: "+++\ndashboard = true\n+++\n\n```badge\ntext: A\nstatus: ok\n```")
+    func testFrontmatterNoLongerTurnsWidgetsOff() {
+        let rendered = MarkdownHTML.render(markdown: "---\ndashboard: false\n---\n\n```badge\ntext: A\nstatus: ok\n```")
         XCTAssertTrue(rendered.articleHTML.contains("data-md-dashboard"))
     }
 
     func testAC_5_1_StampedFencesKeepTheirPlainText() {
-        let html = MarkdownHTML.render(markdown: dashboard("```stat\nlabel: A\nvalue: 1\n```")).articleHTML
+        let html = MarkdownHTML.render(markdown: "```stat\nlabel: A\nvalue: 1\n```").articleHTML
         XCTAssertTrue(html.contains("label: A"))
         XCTAssertFalse(html.contains("hljs"))
     }
@@ -83,7 +71,7 @@ final class DashboardTests: XCTestCase {
 
     func testAC_5_2_ScriptAndStylesShipInEveryVendorLoadingMode() {
         for mode in [MarkdownHTML.VendorLoading.inline, .lazy] {
-            let html = MarkdownHTML.render(markdown: dashboard(widgets), vendorLoading: mode).html
+            let html = MarkdownHTML.render(markdown: widgets, vendorLoading: mode).html
             XCTAssertTrue(html.contains(".md-dash-stat"), "styles missing in \(mode)")
             XCTAssertTrue(html.contains("id: 'dashboard'"), "script missing in \(mode)")
         }
@@ -114,7 +102,7 @@ final class DashboardTests: XCTestCase {
 
     @MainActor
     private func count(_ markdown: String, _ selector: String) async throws -> Int? {
-        let webView = try await load(dashboard(markdown))
+        let webView = try await load(markdown)
         return try await eval(webView, "document.querySelectorAll('\(selector)').length") as? Int
     }
 
@@ -122,7 +110,7 @@ final class DashboardTests: XCTestCase {
 
     @MainActor
     func testAC_2_1_And_2_2_StatBlockDrawsOneRowOfTiles() async throws {
-        let webView = try await load(dashboard(widgets))
+        let webView = try await load(widgets)
         let tiles = try await eval(webView, "document.querySelectorAll('.md-dash-stats .md-dash-stat').length") as? Int
         XCTAssertEqual(tiles, 2)
         let rows = try await eval(webView, "document.querySelectorAll('.md-dash-stats').length") as? Int
@@ -133,20 +121,20 @@ final class DashboardTests: XCTestCase {
 
     @MainActor
     func testAC_2_3_And_2_4_DeltaColorFollowsTrendAndGood() async throws {
-        let webView = try await load(dashboard(widgets))
+        let webView = try await load(widgets)
         let classes = try await eval(webView, "Array.from(document.querySelectorAll('.md-dash-delta')).map(n => n.className)") as? [String]
         XCTAssertEqual(classes, ["md-dash-delta md-dash-good", "md-dash-delta md-dash-good"])
         let text = try await eval(webView, "document.querySelectorAll('.md-dash-delta')[0].textContent") as? String
         XCTAssertTrue(try XCTUnwrap(text).contains("\u{25B2}"))
 
-        let swapped = try await load(dashboard("```stat\nlabel: Churn\nvalue: 3%\ndelta: +1%\ntrend: up\ngood: down\n```"))
+        let swapped = try await load("```stat\nlabel: Churn\nvalue: 3%\ndelta: +1%\ntrend: up\ngood: down\n```")
         let bad = try await eval(swapped, "document.querySelector('.md-dash-delta').className") as? String
         XCTAssertEqual(bad, "md-dash-delta md-dash-bad")
     }
 
     @MainActor
     func testAC_2_3_DeltaAndTrendAreOptionalAndATrendNeedsADelta() async throws {
-        let webView = try await load(dashboard("""
+        let webView = try await load("""
         ```stat
         label: Plain
         value: 1
@@ -159,7 +147,7 @@ final class DashboardTests: XCTestCase {
         value: 3
         delta: +4%
         ```
-        """))
+        """)
         let result = try await eval(webView, """
         Array.from(document.querySelectorAll('.md-dash-stat')).map(tile => {
           const delta = tile.querySelector('.md-dash-delta');
@@ -171,7 +159,7 @@ final class DashboardTests: XCTestCase {
 
     @MainActor
     func testAC_2_5_StatShowsDeltaRightAlignedOnTheValueLineAndAnOptionalNote() async throws {
-        let webView = try await load(dashboard("```stat\nlabel: Leads\nvalue: 2,947\ndelta: 21%\ntrend: up\nnote: Accurate growth\n```"))
+        let webView = try await load("```stat\nlabel: Leads\nvalue: 2,947\ndelta: 21%\ntrend: up\nnote: Accurate growth\n```")
         let layout = try await eval(webView, """
         (() => {
           const tile = document.querySelector('.md-dash-stat');
@@ -191,7 +179,7 @@ final class DashboardTests: XCTestCase {
 
     @MainActor
     func testAC_2_6_StatLinkIsAnOrdinaryLinkWithAnArrow() async throws {
-        let webView = try await load(dashboard("```stat\nlabel: Leads\nvalue: 9\nlink: #sales-by-month\n---\nlabel: Docs\nvalue: 1\nlink: https://example.com/a\n```"))
+        let webView = try await load("```stat\nlabel: Leads\nvalue: 9\nlink: #sales-by-month\n---\nlabel: Docs\nvalue: 1\nlink: https://example.com/a\n```")
         let links = try await eval(webView, "Array.from(document.querySelectorAll('.md-dash-stat a.md-dash-link')).map(a => a.getAttribute('href') + '|' + (a.querySelector('svg') ? 'arrow' : ''))") as? [String]
         XCTAssertEqual(links, ["#sales-by-month|arrow", "https://example.com/a|arrow"])
         let none = try await count("```stat\nlabel: A\nvalue: 1\n```", ".md-dash-link")
@@ -210,20 +198,71 @@ final class DashboardTests: XCTestCase {
 
     @MainActor
     func testAC_4_1_ProgressFillMatchesTheShare() async throws {
-        let webView = try await load(dashboard(widgets))
+        let webView = try await load(widgets)
         let width = try await eval(webView, "document.querySelector('.md-dash-fill').style.width") as? String
         XCTAssertEqual(Double(try XCTUnwrap(width).dropLast()) ?? 0, 7.0 / 12.0 * 100, accuracy: 0.001)
         let valueNow = try await eval(webView, "document.querySelector('[role=progressbar]').getAttribute('aria-valuenow')") as? String
         XCTAssertEqual(valueNow, "7")
-        let head = try await eval(webView, "document.querySelector('.md-dash-progress-head').textContent") as? String
-        XCTAssertEqual(head, "Release7 / 12")
+        let row = try await eval(webView, """
+        (() => {
+          const item = document.querySelector('.md-dash-progress-item');
+          const [label, track, value] = Array.from(item.children);
+          const top = el => Math.round(el.getBoundingClientRect().top + el.getBoundingClientRect().height / 2);
+          return [item.textContent,
+                  track.getAttribute('role'),
+                  label.getBoundingClientRect().right <= track.getBoundingClientRect().left,
+                  track.getBoundingClientRect().right <= value.getBoundingClientRect().left,
+                  Math.abs(top(label) - top(track)) <= 1 && Math.abs(top(value) - top(track)) <= 1];
+        })()
+        """) as? [Any]
+        XCTAssertEqual(row?[0] as? String, "Release7 / 12")
+        XCTAssertEqual(row?[1] as? String, "progressbar")
+        XCTAssertEqual(row?[2] as? Bool, true, "label left of the bar")
+        XCTAssertEqual(row?[3] as? Bool, true, "value right of the bar")
+        XCTAssertEqual(row?[4] as? Bool, true, "label, bar and value on one row")
     }
 
     @MainActor
     func testAC_4_1_EachProgressItemIsOneBarAndAFullBarCapsAtTheMaximum() async throws {
-        let webView = try await load(dashboard("```progress\nlabel: A\nvalue: 3\nmax: 4\n---\nlabel: B\nvalue: 9\nmax: 4\n```"))
+        let webView = try await load("```progress\nlabel: A\nvalue: 3\nmax: 4\n---\nlabel: B\nvalue: 9\nmax: 4\n```")
         let widths = try await eval(webView, "Array.from(document.querySelectorAll('.md-dash-fill')).map(f => f.style.width)") as? [String]
         XCTAssertEqual(widths, ["75%", "100%"])
+    }
+
+    @MainActor
+    func testProgressColorPicksAPaletteColorAndDefaultsToAccent() async throws {
+        let webView = try await load("```progress\nlabel: A\nvalue: 1\nmax: 4\n---\nlabel: B\nvalue: 1\nmax: 4\ncolor: Warning\n```")
+        let result = try await eval(webView, """
+        Array.from(document.querySelectorAll('.md-dash-fill')).map(fill => {
+          const probe = document.createElement('div');
+          probe.style.color = getComputedStyle(document.documentElement)
+            .getPropertyValue(fill.classList.contains('md-dash-fill-warning') ? '--dashboard-warning' : '--dashboard-accent');
+          document.body.append(probe);
+          const expected = getComputedStyle(probe).color;
+          probe.remove();
+          return fill.className + '|' + (getComputedStyle(fill).backgroundColor === expected);
+        })
+        """) as? [String]
+        XCTAssertEqual(result, ["md-dash-fill md-dash-fill-accent|true",
+                                "md-dash-fill md-dash-fill-warning|true"])
+    }
+
+    @MainActor
+    func testStripedProgressMovesOnScreenButNotWhenFull() async throws {
+        let webView = try await load("```progress\nlabel: A\nvalue: 3\nmax: 4\nstriped: true\n---\nlabel: B\nvalue: 4\nmax: 4\nstriped: true\n---\nlabel: C\nvalue: 1\nmax: 4\n```")
+        // The observer reports after layout; give it a frame.
+        try await Task.sleep(nanoseconds: 300_000_000)
+        let result = try await eval(webView, """
+        Array.from(document.querySelectorAll('.md-dash-fill')).map(fill => [
+          fill.classList.contains('md-dash-fill-striped'),
+          fill.classList.contains('md-dash-moving'),
+          getComputedStyle(fill).backgroundImage !== 'none',
+          getComputedStyle(fill).animationName
+        ].join('|'))
+        """) as? [String]
+        XCTAssertEqual(result, ["true|true|true|md-dash-stripes",
+                                "false|false|false|none",
+                                "false|false|false|none"])
     }
 
     @MainActor
@@ -234,6 +273,9 @@ final class DashboardTests: XCTestCase {
             "```progress\nlabel: A\nvalue: -1\nmax: 4\n```",
             "```progress\nlabel: A\nvalue: many\nmax: 4\n```",
             "```progress\nvalue: 1\nmax: 4\n```",
+            "```progress\nlabel: A\nvalue: 1\nmax: 4\ncolor: #ff0000\n```",
+            "```progress\nlabel: A\nvalue: 1\nmax: 4\ncolor: purple\n```",
+            "```progress\nlabel: A\nvalue: 1\nmax: 4\nstriped: yes\n```",
         ] {
             let drawn = try await count(block, ".md-dash-progress")
             XCTAssertEqual(drawn, 0, block)
@@ -244,7 +286,7 @@ final class DashboardTests: XCTestCase {
 
     @MainActor
     func testAC_4_2_BadgeShowsItsStatusColorClass() async throws {
-        let webView = try await load(dashboard("```badge\ntext: Down\nstatus: fail\n```"))
+        let webView = try await load("```badge\ntext: Down\nstatus: fail\n```")
         let cls = try await eval(webView, "document.querySelector('.md-dash-badge').className") as? String
         XCTAssertEqual(cls, "md-dash-badge md-dash-fail")
     }
@@ -253,7 +295,7 @@ final class DashboardTests: XCTestCase {
 
     @MainActor
     func testAC_5_3_OnlyTheInvalidBlockStaysPlain() async throws {
-        let webView = try await load(dashboard("```badge\ntext: Fine\nstatus: ok\n```\n\n```badge\ntext: Broken\nstatus: purple\n```"))
+        let webView = try await load("```badge\ntext: Fine\nstatus: ok\n```\n\n```badge\ntext: Broken\nstatus: purple\n```")
         let drawn = try await eval(webView, "document.querySelectorAll('.md-dash-badge').length") as? Int
         let plain = try await eval(webView, "document.querySelectorAll('pre[data-md-dashboard]').length") as? Int
         XCTAssertEqual(drawn, 1)
@@ -262,7 +304,7 @@ final class DashboardTests: XCTestCase {
 
     @MainActor
     func testAWidgetReplacesTheCodeBlockFrameWithItsButtons() async throws {
-        let webView = try await load(dashboard(widgets))
+        let webView = try await load(widgets)
         let frames = try await eval(webView, "document.querySelectorAll('.md-code-wrap').length") as? Int
         XCTAssertEqual(frames, 0, "valid widgets must not keep the code header, buttons or background")
         let buttons = try await eval(webView, "document.querySelectorAll('.md-code-action').length") as? Int
@@ -273,7 +315,7 @@ final class DashboardTests: XCTestCase {
 
     @MainActor
     func testAuthorTextNeverBecomesMarkup() async throws {
-        let webView = try await load(dashboard("```stat\nlabel: <img src=x onerror=alert(1)>\nvalue: <b>9</b>\n```"))
+        let webView = try await load("```stat\nlabel: <img src=x onerror=alert(1)>\nvalue: <b>9</b>\n```")
         let injected = try await eval(webView, "document.querySelectorAll('.md-dash-stat img, .md-dash-stat b').length") as? Int
         XCTAssertEqual(injected, 0)
         let label = try await eval(webView, "document.querySelector('.md-dash-label').textContent") as? String
@@ -282,7 +324,7 @@ final class DashboardTests: XCTestCase {
 
     @MainActor
     func testAC_5_4_WidgetColorsComeFromTheDashboardPalette() async throws {
-        let webView = try await load(dashboard(widgets))
+        let webView = try await load(widgets)
         let colors = try await eval(webView, """
         (() => {
           const root = document.documentElement.style;
@@ -300,7 +342,7 @@ final class DashboardTests: XCTestCase {
 
     @MainActor
     func testAC_1_2_WidgetsDrawInLazyMode() async throws {
-        let webView = try await load(dashboard(widgets), mode: .lazy)
+        let webView = try await load(widgets, mode: .lazy)
         let tiles = try await eval(webView, "document.querySelectorAll('.md-dash-stat').length") as? Int
         XCTAssertEqual(tiles, 2)
     }
@@ -308,7 +350,7 @@ final class DashboardTests: XCTestCase {
     // MARK: Chart (BR-3, BR-10, BR-13)
 
     private func chart(_ type: String, _ options: String, _ table: String) -> String {
-        dashboard("```chart\ntype: \(type)\n\(options)\(table)\n```")
+        "```chart\ntype: \(type)\n\(options)\(table)\n```"
     }
 
     private func chart(_ type: String, _ table: String) -> String {
@@ -349,6 +391,69 @@ final class DashboardTests: XCTestCase {
         XCTAssertEqual(result?[4] as? Bool, true, "row labels under the groups")
     }
 
+    private let stackable = """
+    | Team | Open | Closed |
+    | ---- | ---- | ------ |
+    | A    | 10   | 30     |
+    | B    | 5    | -2     |
+    """
+
+    @MainActor
+    func testStackedBarsShareOneBarPerRowAndShowTotals() async throws {
+        let webView = try await load(chart("bar", "stacked: true\n", stackable))
+        let result = try await eval(webView, """
+        (() => {
+          const bars = Array.from(document.querySelectorAll('.md-chart-bar'))
+            .map(r => ({ x: +r.getAttribute('x'), y: +r.getAttribute('y'),
+                         w: +r.getAttribute('width'), h: +r.getAttribute('height') }));
+          const [a1, b1, a2, b2] = bars;
+          return [bars.length,
+                  a1.x === a2.x && b1.x === b2.x,
+                  Math.abs(a2.y + a2.h - a1.y) < 0.01,
+                  b2.y >= b1.y + b1.h - 0.01,
+                  Array.from(document.querySelectorAll('.md-chart-inside-value')).map(t => t.textContent).join(','),
+                  Array.from(document.querySelectorAll('.md-chart-values .md-chart-value:not(.md-chart-inside-value)'))
+                    .map(t => t.textContent).join(',')];
+        })()
+        """) as? [Any]
+        XCTAssertEqual(result?[0] as? Int, 4)
+        XCTAssertEqual(result?[1] as? Bool, true, "a row's series share one bar")
+        XCTAssertEqual(result?[2] as? Bool, true, "a positive segment stacks on the one below it")
+        XCTAssertEqual(result?[3] as? Bool, true, "a negative segment hangs below zero")
+        XCTAssertEqual(result?[4] as? String, "10,5,30")
+        XCTAssertEqual(result?[5] as? String, "40,3", "each row's total at the end of its bar")
+    }
+
+    @MainActor
+    func testHorizontalBarsPutRowsDownTheLeft() async throws {
+        let webView = try await load(chart("bar", "direction: horizontal\n", stackable))
+        let result = try await eval(webView, """
+        (() => {
+          const bars = Array.from(document.querySelectorAll('.md-chart-bar'))
+            .map(r => ({ x: +r.getAttribute('x'), y: +r.getAttribute('y'),
+                         w: +r.getAttribute('width'), h: +r.getAttribute('height') }));
+          const label = Array.from(document.querySelectorAll('.md-chart-axes text')).find(t => t.textContent === 'B');
+          return [bars.length,
+                  bars[2].w > bars[0].w,
+                  bars[1].y > bars[0].y,
+                  label.getAttribute('text-anchor'),
+                  +label.getAttribute('x') < bars[0].x];
+        })()
+        """) as? [Any]
+        XCTAssertEqual(result?[0] as? Int, 4)
+        XCTAssertEqual(result?[1] as? Bool, true, "a bar's length is its value (30 > 10)")
+        XCTAssertEqual(result?[2] as? Bool, true, "rows run top to bottom")
+        XCTAssertEqual(result?[3] as? String, "end")
+        XCTAssertEqual(result?[4] as? Bool, true, "row labels sit left of the bars")
+    }
+
+    @MainActor
+    func testStackedAndDirectionAreIgnoredByLineCharts() async throws {
+        let webView = try await load(chart("line", "stacked: true\ndirection: horizontal\n", twoSeries))
+        let lines = try await eval(webView, "document.querySelectorAll('.md-chart-line').length") as? Int
+        XCTAssertEqual(lines, 2)
+    }
+
     @MainActor
     func testAC_3_1_LineChartDrawsOneLinePerSeries() async throws {
         let webView = try await load(chart("line", twoSeries))
@@ -358,6 +463,98 @@ final class DashboardTests: XCTestCase {
          document.querySelector('.md-chart-line.md-chart-s1').getAttribute('points').split(' ').length]
         """) as? [Int]
         XCTAssertEqual(result, [2, 6, 3])
+    }
+
+    @MainActor
+    func testChartsDrawAtTheirShownWidthSoTextKeepsItsSize() async throws {
+        let line = chart("line", twoSeries)
+        let webView = try await load("<!-- columns -->\n\n\(line)\n\n<!-- column -->\n\n\(line)\n\n<!-- end-columns -->\n\n\(line)")
+        // The resize observer redraws after layout.
+        try await Task.sleep(nanoseconds: 400_000_000)
+        let result = try await eval(webView, """
+        Array.from(document.querySelectorAll('.md-chart-plot')).map(plot =>
+          Math.abs(plot.viewBox.baseVal.width - plot.getBoundingClientRect().width) <= 1)
+        """) as? [Bool]
+        XCTAssertEqual(result, [true, true, true], "one viewBox unit is one CSS pixel")
+        let widths = try await eval(webView, """
+        Array.from(document.querySelectorAll('.md-chart-plot')).map(plot => Math.round(plot.getBoundingClientRect().width))
+        """) as? [Int]
+        XCTAssertLessThan(widths?[0] ?? 0, widths?[2] ?? 0, "a column chart is narrower than a full-width one")
+    }
+
+    @MainActor
+    func testHeightSetsTheChartHeightAndGridFalseKeepsOnlyTheZeroLine() async throws {
+        let webView = try await load(chart("bar", "height: 180px\ngrid: false\n", twoSeries)
+                                     + "\n\n" + chart("donut", "height: 160\n", shares))
+        try await Task.sleep(nanoseconds: 400_000_000)
+        let result = try await eval(webView, """
+        (() => {
+          const [bar, donut] = Array.from(document.querySelectorAll('.md-chart-plot'));
+          return [Math.round(bar.getBoundingClientRect().height),
+                  bar.querySelectorAll('.md-chart-grid').length,
+                  bar.querySelectorAll('.md-chart-zero').length,
+                  bar.querySelectorAll('.md-chart-axes text').length > 4,
+                  Math.round(donut.getBoundingClientRect().width),
+                  Math.round(donut.getBoundingClientRect().height)];
+        })()
+        """) as? [Any]
+        XCTAssertEqual(result?[0] as? Int, 180)
+        XCTAssertEqual(result?[1] as? Int, 1, "only the zero line is left")
+        XCTAssertEqual(result?[2] as? Int, 1)
+        XCTAssertEqual(result?[3] as? Bool, true, "the axis numbers stay")
+        XCTAssertEqual(result?[4] as? Int, 160, "a donut's height is its diameter")
+        XCTAssertEqual(result?[5] as? Int, 160)
+    }
+
+    @MainActor
+    func testNestedLegendSetsPositionAndVisibility() async throws {
+        let right = try await load(chart("bar", "legend:\n  position: right\n  visible: true\n", twoSeries))
+        let side = try await eval(right, "document.querySelector('.md-chart').classList.contains('md-chart-legend-right')") as? Bool
+        XCTAssertEqual(side, true)
+        let hidden = try await load(chart("bar", "legend:\n  position: right\n  visible: false\n", twoSeries))
+        let legends = try await eval(hidden, "document.querySelectorAll('.md-chart-legend').length") as? Int
+        XCTAssertEqual(legends, 0)
+        let shorthand = try await load(chart("bar", "legend: none\n", twoSeries))
+        let none = try await eval(shorthand, "document.querySelectorAll('.md-chart-legend').length") as? Int
+        XCTAssertEqual(none, 0, "the one-line form still works")
+    }
+
+    @MainActor
+    func testHiddenAxesDropTheirLabelsButKeepTheZeroLine() async throws {
+        let axisTexts = "Array.from(document.querySelectorAll('.md-chart-axes text')).map(t => t.textContent)"
+        let both = try await load(chart("bar", "x-axis:\n  visible: false\ny-axis:\n  visible: false\n", twoSeries))
+        let none = try await eval(both, axisTexts) as? [String]
+        XCTAssertEqual(none, [])
+        let zero = try await eval(both, "document.querySelectorAll('.md-chart-zero').length") as? Int
+        XCTAssertEqual(zero, 1)
+
+        // Vertical: x is the rows along the bottom; y the values up the left.
+        let noX = try await load(chart("bar", "x-axis:\n  visible: false\n", twoSeries))
+        let yOnly = try await eval(noX, axisTexts) as? [String]
+        XCTAssertFalse(yOnly?.contains("Jan") ?? true)
+        XCTAssertTrue(yOnly?.contains("0") ?? false)
+
+        // Horizontal: y is the rows up the left.
+        let noY = try await load(chart("bar", "direction: horizontal\ny-axis:\n  visible: false\n", twoSeries))
+        let xOnly = try await eval(noY, axisTexts) as? [String]
+        XCTAssertFalse(xOnly?.contains("Jan") ?? true)
+        XCTAssertTrue(xOnly?.contains("0") ?? false)
+    }
+
+    @MainActor
+    func testLineRunsFromTheLeftEdgeToTheRightEdge() async throws {
+        let webView = try await load(chart("line", twoSeries))
+        let result = try await eval(webView, """
+        (() => {
+          const grid = document.querySelector('.md-chart-grid');
+          const dots = Array.from(document.querySelectorAll('.md-chart-dot.md-chart-s1'));
+          const label = Array.from(document.querySelectorAll('.md-chart-axes text')).find(t => t.textContent === 'Jan');
+          return [+dots[0].getAttribute('cx') === +grid.getAttribute('x1'),
+                  +dots[dots.length - 1].getAttribute('cx') === +grid.getAttribute('x2'),
+                  +label.getAttribute('x') === +dots[0].getAttribute('cx')];
+        })()
+        """) as? [Bool]
+        XCTAssertEqual(result, [true, true, true], "first point on the left edge, last on the right, labels under the points")
     }
 
     @MainActor
@@ -379,19 +576,51 @@ final class DashboardTests: XCTestCase {
     }
 
     @MainActor
+    func testDonutDrawsARingOfSlicesWithTheTotalInTheMiddle() async throws {
+        let webView = try await load(chart("donut", shares))
+        let result = try await eval(webView, """
+        [document.querySelectorAll('.md-chart-type-donut path.md-chart-slice').length,
+         Array.from(document.querySelectorAll('path.md-chart-slice')).every(p => !p.getAttribute('d').startsWith('M150,150')),
+         Array.from(document.querySelectorAll('.md-chart-pie-value')).map(t => t.textContent).join(','),
+         document.querySelector('.md-chart-donut-total').textContent,
+         Array.from(document.querySelectorAll('.md-chart-legend li')).map(li => li.textContent).join(',')]
+        """) as? [Any]
+        XCTAssertEqual(result?[0] as? Int, 3)
+        XCTAssertEqual(result?[1] as? Bool, true, "slices leave the middle open")
+        XCTAssertEqual(result?[2] as? String, "40,57")
+        XCTAssertEqual(result?[3] as? String, "100")
+        XCTAssertEqual(result?[4] as? String, "Free,Pro,Team")
+
+        let hidden = try await load(chart("donut", "values: false\n", shares))
+        let total = try await eval(hidden, "document.querySelectorAll('.md-chart-donut-total').length") as? Int
+        XCTAssertEqual(total, 0, "values: false hides the total too")
+    }
+
+    @MainActor
     func testAC_3_3_InvalidChartsStayPlain() async throws {
         let blocks = [
-            dashboard("```chart\n| A | N |\n| - | - |\n| x | 3 |\n```"),
+            "```chart\n| A | N |\n| - | - |\n| x | 3 |\n```",
             chart("radar", "| A | N |\n| - | - |\n| x | 3 |"),
             chart("bar", "| A | N |\n| - | - |\n| x | lots |"),
             chart("bar", "| A | N |\n| - | - |\n| x | 3 | 4 |"),
             chart("bar", "| A | N |\n| - | - |"),
             chart("bar", "legend: middle\n", "| A | N |\n| - | - |\n| x | 3 |"),
             chart("bar", "values: maybe\n", "| A | N |\n| - | - |\n| x | 3 |"),
+            chart("bar", "stacked: yes\n", "| A | N |\n| - | - |\n| x | 3 |"),
+            chart("bar", "height: tall\n", "| A | N |\n| - | - |\n| x | 3 |"),
+            chart("bar", "height: 20\n", "| A | N |\n| - | - |\n| x | 3 |"),
+            chart("bar", "grid: off\n", "| A | N |\n| - | - |\n| x | 3 |"),
+            chart("bar", "  position: left\n", "| A | N |\n| - | - |\n| x | 3 |"),
+            chart("bar", "legend:\n  visible: maybe\n", "| A | N |\n| - | - |\n| x | 3 |"),
+            chart("bar", "legend:\n  position: none\n", "| A | N |\n| - | - |\n| x | 3 |"),
+            chart("bar", "x-axis: false\n", "| A | N |\n| - | - |\n| x | 3 |"),
+            chart("bar", "y-axis:\n  visible: no\n", "| A | N |\n| - | - |\n| x | 3 |"),
+            chart("bar", "direction: sideways\n", "| A | N |\n| - | - |\n| x | 3 |"),
             chart("bar", "| A | N |\n| - | - |\n| x | 3 |\ntitle: late"),
             chart("pie", twoSeries),
+            chart("donut", twoSeries),
             chart("pie", "| A | N |\n| - | - |\n| x | 3 |\n| y | -1 |"),
-            dashboard("```chart\ntype: bar\n```"),
+            "```chart\ntype: bar\n```",
         ]
         for markdown in blocks {
             let webView = try await load(markdown)
@@ -447,7 +676,7 @@ final class DashboardTests: XCTestCase {
         XCTAssertEqual(labels?.count, 6)
         XCTAssertTrue(labels?.contains("-4") ?? false)
         let size = try await eval(shown, "getComputedStyle(document.querySelector('.md-chart-value')).fontSize") as? String
-        XCTAssertEqual(size, "12px", "value labels keep a fixed size")
+        XCTAssertEqual(size, "10px", "value labels keep a fixed size")
 
         let hidden = try await load(chart("line", "values: false\n", twoSeries))
         let none = try await eval(hidden, "document.querySelectorAll('.md-chart-value').length") as? Int
@@ -456,7 +685,7 @@ final class DashboardTests: XCTestCase {
 
     @MainActor
     func testANewChartTypeRegisteredWithMdChartIsAccepted() async throws {
-        let webView = try await load(dashboard(widgets))
+        let webView = try await load(widgets)
         let drawn = try await eval(webView, """
         (() => {
           MdChart.register('dots', {
@@ -497,7 +726,7 @@ final class DashboardTests: XCTestCase {
     """
 
     private var paletteDocument: String {
-        dashboard(widgets + "\n\n```badge\ntext: Hm\nstatus: warn\n```\n\n```chart\ntype: bar\n| A | X | Y |\n| - | - | - |\n| a | 1 | 2 |\n```")
+        widgets + "\n\n```badge\ntext: Hm\nstatus: warn\n```\n\n```chart\ntype: bar\n| A | X | Y |\n| - | - | - |\n| a | 1 | 2 |\n```"
     }
 
     @MainActor
@@ -528,7 +757,7 @@ final class DashboardTests: XCTestCase {
         overrides.darkCodeBackground = "#37312A"
         for (scheme, expected) in [(MarkdownHTML.ColorScheme.light, "rgb(227, 225, 225)"),
                                    (.dark, "rgb(55, 49, 42)")] {
-            let rendered = MarkdownHTML.render(markdown: dashboard("```stat\nlabel: A\nvalue: 1\n```"),
+            let rendered = MarkdownHTML.render(markdown: "```stat\nlabel: A\nvalue: 1\n```",
                                                vendorLoading: .inline, colorScheme: scheme,
                                                themeOverrides: overrides)
             let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 900, height: 700))
@@ -567,7 +796,7 @@ final class DashboardTests: XCTestCase {
 
     @MainActor
     func testTheMermaidChartsTheDocsRecommendRender() async throws {
-        let markdown = dashboard("""
+        let markdown = """
         ```mermaid
         xychart-beta
             x-axis [Jan, Feb, Mar, Apr]
@@ -582,7 +811,7 @@ final class DashboardTests: XCTestCase {
             "Pro" : 45
             "Enterprise" : 15
         ```
-        """)
+        """
         let webView = try await load(markdown)
         let deadline = Date().addingTimeInterval(20)
         var drawn = 0

@@ -1,8 +1,15 @@
----
-dashboard: true
----
-
 # Weekly dashboard
+
+```badge
+text: Build passing
+status: ok
+---
+text: Docs outdated
+status: warn
+---
+text: Notarization failing
+status: fail
+```
 
 ```stat
 label: Revenue
@@ -32,6 +39,8 @@ good: down
 
 ## Sales by month
 
+<!-- columns -->
+
 ```chart
 type: bar
 title: Sales (k$)
@@ -43,10 +52,11 @@ title: Sales (k$)
 | Apr   | 24   | 28   |
 ```
 
+<!-- column -->
+
 ```chart
 type: line
 title: Signups per week
-legend: top
 | Week | Organic | Paid |
 | ---- | ------- | ---- |
 | W1   | 120     | 40   |
@@ -55,40 +65,126 @@ legend: top
 | W4   | 160     | 58   |
 ```
 
+<!-- end-columns -->
+
 ## Revenue mix
+
+<!-- columns -->
 
 ```chart
 type: pie
-legend: left
-| Plan       | Share |
+title: Users by plan
+| Plan       | Users |
 | ---------- | ----- |
-| Free       | 40    |
-| Pro        | 45    |
-| Enterprise | 15    |
+| Free       | 62    |
+| Pro        | 30    |
+| Enterprise | 8     |
+```
+
+<!-- column -->
+
+```chart
+type: donut
+title: Revenue by plan (k$)
+| Plan       | Revenue |
+| ---------- | ------- |
+| Free       | 4       |
+| Pro        | 27      |
+| Enterprise | 17      |
+```
+
+<!-- end-columns -->
+
+## Support
+
+<!-- columns -->
+
+```chart
+type: bar
+title: Tickets by week
+height: 200
+stacked: true
+| Week | Bugs | Questions | Requests |
+| ---- | ---- | --------- | -------- |
+| W1   | 14   | 22        | 6        |
+| W2   | 11   | 25        | 9        |
+| W3   | 17   | 19        | 7        |
+| W4   | 9    | 21        | 12       |
+```
+
+<!-- column -->
+
+```chart
+type: bar
+title: Tickets by team
+stacked: true
+height: 200
+direction: horizontal
+| Team     | Open | In review | Closed |
+| -------- | ---- | --------- | ------ |
+| Platform | 12   | 6         | 30     |
+| Mobile   | 8    | 4         | 22     |
+| Web      | 15   | 9         | 18     |
+```
+
+<!-- end-columns -->
+
+```chart
+type: bar
+title: First response time by channel (hours)
+direction: horizontal
+grid: false
+x-axis:
+	visible: false
+legend: none
+| Channel | Hours |
+| ------- | ----- |
+| Email   | 6.5   |
+| Chat    | 0.8   |
+| Forum   | 14    |
+| Phone   | 0.3   |
 ```
 
 ## Release 4.2
+
+<!-- columns -->
 
 ```progress
 label: Features
 value: 7
 max: 12
+striped: true
 ---
 label: Tests passing
 value: 182
 max: 190
+color: positive
+---
+label: Open blockers
+value: 3
+max: 10
+color: negative
+---
+label: Docs updated
+value: 5
+max: 9
+color: warning
 ```
 
-```badge
-text: Build passing
-status: ok
+<!-- column -->
+
+```stat
+label: Days to release
+value: 9
+note: Code freeze on Friday
 ---
-text: Docs outdated
-status: warn
----
-text: Notarization failing
-status: fail
+label: Crash-free sessions
+value: 99.6%
+delta: +0.2%
+trend: up
 ```
+
+<!-- end-columns -->
 
 This block is missing its `value`, so it stays a plain code block:
 

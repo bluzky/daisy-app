@@ -1,14 +1,6 @@
 # Dashboard
 
-Turn a Markdown file into a dashboard with four kinds of fenced block: `stat` tiles, `chart` bar, line and pie charts, `progress` bars and `badge` labels. Add this to the frontmatter:
-
-```yaml
----
-dashboard: true
----
-```
-
-Without it the same blocks are ordinary code blocks, so other documents never change. Every value is written in the file: there are no data files, no network fetches and no formulas. See [`samples/dashboard.md`](../samples/dashboard.md) for a complete example.
+Turn a Markdown file into a dashboard with four kinds of fenced block: `stat` tiles, `chart` bar, line, pie and donut charts, `progress` bars and `badge` labels. They work in any Markdown file; there is nothing to turn on. A block with a missing or invalid field stays a plain code block. Every value is written in the file: there are no data files, no network fetches and no formulas. See [`samples/dashboard.md`](../samples/dashboard.md) for a complete example.
 
 Each block is a few `key: value` lines. Where a block holds several items, a line of `---` separates them. A chart adds a Markdown table after its `key: value` lines; see [Charts](#charts).
 
@@ -57,10 +49,15 @@ max: 12
 label: Tests passing
 value: 182
 max: 190
+color: positive
 ```
 ````
 
-`label`, `value` and `max` are required. `value` is zero or more and `max` above zero; a value above its maximum shows a full bar. Each bar shows `value / max` beside its label, and the bars in one block stack.
+`label`, `value` and `max` are required. `value` is zero or more and `max` above zero; a value above its maximum shows a full bar. Each bar is one row: its label, the bar, then `value / max`. The bars in one block stack, with their labels, bars and values lined up.
+
+`color` is optional and names a palette color: `accent` (the default), `positive`, `negative`, `warning` or `neutral`. Any other value, a hex code included, leaves the block plain.
+
+`striped: true` draws moving diagonal stripes over a bar's fill, to mark work still in progress. The stripes move only while the bar is on screen, stand still when macOS Reduce Motion is on and in print and PDF, and a full bar has none. Any value other than `true` or `false` leaves the block plain.
 
 ## Badges
 
@@ -78,7 +75,7 @@ status: warn
 
 ## Charts
 
-A `chart` block draws a bar, line or pie chart from a Markdown table written inside it:
+A `chart` block draws a bar, line, pie or donut chart from a Markdown table written inside it:
 
 ````markdown
 ```chart
@@ -105,33 +102,69 @@ title: Revenue mix
 
 | Key | Required | What it does |
 | --- | --- | --- |
-| `type` | yes | `bar`, `line` or `pie`. |
+| `type` | yes | `bar`, `line`, `pie` or `donut`. A donut is a pie with a hole, and shows the total in the middle (hidden with `values: false`). |
 | `title` | no | A heading above the chart. |
-| `legend` | no | Where the legend goes: `top`, `bottom`, `left` or `right`, or `none` to hide it. The default is `bottom`. On a narrow window a `left` or `right` legend moves below the chart. |
+| `legend` | no | Where the legend goes: `top`, `bottom`, `left` or `right`, or `none` to hide it. The default is `bottom`. On a narrow window a `left` or `right` legend moves below the chart. It can also be a group: `position` (`top`, `bottom`, `left` or `right`) and `visible` (`true` or `false`), each on an indented line under `legend:`. |
 | `values` | no | `false` to stop drawing each value on the chart. Values are drawn by default. |
+| `stacked` | no | Bar charts only. `true` draws each row as one bar with its series stacked; positives stack up from zero and negatives down. Each segment shows its value when it fits, and the row's total sits at the end of the bar. The default is `false`, one bar per series side by side. |
+| `direction` | no | Bar charts only. `horizontal` lays the bars sideways with the row labels on the left; the default is `vertical`. |
+| `height` | no | The chart's height in pixels, from 80 to 1200 (`height: 240` or `height: 240px`). For a pie or donut it is the diameter. Without it, bar and line charts are half as tall as they are wide (at least 200px), a horizontal bar chart grows with its rows, and a pie or donut is up to 320px. |
+| `grid` | no | `false` hides the grid lines of a bar or line chart; the zero line and the axis numbers stay. The default is `true`. |
+| `x-axis`, `y-axis` | no | Groups with `visible: false` on an indented line, to hide the labels along the bottom (`x-axis`) or up the left side (`y-axis`) of a bar or line chart and give their room to the plot. The axes are named as drawn, so on a horizontal bar chart `x-axis` holds the values and `y-axis` the rows. The zero line and grid lines stay; use `grid: false` for those. |
+
+Line, pie and donut charts ignore `stacked` and `direction`, and pie and donut charts have no axes. A group's lines are indented under its key; an indented line anywhere else, or any value other than the ones listed, leaves the block plain.
+
+````markdown
+```chart
+type: line
+title: Signups per week
+legend:
+  position: right
+  visible: true
+y-axis:
+  visible: false
+| Week | Organic | Paid |
+| ---- | ------- | ---- |
+| W1   | 120     | 40   |
+| W2   | 135     | 52   |
+```
+````
+
+````markdown
+```chart
+type: bar
+title: Tickets by team
+stacked: true
+direction: horizontal
+| Team     | Open | Closed |
+| -------- | ---- | ------ |
+| Platform | 12   | 30     |
+| Mobile   | 8    | 22     |
+```
+````
 
 The `key: value` lines come first and the table last. In the table:
 
-- The first column holds the labels: the groups of bars, the points of a line, or the pie's slices.
+- The first column holds the labels: the groups of bars, the points of a line, or the slices of a pie or donut.
 - Every other column is a series, named by its header. A bar chart draws one bar per series in each group; a line chart draws one line per series.
 - Every cell after the first column is a plain number. `1,200` and `-4` are fine; `$12` and `12%` are not, so put units in the title or the column header.
-- A `pie` takes exactly one number column, every value zero or more. A slice too small for its label (under about 5%) shows no value.
+- A `pie` or `donut` takes exactly one number column, every value zero or more. A slice too small for its label (under about 5%) shows no value.
 
-Bar and line charts are as wide as the page column and half as tall, with an axis that always includes zero. A pie is at most 320px wide. Values and axis labels keep a fixed size relative to the chart, however many bars there are.
+Vertical bar and line charts are as wide as their column and half as tall (at least 200px), with an axis that always includes zero. A horizontal bar chart is as wide as the column and grows taller with each row. A pie or donut is at most 320px wide. A chart is drawn at the width it is shown at and redrawn when that changes, so values and axis labels keep the same size in a narrow column, a wide window or on a slide, however many bars there are.
 
 Mermaid's [`xychart-beta` and `pie`](https://mermaid.js.org) still work in any document and also render on GitHub, but they keep Mermaid's own colors rather than the dashboard palette below.
 
 ## Colors
 
-Every widget draws with one shared palette of semantic colors, in a light and a dark version that follow the page's appearance. A block never names a color.
+Every widget draws with one shared palette of semantic colors, in a light and a dark version that follow the page's appearance. A block never gives a raw color value; a progress bar can pick a palette color by name.
 
 | Color | Used for | Light | Dark |
 | --- | --- | --- | --- |
-| Accent (`--dashboard-accent`) | Progress bars | `#007AFF` blue | `#0A84FF` |
-| Positive (`--dashboard-positive`) | Good deltas, `ok` badges | `#34C759` green | `#30D158` |
-| Negative (`--dashboard-negative`) | Bad deltas, `fail` badges | `#FF3B30` red | `#FF453A` |
-| Warning (`--dashboard-warning`) | `warn` badges | `#FF9500` orange | `#FF9F0A` |
-| Neutral (`--dashboard-neutral`) | Flat deltas | `#8E8E93` grey | `#98989D` |
+| Accent (`--dashboard-accent`) | Progress bars (default) | `#007AFF` blue | `#0A84FF` |
+| Positive (`--dashboard-positive`) | Good deltas, `ok` badges, `color: positive` bars | `#34C759` green | `#30D158` |
+| Negative (`--dashboard-negative`) | Bad deltas, `fail` badges, `color: negative` bars | `#FF3B30` red | `#FF453A` |
+| Warning (`--dashboard-warning`) | `warn` badges, `color: warning` bars | `#FF9500` orange | `#FF9F0A` |
+| Neutral (`--dashboard-neutral`) | Flat deltas, `color: neutral` bars | `#8E8E93` grey | `#98989D` |
 | Series 1–8 (`--dashboard-series-1` … `-8`) | Chart series and pie slices, in order; a ninth starts again at the first | Apple's system blue, orange, teal, purple, green, pink, yellow, grey | their dark-mode versions |
 
 These are Apple's standard system colors, one set for every widget: the `warn` badge is the same orange as a chart's second series. Badges are white text on their color. A stat's delta, drawn as text, is the color darkened on a light page so it stays readable, and the color itself on a dark one.
@@ -146,4 +179,4 @@ A block with a missing required key, an unknown value (`status: purple`, `trend:
 
 ## Where it renders
 
-Read mode, Quick Look, PDF export and [slides](slides.md) (a deck with `dashboard: true` draws widgets inside its slides) draw the widgets. The editor shows the blocks as text, and DOCX export writes each block as the code block it is.
+Read mode, Quick Look, PDF export and [slides](slides.md) (a deck draws widgets inside its slides) draw the widgets. The editor shows the blocks as text, and DOCX export writes each block as the code block it is.

@@ -431,12 +431,11 @@ Revenue grew 12%[^q3].
 
 ## Dashboard widgets
 
-Stat tiles, charts, progress bars and status badges work on slides too. Add `dashboard: true` to the frontmatter beside `slides: true`, then write `stat`, `chart`, `progress` and `badge` blocks as in an ordinary document; see [Dashboard](dashboard.md) for every key.
+Stat tiles, charts, progress bars and status badges work on slides too. Write `stat`, `chart`, `progress` and `badge` blocks as in an ordinary document; see [Dashboard](dashboard.md) for every key.
 
 ````markdown
 ---
 slides: true
-dashboard: true
 ---
 
 ## Revenue grew 12% this quarter
@@ -457,8 +456,7 @@ good: down
 
 - A `---` line inside a `stat`, `progress` or `badge` block separates its items; it does not start a new slide.
 - Widgets size their text from the slide's text, like everything else on it.
-- Without `dashboard: true` the blocks show as code.
-- A bar or line chart is drawn at the full width of its column, twice as wide as it is tall, and does not shrink to fit the slide. Give it a slide with only a short heading, or put it in a column; a `pie` is at most 320px wide. Mermaid's `xychart-beta` and `pie` also work and shrink to fit like any Mermaid diagram.
+- A bar or line chart is drawn at the full width of its column, twice as wide as it is tall (a horizontal bar chart grows taller with each row), and does not shrink to fit the slide. Give it a slide with only a short heading, or put it in a column; a `pie` or `donut` is at most 320px wide. Mermaid's `xychart-beta` and `pie` also work and shrink to fit like any Mermaid diagram.
 
 ## Editing a deck
 

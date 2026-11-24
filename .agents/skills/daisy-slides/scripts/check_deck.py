@@ -38,22 +38,24 @@ CODE_SPAN = re.compile(r"(`+)(?:(?!\1).)+\1")
 # Fenced blocks that scale down to fit the slide instead of being cut off.
 SCALING_FENCES = ("mermaid",)
 
-# Dashboard widgets (`dashboard: true`): fenced blocks the page draws as tiles,
+# Dashboard widgets: fenced blocks the page draws as tiles,
 # charts, progress bars and badges. A block Daisy can't read stays plain code,
 # silently, so the rules below mirror the page script's.
 WIDGETS = {"stat", "chart", "progress", "badge"}
-CHART_TYPES = {"bar", "line", "pie"}
+CHART_TYPES = {"bar", "line", "pie", "donut"}
 CHART_LEGENDS = {"top", "bottom", "left", "right", "none"}
+CHART_GROUPS = {"legend", "x-axis", "y-axis"}
 TRENDS = {"up", "down", "flat"}
 STATUSES = {"ok", "warn", "fail"}
+PROGRESS_COLORS = {"accent", "positive", "negative", "warning", "neutral"}
 # ExternalLinkPolicy.blockedSchemes: a stat link with one of these is refused.
 BLOCKED_SCHEMES = {"javascript", "vbscript", "data", "file", "about", "blob", "filesystem", "md-asset"}
 WIDGET_KEY = re.compile(r"^([A-Za-z][A-Za-z0-9_-]*)\s*:\s*(.*)$")
 NUMBER = re.compile(r"^[-+]?(\d+\.?\d*|\.\d+)$")
 # Slide lines a widget takes, roughly: a stat row is a short tile, a progress
-# item a label over a thin bar, a badge row one line. A bar or line chart is
+# item one line (label, bar, value), a badge row one line. A bar or line chart is
 # half as tall as the slide is wide, nearly the whole slide; a pie is smaller.
-STAT_LINES, BADGE_LINES, PROGRESS_ROW_LINES = 3, 1, 1.5
+STAT_LINES, BADGE_LINES, PROGRESS_ROW_LINES = 3, 1, 1
 CHART_LINES, PIE_LINES = 10, 7
 
 # Rough capacity of a 16:9 slide at Daisy's slide text size.
@@ -201,7 +203,8 @@ def check_chart(body, line, report):
         report.error(line, f"`chart` block: {text}; the block stays plain code")
         return len(body) + 2
 
-    options, rows = {}, []
+    # A group key with no value (`legend:`) takes the indented lines under it.
+    options, rows, group = {}, [], None
     for raw in body:
         text = raw.strip()
         if not text:
@@ -214,18 +217,56 @@ def check_chart(body, line, report):
         match = WIDGET_KEY.match(text)
         if not match:
             return plain(f"`{text}` isn't a `key: value` line or a table row")
-        key = match.group(1).lower()
+        key, value = match.group(1).lower(), match.group(2).strip()
+        if raw[:1].isspace():
+            if group is None:
+                return plain(f"`{text}` is indented but not under `legend:`, `x-axis:` or `y-axis:`")
+            if key in group:
+                return plain(f"`{key}` appears twice")
+            group[key] = value
+            continue
         if key in options:
             return plain(f"`{key}` appears twice")
-        options[key] = match.group(2).strip()
+        group = None
+        if not value and key in CHART_GROUPS:
+            group = options[key] = {}
+        else:
+            options[key] = value
 
     kind = options.get("type", "").lower()
     if kind not in CHART_TYPES:
-        return plain("`type` must be bar, line or pie")
-    if options.get("legend", "bottom").lower() not in CHART_LEGENDS:
-        return plain(f"`legend: {options['legend']}` isn't top, bottom, left, right or none")
+        return plain("`type` must be bar, line, pie or donut")
+    legend = options.get("legend", "bottom")
+    if isinstance(legend, dict):
+        if legend.get("position", "bottom").lower() not in CHART_LEGENDS - {"none"}:
+            return plain(f"legend `position: {legend['position']}` isn't top, bottom, left or right")
+        if legend.get("visible", "true").lower() not in ("true", "false"):
+            return plain(f"legend `visible: {legend['visible']}` isn't true or false")
+    elif legend.lower() not in CHART_LEGENDS:
+        return plain(f"`legend: {legend}` isn't top, bottom, left, right or none")
+    for axis in ("x-axis", "y-axis"):
+        if axis not in options:
+            continue
+        if not isinstance(options[axis], dict):
+            return plain(f"`{axis}` takes indented options, like `visible: false` on the next line")
+        if options[axis].get("visible", "true").lower() not in ("true", "false"):
+            return plain(f"{axis} `visible: {options[axis]['visible']}` isn't true or false")
     if options.get("values", "true").lower() not in ("true", "false"):
         return plain(f"`values: {options['values']}` isn't true or false")
+    stacked = options.get("stacked", "false").lower()
+    if stacked not in ("true", "false"):
+        return plain(f"`stacked: {options['stacked']}` isn't true or false")
+    direction = options.get("direction", "vertical").lower()
+    if direction not in ("vertical", "horizontal"):
+        return plain(f"`direction: {options['direction']}` isn't vertical or horizontal")
+    if options.get("grid", "true").lower() not in ("true", "false"):
+        return plain(f"`grid: {options['grid']}` isn't true or false")
+    height = None
+    if "height" in options:
+        raw_height = re.sub(r"px$", "", options["height"], flags=re.IGNORECASE)
+        if not NUMBER.match(raw_height) or not 80 <= float(raw_height) <= 1200:
+            return plain(f"`height: {options['height']}` isn't a number of pixels from 80 to 1200")
+        height = float(raw_height)
     if len(rows) < 3:
         return plain("it needs a table: a header row, a `| --- |` row and at least one data row")
     header = table_cells(rows[0])
@@ -241,21 +282,25 @@ def check_chart(body, line, report):
             if not NUMBER.match(cell.replace(",", "")):
                 return plain(f"`{cell}` isn't a plain number (put units in the title or header)")
             values.append(float(cell.replace(",", "")))
-    if kind == "pie":
+    if kind in ("pie", "donut"):
         if len(header) != 2:
-            return plain("a pie takes exactly one number column")
+            return plain(f"a {kind} takes exactly one number column")
         if any(value < 0 for value in values) or sum(values) <= 0:
-            return plain("a pie's values must be zero or more, with a total above zero")
-        return PIE_LINES
+            return plain(f"a {kind}'s values must be zero or more, with a total above zero")
+        return PIE_LINES if height is None else math.ceil(height / 30)
+    if height is not None:
+        # About 30px a line, plus the axis labels.
+        return math.ceil((height + 30) / 30)
+    if kind == "bar" and direction == "horizontal":
+        # Grows per row, like the page's bar renderer: about 30px a line.
+        per_band = 1 if stacked == "true" else len(header) - 1
+        band = max(28, per_band * 14 + 12)
+        return math.ceil((50 + (len(rows) - 2) * band) / 30)
     return CHART_LINES
 
 
-def check_widget(kind, body, line, report, dashboard):
+def check_widget(kind, body, line, report):
     """Reports what would leave a widget as plain code; returns its slide lines."""
-    if not dashboard:
-        report.error(line, f"a `{kind}` block is a dashboard widget only with `dashboard: true` in the "
-                           "frontmatter; without it the slide shows the block as code")
-        return len(body) + 2
     if kind == "chart":
         return check_chart(body, line, report)
     items = parse_widget(kind, body, line, report)
@@ -295,10 +340,14 @@ def check_widget(kind, body, line, report, dashboard):
             return plain("every bar needs `label`, and numbers for `value` and `max`")
         if float(value) < 0 or float(maximum) <= 0:
             return plain("`value` must be zero or more and `max` above zero")
+        if "color" in item and (item.get("color") or "").lower() not in PROGRESS_COLORS:
+            return plain("a bar's `color` must be accent, positive, negative, warning or neutral")
+        if (item.get("striped") or "false").lower() not in ("true", "false"):
+            return plain("a bar's `striped` must be true or false")
     return math.ceil(len(items) * PROGRESS_ROW_LINES)
 
 
-def check_slide(slide, number, report, deck_dir, dashboard=False):
+def check_slide(slide, number, report, deck_dir):
     lines = slide["lines"]
     bullets, backgrounds, column_breaks = 0, 0, 0
     # Content lines per stretch of the slide: before the columns, each
@@ -329,7 +378,7 @@ def check_slide(slide, number, report, deck_dir, dashboard=False):
                     add()
             elif widget:
                 # A widget takes its drawn height, not one line per source line.
-                add(check_widget(widget, widget_body, code_start, report, dashboard))
+                add(check_widget(widget, widget_body, code_start, report))
                 in_code, widget = False, None
             else:
                 if code_lines > MAX_CODE_LINES and not scales:
@@ -453,7 +502,7 @@ def check(path):
 
     deck_dir = os.path.dirname(os.path.abspath(path))
     for number, slide in enumerate(slides, start=1):
-        check_slide(slide, number, report, deck_dir, settings.get("dashboard", "").lower() == "true")
+        check_slide(slide, number, report, deck_dir)
     return report, len(slides)
 
 

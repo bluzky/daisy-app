@@ -42,10 +42,8 @@ revealed steps. The presentation windows turn presenting on with the
 pane uses `slides-pane`. A deck's theme is emitted by `render` itself, in the
 page head, not by the extension.
 
-Dashboard (`DashboardExtension`) is likewise registered but not toggleable: a
-document asks for it with `dashboard: true` in its frontmatter. Extensions
-never see the frontmatter, so `MarkdownHTML.render` reads the flag and
-`EscapingHTMLFormatter` stamps `data-md-dashboard` on the `stat`, `chart`,
+Dashboard (`DashboardExtension`) is likewise registered but not toggleable,
+and needs no opt-in: `EscapingHTMLFormatter` stamps `data-md-dashboard` on the `stat`, `chart`,
 `progress` and `badge` fences; the extension activates on that stamp. Its CSS
 and two small scripts ship in every vendor-loading mode, Quick Look's `.inline`
 included: `MdChart`, a chart library of our own

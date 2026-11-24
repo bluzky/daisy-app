@@ -2,24 +2,25 @@
 //  MarkdownHTML+Dashboard.swift
 //  daisy
 //
-//  Dashboard widgets in an ordinary document. A document asks for them with
-//  `dashboard: true` in its frontmatter; four fenced blocks then become
-//  widgets in the page:
+//  Dashboard widgets in an ordinary document. In any document, four fenced
+//  blocks become widgets in the page:
 //
 //      ```stat      label / value / delta / trend / good / note / link
-//      ```chart     type / title / legend / values, then a Markdown table
-//      ```progress  label / value / max
+//      ```chart     type / title / legend / values / stacked / direction /
+//                   height / grid / x-axis / y-axis; legend, x-axis and
+//                   y-axis may be groups of indented `key: value` lines,
+//                   then a Markdown table
+//      ```progress  label / value / max / color / striped
 //      ```badge     text / status (ok, warn, fail)
 //
 //  Each block is `key: value` lines; a line of `---` separates items. A chart
 //  ends with its table and is drawn by `MdChart`
 //  (`MarkdownHTML+DashboardChart.swift`).
 //
-//  The formatter only stamps `data-md-dashboard` on those fences while the
-//  flag is on. The page script draws the widgets from the stamped blocks and
-//  leaves any block it cannot read as the plain code block it already is, so
-//  other viewers, and a typo, show the source. Extensions never see the
-//  frontmatter, which is why the stamp carries the opt-in.
+//  The formatter stamps `data-md-dashboard` on those fences. The page script
+//  draws the widgets from the stamped blocks and leaves any block it cannot
+//  read as the plain code block it already is, so other viewers, and a typo,
+//  show the source. The extension loads only when a stamp is present.
 //
 //  Colors come from the `--dashboard-*` custom properties in
 //  `dashboardStylesheet`. Widgets only ever carry classes, so a theme
@@ -35,19 +36,12 @@ nonisolated enum DashboardDocument {
 
     /// Attribute the formatter stamps on a widget fence's `<pre>`.
     static let stampAttribute = "data-md-dashboard"
-
-    static func isDashboard(frontmatter raw: String?, format: MarkdownFrontmatter.Format?) -> Bool {
-        guard let raw, let format else { return false }
-        return MarkdownFrontmatter.parse(raw, format: format).contains { entry in
-            entry.key.lowercased() == "dashboard"
-                && entry.value.trimmingCharacters(in: .whitespaces).lowercased() == "true"
-        }
-    }
 }
 
 /// The dashboard palette: semantic colors every widget reads. Two built-in
 /// palettes of standard colors, light and dark; Customize Theme and a slide
-/// deck's theme can override a color. Blocks never name a color.
+/// deck's theme can override a color. A progress bar may pick one by its
+/// palette name (`color: warning`); blocks never give a raw color value.
 nonisolated enum DashboardColor: String, CaseIterable, Sendable {
     case accent, positive, negative, warning, neutral
     case series1, series2, series3, series4, series5, series6, series7, series8
@@ -103,8 +97,8 @@ nonisolated enum DashboardColor: String, CaseIterable, Sendable {
 
 nonisolated extension MarkdownHTML {
 
-    /// Draws the dashboard widgets. Always on: a document asks for them with
-    /// its frontmatter, so there is no reading preference to toggle. The
+    /// Draws the dashboard widgets. Always on, with no reading preference to
+    /// toggle; it activates only when a widget fence is stamped. The
     /// script and styles ship in every vendor-loading mode, Quick Look's
     /// `.inline` included, because the script is small and the widgets are
     /// the content.
@@ -239,30 +233,61 @@ nonisolated extension MarkdownHTML {
     .md-dash-delta.md-dash-flat { color: color-mix(in srgb, var(--dashboard-neutral) var(--dashboard-text-mix), black); }
 
     /* Progress */
+    /* One row per bar: label | bar | value. The rows share the block's grid
+       (`display: contents`), so labels, bars and values line up; a long
+       label wraps within 40% of the width. */
     .md-dash-progress {
         display: grid;
-        gap: 10px;
+        grid-template-columns: fit-content(40%) minmax(60px, 1fr) max-content;
+        align-items: center;
+        gap: 10px 12px;
         margin: 1em 0;
-    }
-    .md-dash-progress-head {
-        display: flex;
-        justify-content: space-between;
-        gap: 12px;
         font-size: 0.9em;
-        font-variant-numeric: tabular-nums;
     }
-    .md-dash-progress-head span:last-child { color: var(--dashboard-text); }
+    .md-dash-progress-item { display: contents; }
+    .md-dash-progress-value {
+        color: var(--dashboard-text);
+        font-variant-numeric: tabular-nums;
+        text-align: right;
+    }
     .md-dash-track {
-        height: 8px;
-        margin-top: 4px;
-        border-radius: 4px;
+        height: 12px;
+        border-radius: 6px;
         background: var(--dashboard-surface);
         overflow: hidden;
     }
     .md-dash-fill {
         height: 100%;
-        border-radius: 4px;
+        border-radius: 6px;
         background: \(DashboardColor.accent.cssValue);
+    }
+    .md-dash-fill-positive { background-color: \(DashboardColor.positive.cssValue); }
+    .md-dash-fill-negative { background-color: \(DashboardColor.negative.cssValue); }
+    .md-dash-fill-warning { background-color: \(DashboardColor.warning.cssValue); }
+    .md-dash-fill-neutral { background-color: \(DashboardColor.neutral.cssValue); }
+    /* `striped: true`: diagonal stripes over the fill, moving only while the
+       bar is on screen (`md-dash-moving`, set by the widget script). Still
+       for Reduce Motion and in print and PDF; every frame looks alike, so a
+       still capture never shows a half-drawn state. */
+    .md-dash-fill-striped {
+        background-image: linear-gradient(45deg,
+            rgb(255 255 255 / 28%) 25%, transparent 25%,
+            transparent 50%, rgb(255 255 255 / 28%) 50%,
+            rgb(255 255 255 / 28%) 75%, transparent 75%, transparent);
+        background-size: 16px 16px;
+    }
+    .md-dash-fill-striped.md-dash-moving {
+        animation: md-dash-stripes 1s linear infinite;
+    }
+    @keyframes md-dash-stripes {
+        from { background-position: 0 0; }
+        to { background-position: 16px 0; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .md-dash-fill-striped.md-dash-moving { animation: none; }
+    }
+    @media print {
+        .md-dash-fill-striped.md-dash-moving { animation: none; }
     }
 
     /* Badges */
@@ -401,7 +426,10 @@ nonisolated extension MarkdownHTML {
       }
 
       // One bar per item: `label`, `value` (zero or more) and `max` (above
-      // zero). A value above its maximum shows a full bar.
+      // zero). A value above its maximum shows a full bar. An optional
+      // `color` names a palette color; the default is the accent.
+      // `striped: true` adds moving stripes, except on a full bar.
+      const PROGRESS_COLORS = ['accent', 'positive', 'negative', 'warning', 'neutral'];
       function progress(source) {
         const items = parse(source);
         if (!items) return null;
@@ -410,20 +438,23 @@ nonisolated extension MarkdownHTML {
           const value = num(item.value || '');
           const max = num(item.max || '');
           if (!item.label || value == null || max == null || value < 0 || max <= 0) return null;
+          const color = item.color != null ? item.color.toLowerCase() : 'accent';
+          if (!PROGRESS_COLORS.includes(color)) return null;
+          const striped = (item.striped || 'false').toLowerCase();
+          if (!['true', 'false'].includes(striped)) return null;
           const row = el('div', 'md-dash-progress-item');
-          const head = el('div', 'md-dash-progress-head');
-          head.append(el('span', null, item.label),
-                      el('span', null, formatter.format(value) + ' / ' + formatter.format(max)));
           const track = el('div', 'md-dash-track');
           track.setAttribute('role', 'progressbar');
           track.setAttribute('aria-label', item.label);
           track.setAttribute('aria-valuemin', '0');
           track.setAttribute('aria-valuemax', String(max));
           track.setAttribute('aria-valuenow', String(value));
-          const fill = el('div', 'md-dash-fill');
+          const fill = el('div', 'md-dash-fill md-dash-fill-' + color
+            + (striped === 'true' && value < max ? ' md-dash-fill-striped' : ''));
           fill.style.width = (Math.min(value / max, 1) * 100) + '%';
           track.append(fill);
-          row.append(head, track);
+          row.append(el('span', 'md-dash-progress-label', item.label), track,
+                     el('span', 'md-dash-progress-value', formatter.format(value) + ' / ' + formatter.format(max)));
           list.append(row);
         }
         return list;
@@ -445,6 +476,32 @@ nonisolated extension MarkdownHTML {
       // column holds the labels and every other column a series of numbers.
       // `MdChart` draws it; any type registered there is accepted.
       const LEGENDS = ['top', 'bottom', 'left', 'right', 'none'];
+      const POSITIONS = ['top', 'bottom', 'left', 'right'];
+      const GROUPS = ['legend', 'x-axis', 'y-axis'];
+      function flag(text, fallback) {
+        const value = (text == null ? fallback : text).toLowerCase();
+        return value === 'true' ? true : value === 'false' ? false : null;
+      }
+      // `legend: right` or `legend: none`, or a group with `position` and
+      // `visible`. Returns the position, 'none', or null when invalid.
+      function legendPosition(option) {
+        if (option == null) return 'bottom';
+        if (typeof option === 'string') {
+          const value = option.toLowerCase();
+          return LEGENDS.includes(value) ? value : null;
+        }
+        const position = (option.position || 'bottom').toLowerCase();
+        const visible = flag(option.visible, 'true');
+        if (!POSITIONS.includes(position) || visible == null) return null;
+        return visible ? position : 'none';
+      }
+      // `x-axis:` / `y-axis:` groups with `visible`. Null when invalid.
+      function axisOptions(option) {
+        if (option == null) return { visible: true };
+        if (typeof option === 'string') return null;
+        const visible = flag(option.visible, 'true');
+        return visible == null ? null : { visible };
+      }
       function cells(line) {
         let row = line.trim();
         if (row.startsWith('|')) row = row.slice(1);
@@ -475,6 +532,9 @@ nonisolated extension MarkdownHTML {
         if (!window.MdChart) return null;
         const options = {};
         const rows = [];
+        // A group key with no value (`legend:`) takes the indented
+        // `key: value` lines under it.
+        let group = null;
         for (const raw of source.split('\n')) {
           const line = raw.trim();
           if (!line) continue;
@@ -483,22 +543,57 @@ nonisolated extension MarkdownHTML {
           const match = KEY.exec(line);
           if (!match) return null;
           const key = match[1].toLowerCase();
+          const value = match[2].trim();
+          if (/^\s/.test(raw)) {
+            if (!group || key in group) return null;
+            group[key] = value;
+            continue;
+          }
           if (key in options) return null;
-          options[key] = match[2].trim();
+          group = null;
+          if (!value && GROUPS.includes(key)) group = options[key] = {};
+          else options[key] = value;
         }
         const type = (options.type || '').toLowerCase();
-        const legend = (options.legend || 'bottom').toLowerCase();
+        const legend = legendPosition(options.legend);
+        const xAxis = axisOptions(options['x-axis']);
+        const yAxis = axisOptions(options['y-axis']);
+        if (!legend || !xAxis || !yAxis) return null;
         const values = (options.values || 'true').toLowerCase();
-        if (!MdChart.has(type) || !LEGENDS.includes(legend) || !['true', 'false'].includes(values)) return null;
+        // `stacked` and `direction` shape a bar chart; other types ignore them.
+        const stacked = (options.stacked || 'false').toLowerCase();
+        const direction = (options.direction || 'vertical').toLowerCase();
+        if (!MdChart.has(type) || !['true', 'false'].includes(values)) return null;
+        if (!['true', 'false'].includes(stacked) || !['vertical', 'horizontal'].includes(direction)) return null;
+        // `height` in CSS pixels; `grid: false` hides the grid lines.
+        const grid = (options.grid || 'true').toLowerCase();
+        if (!['true', 'false'].includes(grid)) return null;
+        let height = null;
+        if (options.height != null) {
+          height = num(options.height.replace(/px$/i, ''));
+          if (height == null || height < 80 || height > 1200) return null;
+        }
         const data = table(rows);
         if (!data) return null;
         return MdChart.render({
           type, title: options.title || '', legend, values: values === 'true',
+          stacked: stacked === 'true', direction, height, grid: grid === 'true', xAxis, yAxis,
           labels: data.labels, series: data.series
         });
       }
 
       const BUILDERS = { stat, chart, progress, badge };
+
+      // Striped fills move only while on screen, so an open document doesn't
+      // keep repainting bars nobody can see.
+      const motion = 'IntersectionObserver' in window
+        ? new IntersectionObserver(entries => {
+            for (const entry of entries) {
+              if (!entry.target.isConnected) { motion.unobserve(entry.target); continue; }
+              entry.target.classList.toggle('md-dash-moving', entry.isIntersecting);
+            }
+          })
+        : null;
 
       function upgrade(root) {
         const scope = root && root.querySelectorAll ? root : document;
@@ -518,6 +613,9 @@ nonisolated extension MarkdownHTML {
           const frame = pre.parentElement && pre.parentElement.classList.contains('md-code-wrap')
             ? pre.parentElement : pre;
           frame.replaceWith(node);
+          for (const fill of node.querySelectorAll('.md-dash-fill-striped')) {
+            if (motion) motion.observe(fill); else fill.classList.add('md-dash-moving');
+          }
         }
       }
 

@@ -296,7 +296,6 @@ final class SlideDeckTests: XCTestCase {
   private let dashboardDeck = """
   ---
   slides: true
-  dashboard: true
   ---
 
   # Metrics

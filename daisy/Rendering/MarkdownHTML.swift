@@ -383,11 +383,6 @@ nonisolated enum MarkdownHTML {
         // presenting any document.
         let rendersSlides = forcesSlides
             || SlideDeck.isDeck(frontmatter: frontmatter.raw, format: frontmatter.format)
-        // Dashboard widgets are asked for in frontmatter (`dashboard: true`).
-        let rendersDashboard = DashboardDocument.isDashboard(
-            frontmatter: frontmatter.raw,
-            format: frontmatter.format
-        )
         var slideSettings = SlideDeckSettings()
         var slideTheme: SlideTheme?
         if rendersSlides {
@@ -431,7 +426,8 @@ nonisolated enum MarkdownHTML {
             highlightsCode: highlightsCode && rendersHighlights,
             rendersHighlights: rendersHighlights,
             rendersCallouts: rendersCallouts,
-            rendersDashboard: rendersDashboard,
+            // Every document draws dashboard widgets; no opt-in.
+            rendersDashboard: true,
             rendersSlides: rendersSlides,
             slideSettings: slideSettings,
             strictLineBreaks: strictLineBreaks

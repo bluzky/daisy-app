@@ -1,6 +1,6 @@
 ---
 name: daisy-slides
-description: Write, convert and fix slide decks in Daisy's Markdown slide format — `slides: true` frontmatter, `---` slide breaks, `???` speaker notes, inferred layouts, `<!-- … -->` directives (layout, _class, color, step, columns, column, end-columns, space, _paginate/_header/_footer), `![bg …]` backgrounds with left/right/fit/dim/blur, `!caption[…]`, themes and theme files, and dashboard widgets on slides (`dashboard: true`; `stat` tiles, `chart` bar/line/pie charts, `progress` bars, `badge` labels). Use this whenever the user wants a presentation, deck, talk, pitch or slides written in Markdown — including a metrics review, KPI or status deck — wants notes or a document turned into slides, mentions Daisy, Daisy slides or presenting a .md file, asks for a Marp/Kova-style deck to open in Daisy, or wants a Daisy slide theme (`~/.config/daisy/slide-themes/*.yaml`) — even if they only say "make slides from this".
+description: Write, convert and fix slide decks in Daisy's Markdown slide format — `slides: true` frontmatter, `---` slide breaks, `???` speaker notes, inferred layouts, `<!-- … -->` directives (layout, _class, color, step, columns, column, end-columns, space, _paginate/_header/_footer), `![bg …]` backgrounds with left/right/fit/dim/blur, `!caption[…]`, themes and theme files, and dashboard widgets on slides (`stat` tiles, `chart` bar/line/pie/donut charts, `progress` bars, `badge` labels). Use this whenever the user wants a presentation, deck, talk, pitch or slides written in Markdown — including a metrics review, KPI or status deck — wants notes or a document turned into slides, mentions Daisy, Daisy slides or presenting a .md file, asks for a Marp/Kova-style deck to open in Daisy, or wants a Daisy slide theme (`~/.config/daisy/slide-themes/*.yaml`) — even if they only say "make slides from this".
 ---
 
 # Daisy slides
@@ -65,12 +65,12 @@ Speaker notes: everything after ??? on this slide.
 | Text size | `font_size: 120%` in frontmatter, or `<!-- _font_size: 120% -->` on one slide (50%–200% of the default) |
 | Per-slide chrome | `<!-- _paginate: false -->`, `<!-- _header: "" -->` (empty hides), `<!-- _footer: text -->` |
 | Rule inside a slide | `<hr>` (never `---`) |
-| Metrics, progress, status | `dashboard: true` in the frontmatter, then `stat`, `progress` or `badge` blocks — see [Dashboard widgets](#dashboard-widgets) |
-| Bar, line or pie chart | A ```` ```chart ```` block (needs `dashboard: true`); see Dashboard widgets |
+| Metrics, progress, status | `stat`, `progress` or `badge` blocks — see [Dashboard widgets](#dashboard-widgets) |
+| Bar, line, pie or donut chart | A ```` ```chart ```` block; see Dashboard widgets |
 
 Several directives can share one comment, one per line: `<!--⏎layout: title⏎_class: invert⏎-->`.
 
-Everything Daisy renders works on slides: tables, code, math (`$$…$$`), Mermaid, callouts (`> [!note]`), tasks, footnotes (each slide lists the ones it references), and dashboard widgets when the deck has `dashboard: true`.
+Everything Daisy renders works on slides: tables, code, math (`$$…$$`), Mermaid, callouts (`> [!note]`), tasks, footnotes (each slide lists the ones it references), and dashboard widgets.
 
 ## Layouts come from content
 
@@ -108,12 +108,11 @@ These don't produce errors in Daisy — the slide just looks wrong — so check 
 
 ## Dashboard widgets
 
-Add `dashboard: true` next to `slides: true` and four fenced blocks become widgets on the slide. Without the flag they show as code. The full rules are in `references/dashboard-guide.md`.
+Four fenced blocks become widgets on the slide; no frontmatter flag is needed. A block with a missing or invalid field shows as code. The full rules are in `references/dashboard-guide.md`.
 
 ````markdown
 ---
 slides: true
-dashboard: true
 ---
 
 ## Revenue grew 12% this quarter
@@ -156,10 +155,10 @@ status: warn
 ````
 
 - **`stat`** — `label` and `value` required; `delta`, `trend` (`up`/`down`/`flat`; ignored without a `delta`), `good: down` (for metrics where down is good), `note`, `link`. Tiles in one block share a row: 2–5 per slide reads best.
-- **`progress`** — `label`, `value` (≥ 0) and `max` (> 0) per bar; bars stack.
+- **`progress`** — `label`, `value` (≥ 0) and `max` (> 0) per bar, plus an optional `color` (`accent` default, `positive`, `negative`, `warning`, `neutral`; nothing else, no hex) and `striped: true` (moving stripes for work in progress; none on a full bar); each bar is one row (label, bar, `value / max`), and bars stack.
 - **`badge`** — `text` and `status: ok | warn | fail`; badges sit side by side.
 - **`---` inside a `stat`, `progress` or `badge` block separates items; it does not start a slide.**
-- **`chart`** — `type: bar | line | pie` (required), optional `title`, `legend: top | bottom | left | right | none` (default `bottom`) and `values: false` (values are drawn on the chart by default), then a Markdown table: first column the labels, every other column a series of plain numbers (no `$` or `%` in cells; put units in the title or header). A `pie` takes exactly one number column, all zero or more. A bar or line chart is as wide as its column and half as tall and doesn't shrink, so give it a slide with just a headline that states the finding ("Sales doubled since January") and the story in `???` notes.
+- **`chart`** — `type: bar | line | pie | donut` (required), optional `title`, `legend: top | bottom | left | right | none` (default `bottom`), `values: false` (values are drawn on the chart by default), and for bars `stacked: true` (one bar per row, series stacked, total at the end) and `direction: horizontal` (row labels on the left; the chart grows taller per row), `height: 240` (pixels, 80–1200; a pie's or donut's diameter) `grid: false` (hide grid lines), and groups of indented lines: `legend:` with `position` and `visible`, `x-axis:` / `y-axis:` with `visible: false` (hide the bottom / left labels as drawn), then a Markdown table: first column the labels, every other column a series of plain numbers (no `$` or `%` in cells; put units in the title or header). A `pie` or `donut` (a ring with the total in the middle) takes exactly one number column, all zero or more. A bar or line chart is as wide as its column and half as tall and doesn't shrink, so give it a slide with just a headline that states the finding ("Sales doubled since January") and the story in `???` notes.
 
   ````markdown
   ```chart
