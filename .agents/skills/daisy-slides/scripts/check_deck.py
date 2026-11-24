@@ -12,6 +12,7 @@ Exit status is 1 when there are errors, else 0. Warnings don't fail.
 """
 
 import difflib
+import math
 import os
 import re
 import sys
@@ -36,6 +37,20 @@ LIST_ITEM = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s")
 CODE_SPAN = re.compile(r"(`+)(?:(?!\1).)+\1")
 # Fenced blocks that scale down to fit the slide instead of being cut off.
 SCALING_FENCES = ("mermaid",)
+
+# Dashboard widgets (`dashboard: true`): fenced blocks the page draws as tiles,
+# progress bars and badges. A block Daisy can't read stays plain code,
+# silently, so the rules below mirror the page script's.
+WIDGETS = {"stat", "progress", "badge"}
+TRENDS = {"up", "down", "flat"}
+STATUSES = {"ok", "warn", "fail"}
+# ExternalLinkPolicy.blockedSchemes: a stat link with one of these is refused.
+BLOCKED_SCHEMES = {"javascript", "vbscript", "data", "file", "about", "blob", "filesystem", "md-asset"}
+WIDGET_KEY = re.compile(r"^([A-Za-z][A-Za-z0-9_-]*)\s*:\s*(.*)$")
+NUMBER = re.compile(r"^[-+]?(\d+\.?\d*|\.\d+)$")
+# Slide lines a widget takes, roughly: a stat row is a short tile, a progress
+# item a label over a thin bar, a badge row one line.
+STAT_LINES, BADGE_LINES, PROGRESS_ROW_LINES = 3, 1, 1.5
 
 # Rough capacity of a 16:9 slide at Daisy's slide text size.
 MAX_LINES = 12
@@ -139,7 +154,81 @@ def check_comment(text, line, report, in_list):
         check_directive(key.strip().lower(), value.strip().strip("\"'"), line, report, in_list)
 
 
-def check_slide(slide, number, report, deck_dir):
+def parse_widget(kind, body, line, report):
+    """The block's items, or None after reporting why it stays plain."""
+    items = [{}]
+    for raw in body:
+        text = raw.strip()
+        if not text:
+            continue
+        if re.fullmatch(r"-{3,}", text):
+            if items[-1]:
+                items.append({})
+            continue
+        match = WIDGET_KEY.match(text)
+        if not match:
+            report.error(line, f"`{kind}` block: `{text}` isn't a `key: value` line; the block stays plain code")
+            return None
+        key = match.group(1).lower()
+        if key in items[-1]:
+            report.error(line, f"`{kind}` block: `{key}` appears twice in one item; the block stays plain code")
+            return None
+        items[-1][key] = match.group(2).strip()
+    if not items[-1]:
+        items.pop()
+    if not items:
+        report.error(line, f"`{kind}` block is empty; it stays plain code")
+        return None
+    return items
+
+
+def check_widget(kind, body, line, report, dashboard):
+    """Reports what would leave a widget as plain code; returns its slide lines."""
+    if not dashboard:
+        report.error(line, f"a `{kind}` block is a dashboard widget only with `dashboard: true` in the "
+                           "frontmatter; without it the slide shows the block as code")
+        return len(body) + 2
+    items = parse_widget(kind, body, line, report)
+    if items is None:
+        return len(body) + 2
+
+    def plain(text):
+        report.error(line, f"`{kind}` block: {text}; the block stays plain code")
+        return len(body) + 2
+
+    if kind == "stat":
+        for item in items:
+            if not item.get("label") or not item.get("value"):
+                return plain("every tile needs `label` and `value`")
+            if item.get("trend") and item["trend"].lower() not in TRENDS:
+                return plain(f"`trend: {item['trend']}` isn't up, down or flat")
+            if item.get("good") and item["good"].lower() not in ("up", "down"):
+                return plain(f"`good: {item['good']}` isn't up or down")
+            if "link" in item:
+                href = item["link"]
+                scheme = re.match(r"^([a-z][a-z0-9+.-]*):", href, re.I)
+                if not href or re.search(r"\s", href) or (scheme and scheme.group(1).lower() in BLOCKED_SCHEMES):
+                    return plain(f"`link: {href}` isn't a link Daisy follows")
+        return STAT_LINES + (1 if any(item.get("note") for item in items) else 0)
+
+    if kind == "badge":
+        for item in items:
+            if not item.get("text") or (item.get("status") or "").lower() not in STATUSES:
+                return plain("every badge needs `text` and a `status` of ok, warn or fail")
+        return BADGE_LINES
+
+    # progress
+    for item in items:
+        value = (item.get("value") or "").replace(",", "")
+        maximum = (item.get("max") or "").replace(",", "")
+        if not item.get("label") or not NUMBER.match(value) or not NUMBER.match(maximum):
+            return plain("every bar needs `label`, and numbers for `value` and `max`")
+        if float(value) < 0 or float(maximum) <= 0:
+            return plain("`value` must be zero or more and `max` above zero")
+    return math.ceil(len(items) * PROGRESS_ROW_LINES)
+
+
+def check_slide(slide, number, report, deck_dir, dashboard=False):
     lines = slide["lines"]
     bullets, backgrounds, column_breaks = 0, 0, 0
     # Content lines per stretch of the slide: before the columns, each
@@ -156,16 +245,32 @@ def check_slide(slide, number, report, deck_dir):
         else:
             after += count
     in_code, code_lines, code_start, scales = False, 0, 0, False
+    widget, widget_body = None, []
     for index, (line_no, raw) in enumerate(lines):
         if FENCE.match(raw):
-            if in_code and code_lines > MAX_CODE_LINES and not scales:
-                report.warn(code_start, f"slide {number}: a {code_lines}-line code block will likely be cut off")
             if not in_code:
-                scales = raw.strip().lstrip("`~").strip().lower().startswith(SCALING_FENCES)
-            in_code, code_lines, code_start = not in_code, 0, line_no
-            add()
+                info = raw.strip().lstrip("`~").strip().lower()
+                words = info.split()
+                scales = info.startswith(SCALING_FENCES)
+                widget = words[0] if words and words[0] in WIDGETS else None
+                widget_body = []
+                in_code, code_lines, code_start = True, 0, line_no
+                if not widget:
+                    add()
+            elif widget:
+                # A widget takes its drawn height, not one line per source line.
+                add(check_widget(widget, widget_body, code_start, report, dashboard))
+                in_code, widget = False, None
+            else:
+                if code_lines > MAX_CODE_LINES and not scales:
+                    report.warn(code_start, f"slide {number}: a {code_lines}-line code block will likely be cut off")
+                in_code = False
+                add()
             continue
         if in_code:
+            if widget:
+                widget_body.append(raw)
+                continue
             code_lines += 1
             add(0 if scales else 1)
             continue
@@ -278,7 +383,7 @@ def check(path):
 
     deck_dir = os.path.dirname(os.path.abspath(path))
     for number, slide in enumerate(slides, start=1):
-        check_slide(slide, number, report, deck_dir)
+        check_slide(slide, number, report, deck_dir, settings.get("dashboard", "").lower() == "true")
     return report, len(slides)
 
 

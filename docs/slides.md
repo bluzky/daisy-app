@@ -37,6 +37,7 @@ See [`samples/slides.md`](../samples/slides.md) for a deck that uses every featu
 - [Empty lines](#empty-lines)
 - [Captions](#captions)
 - [Footnotes](#footnotes)
+- [Dashboard widgets](#dashboard-widgets)
 - [Editing a deck](#editing-a-deck)
 - [Presenting](#presenting)
 - [Export](#export)
@@ -426,6 +427,37 @@ Revenue grew 12%[^q3].
 
 [^q3]: Q3 report, page 4.
 ```
+
+## Dashboard widgets
+
+Stat tiles, progress bars and status badges work on slides too. Add `dashboard: true` to the frontmatter beside `slides: true`, then write `stat`, `progress` and `badge` blocks as in an ordinary document; see [Dashboard](dashboard.md) for every key.
+
+````markdown
+---
+slides: true
+dashboard: true
+---
+
+## Revenue grew 12% this quarter
+
+```stat
+label: Revenue
+value: $48.2k
+delta: +12%
+trend: up
+---
+label: Churn
+value: 2.1%
+delta: -0.4%
+trend: down
+good: down
+```
+````
+
+- A `---` line inside a `stat`, `progress` or `badge` block separates its items; it does not start a new slide.
+- Widgets size their text from the slide's text, like everything else on it.
+- Without `dashboard: true` the blocks show as code.
+- For charts on a slide, use Mermaid's `xychart-beta` or `pie`; like any Mermaid diagram they shrink to fit the space left.
 
 ## Editing a deck
 

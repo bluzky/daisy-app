@@ -10,7 +10,7 @@ final class MarkdownRenderExtensionTests: XCTestCase {
       MarkdownHTML.renderExtensions.map(\.id),
       [
         "highlight", "callout", "comments", "katex", "mermaid",
-        "task-metadata", "hide-completed-tasks", "metadata-links", "query-blocks", "slash-commands",
+        "task-metadata", "hide-completed-tasks", "metadata-links", "query-blocks", "dashboard", "slash-commands",
         "metadata-completion", "slides"
       ]
     )
@@ -76,6 +76,12 @@ final class MarkdownRenderExtensionTests: XCTestCase {
           descriptionKey: nil,
           defaultEnabled: true,
           userToggleable: true
+        ),
+        .init(
+          titleKey: "Dashboard",
+          descriptionKey: nil,
+          defaultEnabled: true,
+          userToggleable: false
         ),
         .init(
           titleKey: "Slash commands",
@@ -294,7 +300,7 @@ final class MarkdownRenderExtensionTests: XCTestCase {
     let renderOnly = MarkdownHTML.renderExtensions.filter { $0.editor == nil }.map(\.id)
     XCTAssertEqual(
       renderOnly,
-      ["highlight", "callout", "katex", "slides"]
+      ["highlight", "callout", "katex", "dashboard", "slides"]
     )
   }
 

@@ -197,6 +197,7 @@ nonisolated extension MarkdownHTML {
     HideCompletedTasksExtension(),
     MetadataLinksExtension(),
     QueryBlocksExtension(),
+    DashboardExtension(),
     SlashCommandsExtension(),
     MetadataCompletionExtension(),
     SlidesExtension()

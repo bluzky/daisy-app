@@ -423,6 +423,8 @@
 "Metadata suggestions" = "Metadata suggestions";
 "Metadata links" = "Metadata links";
 "Query blocks" = "Query blocks";
+/* Dashboard render extension */
+"Dashboard" = "Dashboard";
 "No matching tasks" = "No matching tasks";
 "No matching notes" = "No matching notes";
 "“%@” is not a term. Use text:%@ to search text." = "“%@” is not a term. Use text:%@ to search text.";

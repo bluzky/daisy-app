@@ -1,19 +1,19 @@
 ---
 name: daisy-slides
-description: Write, convert and fix slide decks in Daisy's Markdown slide format — `slides: true` frontmatter, `---` slide breaks, `???` speaker notes, inferred layouts, `<!-- … -->` directives (layout, _class, color, step, columns, column, end-columns, space, _paginate/_header/_footer), `![bg …]` backgrounds with left/right/fit/dim/blur, `!caption[…]`, themes and theme files. Use this whenever the user wants a presentation, deck, talk, pitch or slides written in Markdown, wants notes or a document turned into slides, mentions Daisy, Daisy slides or presenting a .md file, asks for a Marp/Kova-style deck to open in Daisy, or wants a Daisy slide theme (`~/.config/daisy/slide-themes/*.yaml`) — even if they only say "make slides from this".
+description: Write, convert and fix slide decks in Daisy's Markdown slide format — `slides: true` frontmatter, `---` slide breaks, `???` speaker notes, inferred layouts, `<!-- … -->` directives (layout, _class, color, step, columns, column, end-columns, space, _paginate/_header/_footer), `![bg …]` backgrounds with left/right/fit/dim/blur, `!caption[…]`, themes and theme files, and dashboard widgets on slides (`dashboard: true`; `stat` tiles, `progress` bars, `badge` labels; charts via Mermaid `xychart-beta`/`pie`). Use this whenever the user wants a presentation, deck, talk, pitch or slides written in Markdown — including a metrics review, KPI or status deck — wants notes or a document turned into slides, mentions Daisy, Daisy slides or presenting a .md file, asks for a Marp/Kova-style deck to open in Daisy, or wants a Daisy slide theme (`~/.config/daisy/slide-themes/*.yaml`) — even if they only say "make slides from this".
 ---
 
 # Daisy slides
 
 Daisy is a macOS Markdown app. A Markdown file with `slides: true` in its frontmatter reads as a deck: Read Mode shows a strip of 16:9 slides, **View → Present** (⌥⌘P) shows it full screen, and PDF export prints one slide per page. The deck stays an ordinary Markdown file, so it should read well as plain text too.
 
-This skill covers writing a deck that looks good in Daisy. The complete syntax reference is `references/slides-guide.md` (Daisy's own `docs/slides.md`); read the relevant section when you need an exact rule this file only summarizes.
+This skill covers writing a deck that looks good in Daisy. The complete syntax reference is `references/slides-guide.md` (Daisy's own `docs/slides.md`); read the relevant section when you need an exact rule this file only summarizes. Dashboard widgets are specified in `references/dashboard-guide.md` (Daisy's `docs/dashboard.md`).
 
 ## Workflow
 
 1. **Plan the slides before writing.** One idea per slide. Decide which slides are a title, a section break, a quote, a diagram, a comparison — Daisy picks the layout from the content, so the content's shape *is* the design.
 2. **Write the deck** with the syntax below. Put everything that is detail, evidence or a script into `???` speaker notes, not onto the slide.
-3. **Lint it:** `python3 scripts/check_deck.py deck.md` (path relative to this skill). It catches the mistakes that render silently wrong — a `---` that becomes a heading, a step that's ignored, a background that isn't one, unknown layouts and themes, missing images — and estimates slides that may be cut off. Fix every error. The length warning is an estimate (code and short lines fit more): trim the slide if it is clearly long, otherwise tell the user to check that slide in Daisy's Slide Preview.
+3. **Lint it:** `python3 scripts/check_deck.py deck.md` (path relative to this skill). It catches the mistakes that render silently wrong — a `---` that becomes a heading, a step that's ignored, a background that isn't one, unknown layouts and themes, missing images, a dashboard widget Daisy would leave as plain code — and estimates slides that may be cut off. Fix every error. The length warning is an estimate (code and short lines fit more): trim the slide if it is clearly long, otherwise tell the user to check that slide in Daisy's Slide Preview.
 4. **Tell the user how to see it:** open the file in Daisy; ⌥⌘P to present, ⇧⌥⌘P from the current slide, ⌘9 for the Slide Preview pane beside the editor.
 
 When converting an existing document or Marp/Kova deck, keep the author's words and order; restructure only as far as the slide format needs.
@@ -65,10 +65,12 @@ Speaker notes: everything after ??? on this slide.
 | Text size | `font_size: 120%` in frontmatter, or `<!-- _font_size: 120% -->` on one slide (50%–200% of the default) |
 | Per-slide chrome | `<!-- _paginate: false -->`, `<!-- _header: "" -->` (empty hides), `<!-- _footer: text -->` |
 | Rule inside a slide | `<hr>` (never `---`) |
+| Metrics, progress, status | `dashboard: true` in the frontmatter, then `stat`, `progress` or `badge` blocks — see [Dashboard widgets](#dashboard-widgets) |
+| Bar, line or pie chart | Mermaid: `xychart-beta` or `pie` in a ```` ```mermaid ```` block |
 
 Several directives can share one comment, one per line: `<!--⏎layout: title⏎_class: invert⏎-->`.
 
-Everything Daisy renders works on slides: tables, code, math (`$$…$$`), Mermaid, callouts (`> [!note]`), tasks, footnotes (each slide lists the ones it references).
+Everything Daisy renders works on slides: tables, code, math (`$$…$$`), Mermaid, callouts (`> [!note]`), tasks, footnotes (each slide lists the ones it references), and dashboard widgets when the deck has `dashboard: true`.
 
 ## Layouts come from content
 
@@ -103,6 +105,64 @@ These don't produce errors in Daisy — the slide just looks wrong — so check 
 - **Values starting with `#`** in YAML must be quoted (`color: "#fff"`), or YAML reads a comment.
 - **Directives inside lists** (`<!-- columns -->`, `<!-- column -->`, `<!-- space -->` indented under a bullet) are ignored; keep them at the top level.
 - **A file starting with `---`** and containing another `---` is read as frontmatter. Start decks with real frontmatter.
+
+## Dashboard widgets
+
+Add `dashboard: true` next to `slides: true` and three fenced blocks become widgets on the slide. Without the flag they show as code. The full rules are in `references/dashboard-guide.md`.
+
+````markdown
+---
+slides: true
+dashboard: true
+---
+
+## Revenue grew 12% this quarter
+
+```stat
+label: Revenue
+value: $48.2k
+delta: +12%
+trend: up
+note: vs Q2
+---
+label: Churn
+value: 2.1%
+delta: -0.4%
+trend: down
+good: down
+```
+
+---
+
+## Release 4.2 is nearly done
+
+```progress
+label: Features
+value: 7
+max: 12
+---
+label: Tests passing
+value: 182
+max: 190
+```
+
+```badge
+text: Build passing
+status: ok
+---
+text: Docs outdated
+status: warn
+```
+````
+
+- **`stat`** — `label` and `value` required; `delta`, `trend` (`up`/`down`/`flat`; ignored without a `delta`), `good: down` (for metrics where down is good), `note`, `link`. Tiles in one block share a row: 2–5 per slide reads best.
+- **`progress`** — `label`, `value` (≥ 0) and `max` (> 0) per bar; bars stack.
+- **`badge`** — `text` and `status: ok | warn | fail`; badges sit side by side.
+- **`---` inside any of these blocks separates items; it does not start a slide.**
+- **Charts are Mermaid**, not a widget: `xychart-beta` (bars and lines: `x-axis [Jan, Feb]`, `bar [12, 18]`, `line [7, 9]`) or `pie` (`"Pro" : 45` lines). They need no `dashboard: true` and shrink to fit the slide like any diagram. One chart per slide, with a headline that states the finding ("Sales doubled since January") and the story in `???` notes.
+- A stat row plus a short list, or progress bars plus a badge row, fits one slide.
+- Values are written already computed (`$48.2k`, `2.1%`); there are no formulas, and a block can't set colors.
+- A widget with a missing or unknown key stays plain code. The linter reports these.
 
 ## Themes
 
