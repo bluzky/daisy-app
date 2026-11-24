@@ -25,8 +25,10 @@
 //  `register` call. `bar`, `line`, `pie` and `donut` are registered the same way.
 //
 //  Colors are classes only (`md-chart-s1` … `s8`), mapped to the theme's
-//  dashboard series colors (`DashboardColor.series`). Text reaches the SVG
-//  through `textContent`, never markup.
+//  dashboard series colors (`DashboardColor.series`). A spec's `colors`
+//  (validated `#RGB` / `#RRGGBB` hex, at most eight) override them as
+//  `--md-chart-color-N` custom properties on the figure, never as markup.
+//  Text reaches the SVG through `textContent`, never markup.
 //
 
 import Foundation
@@ -39,10 +41,12 @@ nonisolated extension MarkdownHTML {
     private static var dashboardChartSeriesCSS: String {
         DashboardColor.series.enumerated().map { offset, color in
             let index = offset + 1
+            // A chart's own `colors` set `--md-chart-color-N` on its figure.
+            let value = "var(--md-chart-color-\(index), \(color.cssValue))"
             return """
-            .md-chart-plot .md-chart-s\(index) { fill: \(color.cssValue); }
-            .md-chart-plot .md-chart-line.md-chart-s\(index) { fill: none; stroke: \(color.cssValue); }
-            .md-chart-swatch.md-chart-s\(index) { background: \(color.cssValue); }
+            .md-chart-plot .md-chart-s\(index) { fill: \(value); }
+            .md-chart-plot .md-chart-line.md-chart-s\(index) { fill: none; stroke: \(value); }
+            .md-chart-swatch.md-chart-s\(index) { background: \(value); }
             """
         }.joined(separator: "\n")
     }
@@ -175,6 +179,7 @@ nonisolated extension MarkdownHTML {
       const SVGNS = 'http://www.w3.org/2000/svg';
       const SERIES_COLORS = \#(dashboardChartSeriesColors);
       const types = Object.create(null);
+      const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
       const formatter = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
 
       function el(tag, cls, text) {
@@ -323,6 +328,9 @@ nonisolated extension MarkdownHTML {
         const position = spec.legend || 'bottom';
 
         const figure = el('figure', 'md-chart md-chart-type-' + spec.type.toLowerCase() + ' md-chart-legend-' + position);
+        (spec.colors || []).forEach((color, i) => {
+          if (i < SERIES_COLORS && HEX.test(color)) figure.style.setProperty('--md-chart-color-' + (i + 1), color);
+        });
         if (spec.title) figure.append(el('figcaption', 'md-chart-title', spec.title));
         const body = el('div', 'md-chart-body');
         if (position !== 'none') {

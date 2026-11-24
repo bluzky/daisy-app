@@ -44,6 +44,10 @@ good: down
 ```chart
 type: bar
 title: Sales (k$)
+colors: #6366F1, #22C55E
+legend:
+  position: right
+  visible: true
 | Month | 2025 | 2026 |
 | ----- | ---- | ---- |
 | Jan   | 12   | 15   |
@@ -57,6 +61,7 @@ title: Sales (k$)
 ```chart
 type: line
 title: Signups per week
+grid: false
 | Week | Organic | Paid |
 | ---- | ------- | ---- |
 | W1   | 120     | 40   |
@@ -86,11 +91,61 @@ title: Users by plan
 ```chart
 type: donut
 title: Revenue by plan (k$)
+colors: #94A3B8, #6366F1, #F59E0B
 | Plan       | Revenue |
 | ---------- | ------- |
 | Free       | 4       |
 | Pro        | 27      |
 | Enterprise | 17      |
+```
+
+<!-- end-columns -->
+
+## Goals
+
+<!-- columns -->
+
+```chart
+type: donut
+title: Quarterly target
+height: 120
+colors: #22C55E, #E5E7EB
+legend:
+  visible: false
+| Part      | k$ |
+| --------- | -- |
+| Reached   | 72 |
+| Remaining | 28 |
+```
+
+<!-- column -->
+
+```chart
+type: donut
+title: Onboarding done
+height: 120
+colors: #6366F1, #E5E7EB
+legend:
+  visible: false
+| Part      | Users |
+| --------- | ----- |
+| Done      | 58    |
+| Remaining | 42    |
+```
+
+<!-- column -->
+
+```chart
+type: donut
+title: Tickets in SLA
+height: 120
+colors: #F59E0B, #E5E7EB
+legend:
+  visible: false
+| Part    | % |
+| ------- | - |
+| In SLA  | 91 |
+| Late    | 9 |
 ```
 
 <!-- end-columns -->
@@ -102,7 +157,7 @@ title: Revenue by plan (k$)
 ```chart
 type: bar
 title: Tickets by week
-height: 200
+height: 220
 stacked: true
 | Week | Bugs | Questions | Requests |
 | ---- | ---- | --------- | -------- |
@@ -118,8 +173,8 @@ stacked: true
 type: bar
 title: Tickets by team
 stacked: true
-height: 200
 direction: horizontal
+height: 220
 | Team     | Open | In review | Closed |
 | -------- | ---- | --------- | ------ |
 | Platform | 12   | 6         | 30     |
@@ -134,9 +189,10 @@ type: bar
 title: First response time by channel (hours)
 direction: horizontal
 grid: false
-x-axis:
-	visible: false
+colors: #0EA5E9
 legend: none
+x-axis:
+  visible: false
 | Channel | Hours |
 | ------- | ----- |
 | Email   | 6.5   |

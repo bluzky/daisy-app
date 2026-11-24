@@ -259,6 +259,10 @@ def check_chart(body, line, report):
     direction = options.get("direction", "vertical").lower()
     if direction not in ("vertical", "horizontal"):
         return plain(f"`direction: {options['direction']}` isn't vertical or horizontal")
+    if "colors" in options:
+        colors = [color.strip() for color in options["colors"].split(",")]
+        if len(colors) > 8 or not all(re.fullmatch(r"#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})", c) for c in colors):
+            return plain("`colors` must be up to eight hex colors like `#4F46E5`, separated by commas")
     if options.get("grid", "true").lower() not in ("true", "false"):
         return plain(f"`grid: {options['grid']}` isn't true or false")
     height = None

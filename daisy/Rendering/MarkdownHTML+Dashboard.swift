@@ -7,7 +7,7 @@
 //
 //      ```stat      label / value / delta / trend / good / note / link
 //      ```chart     type / title / legend / values / stacked / direction /
-//                   height / grid / x-axis / y-axis; legend, x-axis and
+//                   height / grid / colors / x-axis / y-axis; legend, x-axis and
 //                   y-axis may be groups of indented `key: value` lines,
 //                   then a Markdown table
 //      ```progress  label / value / max / color / striped
@@ -573,11 +573,18 @@ nonisolated extension MarkdownHTML {
           height = num(options.height.replace(/px$/i, ''));
           if (height == null || height < 80 || height > 1200) return null;
         }
+        // `colors`: up to eight `#RGB` / `#RRGGBB`, comma-separated, for the
+        // series (or a pie's slices) in order; the rest keep the palette.
+        let colors = null;
+        if (options.colors != null) {
+          colors = options.colors.split(',').map(color => color.trim());
+          if (colors.length > 8 || !colors.every(color => /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(color))) return null;
+        }
         const data = table(rows);
         if (!data) return null;
         return MdChart.render({
           type, title: options.title || '', legend, values: values === 'true',
-          stacked: stacked === 'true', direction, height, grid: grid === 'true', xAxis, yAxis,
+          stacked: stacked === 'true', direction, height, grid: grid === 'true', xAxis, yAxis, colors,
           labels: data.labels, series: data.series
         });
       }

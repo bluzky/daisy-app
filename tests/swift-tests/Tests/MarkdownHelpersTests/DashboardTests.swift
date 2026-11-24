@@ -542,6 +542,24 @@ final class DashboardTests: XCTestCase {
     }
 
     @MainActor
+    func testColorsReplaceTheSeriesColorsInOrder() async throws {
+        let webView = try await load(chart("bar", "colors: #ff0000, #0F0\n", twoSeries)
+                                     + "\n\n" + chart("donut", "colors: #0000ff\n", shares))
+        let result = try await eval(webView, """
+        [getComputedStyle(document.querySelector('.md-chart-bar.md-chart-s1')).fill,
+         getComputedStyle(document.querySelector('.md-chart-bar.md-chart-s2')).fill,
+         getComputedStyle(document.querySelector('.md-chart-swatch.md-chart-s1')).backgroundColor,
+         getComputedStyle(document.querySelector('.md-chart-type-donut .md-chart-slice.md-chart-s1')).fill,
+         getComputedStyle(document.querySelector('.md-chart-type-donut .md-chart-slice.md-chart-s2')).fill !== 'rgb(0, 0, 255)']
+        """) as? [Any]
+        XCTAssertEqual(result?[0] as? String, "rgb(255, 0, 0)")
+        XCTAssertEqual(result?[1] as? String, "rgb(0, 255, 0)")
+        XCTAssertEqual(result?[2] as? String, "rgb(255, 0, 0)", "the legend swatch matches")
+        XCTAssertEqual(result?[3] as? String, "rgb(0, 0, 255)", "a donut's first slice")
+        XCTAssertEqual(result?[4] as? Bool, true, "slices past the list keep the palette")
+    }
+
+    @MainActor
     func testLineRunsFromTheLeftEdgeToTheRightEdge() async throws {
         let webView = try await load(chart("line", twoSeries))
         let result = try await eval(webView, """
@@ -610,6 +628,10 @@ final class DashboardTests: XCTestCase {
             chart("bar", "height: tall\n", "| A | N |\n| - | - |\n| x | 3 |"),
             chart("bar", "height: 20\n", "| A | N |\n| - | - |\n| x | 3 |"),
             chart("bar", "grid: off\n", "| A | N |\n| - | - |\n| x | 3 |"),
+            chart("bar", "colors: red\n", "| A | N |\n| - | - |\n| x | 3 |"),
+            chart("bar", "colors: #12345, #fff\n", "| A | N |\n| - | - |\n| x | 3 |"),
+            chart("bar", "colors: #111, #222, #333, #444, #555, #666, #777, #888, #999\n", "| A | N |\n| - | - |\n| x | 3 |"),
+            chart("bar", "colors: #fff;background:url(x)\n", "| A | N |\n| - | - |\n| x | 3 |"),
             chart("bar", "  position: left\n", "| A | N |\n| - | - |\n| x | 3 |"),
             chart("bar", "legend:\n  visible: maybe\n", "| A | N |\n| - | - |\n| x | 3 |"),
             chart("bar", "legend:\n  position: none\n", "| A | N |\n| - | - |\n| x | 3 |"),

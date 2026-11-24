@@ -109,6 +109,7 @@ title: Revenue mix
 | `stacked` | no | Bar charts only. `true` draws each row as one bar with its series stacked; positives stack up from zero and negatives down. Each segment shows its value when it fits, and the row's total sits at the end of the bar. The default is `false`, one bar per series side by side. |
 | `direction` | no | Bar charts only. `horizontal` lays the bars sideways with the row labels on the left; the default is `vertical`. |
 | `height` | no | The chart's height in pixels, from 80 to 1200 (`height: 240` or `height: 240px`). For a pie or donut it is the diameter. Without it, bar and line charts are half as tall as they are wide (at least 200px), a horizontal bar chart grows with its rows, and a pie or donut is up to 320px. |
+| `colors` | no | Up to eight hex colors (`#RGB` or `#RRGGBB`), separated by commas, for the series in order, or a pie's or donut's slices: `colors: #4F46E5, #22C55E, #F59E0B`. Series past the list keep the palette colors. Unlike the palette, these colors are the same in light and dark mode. Anything that isn't a hex color leaves the block plain. |
 | `grid` | no | `false` hides the grid lines of a bar or line chart; the zero line and the axis numbers stay. The default is `true`. |
 | `x-axis`, `y-axis` | no | Groups with `visible: false` on an indented line, to hide the labels along the bottom (`x-axis`) or up the left side (`y-axis`) of a bar or line chart and give their room to the plot. The axes are named as drawn, so on a horizontal bar chart `x-axis` holds the values and `y-axis` the rows. The zero line and grid lines stay; use `grid: false` for those. |
 
@@ -156,7 +157,7 @@ Mermaid's [`xychart-beta` and `pie`](https://mermaid.js.org) still work in any d
 
 ## Colors
 
-Every widget draws with one shared palette of semantic colors, in a light and a dark version that follow the page's appearance. A block never gives a raw color value; a progress bar can pick a palette color by name.
+Every widget draws with one shared palette of semantic colors, in a light and a dark version that follow the page's appearance. A progress bar can pick a palette color by name, and a chart can replace its series colors with `colors` (hex values only); nothing else in a block sets a color.
 
 | Color | Used for | Light | Dark |
 | --- | --- | --- | --- |
