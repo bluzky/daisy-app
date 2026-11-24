@@ -3,16 +3,17 @@
 //  daisy
 //
 //  Dashboard widgets in an ordinary document. A document asks for them with
-//  `dashboard: true` in its frontmatter; three fenced blocks then become
+//  `dashboard: true` in its frontmatter; four fenced blocks then become
 //  widgets in the page:
 //
 //      ```stat      label / value / delta / trend / good / note / link
+//      ```chart     type / title / legend / values, then a Markdown table
 //      ```progress  label / value / max
 //      ```badge     text / status (ok, warn, fail)
 //
-//  Each block is `key: value` lines; a line of `---` separates items. Charts
-//  are not a widget: Mermaid's `pie` and `xychart` already draw them, and
-//  render in other Markdown viewers too.
+//  Each block is `key: value` lines; a line of `---` separates items. A chart
+//  ends with its table and is drawn by `MdChart`
+//  (`MarkdownHTML+DashboardChart.swift`).
 //
 //  The formatter only stamps `data-md-dashboard` on those fences while the
 //  flag is on. The page script draws the widgets from the stamped blocks and
@@ -30,7 +31,7 @@ import Foundation
 nonisolated enum DashboardDocument {
 
     /// Fence languages that become widgets.
-    static let widgetLanguages: Set<String> = ["stat", "progress", "badge"]
+    static let widgetLanguages: Set<String> = ["stat", "chart", "progress", "badge"]
 
     /// Attribute the formatter stamps on a widget fence's `<pre>`.
     static let stampAttribute = "data-md-dashboard"
@@ -41,6 +42,62 @@ nonisolated enum DashboardDocument {
             entry.key.lowercased() == "dashboard"
                 && entry.value.trimmingCharacters(in: .whitespaces).lowercased() == "true"
         }
+    }
+}
+
+/// The dashboard palette: semantic colors every widget reads. Two built-in
+/// palettes of standard colors, light and dark; Customize Theme and a slide
+/// deck's theme can override a color. Blocks never name a color.
+nonisolated enum DashboardColor: String, CaseIterable, Sendable {
+    case accent, positive, negative, warning, neutral
+    case series1, series2, series3, series4, series5, series6, series7, series8
+
+    static let seriesCount = 8
+
+    /// The chart series colors, in order.
+    static let series: [DashboardColor] = [.series1, .series2, .series3, .series4,
+                                           .series5, .series6, .series7, .series8]
+
+    /// `--dashboard-accent`, `--dashboard-series-1`, …
+    var cssProperty: String {
+        if let index = Self.series.firstIndex(of: self) { return "--dashboard-series-\(index + 1)" }
+        return "--dashboard-\(rawValue)"
+    }
+
+    /// The slide theme `colors:` key: `dashboard_accent`, `dashboard_series_1`, …
+    var slideThemeKey: String {
+        if let index = Self.series.firstIndex(of: self) { return "dashboard_series_\(index + 1)" }
+        return "dashboard_\(rawValue)"
+    }
+
+    /// The CSS value a widget uses.
+    var cssValue: String { "var(\(cssProperty))" }
+
+    /// Built-in default ("#RRGGBB") in the light or the dark palette.
+    func defaultHex(dark: Bool) -> String {
+        let pair: (String, String) = switch self {
+        // Apple's system colors, one set shared by every widget: the status
+        // colors are the same hues as the chart series. Stat deltas, drawn as
+        // text, darken them in the light palette (`--dashboard-text-mix`).
+        case .accent, .series1: ("#007AFF", "#0A84FF")
+        case .positive: ("#34C759", "#30D158")
+        case .negative: ("#FF3B30", "#FF453A")
+        case .warning: ("#FF9500", "#FF9F0A")
+        case .neutral: ("#8E8E93", "#98989D")
+        case .series2: ("#FF9500", "#FF9F0A")
+        case .series3: ("#30B0C7", "#40C8E0")
+        case .series4: ("#AF52DE", "#BF5AF2")
+        case .series5: ("#34C759", "#30D158")
+        case .series6: ("#FF2D55", "#FF375F")
+        case .series7: ("#FFCC00", "#FFD60A")
+        case .series8: ("#8E8E93", "#98989D")
+        }
+        return dark ? pair.1 : pair.0
+    }
+
+    /// One palette's declarations, for the dashboard stylesheet.
+    static func defaultDeclarations(dark: Bool) -> String {
+        allCases.map { "\($0.cssProperty): \($0.defaultHex(dark: dark));" }.joined(separator: " ")
     }
 }
 
@@ -66,37 +123,42 @@ nonisolated extension MarkdownHTML {
         }
 
         func assets(mode _: VendorLoading) -> RenderAssets {
+            // The chart library loads first: the widget script's `chart`
+            // builder calls it.
             RenderAssets(
-                css: MarkdownHTML.dashboardStylesheet,
-                bodyJS: MarkdownHTML.dashboardScript,
+                css: MarkdownHTML.dashboardStylesheet + "\n" + MarkdownHTML.dashboardChartStylesheet,
+                bodyJS: MarkdownHTML.dashboardChartScript + "\n" + MarkdownHTML.dashboardScript,
                 scriptAssetIDs: [id]
             )
         }
     }
 
     static let dashboardStylesheet = """
-    /* Dashboard palette. Themes restyle every widget by setting these. */
+    /* Dashboard palette (DashboardColor): semantic colors, one light and one
+       dark palette; a slide theme can override them. The stat tile fill
+       (`--dashboard-card`) is the code block background's value. Text,
+       surface and border follow the page theme. `--dashboard-text-mix` is
+       how much of a palette color text keeps when mixed with black: the
+       bright colors are too light for text on a light page, fine on a dark
+       one. Badges are white text on their status color. */
     :root {
-        --dashboard-accent: #0a84ff;
-        --dashboard-positive: #1a7f37;
-        --dashboard-negative: #cf222e;
-        --dashboard-warning: #9a6700;
-        --dashboard-neutral: var(--secondary, #6e6e73);
+        \(DashboardColor.defaultDeclarations(dark: false))
+        --dashboard-text-mix: 65%;
+        --dashboard-card: #f9f9f9;
         --dashboard-text: var(--secondary, #6e6e73);
         --dashboard-surface: var(--aside-bg, #f5f5f7);
         --dashboard-border: var(--grid, #d2d2d7);
-        --dashboard-card: var(--dashboard-surface);
     }
     :root[data-mdp-color-scheme="dark"] {
-        --dashboard-positive: #3fb950;
-        --dashboard-negative: #ff7b72;
-        --dashboard-warning: #d29922;
+        \(DashboardColor.defaultDeclarations(dark: true))
+        --dashboard-text-mix: 100%;
+        --dashboard-card: #262626;
     }
     @media (prefers-color-scheme: dark) {
         :root:not([data-mdp-color-scheme="light"]) {
-            --dashboard-positive: #3fb950;
-            --dashboard-negative: #ff7b72;
-            --dashboard-warning: #d29922;
+            \(DashboardColor.defaultDeclarations(dark: true))
+            --dashboard-text-mix: 100%;
+            --dashboard-card: #262626;
         }
     }
     .md-dash-stats, .md-dash-progress, .md-dash-badges {
@@ -172,9 +234,9 @@ nonisolated extension MarkdownHTML {
         font-size: 0.8em;
         color: var(--dashboard-text);
     }
-    .md-dash-delta.md-dash-good { color: var(--dashboard-positive); }
-    .md-dash-delta.md-dash-bad { color: var(--dashboard-negative); }
-    .md-dash-delta.md-dash-flat { color: var(--dashboard-neutral); }
+    .md-dash-delta.md-dash-good { color: color-mix(in srgb, var(--dashboard-positive) var(--dashboard-text-mix), black); }
+    .md-dash-delta.md-dash-bad { color: color-mix(in srgb, var(--dashboard-negative) var(--dashboard-text-mix), black); }
+    .md-dash-delta.md-dash-flat { color: color-mix(in srgb, var(--dashboard-neutral) var(--dashboard-text-mix), black); }
 
     /* Progress */
     .md-dash-progress {
@@ -200,7 +262,7 @@ nonisolated extension MarkdownHTML {
     .md-dash-fill {
         height: 100%;
         border-radius: 4px;
-        background: var(--dashboard-accent);
+        background: \(DashboardColor.accent.cssValue);
     }
 
     /* Badges */
@@ -379,7 +441,64 @@ nonisolated extension MarkdownHTML {
         return wrap;
       }
 
-      const BUILDERS = { stat, progress, badge };
+      // A chart: `key: value` options, then a Markdown table whose first
+      // column holds the labels and every other column a series of numbers.
+      // `MdChart` draws it; any type registered there is accepted.
+      const LEGENDS = ['top', 'bottom', 'left', 'right', 'none'];
+      function cells(line) {
+        let row = line.trim();
+        if (row.startsWith('|')) row = row.slice(1);
+        if (row.endsWith('|')) row = row.slice(0, -1);
+        return row.split('|').map(cell => cell.trim());
+      }
+      function table(rows) {
+        if (rows.length < 3) return null;
+        const header = cells(rows[0]);
+        const rule = cells(rows[1]);
+        if (header.length < 2 || rule.length !== header.length) return null;
+        if (!rule.every(cell => /^:?-+:?$/.test(cell))) return null;
+        const labels = [];
+        const series = header.slice(1).map(name => ({ name, values: [] }));
+        for (const row of rows.slice(2)) {
+          const values = cells(row);
+          if (values.length !== header.length) return null;
+          labels.push(values[0]);
+          for (let i = 1; i < values.length; i++) {
+            const value = num(values[i]);
+            if (value == null) return null;
+            series[i - 1].values.push(value);
+          }
+        }
+        return { labels, series };
+      }
+      function chart(source) {
+        if (!window.MdChart) return null;
+        const options = {};
+        const rows = [];
+        for (const raw of source.split('\n')) {
+          const line = raw.trim();
+          if (!line) continue;
+          if (line.startsWith('|')) { rows.push(line); continue; }
+          if (rows.length) return null;
+          const match = KEY.exec(line);
+          if (!match) return null;
+          const key = match[1].toLowerCase();
+          if (key in options) return null;
+          options[key] = match[2].trim();
+        }
+        const type = (options.type || '').toLowerCase();
+        const legend = (options.legend || 'bottom').toLowerCase();
+        const values = (options.values || 'true').toLowerCase();
+        if (!MdChart.has(type) || !LEGENDS.includes(legend) || !['true', 'false'].includes(values)) return null;
+        const data = table(rows);
+        if (!data) return null;
+        return MdChart.render({
+          type, title: options.title || '', legend, values: values === 'true',
+          labels: data.labels, series: data.series
+        });
+      }
+
+      const BUILDERS = { stat, chart, progress, badge };
 
       function upgrade(root) {
         const scope = root && root.querySelectorAll ? root : document;

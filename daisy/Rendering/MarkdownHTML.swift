@@ -108,16 +108,20 @@ nonisolated enum MarkdownHTML {
         /// Look), and the media query (app windows following the system).
         var css: String {
             var rules: [String] = []
-            if let light = Self.sanitizedHexColor(lightCodeBackground) {
-                rules.append(":root { --code-bg: \(light); }")
-            }
-            if let dark = Self.sanitizedHexColor(darkCodeBackground) {
-                rules.append(":root[data-mdp-color-scheme=\"dark\"] { --code-bg: \(dark); }")
-                rules.append("""
-                @media (prefers-color-scheme: dark) {
-                    :root:not([data-mdp-color-scheme="light"]) { --code-bg: \(dark); }
+            // A theme's code background is also its dashboard stat tile fill
+            // (`--dashboard-card`).
+            for property in ["--code-bg", "--dashboard-card"] {
+                if let light = Self.sanitizedHexColor(lightCodeBackground) {
+                    rules.append(":root { \(property): \(light); }")
                 }
-                """)
+                if let dark = Self.sanitizedHexColor(darkCodeBackground) {
+                    rules.append(":root[data-mdp-color-scheme=\"dark\"] { \(property): \(dark); }")
+                    rules.append("""
+                    @media (prefers-color-scheme: dark) {
+                        :root:not([data-mdp-color-scheme="light"]) { \(property): \(dark); }
+                    }
+                    """)
+                }
             }
             if let light = Self.sanitizedHexColor(lightText) {
                 rules.append(":root { --text: \(light); }")

@@ -123,6 +123,7 @@
 				Rendering/MarkdownHTML.swift,
 				"Rendering/MarkdownHTML+Comments.swift",
 				"Rendering/MarkdownHTML+Dashboard.swift",
+				"Rendering/MarkdownHTML+DashboardChart.swift",
 				"Rendering/MarkdownHTML+Footnotes.swift",
 				"Rendering/MarkdownHTML+Highlight.swift",
 				"Rendering/MarkdownHTML+HostBridge.swift",

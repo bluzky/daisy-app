@@ -1,6 +1,6 @@
 ---
 name: daisy-slides
-description: Write, convert and fix slide decks in Daisy's Markdown slide format — `slides: true` frontmatter, `---` slide breaks, `???` speaker notes, inferred layouts, `<!-- … -->` directives (layout, _class, color, step, columns, column, end-columns, space, _paginate/_header/_footer), `![bg …]` backgrounds with left/right/fit/dim/blur, `!caption[…]`, themes and theme files, and dashboard widgets on slides (`dashboard: true`; `stat` tiles, `progress` bars, `badge` labels; charts via Mermaid `xychart-beta`/`pie`). Use this whenever the user wants a presentation, deck, talk, pitch or slides written in Markdown — including a metrics review, KPI or status deck — wants notes or a document turned into slides, mentions Daisy, Daisy slides or presenting a .md file, asks for a Marp/Kova-style deck to open in Daisy, or wants a Daisy slide theme (`~/.config/daisy/slide-themes/*.yaml`) — even if they only say "make slides from this".
+description: Write, convert and fix slide decks in Daisy's Markdown slide format — `slides: true` frontmatter, `---` slide breaks, `???` speaker notes, inferred layouts, `<!-- … -->` directives (layout, _class, color, step, columns, column, end-columns, space, _paginate/_header/_footer), `![bg …]` backgrounds with left/right/fit/dim/blur, `!caption[…]`, themes and theme files, and dashboard widgets on slides (`dashboard: true`; `stat` tiles, `chart` bar/line/pie charts, `progress` bars, `badge` labels). Use this whenever the user wants a presentation, deck, talk, pitch or slides written in Markdown — including a metrics review, KPI or status deck — wants notes or a document turned into slides, mentions Daisy, Daisy slides or presenting a .md file, asks for a Marp/Kova-style deck to open in Daisy, or wants a Daisy slide theme (`~/.config/daisy/slide-themes/*.yaml`) — even if they only say "make slides from this".
 ---
 
 # Daisy slides
@@ -66,7 +66,7 @@ Speaker notes: everything after ??? on this slide.
 | Per-slide chrome | `<!-- _paginate: false -->`, `<!-- _header: "" -->` (empty hides), `<!-- _footer: text -->` |
 | Rule inside a slide | `<hr>` (never `---`) |
 | Metrics, progress, status | `dashboard: true` in the frontmatter, then `stat`, `progress` or `badge` blocks — see [Dashboard widgets](#dashboard-widgets) |
-| Bar, line or pie chart | Mermaid: `xychart-beta` or `pie` in a ```` ```mermaid ```` block |
+| Bar, line or pie chart | A ```` ```chart ```` block (needs `dashboard: true`); see Dashboard widgets |
 
 Several directives can share one comment, one per line: `<!--⏎layout: title⏎_class: invert⏎-->`.
 
@@ -108,7 +108,7 @@ These don't produce errors in Daisy — the slide just looks wrong — so check 
 
 ## Dashboard widgets
 
-Add `dashboard: true` next to `slides: true` and three fenced blocks become widgets on the slide. Without the flag they show as code. The full rules are in `references/dashboard-guide.md`.
+Add `dashboard: true` next to `slides: true` and four fenced blocks become widgets on the slide. Without the flag they show as code. The full rules are in `references/dashboard-guide.md`.
 
 ````markdown
 ---
@@ -158,8 +158,19 @@ status: warn
 - **`stat`** — `label` and `value` required; `delta`, `trend` (`up`/`down`/`flat`; ignored without a `delta`), `good: down` (for metrics where down is good), `note`, `link`. Tiles in one block share a row: 2–5 per slide reads best.
 - **`progress`** — `label`, `value` (≥ 0) and `max` (> 0) per bar; bars stack.
 - **`badge`** — `text` and `status: ok | warn | fail`; badges sit side by side.
-- **`---` inside any of these blocks separates items; it does not start a slide.**
-- **Charts are Mermaid**, not a widget: `xychart-beta` (bars and lines: `x-axis [Jan, Feb]`, `bar [12, 18]`, `line [7, 9]`) or `pie` (`"Pro" : 45` lines). They need no `dashboard: true` and shrink to fit the slide like any diagram. One chart per slide, with a headline that states the finding ("Sales doubled since January") and the story in `???` notes.
+- **`---` inside a `stat`, `progress` or `badge` block separates items; it does not start a slide.**
+- **`chart`** — `type: bar | line | pie` (required), optional `title`, `legend: top | bottom | left | right | none` (default `bottom`) and `values: false` (values are drawn on the chart by default), then a Markdown table: first column the labels, every other column a series of plain numbers (no `$` or `%` in cells; put units in the title or header). A `pie` takes exactly one number column, all zero or more. A bar or line chart is as wide as its column and half as tall and doesn't shrink, so give it a slide with just a headline that states the finding ("Sales doubled since January") and the story in `???` notes.
+
+  ````markdown
+  ```chart
+  type: bar
+  legend: right
+  | Month | 2025 | 2026 |
+  | ----- | ---- | ---- |
+  | Jan   | 12   | 15   |
+  | Feb   | 18   | 21   |
+  ```
+  ````
 - A stat row plus a short list, or progress bars plus a badge row, fits one slide.
 - Values are written already computed (`$48.2k`, `2.1%`); there are no formulas, and a block can't set colors.
 - A widget with a missing or unknown key stays plain code. The linter reports these.

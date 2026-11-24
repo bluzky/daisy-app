@@ -30,6 +30,14 @@ final class DashboardTests: XCTestCase {
     text: Passing
     status: ok
     ```
+
+    ```chart
+    type: bar
+    | Month | Sales |
+    | ----- | ----- |
+    | Jan   | 12    |
+    | Feb   | 18    |
+    ```
     """
 
     private func dashboard(_ body: String) -> String {
@@ -48,8 +56,8 @@ final class DashboardTests: XCTestCase {
 
     func testAC_1_2_WithTheFlagEveryWidgetFenceIsStamped() {
         let rendered = MarkdownHTML.render(markdown: dashboard(widgets))
-        XCTAssertEqual(rendered.articleHTML.components(separatedBy: "data-md-dashboard").count - 1, 3,
-                       "stat, progress, badge")
+        XCTAssertEqual(rendered.articleHTML.components(separatedBy: "data-md-dashboard").count - 1, 4,
+                       "stat, progress, badge, chart")
         XCTAssertTrue(rendered.scriptAssetIDs.contains("dashboard"))
     }
 
@@ -58,11 +66,6 @@ final class DashboardTests: XCTestCase {
         XCTAssertFalse(off.articleHTML.contains("data-md-dashboard"))
         let other = MarkdownHTML.render(markdown: dashboard("```swift\nlet x = 1\n```"))
         XCTAssertFalse(other.articleHTML.contains("data-md-dashboard"))
-    }
-
-    func testAChartFenceIsNotAWidget() {
-        let html = MarkdownHTML.render(markdown: dashboard("```chart\ntype: bar\n| A | N |\n| - | - |\n| x | 3 |\n```")).articleHTML
-        XCTAssertFalse(html.contains("data-md-dashboard"), "charts are Mermaid's job")
     }
 
     func testAC_1_2_DashboardFlagWorksInTomlFrontmatter() {
@@ -89,8 +92,10 @@ final class DashboardTests: XCTestCase {
     // MARK: The page script
 
     @MainActor
-    private func load(_ markdown: String, mode: MarkdownHTML.VendorLoading = .inline) async throws -> WKWebView {
-        let rendered = MarkdownHTML.render(markdown: markdown, vendorLoading: mode)
+    private func load(_ markdown: String, mode: MarkdownHTML.VendorLoading = .inline,
+                      colorScheme: MarkdownHTML.ColorScheme? = nil) async throws -> WKWebView {
+        let rendered = MarkdownHTML.render(markdown: markdown, vendorLoading: mode,
+                                           colorScheme: colorScheme)
         let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 900, height: 700))
         webView.loadHTMLString(rendered.html, baseURL: nil)
         let deadline = Date().addingTimeInterval(20)
@@ -288,7 +293,9 @@ final class DashboardTests: XCTestCase {
                   getComputedStyle(document.querySelector('.md-dash-delta')).color];
         })()
         """) as? [String]
-        XCTAssertEqual(colors, ["rgb(1, 2, 3)", "rgb(4, 5, 6)", "rgb(4, 5, 6)"])
+        // The badge fill is the positive color; the delta, drawn as text, is
+        // that color mixed 65% with black in the light palette.
+        XCTAssertEqual(colors, ["rgb(1, 2, 3)", "rgb(4, 5, 6)", "color(srgb 0.010196 0.012745 0.015294)"])
     }
 
     @MainActor
@@ -298,7 +305,265 @@ final class DashboardTests: XCTestCase {
         XCTAssertEqual(tiles, 2)
     }
 
-    // MARK: Charts are Mermaid's (docs/dashboard.md recommends these)
+    // MARK: Chart (BR-3, BR-10, BR-13)
+
+    private func chart(_ type: String, _ options: String, _ table: String) -> String {
+        dashboard("```chart\ntype: \(type)\n\(options)\(table)\n```")
+    }
+
+    private func chart(_ type: String, _ table: String) -> String {
+        chart(type, "", table)
+    }
+
+    private let twoSeries = """
+    | Month | 2025 | 2026 |
+    | ----- | ---- | ---- |
+    | Jan   | 12   | 15   |
+    | Feb   | 18   | -4   |
+    | Mar   | 1,200 | 24  |
+    """
+
+    private let shares = """
+    | Plan | Users |
+    | :--- | ----: |
+    | Free | 40 |
+    | Pro  | 57 |
+    | Team | 3  |
+    """
+
+    @MainActor
+    func testAC_3_1_BarChartDrawsOneBarPerSeriesForEachRow() async throws {
+        let webView = try await load(chart("bar", twoSeries))
+        let result = try await eval(webView, """
+        [document.querySelectorAll('.md-chart-type-bar .md-chart-bar').length,
+         document.querySelectorAll('.md-chart-bar.md-chart-s1').length,
+         document.querySelectorAll('.md-chart-bar.md-chart-s2').length,
+         getComputedStyle(document.querySelector('.md-chart-bar.md-chart-s1')).fill !==
+           getComputedStyle(document.querySelector('.md-chart-bar.md-chart-s2')).fill,
+         Array.from(document.querySelectorAll('.md-chart-axes text')).some(t => t.textContent === 'Mar')]
+        """) as? [Any]
+        XCTAssertEqual(result?[0] as? Int, 6)
+        XCTAssertEqual(result?[1] as? Int, 3)
+        XCTAssertEqual(result?[2] as? Int, 3)
+        XCTAssertEqual(result?[3] as? Bool, true, "each series has its own color")
+        XCTAssertEqual(result?[4] as? Bool, true, "row labels under the groups")
+    }
+
+    @MainActor
+    func testAC_3_1_LineChartDrawsOneLinePerSeries() async throws {
+        let webView = try await load(chart("line", twoSeries))
+        let result = try await eval(webView, """
+        [document.querySelectorAll('.md-chart-line').length,
+         document.querySelectorAll('.md-chart-dot').length,
+         document.querySelector('.md-chart-line.md-chart-s1').getAttribute('points').split(' ').length]
+        """) as? [Int]
+        XCTAssertEqual(result, [2, 6, 3])
+    }
+
+    @MainActor
+    func testAC_3_2_PieChartDrawsOneSlicePerRowSizedByShare() async throws {
+        let webView = try await load(chart("pie", shares))
+        let result = try await eval(webView, """
+        [document.querySelectorAll('.md-chart-slice').length,
+         Array.from(document.querySelectorAll('.md-chart-legend li')).map(li => li.textContent).join(','),
+         Array.from(document.querySelectorAll('.md-chart-pie-value')).map(t => t.textContent).join(',')]
+        """) as? [Any]
+        XCTAssertEqual(result?[0] as? Int, 3)
+        XCTAssertEqual(result?[1] as? String, "Free,Pro,Team", "a pie's legend names its rows")
+        XCTAssertEqual(result?[2] as? String, "40,57", "a slice under 5% has no label")
+        // The largest slice (57%) is the only arc drawn the long way round.
+        let arcs = try await eval(webView, """
+        Array.from(document.querySelectorAll('path.md-chart-slice')).map(p => / 0 1 1 /.test(p.getAttribute('d')))
+        """) as? [Bool]
+        XCTAssertEqual(arcs, [false, true, false])
+    }
+
+    @MainActor
+    func testAC_3_3_InvalidChartsStayPlain() async throws {
+        let blocks = [
+            dashboard("```chart\n| A | N |\n| - | - |\n| x | 3 |\n```"),
+            chart("radar", "| A | N |\n| - | - |\n| x | 3 |"),
+            chart("bar", "| A | N |\n| - | - |\n| x | lots |"),
+            chart("bar", "| A | N |\n| - | - |\n| x | 3 | 4 |"),
+            chart("bar", "| A | N |\n| - | - |"),
+            chart("bar", "legend: middle\n", "| A | N |\n| - | - |\n| x | 3 |"),
+            chart("bar", "values: maybe\n", "| A | N |\n| - | - |\n| x | 3 |"),
+            chart("bar", "| A | N |\n| - | - |\n| x | 3 |\ntitle: late"),
+            chart("pie", twoSeries),
+            chart("pie", "| A | N |\n| - | - |\n| x | 3 |\n| y | -1 |"),
+            dashboard("```chart\ntype: bar\n```"),
+        ]
+        for markdown in blocks {
+            let webView = try await load(markdown)
+            let drawn = try await eval(webView, "document.querySelectorAll('.md-chart').length") as? Int
+            let plain = try await eval(webView, "document.querySelectorAll('pre[data-md-dashboard]').length") as? Int
+            XCTAssertEqual(drawn, 0, markdown)
+            XCTAssertEqual(plain, 1, markdown)
+        }
+    }
+
+    @MainActor
+    func testAC_3_4_LegendSitsOnTheChosenSide() async throws {
+        let positions = ["top": "above", "bottom": "below", "left": "beside-left", "right": "beside-right", "": "below"]
+        for (position, expected) in positions {
+            let options = position.isEmpty ? "" : "legend: \(position)\n"
+            let webView = try await load(chart("bar", options, twoSeries))
+            let side = try await eval(webView, """
+            (() => {
+              const legend = document.querySelector('.md-chart-legend').getBoundingClientRect();
+              const plot = document.querySelector('.md-chart-plot').getBoundingClientRect();
+              if (legend.bottom <= plot.top) return 'above';
+              if (legend.top >= plot.bottom) return 'below';
+              if (legend.right <= plot.left) return 'beside-left';
+              if (legend.left >= plot.right) return 'beside-right';
+              return 'overlap';
+            })()
+            """) as? String
+            XCTAssertEqual(side, expected, "legend: \(position)")
+            // Top and bottom legends are one row; side legends a column.
+            // No list bullet from the page's `ul` styles.
+            let layout = try await eval(webView, """
+            (() => {
+              const items = Array.from(document.querySelectorAll('.md-chart-legend li'));
+              const [a, b] = items.map(li => li.getBoundingClientRect());
+              const sameRow = Math.abs(a.top - b.top) < 1 && b.left > a.right;
+              const bullet = getComputedStyle(items[0], '::before').content;
+              return [sameRow, bullet];
+            })()
+            """) as? [Any]
+            let inRow = position == "left" || position == "right" ? false : true
+            XCTAssertEqual(layout?[0] as? Bool, inRow, "legend: \(position) entries in a row")
+            XCTAssertEqual(layout?[1] as? String, "none", "legend: \(position) has no bullets")
+        }
+        let hidden = try await load(chart("bar", "legend: none\n", twoSeries))
+        let legends = try await eval(hidden, "document.querySelectorAll('.md-chart-legend').length") as? Int
+        XCTAssertEqual(legends, 0)
+    }
+
+    @MainActor
+    func testAC_3_5_ValuesAreDrawnUnlessTurnedOff() async throws {
+        let shown = try await load(chart("bar", twoSeries))
+        let labels = try await eval(shown, "Array.from(document.querySelectorAll('.md-chart-value')).map(t => t.textContent)") as? [String]
+        XCTAssertEqual(labels?.count, 6)
+        XCTAssertTrue(labels?.contains("-4") ?? false)
+        let size = try await eval(shown, "getComputedStyle(document.querySelector('.md-chart-value')).fontSize") as? String
+        XCTAssertEqual(size, "12px", "value labels keep a fixed size")
+
+        let hidden = try await load(chart("line", "values: false\n", twoSeries))
+        let none = try await eval(hidden, "document.querySelectorAll('.md-chart-value').length") as? Int
+        XCTAssertEqual(none, 0)
+    }
+
+    @MainActor
+    func testANewChartTypeRegisteredWithMdChartIsAccepted() async throws {
+        let webView = try await load(dashboard(widgets))
+        let drawn = try await eval(webView, """
+        (() => {
+          MdChart.register('dots', {
+            draw(svg, spec, kit) {
+              spec.series[0].values.forEach((v, i) => kit.svg('circle', { cx: 20 * i + 10, cy: 10, r: 4, class: 'probe' }, svg));
+            }
+          });
+          const figure = MdChart.render({ type: 'dots', title: 'T', legend: 'none', values: true,
+                                          labels: ['a', 'b'], series: [{ name: 'n', values: [1, 2] }] });
+          return [MdChart.has('dots'), figure.querySelectorAll('.probe').length, MdChart.has('radar')];
+        })()
+        """) as? [Any]
+        XCTAssertEqual(drawn?[0] as? Bool, true)
+        XCTAssertEqual(drawn?[1] as? Int, 2)
+        XCTAssertEqual(drawn?[2] as? Bool, false)
+    }
+
+    @MainActor
+    func testAuthorTextInAChartNeverBecomesMarkup() async throws {
+        let webView = try await load(chart("bar", "title: <b>T</b>\n", "| A | <i>N</i> |\n| - | - |\n| <img src=x> | 3 |"))
+        let injected = try await eval(webView, "document.querySelectorAll('.md-chart b, .md-chart i, .md-chart img').length") as? Int
+        XCTAssertEqual(injected, 0)
+        let title = try await eval(webView, "document.querySelector('.md-chart-title').textContent") as? String
+        XCTAssertEqual(title, "<b>T</b>")
+    }
+
+    // MARK: Palette and theming (BR-11, BR-15)
+
+    /// Computed colors of: a progress fill, a good delta, an `ok` badge, a
+    /// `warn` badge, chart series 1 and chart series 2.
+    private let paletteProbe = """
+    [getComputedStyle(document.querySelector('.md-dash-fill')).backgroundColor,
+     getComputedStyle(document.querySelector('.md-dash-delta.md-dash-good')).color,
+     getComputedStyle(document.querySelector('.md-dash-badge.md-dash-ok')).backgroundColor,
+     getComputedStyle(document.querySelector('.md-dash-badge.md-dash-warn')).backgroundColor,
+     getComputedStyle(document.querySelector('.md-chart-bar.md-chart-s1')).fill,
+     getComputedStyle(document.querySelector('.md-chart-bar.md-chart-s2')).fill]
+    """
+
+    private var paletteDocument: String {
+        dashboard(widgets + "\n\n```badge\ntext: Hm\nstatus: warn\n```\n\n```chart\ntype: bar\n| A | X | Y |\n| - | - | - |\n| a | 1 | 2 |\n```")
+    }
+
+    @MainActor
+    func testAC_6_1_WidgetsUseTheLightOrDarkPalette() async throws {
+        let light = try await load(paletteDocument, colorScheme: .light)
+        let colors = try await eval(light, paletteProbe) as? [String]
+        // One set of Apple colors: the warning badge is series 2's orange and
+        // the ok badge series 5's green; the good delta is that green
+        // darkened for text.
+        XCTAssertEqual(colors, ["rgb(0, 122, 255)", "color(srgb 0.132549 0.507255 0.226863)",
+                                "rgb(52, 199, 89)", "rgb(255, 149, 0)",
+                                "rgb(0, 122, 255)", "rgb(255, 149, 0)"])
+        let badgeText = try await eval(light, "getComputedStyle(document.querySelector('.md-dash-badge')).color") as? String
+        XCTAssertEqual(badgeText, "rgb(255, 255, 255)")
+        let dark = try await load(paletteDocument, colorScheme: .dark)
+        let darkColors = try await eval(dark, paletteProbe) as? [String]
+        // Dark: delta text keeps the full color.
+        XCTAssertEqual(darkColors, ["rgb(10, 132, 255)", "color(srgb 0.188235 0.819608 0.345098)",
+                                    "rgb(48, 209, 88)", "rgb(255, 159, 10)",
+                                    "rgb(10, 132, 255)", "rgb(255, 159, 10)"])
+    }
+
+    @MainActor
+    func testEveryThemeFillsStatTilesWithItsCodeBackground() async throws {
+        // App theme: a theme's code background (a preset or Customize Theme).
+        var overrides = MarkdownHTML.ThemeOverrides()
+        overrides.lightCodeBackground = "#E3E1E1"
+        overrides.darkCodeBackground = "#37312A"
+        for (scheme, expected) in [(MarkdownHTML.ColorScheme.light, "rgb(227, 225, 225)"),
+                                   (.dark, "rgb(55, 49, 42)")] {
+            let rendered = MarkdownHTML.render(markdown: dashboard("```stat\nlabel: A\nvalue: 1\n```"),
+                                               vendorLoading: .inline, colorScheme: scheme,
+                                               themeOverrides: overrides)
+            let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 900, height: 700))
+            webView.loadHTMLString(rendered.html, baseURL: nil)
+            while webView.isLoading { try await Task.sleep(for: .milliseconds(50)) }
+            try await Task.sleep(for: .milliseconds(200))
+            let fill = try await eval(webView, "getComputedStyle(document.querySelector('.md-dash-stat')).backgroundColor") as? String
+            XCTAssertEqual(fill, expected, "\(scheme)")
+        }
+        // Built-in presets: every preset's code background reaches the tiles.
+        for preset in ThemePreset.builtIn {
+            guard let css = preset.setting.markdownThemeOverrides?.css,
+                  let code = preset.setting.hexValue(.codeBlockBackground, .light) else { continue }
+            XCTAssertTrue(css.contains(":root { --dashboard-card: \(code); }"), preset.name)
+        }
+        // Slide theme: its code background, or the deck's light/dark default.
+        let deck = SlideTheme(id: "t", values: SlideYAML.parse("colors:\n  code_background: \"#102030\""))
+        XCTAssertTrue(deck.css.contains("--code-bg: #102030; --dashboard-card: #102030;"))
+        let dark = SlideTheme(id: "d", values: SlideYAML.parse("appearance: dark"))
+        XCTAssertTrue(dark.css.contains("--dashboard-card: #262626;"))
+    }
+
+    func testAC_6_5_ASlideThemeSetsTheDashboardPalette() {
+        let theme = SlideTheme(id: "t", values: SlideYAML.parse("""
+        colors:
+          dashboard_accent: "#123456"
+          dashboard_series_4: "#abcdef"
+          dashboard_bogus: "#000000"
+        """))
+        XCTAssertTrue(theme.css.contains("--dashboard-accent: #123456;"))
+        XCTAssertTrue(theme.css.contains("--dashboard-series-4: #abcdef;"))
+        XCTAssertFalse(theme.css.contains("bogus"))
+    }
+
+    // MARK: Mermaid still renders in a dashboard
 
     @MainActor
     func testTheMermaidChartsTheDocsRecommendRender() async throws {

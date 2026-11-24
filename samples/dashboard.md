@@ -32,21 +32,39 @@ good: down
 
 ## Sales by month
 
-```mermaid
-xychart-beta
-    x-axis [Jan, Feb, Mar, Apr]
-    y-axis "Sales" 0 --> 30
-    bar [12, 18, 15, 24]
-    line [7, 9, 8, 11]
+```chart
+type: bar
+title: Sales (k$)
+| Month | 2025 | 2026 |
+| ----- | ---- | ---- |
+| Jan   | 12   | 15   |
+| Feb   | 18   | 21   |
+| Mar   | 15   | 19   |
+| Apr   | 24   | 28   |
+```
+
+```chart
+type: line
+title: Signups per week
+legend: top
+| Week | Organic | Paid |
+| ---- | ------- | ---- |
+| W1   | 120     | 40   |
+| W2   | 135     | 52   |
+| W3   | 128     | 61   |
+| W4   | 160     | 58   |
 ```
 
 ## Revenue mix
 
-```mermaid
-pie showData title Revenue mix
-    "Free" : 40
-    "Pro" : 45
-    "Enterprise" : 15
+```chart
+type: pie
+legend: left
+| Plan       | Share |
+| ---------- | ----- |
+| Free       | 40    |
+| Pro        | 45    |
+| Enterprise | 15    |
 ```
 
 ## Release 4.2

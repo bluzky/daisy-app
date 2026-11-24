@@ -751,7 +751,7 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
     let rendersHighlights: Bool
     /// Upgrade GitHub-style alert blockquotes.
     let rendersCallouts: Bool
-    /// Stamp dashboard widget fences (`stat`, `progress`, `badge`)
+    /// Stamp dashboard widget fences (`stat`, `chart`, `progress`, `badge`)
     /// so the page script can draw them (`DashboardDocument`).
     let rendersDashboard: Bool
     /// Render the document as presentation slides (`SlideDeck`).

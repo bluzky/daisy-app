@@ -39,9 +39,11 @@ CODE_SPAN = re.compile(r"(`+)(?:(?!\1).)+\1")
 SCALING_FENCES = ("mermaid",)
 
 # Dashboard widgets (`dashboard: true`): fenced blocks the page draws as tiles,
-# progress bars and badges. A block Daisy can't read stays plain code,
+# charts, progress bars and badges. A block Daisy can't read stays plain code,
 # silently, so the rules below mirror the page script's.
-WIDGETS = {"stat", "progress", "badge"}
+WIDGETS = {"stat", "chart", "progress", "badge"}
+CHART_TYPES = {"bar", "line", "pie"}
+CHART_LEGENDS = {"top", "bottom", "left", "right", "none"}
 TRENDS = {"up", "down", "flat"}
 STATUSES = {"ok", "warn", "fail"}
 # ExternalLinkPolicy.blockedSchemes: a stat link with one of these is refused.
@@ -49,8 +51,10 @@ BLOCKED_SCHEMES = {"javascript", "vbscript", "data", "file", "about", "blob", "f
 WIDGET_KEY = re.compile(r"^([A-Za-z][A-Za-z0-9_-]*)\s*:\s*(.*)$")
 NUMBER = re.compile(r"^[-+]?(\d+\.?\d*|\.\d+)$")
 # Slide lines a widget takes, roughly: a stat row is a short tile, a progress
-# item a label over a thin bar, a badge row one line.
+# item a label over a thin bar, a badge row one line. A bar or line chart is
+# half as tall as the slide is wide, nearly the whole slide; a pie is smaller.
 STAT_LINES, BADGE_LINES, PROGRESS_ROW_LINES = 3, 1, 1.5
+CHART_LINES, PIE_LINES = 10, 7
 
 # Rough capacity of a 16:9 slide at Daisy's slide text size.
 MAX_LINES = 12
@@ -182,12 +186,78 @@ def parse_widget(kind, body, line, report):
     return items
 
 
+def table_cells(row):
+    row = row.strip()
+    if row.startswith("|"):
+        row = row[1:]
+    if row.endswith("|"):
+        row = row[:-1]
+    return [cell.strip() for cell in row.split("|")]
+
+
+def check_chart(body, line, report):
+    """Reports what would leave a chart as plain code; returns its slide lines."""
+    def plain(text):
+        report.error(line, f"`chart` block: {text}; the block stays plain code")
+        return len(body) + 2
+
+    options, rows = {}, []
+    for raw in body:
+        text = raw.strip()
+        if not text:
+            continue
+        if text.startswith("|"):
+            rows.append(text)
+            continue
+        if rows:
+            return plain(f"`{text}` comes after the table; put every `key: value` line before it")
+        match = WIDGET_KEY.match(text)
+        if not match:
+            return plain(f"`{text}` isn't a `key: value` line or a table row")
+        key = match.group(1).lower()
+        if key in options:
+            return plain(f"`{key}` appears twice")
+        options[key] = match.group(2).strip()
+
+    kind = options.get("type", "").lower()
+    if kind not in CHART_TYPES:
+        return plain("`type` must be bar, line or pie")
+    if options.get("legend", "bottom").lower() not in CHART_LEGENDS:
+        return plain(f"`legend: {options['legend']}` isn't top, bottom, left, right or none")
+    if options.get("values", "true").lower() not in ("true", "false"):
+        return plain(f"`values: {options['values']}` isn't true or false")
+    if len(rows) < 3:
+        return plain("it needs a table: a header row, a `| --- |` row and at least one data row")
+    header = table_cells(rows[0])
+    rule = table_cells(rows[1])
+    if len(header) < 2 or len(rule) != len(header) or not all(re.fullmatch(r":?-+:?", cell) for cell in rule):
+        return plain("the table needs a label column, at least one number column and a `| --- |` row under the header")
+    values = []
+    for row in rows[2:]:
+        cells = table_cells(row)
+        if len(cells) != len(header):
+            return plain(f"the row `{row}` has {len(cells)} cells, the header {len(header)}")
+        for cell in cells[1:]:
+            if not NUMBER.match(cell.replace(",", "")):
+                return plain(f"`{cell}` isn't a plain number (put units in the title or header)")
+            values.append(float(cell.replace(",", "")))
+    if kind == "pie":
+        if len(header) != 2:
+            return plain("a pie takes exactly one number column")
+        if any(value < 0 for value in values) or sum(values) <= 0:
+            return plain("a pie's values must be zero or more, with a total above zero")
+        return PIE_LINES
+    return CHART_LINES
+
+
 def check_widget(kind, body, line, report, dashboard):
     """Reports what would leave a widget as plain code; returns its slide lines."""
     if not dashboard:
         report.error(line, f"a `{kind}` block is a dashboard widget only with `dashboard: true` in the "
                            "frontmatter; without it the slide shows the block as code")
         return len(body) + 2
+    if kind == "chart":
+        return check_chart(body, line, report)
     items = parse_widget(kind, body, line, report)
     if items is None:
         return len(body) + 2

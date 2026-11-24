@@ -145,6 +145,7 @@ footer:
 | `colors.code_background` | Code block background. |
 | `colors.table_header`, `table_header_text` | Background and text of a table's header row. |
 | `colors.table_border`, `table_stripe` | A table's lines, and the shaded rows of a `striped` table. |
+| `colors.dashboard_accent`, `dashboard_positive`, `dashboard_negative`, `dashboard_warning`, `dashboard_neutral`, `dashboard_series_1` … `dashboard_series_8` | The [dashboard palette](dashboard.md#colors) for widgets on the deck's slides. |
 | `table.style` | `lines` (default: a rule above and below each row), `grid` (borders between all cells), `striped` (every other row shaded) or `minimal` (only a rule under the header). |
 | `colors.primary`, `title_text` | Background and text of title and section slides. |
 | `fonts.body`, `title`, `code` | Font lists for body text, headings and code. |
@@ -430,7 +431,7 @@ Revenue grew 12%[^q3].
 
 ## Dashboard widgets
 
-Stat tiles, progress bars and status badges work on slides too. Add `dashboard: true` to the frontmatter beside `slides: true`, then write `stat`, `progress` and `badge` blocks as in an ordinary document; see [Dashboard](dashboard.md) for every key.
+Stat tiles, charts, progress bars and status badges work on slides too. Add `dashboard: true` to the frontmatter beside `slides: true`, then write `stat`, `chart`, `progress` and `badge` blocks as in an ordinary document; see [Dashboard](dashboard.md) for every key.
 
 ````markdown
 ---
@@ -457,7 +458,7 @@ good: down
 - A `---` line inside a `stat`, `progress` or `badge` block separates its items; it does not start a new slide.
 - Widgets size their text from the slide's text, like everything else on it.
 - Without `dashboard: true` the blocks show as code.
-- For charts on a slide, use Mermaid's `xychart-beta` or `pie`; like any Mermaid diagram they shrink to fit the space left.
+- A bar or line chart is drawn at the full width of its column, twice as wide as it is tall, and does not shrink to fit the slide. Give it a slide with only a short heading, or put it in a column; a `pie` is at most 320px wide. Mermaid's `xychart-beta` and `pie` also work and shrink to fit like any Mermaid diagram.
 
 ## Editing a deck
 
