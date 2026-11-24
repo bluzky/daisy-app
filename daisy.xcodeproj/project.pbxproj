@@ -113,6 +113,7 @@
 				Rendering/CodeHighlighter.swift,
 				Rendering/CommentSelectionScript.swift,
 				Rendering/DocumentFontSetting.swift,
+				"Rendering/EscapingHTMLFormatter+Cards.swift",
 				"Rendering/EscapingHTMLFormatter+Columns.swift",
 				Rendering/EscapingHTMLFormatter.swift,
 				Rendering/ExternalLinkPolicy.swift,
@@ -277,7 +278,7 @@
 				9A0207BD2FA0ED7C00092060 /* Sources */,
 				9A0207BE2FA0ED7C00092060 /* Frameworks */,
 				9A0207BF2FA0ED7C00092060 /* Resources */,
-				9AF0000000000000000001B0 /* Bundle Slides Skill */,
+				9AF0000000000000000001B0 /* Bundle AI Skills */,
 				9AC100010000000000000003 /* Copy CLI Tool */,
 				9A02093D2FA10D4C00092060 /* Embed Foundation Extensions */,
 			);
@@ -443,7 +444,7 @@
 			shellScript = "set -e\n# Builds the CodeMirror editor and workspace metadata bundles (not checked in)\n# when either is missing or older than its sources. See\n# scripts/editor-bundle/package.json.\ncd \"$SRCROOT/scripts/editor-bundle\"\nOUT=\"$SRCROOT/daisy/Vendor/CodeMirror/mdedit.min.js\"\nMETADATA_OUT=\"$SRCROOT/daisy/Vendor/WorkspaceMetadata/workspace-metadata.min.js\"\nfresh() {\n  [ -f \"$1\" ] && [ -z \"$(find src entry-cm.js build.mjs package.json package-lock.json -newer \"$1\" -print -quit 2>/dev/null)\" ]\n}\nif fresh \"$OUT\" && fresh \"$METADATA_OUT\"; then\n  exit 0\nfi\n# Xcode runs scripts without the user's shell profile; find Node the usual ways.\nif ! command -v node >/dev/null 2>&1; then\n  export PATH=\"$(/bin/zsh -lc 'printf %s \"$PATH\"' 2>/dev/null):$HOME/.asdf/shims:$HOME/.local/share/mise/shims:$HOME/.volta/bin:/opt/homebrew/bin:/usr/local/bin:$PATH\"\nfi\nif ! command -v node >/dev/null 2>&1; then\n  echo \"error: Node.js is required to build the editor bundle (scripts/editor-bundle). Install Node, then build again.\" >&2\n  exit 1\nfi\n[ -d node_modules ] || npm ci\nnpm run build\n";
 			showEnvVarsInLog = 0;
 		};
-		9AF0000000000000000001B0 /* Bundle Slides Skill */ = {
+		9AF0000000000000000001B0 /* Bundle AI Skills */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
@@ -453,15 +454,16 @@
 			);
 			inputPaths = (
 			);
-			name = "Bundle Slides Skill";
+			name = "Bundle AI Skills";
 			outputFileListPaths = (
 			);
 			outputPaths = (
 				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/daisy-slides-skill",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/daisy-dashboard-skill",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -e\n# Ships the daisy-slides agent skill inside the app so Install Slides Skill...\n# can copy it. -L turns the guide symlink into a real file.\nDEST=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/daisy-slides-skill\"\nmkdir -p \"$DEST\"\nrsync -aL --delete --exclude '__pycache__' --exclude '.DS_Store' \"$SRCROOT/.agents/skills/daisy-slides/\" \"$DEST/\"\n";
+			shellScript = "set -e\n# Ships Daisy's agent skills inside the app so Install AI Skills...\n# can copy them (AgentSkillsInstaller.skills). -L turns the guide\n# symlinks into real files.\nfor SKILL in daisy-slides daisy-dashboard; do\n  DEST=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/$SKILL-skill\"\n  mkdir -p \"$DEST\"\n  rsync -aL --delete --exclude '__pycache__' --exclude '.DS_Store' \"$SRCROOT/.agents/skills/$SKILL/\" \"$DEST/\"\ndone\n";
 			showEnvVarsInLog = 0;
 		};
 /* End PBXShellScriptBuildPhase section */

@@ -981,26 +981,42 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
         result += "</div>\n"
     }
 
+    /// Visits a region of a slide's blocks, framing each card that starts in
+    /// it (`SlideDeck` keeps only cards that end in the same region).
     private mutating func visitSlideBlocks(_ slide: SlideDeck.Slide, in range: Range<Int>) {
-        for blockIndex in range {
-            if let paragraph = slide.blocks[blockIndex] as? Paragraph,
-               let caption = SlideDeck.caption(paragraph) {
-                result += "<p class=\"mdp-slide-caption\"\(sourceLineAttribute(paragraph))>"
-                result += MarkdownHTML.htmlEscape(caption) + "</p>\n"
-                continue
-            }
-            if let lines = slide.spaces[blockIndex] {
-                result += "<div class=\"mdp-slide-space mdp-slide-space-\(lines)\" aria-hidden=\"true\"></div>\n"
-                continue
-            }
-            // `display: contents` keeps the block in the slide's layout.
-            if let step = slide.blockSteps[blockIndex] {
-                result += "<div class=\"mdp-step\" data-step=\"\(step)\">"
-                visit(slide.blocks[blockIndex])
+        var blockIndex = range.lowerBound
+        while blockIndex < range.upperBound {
+            if let card = slide.cards.first(where: { $0.blocks.lowerBound == blockIndex }),
+               card.blocks.upperBound <= range.upperBound {
+                result += card.style.openingTag
+                for inner in card.blocks { visitSlideBlock(slide, at: inner) }
                 result += "</div>\n"
-            } else {
-                visit(slide.blocks[blockIndex])
+                blockIndex = card.blocks.upperBound
+                continue
             }
+            visitSlideBlock(slide, at: blockIndex)
+            blockIndex += 1
+        }
+    }
+
+    private mutating func visitSlideBlock(_ slide: SlideDeck.Slide, at blockIndex: Int) {
+        if let paragraph = slide.blocks[blockIndex] as? Paragraph,
+           let caption = SlideDeck.caption(paragraph) {
+            result += "<p class=\"mdp-slide-caption\"\(sourceLineAttribute(paragraph))>"
+            result += MarkdownHTML.htmlEscape(caption) + "</p>\n"
+            return
+        }
+        if let lines = slide.spaces[blockIndex] {
+            result += "<div class=\"mdp-slide-space mdp-slide-space-\(lines)\" aria-hidden=\"true\"></div>\n"
+            return
+        }
+        // `display: contents` keeps the block in the slide's layout.
+        if let step = slide.blockSteps[blockIndex] {
+            result += "<div class=\"mdp-step\" data-step=\"\(step)\">"
+            visit(slide.blocks[blockIndex])
+            result += "</div>\n"
+        } else {
+            visit(slide.blocks[blockIndex])
         }
     }
 

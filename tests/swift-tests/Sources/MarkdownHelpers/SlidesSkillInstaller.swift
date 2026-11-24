@@ -1,1 +1,0 @@
-../../../../daisy/App/SlidesSkillInstaller.swift

@@ -28,7 +28,7 @@ final class DashboardTests: XCTestCase {
 
     ```badge
     text: Passing
-    status: ok
+    color: success
     ```
 
     ```chart
@@ -57,7 +57,7 @@ final class DashboardTests: XCTestCase {
     }
 
     func testFrontmatterNoLongerTurnsWidgetsOff() {
-        let rendered = MarkdownHTML.render(markdown: "---\ndashboard: false\n---\n\n```badge\ntext: A\nstatus: ok\n```")
+        let rendered = MarkdownHTML.render(markdown: "---\ndashboard: false\n---\n\n```badge\ntext: A\ncolor: success\n```")
         XCTAssertTrue(rendered.articleHTML.contains("data-md-dashboard"))
     }
 
@@ -236,15 +236,15 @@ final class DashboardTests: XCTestCase {
         Array.from(document.querySelectorAll('.md-dash-fill')).map(fill => {
           const probe = document.createElement('div');
           probe.style.color = getComputedStyle(document.documentElement)
-            .getPropertyValue(fill.classList.contains('md-dash-fill-warning') ? '--dashboard-warning' : '--dashboard-accent');
+            .getPropertyValue(fill.classList.contains('md-dash-c-warning') ? '--dashboard-warning' : '--dashboard-accent');
           document.body.append(probe);
           const expected = getComputedStyle(probe).color;
           probe.remove();
           return fill.className + '|' + (getComputedStyle(fill).backgroundColor === expected);
         })
         """) as? [String]
-        XCTAssertEqual(result, ["md-dash-fill md-dash-fill-accent|true",
-                                "md-dash-fill md-dash-fill-warning|true"])
+        XCTAssertEqual(result, ["md-dash-fill|true",
+                                "md-dash-fill md-dash-c-warning|true"])
     }
 
     @MainActor
@@ -273,8 +273,9 @@ final class DashboardTests: XCTestCase {
             "```progress\nlabel: A\nvalue: -1\nmax: 4\n```",
             "```progress\nlabel: A\nvalue: many\nmax: 4\n```",
             "```progress\nvalue: 1\nmax: 4\n```",
-            "```progress\nlabel: A\nvalue: 1\nmax: 4\ncolor: #ff0000\n```",
+            "```progress\nlabel: A\nvalue: 1\nmax: 4\ncolor: #ff00\n```",
             "```progress\nlabel: A\nvalue: 1\nmax: 4\ncolor: purple\n```",
+            "```progress\nlabel: A\nvalue: 1\nmax: 4\ncolor: positive\n```",
             "```progress\nlabel: A\nvalue: 1\nmax: 4\nstriped: yes\n```",
         ] {
             let drawn = try await count(block, ".md-dash-progress")
@@ -285,17 +286,75 @@ final class DashboardTests: XCTestCase {
     // MARK: Badge (BR-5)
 
     @MainActor
-    func testAC_4_2_BadgeShowsItsStatusColorClass() async throws {
-        let webView = try await load("```badge\ntext: Down\nstatus: fail\n```")
-        let cls = try await eval(webView, "document.querySelector('.md-dash-badge').className") as? String
-        XCTAssertEqual(cls, "md-dash-badge md-dash-fail")
+    func testAC_4_2_BadgeShowsItsColorClass() async throws {
+        let webView = try await load("```badge\ntext: Down\ncolor: danger\n---\ntext: Plain\n```")
+        let classes = try await eval(webView, "Array.from(document.querySelectorAll('.md-dash-badge')).map(b => b.className)") as? [String]
+        XCTAssertEqual(classes, ["md-dash-badge md-dash-c-danger", "md-dash-badge"], "without a color a badge is grey")
+    }
+
+    @MainActor
+    func testColorIsOneKeyAcrossStatProgressAndBadge() async throws {
+        let webView = try await load("""
+        ```stat
+        label: Churn
+        value: 2.1%
+        color: danger
+        ---
+        label: Custom
+        value: 9
+        color: #FF00FF
+        ---
+        label: Plain
+        value: 1
+        color: default
+        ```
+
+        ```badge
+        text: Light
+        color: #ffee00
+        ---
+        text: Dark
+        color: #112233
+        ```
+        """, colorScheme: .light)
+        let result = try await eval(webView, """
+        (() => {
+          const values = Array.from(document.querySelectorAll('.md-dash-value'));
+          const badges = Array.from(document.querySelectorAll('.md-dash-badge'));
+          const label = getComputedStyle(document.querySelector('.md-dash-label')).color;
+          return [values[0].className,
+                  getComputedStyle(values[1]).color,
+                  getComputedStyle(values[2]).color === getComputedStyle(values[2].closest('.md-dash-stat')).color,
+                  getComputedStyle(badges[0]).backgroundColor, getComputedStyle(badges[0]).color,
+                  getComputedStyle(badges[1]).color];
+        })()
+        """) as? [Any]
+        XCTAssertEqual(result?[0] as? String, "md-dash-value md-dash-c-danger", "a palette name is a class")
+        XCTAssertEqual(result?[1] as? String, "rgb(255, 0, 255)", "a hex colors the value exactly")
+        XCTAssertEqual(result?[2] as? Bool, true, "`default` keeps the tile's text color")
+        XCTAssertEqual(result?[3] as? String, "rgb(255, 238, 0)")
+        XCTAssertEqual(result?[4] as? String, "rgb(29, 29, 31)", "a light hex badge takes dark text")
+        XCTAssertEqual(result?[5] as? String, "rgb(255, 255, 255)")
+    }
+
+    @MainActor
+    func testInvalidColorsLeaveTheBlockPlain() async throws {
+        for block in [
+            "```stat\nlabel: A\nvalue: 1\ncolor: red\n```",
+            "```badge\ntext: A\ncolor: ok\n```",
+            "```badge\ntext: A\ncolor: #12345\n```",
+        ] {
+            let webView = try await load(block)
+            let plain = try await eval(webView, "document.querySelectorAll('pre[data-md-dashboard]').length") as? Int
+            XCTAssertEqual(plain, 1, block)
+        }
     }
 
     // MARK: Robustness
 
     @MainActor
     func testAC_5_3_OnlyTheInvalidBlockStaysPlain() async throws {
-        let webView = try await load("```badge\ntext: Fine\nstatus: ok\n```\n\n```badge\ntext: Broken\nstatus: purple\n```")
+        let webView = try await load("```badge\ntext: Fine\ncolor: success\n```\n\n```badge\ntext: Broken\ncolor: purple\n```")
         let drawn = try await eval(webView, "document.querySelectorAll('.md-dash-badge').length") as? Int
         let plain = try await eval(webView, "document.querySelectorAll('pre[data-md-dashboard]').length") as? Int
         XCTAssertEqual(drawn, 1)
@@ -324,18 +383,18 @@ final class DashboardTests: XCTestCase {
 
     @MainActor
     func testAC_5_4_WidgetColorsComeFromTheDashboardPalette() async throws {
-        let webView = try await load(widgets)
+        let webView = try await load(widgets, colorScheme: .light)
         let colors = try await eval(webView, """
         (() => {
           const root = document.documentElement.style;
           root.setProperty('--dashboard-accent', 'rgb(1, 2, 3)');
-          root.setProperty('--dashboard-positive', 'rgb(4, 5, 6)');
+          root.setProperty('--dashboard-success', 'rgb(4, 5, 6)');
           return [getComputedStyle(document.querySelector('.md-dash-fill')).backgroundColor,
                   getComputedStyle(document.querySelector('.md-dash-badge')).backgroundColor,
                   getComputedStyle(document.querySelector('.md-dash-delta')).color];
         })()
         """) as? [String]
-        // The badge fill is the positive color; the delta, drawn as text, is
+        // The badge fill is the success color; the delta, drawn as text, is
         // that color mixed 65% with black in the light palette.
         XCTAssertEqual(colors, ["rgb(1, 2, 3)", "rgb(4, 5, 6)", "color(srgb 0.010196 0.012745 0.015294)"])
     }
@@ -736,19 +795,19 @@ final class DashboardTests: XCTestCase {
 
     // MARK: Palette and theming (BR-11, BR-15)
 
-    /// Computed colors of: a progress fill, a good delta, an `ok` badge, a
-    /// `warn` badge, chart series 1 and chart series 2.
+    /// Computed colors of: a progress fill, a good delta, a `success` badge,
+    /// a `warning` badge, chart series 1 and chart series 2.
     private let paletteProbe = """
     [getComputedStyle(document.querySelector('.md-dash-fill')).backgroundColor,
      getComputedStyle(document.querySelector('.md-dash-delta.md-dash-good')).color,
-     getComputedStyle(document.querySelector('.md-dash-badge.md-dash-ok')).backgroundColor,
-     getComputedStyle(document.querySelector('.md-dash-badge.md-dash-warn')).backgroundColor,
+     getComputedStyle(document.querySelector('.md-dash-badge.md-dash-c-success')).backgroundColor,
+     getComputedStyle(document.querySelector('.md-dash-badge.md-dash-c-warning')).backgroundColor,
      getComputedStyle(document.querySelector('.md-chart-bar.md-chart-s1')).fill,
      getComputedStyle(document.querySelector('.md-chart-bar.md-chart-s2')).fill]
     """
 
     private var paletteDocument: String {
-        widgets + "\n\n```badge\ntext: Hm\nstatus: warn\n```\n\n```chart\ntype: bar\n| A | X | Y |\n| - | - | - |\n| a | 1 | 2 |\n```"
+        widgets + "\n\n```badge\ntext: Hm\ncolor: warning\n```\n\n```chart\ntype: bar\n| A | X | Y |\n| - | - | - |\n| a | 1 | 2 |\n```"
     }
 
     @MainActor

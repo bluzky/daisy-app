@@ -416,6 +416,11 @@ nonisolated extension MarkdownHTML {
     /* With blocks after `<!-- end-columns -->`, the columns take only the
        height they need, so those blocks follow right below them. */
     .mdp-slide-columns:not(:last-child) { flex-grow: 0; margin-bottom: 1em; }
+    /* Cards (`<!-- card … -->`) keep the slide's block spacing; alone in a
+       column, a card fills it, so a row of cards lines up. */
+    .mdp-slide .md-card { margin: 0 0 0.6em; }
+    .mdp-slide .md-card:last-child { margin-bottom: 0; }
+    .mdp-slide-column > .md-card:only-child { flex: 1 1 auto; }
 
     /* Backgrounds: behind the whole slide, or one half beside the text. */
     .mdp-slide-bg { position: absolute; inset: 0; overflow: hidden; }

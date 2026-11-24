@@ -15,6 +15,7 @@
 //  `<!-- end-columns -->`, is left as plain content, so a typo never pulls
 //  the rest of the document into a column. Slides have their own columns
 //  (`SlideDeck`), with the same limit and the same top-level-only rule.
+//  Cards (`EscapingHTMLFormatter+Cards.swift`) may sit inside a column.
 //
 
 import Foundation
@@ -86,7 +87,8 @@ nonisolated enum DocumentColumns {
 nonisolated extension EscapingHTMLFormatter {
 
     /// Visits `document`'s blocks in order, wrapping each well-formed column
-    /// group in `.md-columns`.
+    /// group in `.md-columns` and each well-formed card in `.md-card`
+    /// (`EscapingHTMLFormatter+Cards.swift`), at the top level or in a column.
     mutating func visitDocumentBlocks(_ document: Document) {
         let children = Array(document.children)
         var index = 0
@@ -98,18 +100,19 @@ nonisolated extension EscapingHTMLFormatter {
                 emit("<div class=\"md-columns\" data-columns=\"\(group.columns.count)\">\n")
                 for column in group.columns {
                     emit("<div class=\"md-column\">\n")
-                    var first = true
-                    for block in children[column] where DocumentColumns.marker(of: block) == nil {
-                        // The first block's blank lines separate it from the
-                        // comment above, not from a sibling.
-                        if !first { emitBlankLineSpacers(before: block) }
-                        first = false
-                        visit(block)
-                    }
+                    // The first block's blank lines separate it from the
+                    // comment above, not from a sibling.
+                    visitBlocksWithCards(children, in: column)
                     emit("</div>\n")
                 }
                 emit("</div>\n")
                 index = group.end + 1
+                continue
+            }
+            if let card = DocumentCards.card(in: children, opening: index, limit: children.count) {
+                emitBlankLineSpacers(before: child)
+                emitCard(card, in: children)
+                index = card.end + 1
                 continue
             }
             // CommonMark discards source blank lines between blocks. Restore
@@ -120,7 +123,7 @@ nonisolated extension EscapingHTMLFormatter {
         }
     }
 
-    private mutating func emitBlankLineSpacers(before block: Markup) {
+    mutating func emitBlankLineSpacers(before block: Markup) {
         for _ in 0..<precedingBlankLineCount(for: block) {
             emit("<div class=\"md-source-blank-line\" aria-hidden=\"true\"></div>\n")
         }

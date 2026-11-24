@@ -53,6 +53,7 @@ const SLASH_ICONS = {
   step: '<path d="M4 6h6M4 10h9M4 14h12"/><path d="M14.5 4.5l2 1.5-2 1.5"/>',
   column: '<rect x="3" y="4.5" width="14" height="11" rx="1.5"/><path d="M10 4.5v11"/>',
   columns: '<rect x="3" y="4.5" width="6" height="11" rx="1.2"/><rect x="11" y="4.5" width="6" height="11" rx="1.2"/><path d="M5 8h2M5 11h2M13 8h2M13 11h2"/>',
+  card: '<rect x="3" y="4.5" width="14" height="11" rx="2.5"/><path d="M6 8.5h5M6 11.5h8"/>',
   bullet: '<path d="M8.5 6h8M8.5 10h8M8.5 14h8"/><circle cx="4.7" cy="6" r=".9" fill="currentColor" stroke="none"/><circle cx="4.7" cy="10" r=".9" fill="currentColor" stroke="none"/><circle cx="4.7" cy="14" r=".9" fill="currentColor" stroke="none"/>',
   ordered: '<path d="M9 6h7.5M9 10h7.5M9 14h7.5"/><text x="3" y="7.6" font-size="5.6" font-weight="700" fill="currentColor" stroke="none" font-family="-apple-system, system-ui, sans-serif">1</text><text x="3" y="11.6" font-size="5.6" font-weight="700" fill="currentColor" stroke="none" font-family="-apple-system, system-ui, sans-serif">2</text><text x="3" y="15.6" font-size="5.6" font-weight="700" fill="currentColor" stroke="none" font-family="-apple-system, system-ui, sans-serif">3</text>',
   task: '<rect x="3.5" y="4" width="5" height="5" rx="1.2"/><path d="M4.8 6.6l1.1 1.1 1.8-2.1M11.5 6.5h5M11.5 14h5"/><rect x="3.5" y="11" width="5" height="5" rx="1.2"/>',
@@ -167,6 +168,13 @@ const SLASH_COMMANDS = [
         caret: { line: lead.length + 1, ch: 0 },
       }
     } },
+  // Frames the line's text, or an empty line, in a card; options go in the
+  // opening comment (`style=accent color=positive`).
+  { id: "card", group: "blocks", label: "Card", aliases: ["card", "panel", "box", "frame"],
+    convert: (raw) => ({
+      lines: ["<!-- card -->", raw, "<!-- end-card -->"],
+      caret: { line: 1, ch: raw.length },
+    }) },
   { id: "today", group: "insert", label: "Today", aliases: ["today", "date"],
     insert: (now) => slashDate(now) },
   { id: "now", group: "insert", label: "Now", aliases: ["now", "time", "datetime", "date"],

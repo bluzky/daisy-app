@@ -26,7 +26,8 @@
 //
 //  Colors are classes only (`md-chart-s1` … `s8`), mapped to the theme's
 //  dashboard series colors (`DashboardColor.series`). A spec's `colors`
-//  (validated `#RGB` / `#RRGGBB` hex, at most eight) override them as
+//  (checked hex or `var(--dashboard-name)`, at most eight; null keeps the
+//  series color) override them as
 //  `--md-chart-color-N` custom properties on the figure, never as markup.
 //  Text reaches the SVG through `textContent`, never markup.
 //
@@ -180,6 +181,7 @@ nonisolated extension MarkdownHTML {
       const SERIES_COLORS = \#(dashboardChartSeriesColors);
       const types = Object.create(null);
       const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
+      const PALETTE_VAR = /^var\(--dashboard-[a-z]+\)$/;
       const formatter = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
 
       function el(tag, cls, text) {
@@ -329,7 +331,9 @@ nonisolated extension MarkdownHTML {
 
         const figure = el('figure', 'md-chart md-chart-type-' + spec.type.toLowerCase() + ' md-chart-legend-' + position);
         (spec.colors || []).forEach((color, i) => {
-          if (i < SERIES_COLORS && HEX.test(color)) figure.style.setProperty('--md-chart-color-' + (i + 1), color);
+          if (i < SERIES_COLORS && color && (HEX.test(color) || PALETTE_VAR.test(color))) {
+            figure.style.setProperty('--md-chart-color-' + (i + 1), color);
+          }
         });
         if (spec.title) figure.append(el('figcaption', 'md-chart-title', spec.title));
         const body = el('div', 'md-chart-body');

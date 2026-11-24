@@ -46,8 +46,15 @@ CHART_TYPES = {"bar", "line", "pie", "donut"}
 CHART_LEGENDS = {"top", "bottom", "left", "right", "none"}
 CHART_GROUPS = {"legend", "x-axis", "y-axis"}
 TRENDS = {"up", "down", "flat"}
-STATUSES = {"ok", "warn", "fail"}
-PROGRESS_COLORS = {"accent", "positive", "negative", "warning", "neutral"}
+# `color:` on a stat, progress bar, badge or card, and each of a chart's
+# `colors`: one of these names or a #RGB / #RRGGBB hex.
+COLOR_NAMES = ("default", "accent", "success", "info", "warning", "danger")
+COLOR_HINT = "default, accent, success, info, warning, danger or a hex like `#6366F1`"
+
+
+def is_color(value):
+    value = (value or "").strip().lower()
+    return value in COLOR_NAMES or re.fullmatch(r"#(?:[0-9a-f]{3}|[0-9a-f]{6})", value) is not None
 # ExternalLinkPolicy.blockedSchemes: a stat link with one of these is refused.
 BLOCKED_SCHEMES = {"javascript", "vbscript", "data", "file", "about", "blob", "filesystem", "md-asset"}
 WIDGET_KEY = re.compile(r"^([A-Za-z][A-Za-z0-9_-]*)\s*:\s*(.*)$")
@@ -151,10 +158,49 @@ def check_directive(key, value, line, report, in_list):
         report.error(line, f"`{key}` isn't a directive; did you mean `{close[0]}`?")
 
 
+CARD_OPTIONS = {
+    "style": {"plain", "outline", "filled", "accent"},
+    "color": set(COLOR_NAMES),
+    "tint": {"true", "false"},
+    "padding": {"compact", "normal", "roomy"},
+    "align": {"start", "center"},
+    "edge": {"left", "top"},
+}
+
+
+def check_card(raw, line, report, in_list):
+    """Checks `<!-- card key=value … -->` / `<!-- end-card -->`; False when `raw` is neither."""
+    lower = raw.lower()
+    if lower != "end-card" and lower != "card" and not re.match(r"card\s", lower):
+        return False
+    if in_list:
+        report.error(line, f"`<!-- {raw} -->` inside a list is ignored; put it at the top level")
+    seen = set()
+    for token in raw.split()[1:] if lower != "end-card" else []:
+        key, equals, value = token.partition("=")
+        key, value = key.lower(), value.strip("\"'").lower()
+        if not equals or not value:
+            report.error(line, f"card option `{token}` isn't `key=value`; the card frames nothing")
+        elif key in seen:
+            report.error(line, f"card option `{key}` appears twice; the card frames nothing")
+        elif key not in CARD_OPTIONS:
+            report.error(line, f"`{key}` isn't a card option ({', '.join(sorted(CARD_OPTIONS))}); "
+                               "the card frames nothing")
+        elif key == "color" and re.fullmatch(r"#(?:[0-9a-f]{3}|[0-9a-f]{6})", value):
+            pass
+        elif value not in CARD_OPTIONS[key]:
+            report.error(line, f"card `{key}={value}` isn't one of {', '.join(sorted(CARD_OPTIONS[key]))}"
+                               + (" or a hex color" if key == "color" else "") + "; the card frames nothing")
+        seen.add(key)
+    return True
+
+
 def check_comment(text, line, report, in_list):
     for raw in text.splitlines() or [text]:
         raw = raw.strip()
         if not raw:
+            continue
+        if check_card(raw, line, report, in_list):
             continue
         key, _, value = raw.partition(":")
         check_directive(key.strip().lower(), value.strip().strip("\"'"), line, report, in_list)
@@ -260,9 +306,9 @@ def check_chart(body, line, report):
     if direction not in ("vertical", "horizontal"):
         return plain(f"`direction: {options['direction']}` isn't vertical or horizontal")
     if "colors" in options:
-        colors = [color.strip() for color in options["colors"].split(",")]
-        if len(colors) > 8 or not all(re.fullmatch(r"#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})", c) for c in colors):
-            return plain("`colors` must be up to eight hex colors like `#4F46E5`, separated by commas")
+        colors = options["colors"].split(",")
+        if len(colors) > 8 or not all(is_color(c) for c in colors):
+            return plain(f"`colors` must be up to eight of {COLOR_HINT}, separated by commas")
     if options.get("grid", "true").lower() not in ("true", "false"):
         return plain(f"`grid: {options['grid']}` isn't true or false")
     height = None
@@ -323,6 +369,8 @@ def check_widget(kind, body, line, report):
                 return plain(f"`trend: {item['trend']}` isn't up, down or flat")
             if item.get("good") and item["good"].lower() not in ("up", "down"):
                 return plain(f"`good: {item['good']}` isn't up or down")
+            if "color" in item and not is_color(item["color"]):
+                return plain(f"`color: {item['color']}` isn't {COLOR_HINT}")
             if "link" in item:
                 href = item["link"]
                 scheme = re.match(r"^([a-z][a-z0-9+.-]*):", href, re.I)
@@ -332,8 +380,13 @@ def check_widget(kind, body, line, report):
 
     if kind == "badge":
         for item in items:
-            if not item.get("text") or (item.get("status") or "").lower() not in STATUSES:
-                return plain("every badge needs `text` and a `status` of ok, warn or fail")
+            if not item.get("text"):
+                return plain("every badge needs `text`")
+            if "status" in item:
+                report.warn(line, "badge `status` isn't read: use `color: success` (or warning, danger, …); "
+                                  "without it the badge is grey")
+            if "color" in item and not is_color(item["color"]):
+                return plain(f"`color: {item['color']}` isn't {COLOR_HINT}")
         return BADGE_LINES
 
     # progress
@@ -344,8 +397,8 @@ def check_widget(kind, body, line, report):
             return plain("every bar needs `label`, and numbers for `value` and `max`")
         if float(value) < 0 or float(maximum) <= 0:
             return plain("`value` must be zero or more and `max` above zero")
-        if "color" in item and (item.get("color") or "").lower() not in PROGRESS_COLORS:
-            return plain("a bar's `color` must be accent, positive, negative, warning or neutral")
+        if "color" in item and not is_color(item["color"]):
+            return plain(f"a bar's `color` isn't {COLOR_HINT}")
         if (item.get("striped") or "false").lower() not in ("true", "false"):
             return plain("a bar's `striped` must be true or false")
     return math.ceil(len(items) * PROGRESS_ROW_LINES)

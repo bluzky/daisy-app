@@ -5,13 +5,13 @@
 //  Dashboard widgets in an ordinary document. In any document, four fenced
 //  blocks become widgets in the page:
 //
-//      ```stat      label / value / delta / trend / good / note / link
+//      ```stat      label / value / color / delta / trend / good / note / link
 //      ```chart     type / title / legend / values / stacked / direction /
 //                   height / grid / colors / x-axis / y-axis; legend, x-axis and
 //                   y-axis may be groups of indented `key: value` lines,
 //                   then a Markdown table
 //      ```progress  label / value / max / color / striped
-//      ```badge     text / status (ok, warn, fail)
+//      ```badge     text / color
 //
 //  Each block is `key: value` lines; a line of `---` separates items. A chart
 //  ends with its table and is drawn by `MdChart`
@@ -39,14 +39,19 @@ nonisolated enum DashboardDocument {
 }
 
 /// The dashboard palette: semantic colors every widget reads. Two built-in
-/// palettes of standard colors, light and dark; Customize Theme and a slide
-/// deck's theme can override a color. A progress bar may pick one by its
-/// palette name (`color: warning`); blocks never give a raw color value.
+/// palettes of standard colors, light and dark; a slide deck's theme can
+/// override a color. Stats, progress bars, badges and cards pick one with
+/// `color:` by its name (`ColorName`), or take a checked hex instead.
 nonisolated enum DashboardColor: String, CaseIterable, Sendable {
-    case accent, positive, negative, warning, neutral
+    /// `default` is grey; a widget's `color: default` is its normal look.
+    case neutral = "default"
+    case accent, success, info, warning, danger
     case series1, series2, series3, series4, series5, series6, series7, series8
 
     static let seriesCount = 8
+
+    /// The names `color:` accepts, in the order the docs list them.
+    static let named: [DashboardColor] = [.neutral, .accent, .success, .info, .warning, .danger]
 
     /// The chart series colors, in order.
     static let series: [DashboardColor] = [.series1, .series2, .series3, .series4,
@@ -74,9 +79,10 @@ nonisolated enum DashboardColor: String, CaseIterable, Sendable {
         // colors are the same hues as the chart series. Stat deltas, drawn as
         // text, darken them in the light palette (`--dashboard-text-mix`).
         case .accent, .series1: ("#007AFF", "#0A84FF")
-        case .positive: ("#34C759", "#30D158")
-        case .negative: ("#FF3B30", "#FF453A")
+        case .success: ("#34C759", "#30D158")
+        case .info: ("#30B0C7", "#40C8E0")
         case .warning: ("#FF9500", "#FF9F0A")
+        case .danger: ("#FF3B30", "#FF453A")
         case .neutral: ("#8E8E93", "#98989D")
         case .series2: ("#FF9500", "#FF9F0A")
         case .series3: ("#30B0C7", "#40C8E0")
@@ -134,7 +140,7 @@ nonisolated extension MarkdownHTML {
        surface and border follow the page theme. `--dashboard-text-mix` is
        how much of a palette color text keeps when mixed with black: the
        bright colors are too light for text on a light page, fine on a dark
-       one. Badges are white text on their status color. */
+       one. Badges are white text on their color, dark on a light hex. */
     :root {
         \(DashboardColor.defaultDeclarations(dark: false))
         --dashboard-text-mix: 65%;
@@ -209,6 +215,7 @@ nonisolated extension MarkdownHTML {
         margin-top: 6px;
     }
     .md-dash-value {
+        color: var(--md-dash-ink, inherit);
         font-size: 1.5em;
         font-weight: 600;
         line-height: 1.2;
@@ -228,9 +235,18 @@ nonisolated extension MarkdownHTML {
         font-size: 0.8em;
         color: var(--dashboard-text);
     }
-    .md-dash-delta.md-dash-good { color: color-mix(in srgb, var(--dashboard-positive) var(--dashboard-text-mix), black); }
-    .md-dash-delta.md-dash-bad { color: color-mix(in srgb, var(--dashboard-negative) var(--dashboard-text-mix), black); }
-    .md-dash-delta.md-dash-flat { color: color-mix(in srgb, var(--dashboard-neutral) var(--dashboard-text-mix), black); }
+    .md-dash-delta.md-dash-good { color: color-mix(in srgb, \(DashboardColor.success.cssValue) var(--dashboard-text-mix), black); }
+    .md-dash-delta.md-dash-bad { color: color-mix(in srgb, \(DashboardColor.danger.cssValue) var(--dashboard-text-mix), black); }
+    .md-dash-delta.md-dash-flat { color: color-mix(in srgb, \(DashboardColor.neutral.cssValue) var(--dashboard-text-mix), black); }
+
+    /* `color:` on a stat, progress bar or badge. A palette name is a class
+       (`md-dash-c-success`) and a hex a pair of custom properties set by the
+       widget script (`md-dash-c-custom`), never a style the block writes.
+       `--md-dash-color` is the color for a fill; `--md-dash-ink` the same
+       color for text, a palette one darkened on a light page so it stays
+       readable, a hex as written. `default` sets nothing: the widget keeps
+       its normal look. */
+    \(DashboardColor.named.map { "." + "md-dash-c-\($0.rawValue) { --md-dash-color: \($0.cssValue); --md-dash-ink: color-mix(in srgb, \($0.cssValue) var(--dashboard-text-mix), black); }" }.joined(separator: "\n    "))
 
     /* Progress */
     /* One row per bar: label | bar | value. The rows share the block's grid
@@ -259,12 +275,8 @@ nonisolated extension MarkdownHTML {
     .md-dash-fill {
         height: 100%;
         border-radius: 6px;
-        background: \(DashboardColor.accent.cssValue);
+        background: var(--md-dash-color, \(DashboardColor.accent.cssValue));
     }
-    .md-dash-fill-positive { background-color: \(DashboardColor.positive.cssValue); }
-    .md-dash-fill-negative { background-color: \(DashboardColor.negative.cssValue); }
-    .md-dash-fill-warning { background-color: \(DashboardColor.warning.cssValue); }
-    .md-dash-fill-neutral { background-color: \(DashboardColor.neutral.cssValue); }
     /* `striped: true`: diagonal stripes over the fill, moving only while the
        bar is on screen (`md-dash-moving`, set by the widget script). Still
        for Reduce Motion and in print and PDF; every frame looks alike, so a
@@ -304,11 +316,16 @@ nonisolated extension MarkdownHTML {
         font-size: 0.85em;
         font-weight: 600;
         color: #fff;
+        background: var(--md-dash-color, \(DashboardColor.neutral.cssValue));
     }
-    .md-dash-badge.md-dash-ok { background: var(--dashboard-positive); }
-    .md-dash-badge.md-dash-warn { background: var(--dashboard-warning); }
-    .md-dash-badge.md-dash-fail { background: var(--dashboard-negative); }
+    /* A light hex fill takes dark text. */
+    .md-dash-badge.md-dash-on-light { color: #1d1d1f; }
     """
+
+    /// The palette names `color:` accepts, as a JavaScript array literal.
+    static var colorNamesLiteral: String {
+        "[" + DashboardColor.named.map { "'\($0.rawValue)'" }.joined(separator: ", ") + "]"
+    }
 
     /// `ExternalLinkPolicy.blockedSchemes` as a JavaScript array literal: a
     /// stat link is built after the page sanitizer ran, so it checks itself.
@@ -319,7 +336,8 @@ nonisolated extension MarkdownHTML {
     /// Reads every `pre[data-md-dashboard]` and replaces it with its widget.
     /// A block that does not parse is left alone. Text reaches the page only
     /// through `textContent` and attributes, never `innerHTML`, and colors
-    /// only through classes, so a value cannot inject markup or styles.
+    /// only through classes or checked hex custom properties, so a value
+    /// cannot inject markup or styles.
     static let dashboardScript = #"""
     <script>
     (function() {
@@ -336,6 +354,38 @@ nonisolated extension MarkdownHTML {
       function num(text) {
         const t = String(text).replace(/,/g, '').trim();
         return NUMBER.test(t) ? Number(t) : null;
+      }
+
+      // `color:` on a stat, progress bar or badge: a palette name or a hex.
+      // `readColor` returns null for anything else, which leaves the block
+      // plain. `paint` colors a node by class, or for a hex by custom
+      // properties set here, never by a style the block writes; `default`
+      // keeps the widget's normal look.
+      const COLOR_NAMES = \#(colorNamesLiteral);
+      const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
+      function readColor(text) {
+        if (text == null) return { name: 'default' };
+        const value = String(text).trim().toLowerCase();
+        if (COLOR_NAMES.includes(value)) return { name: value };
+        if (HEX.test(value)) return { hex: value };
+        return null;
+      }
+      function paint(node, color) {
+        if (color.name === 'default') return;
+        if (color.name) {
+          node.classList.add('md-dash-c-' + color.name);
+          return;
+        }
+        node.classList.add('md-dash-c-custom');
+        node.style.setProperty('--md-dash-color', color.hex);
+        node.style.setProperty('--md-dash-ink', color.hex);
+      }
+      // Whether a hex is light enough to need dark text on it.
+      function isLight(hex) {
+        let h = hex.slice(1);
+        if (h.length === 3) h = h.split('').map(c => c + c).join('');
+        const [r, g, b] = [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16));
+        return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.62;
       }
 
       // `key: value` lines, items split by a line of dashes. Anything else
@@ -395,6 +445,9 @@ nonisolated extension MarkdownHTML {
           if (!['up', 'down'].includes(good)) return null;
           const href = item.link != null ? safeLink(item.link) : null;
           if (item.link != null && !href) return null;
+          // `color` colors the value.
+          const color = readColor(item.color);
+          if (!color) return null;
 
           const tile = el('div', 'md-dash-stat');
           const head = el('div', 'md-dash-stat-head');
@@ -408,7 +461,9 @@ nonisolated extension MarkdownHTML {
             head.append(link);
           }
           const main = el('div', 'md-dash-stat-main');
-          main.append(el('div', 'md-dash-value', item.value));
+          const valueNode = el('div', 'md-dash-value', item.value);
+          paint(valueNode, color);
+          main.append(valueNode);
           // `trend` only decorates a delta: without one it is ignored.
           if (item.delta) {
             let sentiment = 'flat';
@@ -427,9 +482,8 @@ nonisolated extension MarkdownHTML {
 
       // One bar per item: `label`, `value` (zero or more) and `max` (above
       // zero). A value above its maximum shows a full bar. An optional
-      // `color` names a palette color; the default is the accent.
+      // `color` colors the bar; the default is the accent.
       // `striped: true` adds moving stripes, except on a full bar.
-      const PROGRESS_COLORS = ['accent', 'positive', 'negative', 'warning', 'neutral'];
       function progress(source) {
         const items = parse(source);
         if (!items) return null;
@@ -438,8 +492,8 @@ nonisolated extension MarkdownHTML {
           const value = num(item.value || '');
           const max = num(item.max || '');
           if (!item.label || value == null || max == null || value < 0 || max <= 0) return null;
-          const color = item.color != null ? item.color.toLowerCase() : 'accent';
-          if (!PROGRESS_COLORS.includes(color)) return null;
+          const color = readColor(item.color);
+          if (!color) return null;
           const striped = (item.striped || 'false').toLowerCase();
           if (!['true', 'false'].includes(striped)) return null;
           const row = el('div', 'md-dash-progress-item');
@@ -449,8 +503,9 @@ nonisolated extension MarkdownHTML {
           track.setAttribute('aria-valuemin', '0');
           track.setAttribute('aria-valuemax', String(max));
           track.setAttribute('aria-valuenow', String(value));
-          const fill = el('div', 'md-dash-fill md-dash-fill-' + color
+          const fill = el('div', 'md-dash-fill'
             + (striped === 'true' && value < max ? ' md-dash-fill-striped' : ''));
+          paint(fill, color);
           fill.style.width = (Math.min(value / max, 1) * 100) + '%';
           track.append(fill);
           row.append(el('span', 'md-dash-progress-label', item.label), track,
@@ -460,14 +515,19 @@ nonisolated extension MarkdownHTML {
         return list;
       }
 
+      // `text`, and an optional `color` for the badge's fill: grey by
+      // default; a light hex takes dark text.
       function badge(source) {
         const items = parse(source);
         if (!items) return null;
         const wrap = el('div', 'md-dash-badges');
         for (const item of items) {
-          const status = (item.status || '').toLowerCase();
-          if (!item.text || !['ok', 'warn', 'fail'].includes(status)) return null;
-          wrap.append(el('span', 'md-dash-badge md-dash-' + status, item.text));
+          const color = readColor(item.color);
+          if (!item.text || !color) return null;
+          const node = el('span', 'md-dash-badge', item.text);
+          paint(node, color);
+          if (color.hex && isLight(color.hex)) node.classList.add('md-dash-on-light');
+          wrap.append(node);
         }
         return wrap;
       }
@@ -573,12 +633,16 @@ nonisolated extension MarkdownHTML {
           height = num(options.height.replace(/px$/i, ''));
           if (height == null || height < 80 || height > 1200) return null;
         }
-        // `colors`: up to eight `#RGB` / `#RRGGBB`, comma-separated, for the
-        // series (or a pie's slices) in order; the rest keep the palette.
+        // `colors`: up to eight palette names or `#RGB` / `#RRGGBB`, comma-
+        // separated, for the series (or a pie's slices) in order; the rest
+        // keep the series palette.
         let colors = null;
         if (options.colors != null) {
-          colors = options.colors.split(',').map(color => color.trim());
-          if (colors.length > 8 || !colors.every(color => /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(color))) return null;
+          const read = options.colors.split(',').map(readColor);
+          if (read.length > 8 || read.some(color => !color)) return null;
+          // A palette name becomes its variable; `default` keeps the series color.
+          colors = read.map(color => color.hex
+            || (color.name === 'default' ? null : 'var(--dashboard-' + color.name + ')'));
         }
         const data = table(rows);
         if (!data) return null;

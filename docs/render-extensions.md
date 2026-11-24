@@ -52,6 +52,12 @@ then the widget script. The widget script replaces each stamped block's code
 frame with its widget; a block it cannot read stays a code block. See
 [Dashboard](dashboard.md).
 
+Cards (`<!-- card … -->`, see [Cards](cards.md)) are drawn by the formatter
+and the base stylesheet, not by an extension. The page sanitizer drops every
+`style` attribute, so a card's hex `color` rides in `data-md-card-color`, and
+`CardColorExtension` (registered, not toggleable, loaded only when a card has
+one) checks it again and sets it as the card's `--md-card-color`.
+
 ## Editor capability
 
 An extension may also contribute to the CodeMirror editor. It declares this

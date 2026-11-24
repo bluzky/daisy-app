@@ -2,13 +2,16 @@
 
 ```badge
 text: Build passing
-status: ok
+color: success
 ---
 text: Docs outdated
-status: warn
+color: warning
 ---
 text: Notarization failing
-status: fail
+color: danger
+---
+text: Maintenance on Sunday
+color: info
 ```
 
 ```stat
@@ -32,6 +35,7 @@ good: down
 ---
 label: Support backlog
 value: 41
+color: danger
 delta: +6
 trend: up
 good: down
@@ -105,6 +109,7 @@ colors: #94A3B8, #6366F1, #F59E0B
 
 <!-- columns -->
 
+<!-- card align=center padding=compact -->
 ```chart
 type: donut
 title: Quarterly target
@@ -117,9 +122,11 @@ legend:
 | Reached   | 72 |
 | Remaining | 28 |
 ```
+<!-- end-card -->
 
 <!-- column -->
 
+<!-- card align=center padding=compact -->
 ```chart
 type: donut
 title: Onboarding done
@@ -132,9 +139,11 @@ legend:
 | Done      | 58    |
 | Remaining | 42    |
 ```
+<!-- end-card -->
 
 <!-- column -->
 
+<!-- card align=center padding=compact -->
 ```chart
 type: donut
 title: Tickets in SLA
@@ -147,6 +156,7 @@ legend:
 | In SLA  | 91 |
 | Late    | 9 |
 ```
+<!-- end-card -->
 
 <!-- end-columns -->
 
@@ -184,6 +194,7 @@ height: 220
 
 <!-- end-columns -->
 
+<!-- card style=outline -->
 ```chart
 type: bar
 title: First response time by channel (hours)
@@ -200,6 +211,7 @@ x-axis:
 | Forum   | 14    |
 | Phone   | 0.3   |
 ```
+<!-- end-card -->
 
 ## Release 4.2
 
@@ -214,12 +226,12 @@ striped: true
 label: Tests passing
 value: 182
 max: 190
-color: positive
+color: success
 ---
 label: Open blockers
 value: 3
 max: 10
-color: negative
+color: danger
 ---
 label: Docs updated
 value: 5
@@ -229,6 +241,7 @@ color: warning
 
 <!-- column -->
 
+<!-- card style=accent edge=top color=warning tint=true -->
 ```stat
 label: Days to release
 value: 9
@@ -239,6 +252,7 @@ value: 99.6%
 delta: +0.2%
 trend: up
 ```
+<!-- end-card -->
 
 <!-- end-columns -->
 

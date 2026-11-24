@@ -7,7 +7,7 @@ description: Write, convert and fix slide decks in Daisy's Markdown slide format
 
 Daisy is a macOS Markdown app. A Markdown file with `slides: true` in its frontmatter reads as a deck: Read Mode shows a strip of 16:9 slides, **View → Present** (⌥⌘P) shows it full screen, and PDF export prints one slide per page. The deck stays an ordinary Markdown file, so it should read well as plain text too.
 
-This skill covers writing a deck that looks good in Daisy. The complete syntax reference is `references/slides-guide.md` (Daisy's own `docs/slides.md`); read the relevant section when you need an exact rule this file only summarizes. Dashboard widgets are specified in `references/dashboard-guide.md` (Daisy's `docs/dashboard.md`).
+This skill covers writing a deck that looks good in Daisy. The complete syntax reference is `references/slides-guide.md` (Daisy's own `docs/slides.md`); read the relevant section when you need an exact rule this file only summarizes. Dashboard widgets are specified in `references/dashboard-guide.md` (Daisy's `docs/dashboard.md`). Cards are specified in `references/cards-guide.md` (Daisy's `docs/cards.md`). For a dashboard or report in an ordinary document rather than a deck, use the `daisy-dashboard` skill.
 
 ## Workflow
 
@@ -55,6 +55,7 @@ Speaker notes: everything after ??? on this slide.
 | Speaker notes | `???` alone on a line; the rest of the slide is notes |
 | Reveal on click | `<!-- step -->` as the **last thing** of a list item or paragraph, or alone on the line above a block; `<!-- step: 2 -->` groups elements |
 | Columns | `<!-- column -->` alone on a line between parts; `<!-- columns -->` (optional) marks where they begin, so everything above it (heading, text lines, an image) stays across the slide; `<!-- end-columns -->` ends them so what follows spans the slide. Without the opener, only a heading at the top stays above. Max 4 columns |
+| Card (framed panel) | `<!-- card style=accent color=success -->` … `<!-- end-card -->`, each alone on a line; options `style` (plain, outline, filled, accent), `color` (see Colors below), `tint=true`, `padding` (compact, normal, roomy), `align=center`, `edge=top` (accent bar across the top instead of the left); no CSS. In the body or inside one column; a lone card fills its column, so a row of cards lines up. Must not cross a `<!-- column -->` |
 | Empty space | `<!-- space -->` or `<!-- space: 3 -->` (blank lines don't add space on a slide) |
 | Background | `![bg](img.jpg)` alone in its paragraph; keywords in the alt text: `left`, `right`, `fit`, `dim`, `blur`, combinable (`![bg right fit]`, `![bg dim blur]`) |
 | Image width | `![Chart](chart.png "60%")` (also px, em, rem, cqi) |
@@ -147,18 +148,19 @@ max: 190
 
 ```badge
 text: Build passing
-status: ok
+color: success
 ---
 text: Docs outdated
-status: warn
+color: warning
 ```
 ````
 
-- **`stat`** — `label` and `value` required; `delta`, `trend` (`up`/`down`/`flat`; ignored without a `delta`), `good: down` (for metrics where down is good), `note`, `link`. Tiles in one block share a row: 2–5 per slide reads best.
-- **`progress`** — `label`, `value` (≥ 0) and `max` (> 0) per bar, plus an optional `color` (`accent` default, `positive`, `negative`, `warning`, `neutral`; nothing else, no hex) and `striped: true` (moving stripes for work in progress; none on a full bar); each bar is one row (label, bar, `value / max`), and bars stack.
-- **`badge`** — `text` and `status: ok | warn | fail`; badges sit side by side.
+- **Colors** — one key, `color`, on a stat (colors its value), a progress bar (its fill), a badge (its fill) and a card; a chart's `colors` takes a comma list of the same. Values: `default` (the widget's normal look), `accent`, `success`, `info`, `warning`, `danger`, or a hex (`#6366F1`). Say what it means; each widget puts it in the right place. Anything else (`red`, `ok`, `positive`) leaves the block plain.
+- **`stat`** — `label` and `value` required; `color`, `delta`, `trend` (`up`/`down`/`flat`; ignored without a `delta`), `good: down` (for metrics where down is good), `note`, `link`. Tiles in one block share a row: 2–5 per slide reads best.
+- **`progress`** — `label`, `value` (≥ 0) and `max` (> 0) per bar, plus an optional `color` (default accent) and `striped: true` (moving stripes for work in progress; none on a full bar); each bar is one row (label, bar, `value / max`), and bars stack.
+- **`badge`** — `text`, and `color` (grey without one; `status` is not read); badges sit side by side.
 - **`---` inside a `stat`, `progress` or `badge` block separates items; it does not start a slide.**
-- **`chart`** — `type: bar | line | pie | donut` (required), optional `title`, `legend: top | bottom | left | right | none` (default `bottom`), `values: false` (values are drawn on the chart by default), and for bars `stacked: true` (one bar per row, series stacked, total at the end) and `direction: horizontal` (row labels on the left; the chart grows taller per row), `height: 240` (pixels, 80–1200; a pie's or donut's diameter) `grid: false` (hide grid lines), `colors: #4F46E5, #22C55E` (up to eight hex colors for the series or slices, in order; the rest keep the palette), and groups of indented lines: `legend:` with `position` and `visible`, `x-axis:` / `y-axis:` with `visible: false` (hide the bottom / left labels as drawn), then a Markdown table: first column the labels, every other column a series of plain numbers (no `$` or `%` in cells; put units in the title or header). A `pie` or `donut` (a ring with the total in the middle) takes exactly one number column, all zero or more. A bar or line chart is as wide as its column and half as tall and doesn't shrink, so give it a slide with just a headline that states the finding ("Sales doubled since January") and the story in `???` notes.
+- **`chart`** — `type: bar | line | pie | donut` (required), optional `title`, `legend: top | bottom | left | right | none` (default `bottom`), `values: false` (values are drawn on the chart by default), and for bars `stacked: true` (one bar per row, series stacked, total at the end) and `direction: horizontal` (row labels on the left; the chart grows taller per row), `height: 240` (pixels, 80–1200; a pie's or donut's diameter) `grid: false` (hide grid lines), `colors: success, danger, #6366F1` (up to eight colors for the series or slices, in order; `default` and the rest keep the series palette), and groups of indented lines: `legend:` with `position` and `visible`, `x-axis:` / `y-axis:` with `visible: false` (hide the bottom / left labels as drawn), then a Markdown table: first column the labels, every other column a series of plain numbers (no `$` or `%` in cells; put units in the title or header). A `pie` or `donut` (a ring with the total in the middle) takes exactly one number column, all zero or more. A bar or line chart is as wide as its column and half as tall and doesn't shrink, so give it a slide with just a headline that states the finding ("Sales doubled since January") and the story in `???` notes.
 
   ````markdown
   ```chart
