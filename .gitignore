@@ -78,3 +78,6 @@ node_modules/
 # Built by scripts/editor-bundle (npm run build); the Xcode build runs it.
 daisy/Vendor/CodeMirror/mdedit.min.js
 daisy/Vendor/WorkspaceMetadata/workspace-metadata.min.js
+
+# Python bytecode from running the skills' checkers
+__pycache__/
