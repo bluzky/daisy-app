@@ -1,0 +1,14 @@
+/* @theme
+name: Midnight Navy
+appearance: dark
+*/
+/* Deep navy slides with sky-blue headings and navy title slides. */
+:root {
+  --bg: #0f172a;
+  --text: #e2e8f0;
+  --heading: #93c5fd;
+  --link: #38bdf8;
+  --code-bg: #1e293b;
+  --slide-title-bg: #1e3a8a;
+  --slide-title-text: #ffffff;
+}

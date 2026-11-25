@@ -1,0 +1,11 @@
+/* @theme
+name: Midnight
+appearance: dark
+*/
+/* Bear "Dracula". */
+:root {
+  --bg: #363846;
+  --code-bg: #313343;
+  --text: #FFFFFF;
+  --link: #8BE9FD;
+}

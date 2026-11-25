@@ -31,8 +31,11 @@ let package = Package(
             ],
             // Copy real child directories; copying the Vendor symlink itself
             // leaves a dangling relative link with SwiftPM's native build system.
+            exclude: ["Resources/DocxThemes"],
             resources: ["CodeMirror", "DOMPurify", "Highlight", "KaTeX", "Mermaid", "Morphdom", "WorkspaceMetadata"]
                 .map { .copy("Vendor/\($0)") }
+                // The built-in theme files, read like the app reads its bundle.
+                + [.copy("Resources/Themes")]
         ),
         .testTarget(
             name: "MarkdownHelpersTests",

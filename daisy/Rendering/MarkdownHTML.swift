@@ -339,7 +339,7 @@ nonisolated enum MarkdownHTML {
                          textAlignment: TextAlignmentSetting = .current,
                          documentID: String = "page",
                          renderExtensionConfiguration: RenderExtensionConfiguration = .allEnabled,
-                         slideThemes: [String: SlideTheme] = SlideTheme.builtInCatalog) -> String {
+                         slideThemes: [String: Theme] = BuiltInThemes.catalog) -> String {
         render(markdown: markdown,
                allowsScroll: allowsScroll,
                assetBaseHref: assetBaseHref,
@@ -376,7 +376,7 @@ nonisolated enum MarkdownHTML {
                        renderExtensionConfiguration: RenderExtensionConfiguration = .allEnabled,
                        emptyDocumentHint: String? = nil,
                        forcesSlides: Bool = false,
-                       slideThemes: [String: SlideTheme] = SlideTheme.builtInCatalog) -> RenderedHTML {
+                       slideThemes: [String: Theme] = BuiltInThemes.catalog) -> RenderedHTML {
         let frontmatter = MarkdownFrontmatter.split(markdown)
         let body = frontmatter.body
         // A deck is asked for in frontmatter (`slides: true`), or by the host
@@ -384,10 +384,10 @@ nonisolated enum MarkdownHTML {
         let rendersSlides = forcesSlides
             || SlideDeck.isDeck(frontmatter: frontmatter.raw, format: frontmatter.format)
         var slideSettings = SlideDeckSettings()
-        var slideTheme: SlideTheme?
+        var slideTheme: Theme?
         if rendersSlides {
             slideSettings = SlideDeckSettings(frontmatter: frontmatter.raw, format: frontmatter.format)
-            let theme = SlideTheme.resolved(for: slideSettings, in: slideThemes)
+            let theme = Theme.forDeck(slideSettings, in: slideThemes)
             // The deck's own header and footer win over its theme's.
             slideSettings.header = slideSettings.header ?? theme.header
             slideSettings.footer = slideSettings.footer ?? theme.footer
@@ -582,7 +582,7 @@ nonisolated enum MarkdownHTML {
         }
         // The theme lives in <head>, which a body swap keeps: a deck with a
         // different theme, or none, must load a fresh page.
-        let slideThemeCSS = slideTheme?.css ?? ""
+        let slideThemeCSS = slideTheme?.slideCSS ?? ""
         if slideTheme != nil { scriptAssetIDs.insert("slides-theme:" + slideThemeCSS) }
         let slideThemeBlock = slideTheme == nil
             ? ""

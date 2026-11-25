@@ -26,7 +26,8 @@ LAYOUTS = {"title", "section", "quote", "code", "math", "title-image", "split",
            "full-bleed", "columns", "title-content", "blank"}
 CLASSES = {"center", "center-x", "center-y", "lead", "invert"}
 BG_KEYWORDS = {"left", "right", "fit", "contain", "dim", "blur"}
-THEMES = {"default", "light", "dark", "paper", "midnight", "pitch"}
+THEMES = {"default", "original", "quiet", "paper", "bold", "calm", "focus", "ember", "dusk", "midnight",
+          "pitch", "paper-warm", "midnight-navy"}
 ASPECTS = {"16:9", "16:10", "4:3"}
 BREAK = re.compile(r"^ {0,3}(?:-{3,}|\*{3,}|_{3,})\s*$")
 FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
@@ -120,18 +121,13 @@ def split_frontmatter(lines):
 
 
 def user_themes():
-    folder = os.path.expanduser("~/.config/daisy/slide-themes")
+    folder = os.path.expanduser("~/.config/daisy/themes")
     names = set()
     if os.path.isdir(folder):
         for name in os.listdir(folder):
             stem, ext = os.path.splitext(name)
-            if ext.lower() in (".yaml", ".yml"):
+            if ext.lower() == ".css":
                 names.add(stem.lower())
-                with open(os.path.join(folder, name), encoding="utf-8") as handle:
-                    for raw in handle:
-                        match = re.match(r"^id\s*:\s*[\"']?([^\"'#]+)", raw)
-                        if match:
-                            names.add(match.group(1).strip().lower())
     return names
 
 
@@ -144,7 +140,7 @@ def check_settings(settings, report):
                         "Daisy falls back to 16:9")
     if "theme" in settings and settings["theme"].lower() not in THEMES | user_themes():
         report.error(1, f"theme `{settings['theme']}` is neither built in nor in "
-                        "~/.config/daisy/slide-themes/; Daisy falls back to `default`")
+                        "~/.config/daisy/themes/; Daisy uses the reading theme")
     if "font_size" in settings and not FONT_SIZE.fullmatch(settings["font_size"]):
         report.error(1, f"font_size `{settings['font_size']}` isn't a percentage (`120%`) or pixels (`36`); "
                         "Daisy ignores it")

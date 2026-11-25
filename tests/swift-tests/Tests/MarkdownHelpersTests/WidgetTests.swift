@@ -961,22 +961,27 @@ final class WidgetTests: XCTestCase {
             XCTAssertTrue(css.contains(":root { --widget-card: \(code); }"), preset.name)
         }
         // Slide theme: its code background, or the deck's light/dark default.
-        let deck = SlideTheme(id: "t", values: SlideYAML.parse("colors:\n  code_background: \"#102030\""))
-        XCTAssertTrue(deck.css.contains("--code-bg: #102030; --widget-card: #102030;"))
-        let dark = SlideTheme(id: "d", values: SlideYAML.parse("appearance: dark"))
-        XCTAssertTrue(dark.css.contains("--widget-card: #262626;"))
+        let deck = Theme(file: Theme.File(id: "t", css: "/* @theme\nappearance: light\n*/ :root { --code-bg: #102030; }"),
+                         base: nil)!
+        XCTAssertTrue(deck.slideCSS.contains("--code-bg: #102030; --widget-card: #102030;"))
+        let dark = Theme(id: "d", name: "D", appearance: .dark)
+        XCTAssertTrue(dark.slideCSS.contains("--widget-card: #262626;"))
     }
 
     func testAC_6_5_ASlideThemeSetsTheWidgetPalette() {
-        let theme = SlideTheme(id: "t", values: SlideYAML.parse("""
-        colors:
-          widget_accent: "#123456"
-          widget_series_4: "#abcdef"
-          widget_bogus: "#000000"
-        """))
-        XCTAssertTrue(theme.css.contains("--widget-accent: #123456;"))
-        XCTAssertTrue(theme.css.contains("--widget-series-4: #abcdef;"))
-        XCTAssertFalse(theme.css.contains("bogus"))
+        let theme = Theme(file: Theme.File(id: "t", css: """
+        /* @theme
+        appearance: light
+        */
+        :root { --widget-accent: #123456; --widget-series-4: #abcdef; --widget-bogus: #000000; }
+        """), base: nil)!
+        XCTAssertTrue(theme.slideCSS.contains("--widget-accent: #123456;"))
+        XCTAssertTrue(theme.slideCSS.contains("--widget-series-4: #abcdef;"))
+        XCTAssertFalse(theme.slideCSS.contains("bogus"))
+        // A deck's `theme_overrides:` keep their YAML keys.
+        var deck = Theme(id: "o", name: "O", appearance: .light)
+        deck.applyOverrides(SlideYAML.parse("colors:\n  widget_accent: \"#654321\""))
+        XCTAssertTrue(deck.slideCSS.contains("--widget-accent: #654321;"))
     }
 
     // MARK: Mermaid still renders beside widgets

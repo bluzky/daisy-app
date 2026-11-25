@@ -1,0 +1,11 @@
+/* @theme
+name: Quiet
+appearance: dark
+*/
+/* Apple Books "Quiet": soft dark gray with bright ink. */
+:root {
+  --bg: #4A4A4D;
+  --code-bg: #59595D;
+  --text: #EBEBF4;
+  --link: #99B7C4;
+}

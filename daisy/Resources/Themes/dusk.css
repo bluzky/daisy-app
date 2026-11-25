@@ -1,0 +1,11 @@
+/* @theme
+name: Dusk
+appearance: dark
+*/
+/* Bear "Solarized Dark", body text lifted to ~7.9:1. */
+:root {
+  --bg: #0C3742;
+  --code-bg: #103E49;
+  --text: #C3CFCC;
+  --link: #299385;
+}

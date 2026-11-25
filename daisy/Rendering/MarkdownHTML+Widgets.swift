@@ -113,7 +113,7 @@ nonisolated enum WidgetColor: String, CaseIterable, Sendable {
         return "--widget-\(rawValue)"
     }
 
-    /// The slide theme `colors:` key: `widget_accent`, `widget_series_1`, …
+    /// The `theme_overrides:` `colors:` key: `widget_accent`, `widget_series_1`, …
     var slideThemeKey: String {
         if let index = Self.series.firstIndex(of: self) { return "widget_series_\(index + 1)" }
         return "widget_\(rawValue)"
@@ -185,7 +185,7 @@ nonisolated extension MarkdownHTML {
 
     static let widgetStylesheet = """
     /* Widget palette (WidgetColor): semantic colors, one light and one
-       dark palette; a slide theme can override them. The stat tile fill
+       dark palette; a deck's theme can override them. The stat tile fill
        (`--widget-card`) is the code block background's value. Text,
        surface and border follow the page theme. `--widget-text-mix` is
        how much of a palette color text keeps when mixed with black: the

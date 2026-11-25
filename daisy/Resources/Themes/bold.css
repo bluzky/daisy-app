@@ -1,0 +1,12 @@
+/* @theme
+name: Bold
+appearance: light
+*/
+/* Apple Books "Bold": plain white with heavy near-black text. */
+:root {
+  --bg: #FFFFFF;
+  --code-bg: #F2F2F2;
+  --text: #1C1C1E;
+  --link: #007AFF;
+  --body-weight: 600;
+}

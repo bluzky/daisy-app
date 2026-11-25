@@ -1,0 +1,33 @@
+/* @theme
+name: Ember
+appearance: system
+*/
+/* Warm parchment by day, warm near-black by night, in a book serif.
+   Heading levels run rust, amber, olive, teal, indigo, plum. */
+:root {
+  --bg: #F6EFE3;
+  --code-bg: #ECE2D1;
+  --text: #2B2219;
+  --link: #8F4E0E;
+  --heading-1: #A33B20;
+  --heading-2: #945410;
+  --heading-3: #52702A;
+  --heading-4: #2B6C70;
+  --heading-5: #585796;
+  --heading-6: #86496A;
+  --font-body: "Iowan Old Style", ui-serif, Georgia, serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #2B2620;
+    --code-bg: #37312A;
+    --text: #E8DFCF;
+    --link: #E0A458;
+    --heading-1: #F08A6C;
+    --heading-2: #F0B27A;
+    --heading-3: #B5CE85;
+    --heading-4: #7FCBC8;
+    --heading-5: #B3B0F0;
+    --heading-6: #E1A3C0;
+  }
+}

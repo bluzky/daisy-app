@@ -62,7 +62,7 @@ The frontmatter can also set:
 ```markdown
 ---
 slides: true
-theme: midnight
+theme: midnight-navy
 aspect: 4:3
 paginate: true
 header: Daisy
@@ -95,64 +95,94 @@ A slide can change these for itself:
 
 ## Themes
 
-`theme:` in the frontmatter picks the deck's look. Without it, slides follow the reading theme.
+`theme:` in the frontmatter picks the deck's look, by id; case doesn't matter. Without it, with `theme: default`, or with a name Daisy doesn't know, slides follow the reading theme.
+
+Every reading theme can be named, and a few themes are made for slides:
 
 | Theme | Look |
 | --- | --- |
-| `default` | The reading theme's colors and fonts. |
-| `light` | White slides, dark text, blue links. |
-| `dark` | Near-black slides, light text. |
-| `paper` | Warm off-white, brown headings, serif type. |
-| `midnight` | Dark blue slides; title and section slides on a brighter blue. |
+| `original`, `quiet`, `paper`, `bold`, `calm`, `focus`, `ember`, `dusk`, `midnight` | The reading themes of the same names: their colors and fonts on the slides. |
 | `pitch` | White slides, blue headings; title and section slides on solid blue; table headers in white on blue. |
+| `paper-warm` | Warm off-white, brown headings, serif type. |
+| `midnight-navy` | Dark blue slides; title and section slides on a brighter blue. |
 
-Code on a slide follows the theme: a dark theme gets dark-mode code colors even in a light window, and the other way round. An unknown theme name falls back to `default`.
+Values a theme doesn't set still come from the reading theme. Code on a slide follows the theme: a dark-only theme gets dark-mode code colors even in a light window, and the other way round; a theme that follows the system follows the window.
+
+> **Renamed slide themes.** The slide themes `paper` and `midnight` are now `paper-warm` and `midnight-navy`. `paper` and `midnight` mean the reading themes. The `light` and `dark` slide themes are gone, so a deck that names them uses the reading theme.
 
 ### Your own themes
 
-Put a `.yaml` file in `~/.config/daisy/slide-themes/`. Its name, without the extension, is the theme's id, unless the file sets `id:`. A file with a built-in theme's id replaces it.
+A theme is a CSS file in `~/.config/daisy/themes/`. Its file name without `.css` is its id. A file with a built-in theme's id is ignored, and so is a file that doesn't say `light`, `dark` or `system` (itself or through `extends`).
 
-```yaml
+```css
+/* @theme
 name: My Brand
-id: my-brand
-extends: light
 appearance: light
-colors:
-  background: "#FFFFFF"
-  text: "#1A1A1A"
-  heading: "#0057B8"
-  accent: "#0057B8"
-  bold: "#B8003F"
-  code_background: "#F5F7FA"
-  primary: "#0057B8"
-  title_text: "#FFFFFF"
-fonts:
-  title: "Georgia, serif"
-  body: "Inter, sans-serif"
-  code: "JetBrains Mono, monospace"
-footer:
-  show: true
-  text: "{title} | | {slide_number}/{total}"
+extends: pitch
+footer: "{title} | | {slide_number}/{total}"
+*/
+:root {
+  --bg: #FFFFFF;
+  --text: #1A1A1A;
+  --heading: #0057B8;
+  --link: #0057B8;
+  --bold: #B8003F;
+  --code-bg: #F5F7FA;
+  --slide-title-bg: #0057B8;
+  --slide-title-text: #FFFFFF;
+  --font-heading: Georgia, serif;
+  --font-body: Inter, sans-serif;
+  --font-code: JetBrains Mono, monospace;
+}
 ```
+
+The `@theme` comment holds the theme's settings:
 
 | Key | Meaning |
 | --- | --- |
+| `name` | The name shown for the theme. |
+| `appearance` | `light`, `dark` or `system` (has a light and a dark palette). Required, unless the theme it `extends` has one. |
 | `extends` | Starts from a built-in theme or another of your themes; set only what differs. |
-| `appearance` | `dark` or `light`, for the code colors. Without it, it is read from a hex `background`. |
-| `colors.background`, `text`, `heading` | Slide background, body text and headings. |
-| `colors.accent` | Links and list bullets (`primary` is used when there is no `accent`). |
-| `colors.bold` | Bold text. |
-| `colors.code_background` | Code block background. |
-| `colors.table_header`, `table_header_text` | Background and text of a table's header row. |
-| `colors.table_border`, `table_stripe` | A table's lines, and the shaded rows of a `striped` table. |
-| `colors.widget_default`, `widget_accent`, `widget_success`, `widget_info`, `widget_warning`, `widget_danger`, `widget_series_1` … `widget_series_8` | The [widget palette](widgets.md#colors) for widgets on the deck's slides. |
-| `table.style` | `lines` (default: a rule above and below each row), `grid` (borders between all cells), `striped` (every other row shaded) or `minimal` (only a rule under the header). |
-| `colors.primary`, `title_text` | Background and text of title and section slides. |
-| `fonts.body`, `title`, `code` | Font lists for body text, headings and code. |
-| `fonts.size` | The base text size, like the frontmatter's `font_size`, which wins over it. |
-| `header`, `footer` | A template like the frontmatter's, or `show:` and `text:`. The deck's own `header` and `footer` win. |
+| `header`, `footer` | A template like the frontmatter's. The deck's own `header` and `footer` win. |
 
-Colors are hex values (`#0057B8`) or color names (`navy`); fonts are lists of names. Anything else is ignored, so a theme can't break the page. Theme files are read each time a deck renders: after editing one, edit or reopen the deck to see it. Quick Look uses the built-in themes only.
+`:root { … }` holds the theme's values; a `system` theme puts its dark values in `@media (prefers-color-scheme: dark) { :root { … } }`. In dark, a value only `:root` sets comes from the reading theme's dark colors instead.
+
+| Value | Meaning |
+| --- | --- |
+| `--bg`, `--text` | Slide background and body text. |
+| `--heading`, `--heading-1` … `--heading-6` | All headings, or one level. |
+| `--link` | Links and list bullets. |
+| `--bold` | Bold text. |
+| `--code-bg` | Code block background, also the stat tile fill. |
+| `--table-header-bg`, `--table-header-text` | Background and text of a table's header row. |
+| `--table-border`, `--table-stripe` | A table's lines, and the shaded rows of a `striped` table. |
+| `--table-style` | `lines` (default: a rule above and below each row), `grid` (borders between all cells), `striped` (every other row shaded) or `minimal` (only a rule under the header). |
+| `--widget-default`, `--widget-accent`, `--widget-success`, `--widget-info`, `--widget-warning`, `--widget-danger`, `--widget-series-1` … `--widget-series-8` | The [widget palette](widgets.md#colors) for widgets on the deck's slides. |
+| `--font-body`, `--font-heading`, `--font-code` | Font lists for body text, headings and code. |
+| `--body-weight` | `400` or `600` (heavier body text). |
+| `--slide-title-bg`, `--slide-title-text` | Background and text of title and section slides. |
+| `--slide-font-size` | The base text size, like the frontmatter's `font_size`, which wins over it. |
+
+Colors are hex values (`#rgb`, `#rgba`, `#rrggbb` or `#rrggbbaa`); color names aren't accepted. Fonts are lists of names. Any other rule, value or property is ignored, so a theme can't break the page. Theme files are read each time a deck renders: after editing one, edit or reopen the deck to see it. Quick Look uses the built-in themes only.
+
+#### Themes from earlier versions
+
+YAML slide themes in `~/.config/daisy/slide-themes/` are no longer read. The files stay on disk.
+
+To keep one, write it as a CSS file in `~/.config/daisy/themes/`. Add an `@theme` comment with `name`, `appearance` and `extends`. Then turn each YAML key into a value:
+
+| YAML key | CSS value |
+| --- | --- |
+| `colors.background`, `text`, `heading`, `bold` | `--bg`, `--text`, `--heading`, `--bold` |
+| `colors.accent` | `--link` |
+| `colors.code_background` | `--code-bg` |
+| `colors.primary`, `title_text` | `--slide-title-bg`, `--slide-title-text` |
+| `colors.table_header`, `table_header_text`, `table_border`, `table_stripe` | `--table-header-bg`, `--table-header-text`, `--table-border`, `--table-stripe` |
+| `colors.widget_accent`, `widget_series_1`, … | `--widget-accent`, `--widget-series-1`, … |
+| `fonts.body`, `title`, `code`, `size` | `--font-body`, `--font-heading`, `--font-code`, `--slide-font-size` |
+| `table.style` | `--table-style` |
+
+Write colors as hex. For the old `pitch`, `paper` and `midnight`, use `extends: pitch`, `paper-warm` or `midnight-navy`. For the old `light` and `dark`, set the colors yourself.
 
 ### Changing a theme for one deck
 
@@ -166,7 +196,21 @@ theme_overrides:
 ---
 ```
 
-`theme_overrides` takes the same `colors` and `fonts` as a theme file.
+`theme_overrides` takes YAML keys, as theme files did before:
+
+| Key | Sets |
+| --- | --- |
+| `colors.background`, `text`, `heading`, `bold`, `code_background` | `--bg`, `--text`, `--heading`, `--bold`, `--code-bg` |
+| `colors.accent` | `--link` (`primary` is used when there is no `accent`) |
+| `colors.primary`, `title_text` | `--slide-title-bg`, `--slide-title-text` |
+| `colors.table_header`, `table_header_text`, `table_border`, `table_stripe` | The table colors |
+| `colors.widget_accent`, `widget_series_1`, … | The widget palette |
+| `fonts.body`, `title`, `code`, `size` | `--font-body`, `--font-heading`, `--font-code`, `--slide-font-size` |
+| `table.style` | `--table-style` |
+| `appearance` | `light` or `dark` |
+| `header`, `footer` | The theme's header and footer |
+
+Colors are hex, as in theme files.
 
 ## Slides
 

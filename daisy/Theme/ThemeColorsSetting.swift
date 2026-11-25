@@ -64,6 +64,27 @@ nonisolated struct ThemeColorsSetting: Equatable, Codable, Sendable {
 
     init() {}
 
+    /// Theme tokens and the slot each fills.
+    static let themeTokenSlots: [String: ThemeColorSlot] = [
+        "bg": .windowBackground, "code-bg": .codeBlockBackground, "text": .textColor,
+        "link": .linkColor, "heading": .headingColor,
+        "heading-1": .heading1, "heading-2": .heading2, "heading-3": .heading3,
+        "heading-4": .heading4, "heading-5": .heading5, "heading-6": .heading6,
+        "table-header-bg": .tableHeader, "table-border": .tableBorder, "table-stripe": .tableStripe,
+    ]
+
+    /// A theme's colors for both schemes; a light-only or dark-only theme
+    /// gives its one palette to both.
+    init(theme: Theme) {
+        for scheme in ThemeColorScheme.allCases {
+            let tokens = theme.palette(for: scheme == .dark ? .dark : .light)
+            for (token, slot) in Self.themeTokenSlots {
+                setHex(tokens[token], slot, scheme)
+            }
+        }
+        tableStyle = theme.light["table-style"].flatMap(MarkdownHTML.TableStyle.init(rawValue:))
+    }
+
     // MARK: - Persistence
 
     static let tableStyleDefaultsKey = "MarkdownPreview.themeTableStyle"

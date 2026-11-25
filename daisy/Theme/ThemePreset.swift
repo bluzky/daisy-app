@@ -67,43 +67,33 @@ nonisolated struct ThemePreset: Identifiable, Equatable, Sendable {
     /// update, and expansion sanitizes each value through a regex.
     let setting: ThemeColorsSetting
 
-    init(name: String, flavor: Flavor, palette: Palette, darkPalette: Palette? = nil,
-         font: DocumentFontSetting = .system, boldText: Bool = false,
-         tableStyle: MarkdownHTML.TableStyle? = nil,
-         usesDefaultColors: Bool = false) {
-        self.name = name
-        self.flavor = flavor
-        self.font = font
-        self.boldText = boldText
-        self.palette = palette
-        self.darkPalette = darkPalette
-        if usesDefaultColors {
-            self.setting = ThemeColorsSetting()
-            return
+    /// A built-in theme as a gallery and Customize preset. Original sets no
+    /// tokens: applying it clears the overrides, so it leaves the same
+    /// native chrome as a fresh install.
+    init(theme: Theme) {
+        name = theme.name
+        switch theme.appearance {
+        case .light: flavor = .light
+        case .dark: flavor = .dark
+        case .system: flavor = .system
         }
-        var setting = ThemeColorsSetting()
-        for scheme in ThemeColorScheme.allCases {
-            let colors = scheme == .dark ? (darkPalette ?? palette) : palette
-            setting.setHex(colors.pageBackground, .windowBackground, scheme)
-            // The editor follows the window color through the fallback
-            // chain; a separate editor override is deliberately not exposed
-            // yet, and any stored value is cleared so it cannot go stale.
-            setting.setHex(nil, .editorBackground, scheme)
-            setting.setHex(colors.codeBackground, .codeBlockBackground, scheme)
-            setting.setHex(colors.text, .textColor, scheme)
-            setting.setHex(colors.accent, .linkColor, scheme)
-            setting.setHex(colors.heading, .headingColor, scheme)
-            setting.setHex(colors.tableHeader, .tableHeader, scheme)
-            setting.setHex(colors.tableBorder, .tableBorder, scheme)
-            setting.setHex(colors.tableStripe, .tableStripe, scheme)
-            for level in 1...6 {
-                guard let slot = ThemeColorSlot.heading(level: level) else { continue }
-                setting.setHex(colors.headingLevels.flatMap { $0.indices.contains(level - 1) ? $0[level - 1] : nil },
-                               slot, scheme)
-            }
-        }
-        setting.tableStyle = tableStyle
-        self.setting = setting
+        let bodyFont = theme.light["font-body"]
+        font = DocumentFontSetting.allCases.first { $0.fontFamily == bodyFont } ?? .system
+        boldText = theme.light["body-weight"] == "600"
+        palette = Palette(tokens: theme.palette(for: theme.appearance == .dark ? .dark : .light),
+                          swatches: Self.defaultSwatches(dark: theme.appearance == .dark))
+        darkPalette = theme.appearance == .system
+            ? Palette(tokens: theme.palette(for: .dark), swatches: Self.defaultSwatches(dark: true))
+            : nil
+        setting = theme.usesDefaultLook ? ThemeColorsSetting() : ThemeColorsSetting(theme: theme)
+    }
+
+    /// The default stylesheet's colors, for the gallery swatches of a theme
+    /// that doesn't set them.
+    private static func defaultSwatches(dark: Bool) -> Palette {
+        dark
+            ? Palette(pageBackground: "#1C1C1C", codeBackground: "#2A2828", text: "#F5F5F7", accent: "#2997FF")
+            : Palette(pageBackground: "#FFFFFF", codeBackground: "#F5F5F7", text: "#1D1D1F", accent: "#0066CC")
     }
 
     var id: String { name }
@@ -212,76 +202,28 @@ nonisolated struct ThemePreset: Identifiable, Equatable, Sendable {
 
     /// The built-in starter set, in gallery order — three rows of three:
     /// the Apple Books set (Original, Quiet, Paper / Bold, Calm, Focus)
-    /// first, then Ember and the remaining dark themes. Original leads — it is the
-    /// default theme.
-    ///
-    /// Display names are single evocative words in the Apple Books style.
-    /// Quiet, Paper, Bold, and Focus are sampled from Apple Books' theme
-    /// cards; the entries marked "Bear" are sampled from Bear's themes
-    /// (editor page, inline-code pill, body text, link color) so the two
-    /// apps render the same look side by side.
-    static let builtIn: [ThemePreset] = [
-        // These swatches preview the default stylesheet in the gallery.
-        // Applying Original clears overrides instead of pinning a palette:
-        // choosing it must leave the same native chrome as a fresh install.
-        ThemePreset(name: "Original", flavor: .system,
-                    palette: Palette(pageBackground: "#FFFFFF", codeBackground: "#F5F5F7",
-                                     text: "#1D1D1F", accent: "#0066CC"),
-                    darkPalette: Palette(pageBackground: "#1C1C1C", codeBackground: "#2A2828",
-                                         text: "#F5F5F7", accent: "#2997FF"),
-                    usesDefaultColors: true),
-        // Apple Books "Quiet": soft dark gray with bright ink — sampled from
-        // a reading page, not from the gallery card, whose label is muted.
-        ThemePreset(name: "Quiet", flavor: .dark,
-                    palette: Palette(pageBackground: "#4A4A4D", codeBackground: "#59595D",
-                                     text: "#EBEBF4", accent: "#99B7C4")),
-        // Apple Books "Paper": neutral light gray, softened ink, serif.
-        ThemePreset(name: "Paper", flavor: .light,
-                    palette: Palette(pageBackground: "#EEEDED", codeBackground: "#E3E1E1",
-                                     text: "#262626", accent: "#DE4A4F",
-                                     headingLevels: ["#B3363B", "#8F5410", "#46702A",
-                                                     "#1F6F7A", "#4B5CA8", "#8A4C7A"]),
-                    font: .charter),
-        // Apple Books "Bold": plain white with heavy near-black text.
-        ThemePreset(name: "Bold", flavor: .light,
-                    palette: Palette(pageBackground: "#FFFFFF", codeBackground: "#F2F2F2",
-                                     text: "#1C1C1E", accent: "#007AFF"),
-                    boldText: true),
-        // Bear "Solarized Light", with Books' serif reading face.
-        ThemePreset(name: "Calm", flavor: .light,
-                    palette: Palette(pageBackground: "#FDF6E3", codeBackground: "#F6EDDB",
-                                     text: "#313D45", accent: "#A0630F"),
-                    font: .georgia),
-        // Apple Books "Focus": warm cream, high-contrast ink, serif.
-        ThemePreset(name: "Focus", flavor: .light,
-                    palette: Palette(pageBackground: "#FFFCF5", codeBackground: "#F5F1E4",
-                                     text: "#14120B", accent: "#A0630F"),
-                    font: .newYork),
-        // Warm near-black with cream ink and an amber accent, in a book
-        // serif. Follows the system appearance: the light half is a warm
-        // parchment with dark-brown ink (~13.7:1) and a deeper amber accent
-        // (~5.6:1); the dark half reads at ~11.3:1 and the accent at ~6.9:1.
-        // Heading levels run rust, amber, olive, teal, indigo, plum (5:1 or more
-        // in light, 6:1 or more in dark).
-        ThemePreset(name: "Ember", flavor: .system,
-                    palette: Palette(pageBackground: "#F6EFE3", codeBackground: "#ECE2D1",
-                                     text: "#2B2219", accent: "#8F4E0E",
-                                     headingLevels: ["#A33B20", "#945410", "#52702A",
-                                                     "#2B6C70", "#585796", "#86496A"]),
-                    darkPalette: Palette(pageBackground: "#2B2620", codeBackground: "#37312A",
-                                         text: "#E8DFCF", accent: "#E0A458",
-                                         headingLevels: ["#F08A6C", "#F0B27A", "#B5CE85",
-                                                         "#7FCBC8", "#B3B0F0", "#E1A3C0"]),
-                    font: .iowan),
-        // Bear "Solarized Dark", with the body text lifted from Bear's own
-        // #9BA7A4: that reads at about 4.8:1 on this page, the one theme
-        // here below 7:1. #C3CFCC keeps the Solarized cast at ~7.9:1.
-        ThemePreset(name: "Dusk", flavor: .dark,
-                    palette: Palette(pageBackground: "#0C3742", codeBackground: "#103E49",
-                                     text: "#C3CFCC", accent: "#299385")),
-        // Bear "Dracula"
-        ThemePreset(name: "Midnight", flavor: .dark,
-                    palette: Palette(pageBackground: "#363846", codeBackground: "#313343",
-                                     text: "#FFFFFF", accent: "#8BE9FD")),
-    ]
+    /// first, then Ember and the remaining dark themes. Original leads — it is
+    /// the default theme. The looks live in `Resources/Themes/<id>.css`.
+    static let builtIn: [ThemePreset] = BuiltInThemes.galleryIDs.compactMap { id in
+        BuiltInThemes.catalog[id].map(ThemePreset.init(theme:))
+    }
+
+    /// Every built-in theme: the gallery's, then the former slide themes.
+    static let all: [ThemePreset] = BuiltInThemes.all.map(ThemePreset.init(theme:))
+}
+
+nonisolated extension ThemePreset.Palette {
+    /// One scheme of a theme's tokens, with `swatches` where it sets none.
+    init(tokens: [String: String], swatches: Self) {
+        pageBackground = tokens["bg"] ?? swatches.pageBackground
+        codeBackground = tokens["code-bg"] ?? swatches.codeBackground
+        text = tokens["text"] ?? swatches.text
+        accent = tokens["link"] ?? swatches.accent
+        heading = tokens["heading"]
+        let levels = (1...6).map { tokens["heading-\($0)"] }
+        headingLevels = levels.allSatisfy { $0 == nil } ? nil : levels.map { $0 ?? text }
+        tableHeader = tokens["table-header-bg"]
+        tableBorder = tokens["table-border"]
+        tableStripe = tokens["table-stripe"]
+    }
 }
