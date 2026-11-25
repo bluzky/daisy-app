@@ -130,24 +130,45 @@ A shortcode is a widget written inline, as inline code: `` `{{name: arguments}}`
 
 `` `{{badge: "Build passing" color=success}}` `` shows its text in a color on a pale tint of that color. `color` is optional ([colors](#colors)); without it a badge is grey. On a light page the text is darkened so it stays readable, a hex color too. Several badges side by side are several shortcodes on one line. A fenced ```` ```badge ```` block is no longer drawn; it shows as a plain code block.
 
-### Shapes
-
-`` `{{shape: 1}}` `` draws one to three characters (a step number, a letter, `98%`) in the middle of a circle, centered on the line. Use it to number steps on a slide, or to mark items in a list or a table.
-
 ```markdown
-`{{shape: 1}}` Import · `{{shape: 2}}` Style · `{{shape: 3 color=success}}` Present
-
-`{{shape: A kind=square style=tint size=lg}}` `{{shape: 98% style=outline color=info size=xl}}`
+`{{badge: Shipped style=solid color=success}}` `{{badge: Draft style=outline}}` `{{badge: v2 kind=rounded size=sm}}`
 ```
 
 | Option | Values | What it does |
 | --- | --- | --- |
-| `kind` | `circle` (default), `square` | A circle, or a square with rounded corners. |
-| `style` | `filled` (default), `tint`, `outline` | `filled` is the color with white text, or dark text on `warning`; with a light hex color, use `tint` instead. `tint` is a badge's look: the text in the color on a pale tint of it. `outline` is a ring in the color around text in the color. |
+| `color` | [colors](#colors) | The badge's color; grey without one. |
+| `style` | `tint` (default), `solid`, `outline` | The same looks as a [shape](#shapes)'s: the text in the color on a pale tint, the color with white text (dark on `warning`), or a ring in the color. |
+| `kind` | `pill` (default), `rounded`, `square` | Round ends, small rounded corners, or sharp corners. |
+| `size` | `sm`, `md` (default), `lg` | A badge scales with the text around it; `size` makes it smaller or bigger than that. |
+| `ink` | `light`, `dark` | The text color, white or near-black, instead of the automatic one. Use `ink=dark` on a solid badge in a light hex color. |
+
+A value outside its list leaves the badge as code. In a card with `style=solid`, a badge is redrawn in the card's text color so it stays visible.
+
+### Shapes
+
+`` `{{shape: 1}}` `` draws a few characters (a step number, a letter, `98%`) in the middle of a marker, centered on the line. Use it to number steps on a slide, or to mark items in a list, a table or a card heading.
+
+```markdown
+`{{shape: 1}}` Import · `{{shape: 2}}` Style · `{{shape: 3 color=success}}` Present
+
+`{{shape: A kind=rounded style=tint size=lg}}` `{{shape: 98% style=outline color=info size=xl}}`
+
+`{{shape: 1 kind=hexagon}}` `{{shape: ! kind=diamond color=warning}}` `{{shape: v2.1 kind=pill style=tint}}`
+```
+
+| Option | Values | What it does |
+| --- | --- | --- |
+| `kind` | `circle` (default), `rounded`, `square`, `pill`, `hexagon`, `diamond` | The outline. `rounded` is a square with rounded corners and `square` one with sharp corners, as on a [card](cards.md). A `pill` has round ends and grows with its text. A `hexagon` (point up) and a `diamond` are drawn as shapes of their own, in every style. |
+| `style` | `solid` (default), `tint`, `outline` | The same names as a card's styles. `solid` is the color with white text, or dark text on `warning`; with a light hex color, add `ink=dark`. `tint` is a badge's look: the text in the color on a pale tint of it. `outline` is a ring in the color around text in the color. |
 | `color` | [colors](#colors) | The shape's color; the accent without one. |
 | `size` | `sm`, `md` (default), `lg`, `xl` | A shape scales with the text around it, so one in a heading or on a slide is bigger; `size` makes it smaller or bigger than that. |
+| `ink` | `light`, `dark` | The text color, white or near-black, instead of the automatic one. It wins everywhere, also on `warning` and inside a solid card. Use `ink=dark` on a solid shape in a light hex color. |
 
-A shape is always as tall as it is wide; two or three characters are drawn smaller to fit, and a trailing `%` smaller still, as on a gauge. More than three characters, no text, or a `kind`, `style` or `size` outside its list leaves the shortcode as code. For a step's title next to its number, write both on one line or put the shape at the top of a [column](columns.md).
+- Every kind but `pill` is as tall as it is wide and takes one to three characters; two or three are drawn smaller to fit, a little smaller again in a hexagon or a diamond, and a trailing `%` smaller still, as on a gauge.
+- A `pill` takes up to twelve characters, such as a version or a short label, and keeps the text size.
+- More characters, no text, or a `kind`, `style` or `size` outside its list leaves the shortcode as code. `style=filled` is now `style=solid`.
+- In a card with `style=solid`, a shape is redrawn in the card's text color so it stays visible.
+- For a step's title next to its number, write both on one line or put the shape at the top of a [column](columns.md).
 
 ## Charts
 

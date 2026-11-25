@@ -172,13 +172,63 @@ final class ShortcodeTests: XCTestCase {
         XCTAssertEqual(result?[3] as? String, "text: Shipped")
     }
 
+    // MARK: Badge options
+
+    @MainActor
+    func testBadgesTakeStyleKindSizeAndInk() async throws {
+        let webView = try await load("""
+        `{{badge: Default}}` `{{badge: Shipped style=solid color=#ff0000 kind=rounded size=lg}}` \
+        `{{badge: Draft style=outline color=#00ff00 kind=square size=sm}}` `{{badge: Hot style=solid color=warning}}` \
+        `{{badge: Hot style=solid color=warning ink=light}}`
+        """)
+        let result = try await eval(webView, """
+        Array.from(document.querySelectorAll('.md-widget-badge'), b => {
+          const css = getComputedStyle(b);
+          return [b.className, css.backgroundColor, css.color, css.borderTopLeftRadius, css.boxShadow];
+        })
+        """) as? [[Any]]
+        XCTAssertEqual(result?.map { $0[0] as? String }, [
+            "md-widget-badge",
+            "md-widget-badge md-widget-badge-solid md-widget-badge-rounded md-widget-badge-lg md-widget-c-custom",
+            "md-widget-badge md-widget-badge-outline md-widget-badge-square md-widget-badge-sm md-widget-c-custom",
+            "md-widget-badge md-widget-badge-solid md-widget-c-warning",
+            "md-widget-badge md-widget-badge-solid md-widget-badge-ink-light md-widget-c-warning",
+        ], "the defaults (tint, pill, md) add no class")
+        XCTAssertEqual(result?[1][1] as? String, "rgb(255, 0, 0)", "solid: the color itself")
+        XCTAssertEqual(result?[1][2] as? String, "rgb(255, 255, 255)", "with white text")
+        XCTAssertEqual(result?[2][1] as? String, "rgba(0, 0, 0, 0)", "outline: no fill")
+        XCTAssertTrue((result?[2][4] as? String)?.contains("rgb(0, 255, 0)") == true, "outline: a ring in the color")
+        XCTAssertEqual(result?[2][3] as? String, "0px", "square corners")
+        XCTAssertEqual(result?[3][2] as? String, "rgb(29, 29, 31)", "solid warning has dark text")
+        XCTAssertEqual(result?[4][2] as? String, "rgb(255, 255, 255)", "ink=light wins over it")
+        let heights = try await eval(webView, """
+        (() => { const [a, , c] = document.querySelectorAll('.md-widget-badge');
+          return [a.getBoundingClientRect().height > c.getBoundingClientRect().height]; })()
+        """) as? [Bool]
+        XCTAssertEqual(heights, [true], "size=sm is smaller")
+    }
+
+    @MainActor
+    func testInvalidBadgeOptionsStayInlineCode() async throws {
+        for markdown in [
+            "`{{badge: Done style=filled}}`", "`{{badge: Done kind=circle}}`",
+            "`{{badge: Done size=xl}}`", "`{{badge: Done ink=grey}}`",
+        ] {
+            let webView = try await load(markdown)
+            let result = try await eval(webView, """
+            [document.querySelectorAll('code').length, document.querySelectorAll('.md-widget-badge').length]
+            """) as? [Int]
+            XCTAssertEqual(result, [1, 0], markdown)
+        }
+    }
+
     // MARK: Shapes
 
     @MainActor
     func testShapesDrawTheirTextInTheirKindStyleAndSize() async throws {
         let webView = try await load("""
-        `{{shape: 1}}` `{{shape: AB kind=square style=tint color=success size=xl}}` \
-        `{{shape: 98% style=outline color=#ff00ff size=sm}}` `{{shape: '★'}}`
+        `{{shape: 1}}` `{{shape: AB kind=rounded style=tint color=success size=xl}}` \
+        `{{shape: 98% style=outline color=#ff00ff size=sm}}` `{{shape: '★' kind=square}}`
         """)
         let result = try await eval(webView, """
         Array.from(document.querySelectorAll('.md-widget-shape'), s => {
@@ -189,14 +239,83 @@ final class ShortcodeTests: XCTestCase {
         XCTAssertEqual(result?.map { $0[0] as? String }, ["1", "AB", "98%", "★"])
         XCTAssertEqual(result?.map { $0[1] as? String }, [
             "md-widget-shape",
-            "md-widget-shape md-widget-shape-square md-widget-shape-tint md-widget-shape-xl md-widget-shape-2 md-widget-c-success",
+            "md-widget-shape md-widget-shape-rounded md-widget-shape-tint md-widget-shape-xl md-widget-shape-2 md-widget-c-success",
             "md-widget-shape md-widget-shape-outline md-widget-shape-sm md-widget-shape-3 md-widget-c-custom",
-            "md-widget-shape",
+            "md-widget-shape md-widget-shape-square",
         ])
         XCTAssertEqual(result?.map { $0[2] as? Bool }, [true, true, true, true], "a shape is as tall as it is wide")
+        let corners = try await eval(webView, """
+        Array.from(document.querySelectorAll('.md-widget-shape'), s => getComputedStyle(s).borderTopLeftRadius)
+        """) as? [String]
+        XCTAssertEqual(corners?[3], "0px", "a square shape has sharp corners")
+        XCTAssertNotEqual(corners?[1], "0px", "a rounded one doesn't")
         let border = try await eval(webView,
             "getComputedStyle(document.querySelectorAll('.md-widget-shape')[2]).borderTopColor") as? String
         XCTAssertEqual(border, "rgb(255, 0, 255)", "a hex colors the outline exactly")
+    }
+
+    @MainActor
+    func testHexagonsAndDiamondsAreSVGPolygonsInEveryStyle() async throws {
+        let webView = try await load("""
+        `{{shape: 1 kind=hexagon color=#ff0000}}` `{{shape: 2 kind=diamond style=outline color=#00ff00}}` \
+        `{{shape: 3 kind=hexagon style=tint}}`
+        """)
+        let result = try await eval(webView, """
+        Array.from(document.querySelectorAll('.md-widget-shape'), s => {
+          const polygon = s.querySelector('svg polygon');
+          const css = getComputedStyle(polygon);
+          return [s.textContent, s.classList.contains('md-widget-shape-polygon'),
+                  polygon.getAttribute('points').split(' ').length, css.fill, css.stroke,
+                  getComputedStyle(s).backgroundColor, s.querySelector('svg').getAttribute('aria-hidden')];
+        })
+        """) as? [[Any]]
+        XCTAssertEqual(result?.map { $0[0] as? String }, ["1", "2", "3"], "the SVG adds no text")
+        XCTAssertEqual(result?.map { $0[1] as? Bool }, [true, true, true])
+        XCTAssertEqual(result?.map { $0[2] as? Int }, [6, 4, 6], "six corners and four")
+        XCTAssertEqual(result?[0][3] as? String, "rgb(255, 0, 0)", "solid: the polygon is filled with the color")
+        XCTAssertEqual(result?[1][3] as? String, "rgba(0, 0, 0, 0)", "outline: no fill")
+        XCTAssertEqual(result?[1][4] as? String, "rgb(0, 255, 0)", "outline: the stroke is the color")
+        XCTAssertEqual(result?.map { $0[5] as? String }, Array(repeating: "rgba(0, 0, 0, 0)", count: 3),
+                       "the box behind the polygon draws nothing")
+        XCTAssertEqual(result?[0][6] as? String, "true")
+    }
+
+    @MainActor
+    func testAPillGrowsWithItsText() async throws {
+        let webView = try await load("`{{shape: 1 kind=pill}}` `{{shape: v2.1-beta kind=pill}}`")
+        let result = try await eval(webView, """
+        Array.from(document.querySelectorAll('.md-widget-shape'), s => {
+          const box = s.getBoundingClientRect();
+          return [s.textContent, Math.round(box.width) >= Math.round(box.height), box.width > box.height * 2];
+        })
+        """) as? [[Any]]
+        XCTAssertEqual(result?.map { $0[0] as? String }, ["1", "v2.1-beta"])
+        XCTAssertEqual(result?[0][1] as? Bool, true, "never narrower than it is tall")
+        XCTAssertEqual(result?[1][2] as? Bool, true, "longer text makes it wider")
+    }
+
+    @MainActor
+    func testInkSetsTheTextColorAndWins() async throws {
+        let webView = try await load("""
+        `{{shape: 1 color=warning}}` `{{shape: 2 color=warning ink=light}}` `{{shape: 3 ink=dark}}` \
+        `{{shape: 4 style=tint ink=dark color=success}}`
+
+        <!-- card style=solid -->
+        `{{shape: 5}}` `{{shape: 6 ink=dark}}` `{{shape: 7 style=outline ink=dark}}`
+        <!-- end-card -->
+        """)
+        let colors = try await eval(webView,
+            "Array.from(document.querySelectorAll('.md-widget-shape'), s => getComputedStyle(s).color)") as? [String]
+        let dark = "rgb(29, 29, 31)", white = "rgb(255, 255, 255)"
+        XCTAssertEqual(colors?[0], dark, "warning is dark without ink")
+        XCTAssertEqual(colors?[1], white, "ink=light wins over warning")
+        XCTAssertEqual(colors?[2], dark)
+        XCTAssertEqual(colors?[3], dark, "ink works on a tint shape too")
+        XCTAssertNotEqual(colors?[4], dark, "in a solid card, a solid shape's text is its color")
+        XCTAssertEqual(colors?[5], dark, "ink wins over the solid card's redraw")
+        XCTAssertEqual(colors?[6], dark)
+        let classes = try await eval(webView, "document.querySelectorAll('.md-widget-shape')[1].className") as? String
+        XCTAssertEqual(classes, "md-widget-shape md-widget-shape-ink-light md-widget-c-warning")
     }
 
     @MainActor
@@ -204,10 +323,14 @@ final class ShortcodeTests: XCTestCase {
         for markdown in [
             "`{{shape:}}`",
             "`{{shape: 1234}}`",
-            "`{{shape: 1 kind=hexagon}}`",
+            "`{{shape: 1234 kind=hexagon}}`",
+            "`{{shape: 1234567890123 kind=pill}}`",
+            "`{{shape: 1 kind=triangle}}`",
+            "`{{shape: 1 style=filled}}`",
             "`{{shape: 1 style=glow}}`",
             "`{{shape: 1 size=huge}}`",
             "`{{shape: 1 color=purple}}`",
+            "`{{shape: 1 ink=grey}}`",
         ] {
             let webView = try await load(markdown)
             let result = try await eval(webView, """

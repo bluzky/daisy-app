@@ -90,6 +90,16 @@ An option beside `style` overrides the preset; without `style`, each part is set
 <!-- end-card -->
 <!-- end-columns -->
 
+<!-- columns -->
+<!-- card style=solid color=#ffd60a ink=dark -->
+`style=solid color=#ffd60a ink=dark`: dark text on a light color
+<!-- end-card -->
+<!-- column -->
+<!-- card style=solid color=warning ink=light -->
+`style=solid color=warning ink=light`: white text on warning
+<!-- end-card -->
+<!-- end-columns -->
+
 ### Shapes and solid cards
 
 Card shapes, with `shape=` on the card:
@@ -117,7 +127,7 @@ Solid, soft and bare cards, with `fill`, `border` and `bar` set one by one:
 
 <!-- columns -->
 <!-- card style=solid color=accent -->
-### `{{shape: ✓ kind=square style=tint}}` Ready to ship
+### `{{shape: ✓ kind=hexagon style=tint}}` Ready to ship
 All [release checks](#release-42) pass.
 <!-- end-card -->
 <!-- column -->

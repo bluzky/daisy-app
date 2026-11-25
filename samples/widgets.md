@@ -2,6 +2,8 @@
 
 `{{badge: "Build passing" color=success}}` `{{badge: "Docs outdated" color=warning}}` `{{badge: "Notarization failing" color=danger}}` `{{badge: "Maintenance on Sunday" color=info}}` `{{badge: "v2.4 beta" color=accent}}` `{{badge: Archived color=neutral}}` `{{badge: Draft}}` `{{badge: Design color=#AF52DE}}`
 
+Badge styles: `{{badge: Tint color=success}}` `{{badge: Solid style=solid color=success}}` `{{badge: Outline style=outline color=success}}` · `{{badge: Rounded kind=rounded color=info}}` `{{badge: Square kind=square style=solid color=info}}` · `{{badge: Small size=sm}}` `{{badge: Large size=lg color=accent}}` · `{{badge: "Light hex" style=solid color=#ffd60a ink=dark}}`
+
 ```stat
 label: Revenue
 value: $48.2k
@@ -187,7 +189,11 @@ Sparklines and badges are shortcodes: inline code that sits in a sentence or a t
 
 Error budget used this month: `{{progress: 72% color=warning text="{percent}"}}` · on-call handover checklist `{{progress: 5/8}}`
 
-Release steps: `{{shape: 1}}` Freeze · `{{shape: 2}}` Test · `{{shape: 3 color=success}}` Ship · `{{shape: ✓ kind=square style=tint color=success}}` Done · `{{shape: 98% style=outline color=info size=lg}}` uptime
+Release steps: `{{shape: 1}}` Freeze · `{{shape: 2}}` Test · `{{shape: 3 color=success}}` Ship · `{{shape: ✓ kind=rounded style=tint color=success}}` Done · `{{shape: 98% style=outline color=info size=lg}}` uptime
+
+Marker kinds: `{{shape: 1}}` circle · `{{shape: 2 kind=rounded}}` rounded · `{{shape: 3 kind=square}}` square · `{{shape: 4 kind=hexagon color=info}}` hexagon · `{{shape: ! kind=diamond color=warning}}` diamond · `{{shape: v4.2 kind=pill style=tint}}` pill
+
+Every kind in every style: `{{shape: 7 kind=hexagon}}` `{{shape: 7 kind=hexagon style=tint}}` `{{shape: 7 kind=hexagon style=outline}}` · `{{shape: 7 kind=diamond color=danger}}` `{{shape: 7 kind=diamond style=tint color=danger}}` `{{shape: 7 kind=diamond style=outline color=danger}}`
 
 ## Release 4.2
 

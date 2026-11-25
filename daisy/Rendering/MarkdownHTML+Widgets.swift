@@ -20,9 +20,11 @@
 //  Four widgets are inline shortcodes, written as inline code:
 //
 //      `{{sparkline: 3,5,2,8 color=success}}`   numbers / color / type (line, bar)
-//      `{{badge: "In review" color=warning}}`   text / color
-//      `{{shape: 1 kind=circle size=lg}}`       1-3 characters / kind / style /
-//                                               color / size
+//      `{{badge: "In review" color=warning}}`   text / color / style / kind /
+//                                               size / ink
+//      `{{shape: 1 kind=hexagon size=lg}}`      1-3 characters (a pill: up to 12)
+//                                               / kind / style / color / size /
+//                                               ink (light, dark)
 //      `{{progress: 7/12 color=success}}`       7/12 or 58% / color / striped /
 //                                               text
 //
@@ -411,8 +413,18 @@ nonisolated extension MarkdownHTML {
         .md-widget-fill-striped.md-widget-moving { animation: none; }
     }
 
-    /* Badges (`{{badge: …}}`), inline in the text */
+    /* Badges (`{{badge: …}}`), inline in the text. Drawn like a shape,
+       from `--md-badge-fill`, `--md-badge-stroke` and `--md-badge-ink`.
+       `tint` (the default) is the text in the color, darkened on a light
+       page like other colored text (a hex too, so a light one stays
+       readable), on a pale tint of it; `solid` the color with white text
+       (dark on warning); `outline` a ring in the color. Grey without a
+       color. The outline is an inset shadow, so it adds no size. */
     .md-widget-badge {
+        --md-widget-badge-color: var(--md-widget-color, \(WidgetColor.neutral.cssValue));
+        --md-badge-fill: color-mix(in srgb, var(--md-widget-badge-color) 18%, transparent);
+        --md-badge-stroke: transparent;
+        --md-badge-ink: color-mix(in srgb, var(--md-widget-badge-color) var(--widget-text-mix), black);
         display: inline-block;
         padding: 0 0.7em;
         border-radius: 999px;
@@ -420,21 +432,39 @@ nonisolated extension MarkdownHTML {
         font-weight: 600;
         line-height: 1.6;
         white-space: nowrap;
-        /* Text in the color, darkened on a light page like other colored
-           text (a hex too, so a light one stays readable), on a pale tint
-           of it. Grey without a color. */
-        --md-widget-badge-color: var(--md-widget-color, \(WidgetColor.neutral.cssValue));
-        color: color-mix(in srgb, var(--md-widget-badge-color) var(--widget-text-mix), black);
-        background: color-mix(in srgb, var(--md-widget-badge-color) 18%, transparent);
+        color: var(--md-badge-ink);
+        background: var(--md-badge-fill);
+        box-shadow: inset 0 0 0 0.09em var(--md-badge-stroke);
     }
+    .md-widget-badge-solid { --md-badge-fill: var(--md-widget-badge-color); --md-badge-ink: #fff; }
+    .md-widget-badge-solid.md-widget-c-warning:not(.md-widget-badge-ink-light, .md-widget-badge-ink-dark) { --md-badge-ink: #1d1d1f; }
+    .md-widget-badge-outline { --md-badge-fill: transparent; --md-badge-stroke: var(--md-widget-badge-color); }
+    .md-widget-badge-rounded { border-radius: 0.3em; }
+    .md-widget-badge-square { border-radius: 0; }
+    .md-widget-badge-sm { font-size: 0.7em; }
+    .md-widget-badge-lg { font-size: 1em; }
+    /* `ink=` wins over the style, warning and a solid card (the class is
+       repeated to outrank them). */
+    .md-widget-badge.md-widget-badge-ink-light.md-widget-badge-ink-light { --md-badge-ink: #fff; }
+    .md-widget-badge.md-widget-badge-ink-dark.md-widget-badge-ink-dark { --md-badge-ink: #1d1d1f; }
 
-    /* Shapes (`{{shape: 1}}`): a circle or rounded square with up to three
-       characters in the middle, centered on the line. Sized in em, so a
-       shape follows its text: a heading's or a slide's is bigger. `filled`
-       is the color with white text (dark text on `warning`); `tint` is a badge's look; `outline` a ring in
-       the color. Without a color it is the accent. */
+    /* Shapes (`{{shape: 1}}`): a marker with a few characters in the
+       middle, centered on the line. Sized in em, so a shape follows its
+       text: a heading's or a slide's is bigger. Three custom properties
+       draw it, so every kind and a solid card (which redraws shapes in its
+       text color) share one set of rules: `--md-shape-fill`,
+       `--md-shape-stroke` (the outline) and `--md-shape-ink` (the text).
+       `solid` is the color with white text (dark on `warning`); `tint` is a
+       badge's look; `outline` a ring in the color. Without a color it is
+       the accent. A circle, rounded or square shape or a pill is a box
+       with a border; a hexagon or diamond is an SVG polygon behind the
+       text, drawn with the same three properties. */
     .md-widget-shape {
         --md-widget-shape-color: var(--md-widget-color, \(WidgetColor.accent.cssValue));
+        --md-shape-fill: var(--md-widget-shape-color);
+        --md-shape-stroke: transparent;
+        --md-shape-ink: #fff;
+        position: relative;
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -442,34 +472,67 @@ nonisolated extension MarkdownHTML {
         width: 1.75em;
         height: 1.75em;
         vertical-align: middle;
+        border: 0.1em solid var(--md-shape-stroke);
         border-radius: 50%;
         font-size: 0.9em;
         font-weight: 600;
         line-height: 1;
         font-variant-numeric: tabular-nums;
         white-space: nowrap;
-        color: #fff;
-        background: var(--md-widget-shape-color);
+        color: var(--md-shape-ink);
+        background: var(--md-shape-fill);
     }
     /* Warning is too light for white text. */
-    .md-widget-shape.md-widget-c-warning:not(.md-widget-shape-tint, .md-widget-shape-outline) { color: #1d1d1f; }
-    .md-widget-shape-square { border-radius: 0.3em; }
-    .md-widget-shape-tint,
-    .md-widget-shape-outline {
-        color: color-mix(in srgb, var(--md-widget-shape-color) var(--widget-text-mix), black);
+    .md-widget-shape.md-widget-c-warning:not(.md-widget-shape-tint, .md-widget-shape-outline,
+        .md-widget-shape-ink-light, .md-widget-shape-ink-dark) { --md-shape-ink: #1d1d1f; }
+    .md-widget-shape-tint {
+        --md-shape-fill: color-mix(in srgb, var(--md-widget-shape-color) 18%, transparent);
+        --md-shape-ink: color-mix(in srgb, var(--md-widget-shape-color) var(--widget-text-mix), black);
     }
-    .md-widget-shape-tint { background: color-mix(in srgb, var(--md-widget-shape-color) 18%, transparent); }
     .md-widget-shape-outline {
-        background: transparent;
-        border: 0.1em solid var(--md-widget-shape-color);
+        --md-shape-fill: transparent;
+        --md-shape-stroke: var(--md-widget-shape-color);
+        --md-shape-ink: color-mix(in srgb, var(--md-widget-shape-color) var(--widget-text-mix), black);
     }
+    .md-widget-shape-rounded { border-radius: 0.3em; }
+    .md-widget-shape-square { border-radius: 0; }
+    /* A pill grows with its text instead of staying square. */
+    .md-widget-shape-pill { width: auto; min-width: 1.75em; padding: 0 0.6em; border-radius: 999px; }
+    /* A polygon: the box draws nothing, the SVG behind the text does. Its
+       stroke is about as thick as a box's border at every size. */
+    .md-widget-shape-polygon { border-color: transparent; border-radius: 0; background: none; }
+    .md-widget-shape-polygon svg {
+        position: absolute;
+        inset: -0.1em;
+        width: calc(100% + 0.2em);
+        height: calc(100% + 0.2em);
+        overflow: visible;
+    }
+    .md-widget-shape-polygon polygon {
+        fill: var(--md-shape-fill);
+        stroke: var(--md-shape-stroke);
+        stroke-width: 5;
+        stroke-linejoin: round;
+    }
+    .md-widget-shape-text {
+        position: relative;
+        font-size: calc(1em * var(--md-shape-len, 1) * var(--md-shape-fit, 1));
+    }
+    /* A diamond's and a hexagon's middle is narrower than a circle's. */
+    .md-widget-shape-diamond { --md-shape-fit: 0.78; }
+    .md-widget-shape-hexagon { --md-shape-fit: 0.92; }
     .md-widget-shape-sm { font-size: 0.7em; }
     .md-widget-shape-lg { font-size: 1.25em; }
     .md-widget-shape-xl { font-size: 2em; }
-    /* Two or three characters step down to fit the shape. */
-    .md-widget-shape-2 > span { font-size: 0.8em; }
-    .md-widget-shape-3 > span { font-size: 0.6em; letter-spacing: -0.02em; }
+    /* Two or three characters step down to fit a shape that doesn't grow. */
+    .md-widget-shape-2 { --md-shape-len: 0.8; }
+    .md-widget-shape-3 { --md-shape-len: 0.6; letter-spacing: -0.02em; }
     .md-widget-shape-unit { font-size: 0.65em; margin-left: 0.04em; }
+    /* `ink=` sets the text color and wins over every other rule: the
+       style's, warning's dark text and a solid card's redraw (the class is
+       repeated to outrank them). */
+    .md-widget-shape.md-widget-shape-ink-light.md-widget-shape-ink-light { --md-shape-ink: #fff; }
+    .md-widget-shape.md-widget-shape-ink-dark.md-widget-shape-ink-dark { --md-shape-ink: #1d1d1f; }
 
     /* Sparklines (`{{sparkline: …}}`): a line the height of the text, on its
        baseline. The stroke keeps its width however the line is scaled. A
@@ -819,13 +882,29 @@ nonisolated extension MarkdownHTML {
         return { positional, options };
       }
 
-      // `{{badge: text color=…}}`: the text in its color on a tinted pill,
-      // grey without a color.
+      // `{{badge: text color=… style=… kind=… size=… ink=…}}`: a label of
+      // any length. By default the text in its color on a tinted pill, grey
+      // without a color. `style`, `kind` and `ink` take a shape's names
+      // where they apply; a value outside its list leaves the code as it is.
+      const BADGE_STYLES = ['tint', 'solid', 'outline'];
+      const BADGE_KINDS = ['pill', 'rounded', 'square'];
+      const BADGE_SIZES = ['sm', 'md', 'lg'];
+      const BADGE_INKS = ['light', 'dark'];
       function badge(args) {
         const text = args.positional[0];
         const color = readColor(args.options.color);
         if (!text || !text.trim() || !color) return null;
+        const style = (args.options.style || 'tint').toLowerCase();
+        const kind = (args.options.kind || 'pill').toLowerCase();
+        const size = (args.options.size || 'md').toLowerCase();
+        const ink = args.options.ink == null ? null : args.options.ink.toLowerCase();
+        if (!BADGE_STYLES.includes(style) || !BADGE_KINDS.includes(kind) || !BADGE_SIZES.includes(size)
+            || (ink != null && !BADGE_INKS.includes(ink))) return null;
         const node = el('span', 'md-widget-badge', text);
+        if (style !== 'tint') node.classList.add('md-widget-badge-' + style);
+        if (kind !== 'pill') node.classList.add('md-widget-badge-' + kind);
+        if (size !== 'md') node.classList.add('md-widget-badge-' + size);
+        if (ink) node.classList.add('md-widget-badge-ink-' + ink);
         paint(node, color);
         return node;
       }
@@ -935,31 +1014,56 @@ nonisolated extension MarkdownHTML {
         return node;
       }
 
-      // `{{shape: 1 kind=circle style=filled color=… size=md}}`: one to three
-      // characters (a step number, a letter, `98%`) in a circle or a rounded
-      // square. More characters, or a kind, style or size outside its list,
-      // leave the code as it is.
-      const SHAPE_KINDS = ['circle', 'square'];
-      const SHAPE_STYLES = ['filled', 'tint', 'outline'];
+      // `{{shape: 1 kind=circle style=solid color=… size=md ink=…}}`: a few
+      // characters (a step number, a letter, `98%`) in a marker. `kind` is
+      // the outline, with the same names as a card's `shape` where they
+      // overlap: a circle, a box with `rounded` or `square` corners, a `pill`
+      // that grows with its text, or an SVG `hexagon` or `diamond`. `style`
+      // takes a card's names for the same looks. One to three characters,
+      // twelve in a pill; more, or a value outside its list, leaves the code
+      // as it is.
+      const SHAPE_KINDS = ['circle', 'rounded', 'square', 'pill', 'hexagon', 'diamond'];
+      const SHAPE_STYLES = ['solid', 'tint', 'outline'];
       const SHAPE_SIZES = ['sm', 'md', 'lg', 'xl'];
+      const SHAPE_INKS = ['light', 'dark'];
+      // Points in a 100 × 100 box, inset so the outline's stroke isn't cut.
+      const SHAPE_POLYGONS = {
+        hexagon: '50,3 90.7,26.5 90.7,73.5 50,97 9.3,73.5 9.3,26.5',
+        diamond: '50,3 97,50 50,97 3,50',
+      };
       function shape(args) {
         const text = (args.positional[0] || '').trim();
         const length = Array.from(text).length;
-        if (length < 1 || length > 3) return null;
         const kind = (args.options.kind || 'circle').toLowerCase();
-        const style = (args.options.style || 'filled').toLowerCase();
+        const style = (args.options.style || 'solid').toLowerCase();
         const size = (args.options.size || 'md').toLowerCase();
+        const ink = args.options.ink == null ? null : args.options.ink.toLowerCase();
         if (!SHAPE_KINDS.includes(kind) || !SHAPE_STYLES.includes(style)
-            || !SHAPE_SIZES.includes(size)) return null;
+            || !SHAPE_SIZES.includes(size) || (ink != null && !SHAPE_INKS.includes(ink))) return null;
+        if (length < 1 || length > (kind === 'pill' ? 12 : 3)) return null;
         const color = readColor(args.options.color);
         if (!color) return null;
         const node = el('span', 'md-widget-shape');
         if (kind !== 'circle') node.classList.add('md-widget-shape-' + kind);
-        if (style !== 'filled') node.classList.add('md-widget-shape-' + style);
+        if (style !== 'solid') node.classList.add('md-widget-shape-' + style);
         if (size !== 'md') node.classList.add('md-widget-shape-' + size);
-        if (length > 1) node.classList.add('md-widget-shape-' + length);
+        if (ink) node.classList.add('md-widget-shape-ink-' + ink);
+        if (kind !== 'pill' && length > 1) node.classList.add('md-widget-shape-' + length);
+        const points = SHAPE_POLYGONS[kind];
+        if (points) {
+          node.classList.add('md-widget-shape-polygon');
+          const SVGNS = 'http://www.w3.org/2000/svg';
+          const svg = document.createElementNS(SVGNS, 'svg');
+          svg.setAttribute('viewBox', '0 0 100 100');
+          svg.setAttribute('preserveAspectRatio', 'none');
+          svg.setAttribute('aria-hidden', 'true');
+          const polygon = document.createElementNS(SVGNS, 'polygon');
+          polygon.setAttribute('points', points);
+          svg.append(polygon);
+          node.append(svg);
+        }
         // A trailing `%` is drawn smaller, as on a gauge, so `98%` fits.
-        const label = el('span');
+        const label = el('span', 'md-widget-shape-text');
         if (length > 1 && text.endsWith('%')) {
           label.append(text.slice(0, -1), el('span', 'md-widget-shape-unit', '%'));
         } else {

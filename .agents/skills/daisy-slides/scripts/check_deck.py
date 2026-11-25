@@ -49,12 +49,16 @@ SHORTCODE = re.compile(r"^\{\{\s*([a-z][a-z0-9-]*):(.*)\}\}$", re.S)
 NEAR_SHORTCODE = re.compile(r"^\{\{\s*([A-Za-z][\w-]*)\b(?!:)")
 OPTION_KEY = re.compile(r"^[a-z][a-z0-9-]*$")
 # The options each shortcode reads; any other is ignored.
-INLINE_OPTIONS = {"sparkline": {"color", "type"}, "badge": {"color"},
+INLINE_OPTIONS = {"sparkline": {"color", "type"}, "badge": {"color", "style", "kind", "size", "ink"},
                   "progress": {"color", "striped", "text"},
-                  "shape": {"color", "kind", "style", "size"}}
-# `{{shape: …}}`: each option's values; the first is the default.
-SHAPE_OPTIONS = {"kind": ("circle", "square"), "style": ("filled", "tint", "outline"),
-                 "size": ("sm", "md", "lg", "xl")}
+                  "shape": {"color", "kind", "style", "size", "ink"}}
+# `{{badge: …}}`: each option's values; the first is the default (`ink` has none).
+BADGE_OPTIONS = {"style": ("tint", "solid", "outline"), "kind": ("pill", "rounded", "square"),
+                 "size": ("sm", "md", "lg"), "ink": ("light", "dark")}
+# `{{shape: …}}`: each option's values; the first is the default (`ink` has none).
+SHAPE_OPTIONS = {"kind": ("circle", "rounded", "square", "pill", "hexagon", "diamond"),
+                 "style": ("solid", "tint", "outline"),
+                 "size": ("sm", "md", "lg", "xl"), "ink": ("light", "dark")}
 SPARK_TYPES = ("line", "bar")
 CHART_TYPES = {"bar", "line", "pie", "donut"}
 CHART_LEGENDS = {"top", "bottom", "left", "right", "none"}
@@ -184,6 +188,7 @@ CARD_OPTIONS = {
     "padding": {"none", "compact", "normal", "roomy"},
     "align": {"start", "center"},
     "shape": {"rounded", "square", "pill", "circle"},
+    "ink": {"light", "dark"},
 }
 # Card options that were renamed before cards shipped.
 CARD_RENAMED = {"tint": "`fill=soft`", "edge": "`bar=left` or `bar=top`"}
@@ -563,8 +568,13 @@ def check_shortcodes(raw, line, report):
                                   "(put words in `text=\"…\"`)")
         elif name == "shape":
             text = positional[0].strip() if positional else ""
-            if not 1 <= len(text) <= 3:
-                plain("a shape needs one to three characters, like `1`, `A` or `98%`")
+            if options.get("style", "").lower() == "filled":
+                plain("`style=filled` is now `style=solid`")
+                continue
+            pill = options.get("kind", "").lower() == "pill"
+            if not 1 <= len(text) <= (12 if pill else 3):
+                plain("a pill shape takes 1 to 12 characters" if pill else
+                      "a shape needs one to three characters, like `1`, `A` or `98%` (`kind=pill` takes up to 12)")
                 continue
             bad = next((key for key, values in SHAPE_OPTIONS.items()
                         if key in options and options[key].lower() not in values), None)
@@ -577,6 +587,11 @@ def check_shortcodes(raw, line, report):
         else:
             if not positional or not positional[0].strip():
                 plain("a badge needs its text")
+                continue
+            bad = next((key for key, values in BADGE_OPTIONS.items()
+                        if key in options and options[key].lower() not in values), None)
+            if bad:
+                plain(f"`{bad}={options[bad]}` isn't {' or '.join(BADGE_OPTIONS[bad])}")
                 continue
             if len(positional) > 1:
                 report.warn(line, f"`{code}`: the badge shows only `{positional[0]}`; quote text with spaces, "

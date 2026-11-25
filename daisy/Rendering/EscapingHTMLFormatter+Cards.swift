@@ -44,6 +44,9 @@ nonisolated struct CardStyle: Equatable, Sendable {
     /// The outline: rounded corners (the default), square ones, fully
     /// round ends, or a circle with its content centered.
     enum Shape: String, CaseIterable, Sendable { case rounded, square, pill, circle }
+    /// `ink=`: the text color, white or near-black, instead of the theme's
+    /// (or, on a solid card, the automatic white or dark).
+    enum Ink: String, CaseIterable, Sendable { case light, dark }
 
     /// `style=`: named sets of `fill`, `border` and `bar`.
     enum Preset: String, CaseIterable, Sendable {
@@ -77,6 +80,8 @@ nonisolated struct CardStyle: Equatable, Sendable {
     var padding = Padding.normal
     var align = Align.start
     var shape = Shape.rounded
+    /// Nil leaves the text color to the theme and the fill.
+    var ink: Ink?
 
     /// `color` takes the same palette names as every widget
     /// (`WidgetColor.named(_:)`); `default` or `neutral` is the card's
@@ -84,7 +89,7 @@ nonisolated struct CardStyle: Equatable, Sendable {
     static let paletteColors: [WidgetColor] = WidgetColor.named
 
     /// Every option a card reads.
-    static let optionNames: Set<String> = ["style", "fill", "border", "bar", "color", "padding", "align", "shape"]
+    static let optionNames: Set<String> = ["style", "fill", "border", "bar", "color", "padding", "align", "shape", "ink"]
 
     init() {}
 
@@ -120,6 +125,10 @@ nonisolated struct CardStyle: Equatable, Sendable {
         guard read("fill", into: &fill), read("border", into: &border), read("bar", into: &bar),
               read("padding", into: &padding), read("align", into: &align), read("shape", into: &shape)
         else { return nil }
+        if let raw = values["ink"] {
+            guard let value = Ink(rawValue: raw) else { return nil }
+            ink = value
+        }
         if let value = values["color"] {
             if let named = WidgetColor.named(value) {
                 color = named == .neutral ? nil : named.rawValue
@@ -144,6 +153,7 @@ nonisolated struct CardStyle: Equatable, Sendable {
         if padding != .normal { classes.append("md-card-pad-\(padding.rawValue)") }
         if align != .start { classes.append("md-card-align-\(align.rawValue)") }
         if shape != .rounded { classes.append("md-card-shape-\(shape.rawValue)") }
+        if let ink { classes.append("md-card-ink-\(ink.rawValue)") }
         return classes.joined(separator: " ")
     }
 

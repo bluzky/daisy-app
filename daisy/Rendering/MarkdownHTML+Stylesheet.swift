@@ -914,28 +914,39 @@ nonisolated extension MarkdownHTML {
     .md-card-bar-left { border-left: 0.25em solid var(--md-card-color); }
     .md-card-bar-top { border-top: 0.25em solid var(--md-card-color); }
     /* `fill=solid`: the color itself, with white text (dark on warning,
-       which is too light for white). Headings, links, quotes, rules, table
-       lines and inline code inside follow that text color instead of the
-       theme's, so they stay readable. Widgets keep their own colors. */
+       which is too light for white). `ink=light` or `ink=dark` sets the
+       text color on any card, and wins over both. On a solid card or one
+       with `ink`, headings, links, quotes, rules and table lines inside
+       follow that text color instead of the theme's, so they stay
+       readable. Widgets keep their own colors. */
     .md-card-fill-solid {
         --md-card-bg: var(--md-card-color);
         --md-card-ink: #fff;
+        --code-bg: color-mix(in srgb, var(--md-card-ink) 16%, transparent);
+    }
+    .md-card-fill-solid.md-card-color-warning { --md-card-ink: #1d1d1f; }
+    .md-card.md-card-ink-light { --md-card-ink: #fff; }
+    .md-card.md-card-ink-dark { --md-card-ink: #1d1d1f; }
+    :is(.md-card-fill-solid, .md-card-ink-light, .md-card-ink-dark) {
         --heading: var(--md-card-ink);
         --link: var(--md-card-ink);
         --secondary: color-mix(in srgb, var(--md-card-ink) 80%, transparent);
         --grid: color-mix(in srgb, var(--md-card-ink) 35%, transparent);
-        --code-bg: color-mix(in srgb, var(--md-card-ink) 16%, transparent);
         color: var(--md-card-ink);
     }
-    .md-card-fill-solid.md-card-color-warning { --md-card-ink: #1d1d1f; }
-    .md-card-fill-solid a { text-decoration: underline; }
-    .md-card-fill-solid li::marker { color: inherit; }
+    :is(.md-card-fill-solid, .md-card-ink-light, .md-card-ink-dark) a { text-decoration: underline; }
+    :is(.md-card-fill-solid, .md-card-ink-light, .md-card-ink-dark) li::marker { color: inherit; }
     /* A shape inside a solid card would vanish into it in the same color:
-       a filled one becomes the text color with the shape's color inside it,
+       a solid one becomes the text color with the shape's color inside it,
        a tint or outline one takes the text color. */
-    .md-card-fill-solid .md-widget-shape { background: var(--md-card-ink); color: var(--md-widget-shape-color); }
-    .md-card-fill-solid .md-widget-shape-tint { background: color-mix(in srgb, var(--md-card-ink) 22%, transparent); color: var(--md-card-ink); }
-    .md-card-fill-solid .md-widget-shape-outline { background: transparent; border-color: var(--md-card-ink); color: var(--md-card-ink); }
+    .md-card-fill-solid .md-widget-shape { --md-shape-fill: var(--md-card-ink); --md-shape-stroke: transparent; --md-shape-ink: var(--md-widget-shape-color); }
+    .md-card-fill-solid .md-widget-shape-tint { --md-shape-fill: color-mix(in srgb, var(--md-card-ink) 22%, transparent); --md-shape-ink: var(--md-card-ink); }
+    .md-card-fill-solid .md-widget-shape-outline { --md-shape-fill: transparent; --md-shape-stroke: var(--md-card-ink); --md-shape-ink: var(--md-card-ink); }
+    /* Badges likewise: a tint or solid badge in the card's text color, an
+       outline one as a ring of it. */
+    .md-card-fill-solid .md-widget-badge { --md-badge-fill: color-mix(in srgb, var(--md-card-ink) 22%, transparent); --md-badge-ink: var(--md-card-ink); }
+    .md-card-fill-solid .md-widget-badge-solid { --md-badge-fill: var(--md-card-ink); --md-badge-ink: var(--md-widget-badge-color); }
+    .md-card-fill-solid .md-widget-badge-outline { --md-badge-fill: transparent; --md-badge-stroke: var(--md-card-ink); --md-badge-ink: var(--md-card-ink); }
     .md-card-pad-none { padding: 0; }
     .md-card-pad-compact { padding: 0.6em 0.85em; }
     .md-card-pad-roomy { padding: 1.6em 1.9em; }

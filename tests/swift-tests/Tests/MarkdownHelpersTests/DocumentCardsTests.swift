@@ -39,6 +39,9 @@ final class DocumentCardsTests: XCTestCase {
         XCTAssertEqual(CardStyle(options: "shape=square")?.classes, "md-card md-card-shape-square")
         XCTAssertEqual(CardStyle(options: "shape=rounded")?.classes, "md-card", "rounded is the default")
         XCTAssertEqual(CardStyle(options: "padding=none")?.classes, "md-card md-card-pad-none")
+        XCTAssertEqual(CardStyle(options: "style=solid color=warning ink=light")?.classes,
+                       "md-card md-card-fill-solid md-card-border-none md-card-colored md-card-color-warning md-card-ink-light")
+        XCTAssertEqual(CardStyle(options: "ink=dark")?.ink, .dark)
     }
 
     func testStylePresetsSetFillBorderAndBar() {
@@ -84,7 +87,7 @@ final class DocumentCardsTests: XCTestCase {
             "style=fancy", "color=red", "color=#12345", "color=#fff;background:url(x)",
             "fill=yes", "border=dotted", "bar=bottom", "padding=huge", "align=right", "size=big",
             "shape=hexagon", "style", "style=", "style=accent style=plain", "style=\"accent",
-            "tint=true", "edge=top", "fill=soft fill=tint",
+            "tint=true", "edge=top", "fill=soft fill=tint", "ink=grey", "ink=",
         ] {
             XCTAssertNil(CardStyle(options: options), options)
         }
@@ -239,6 +242,14 @@ final class DocumentCardsTests: XCTestCase {
         <!-- card border=thick color=#ff0000 -->
         Thick
         <!-- end-card -->
+
+        <!-- card style=solid color=warning ink=light -->
+        ### Light on warning
+        <!-- end-card -->
+
+        <!-- card ink=dark -->
+        ### Dark on the surface
+        <!-- end-card -->
         """)
         let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 900, height: 900))
         webView.loadHTMLString(rendered.html, baseURL: nil)
@@ -246,7 +257,7 @@ final class DocumentCardsTests: XCTestCase {
         while webView.isLoading && Date() < deadline { try await Task.sleep(for: .milliseconds(50)) }
         let result = try await webView.evaluateJavaScript("""
         (() => {
-          const [plain, accent, outline, top, bare, solid, thick] = Array.from(document.querySelectorAll('.md-card'));
+          const [plain, accent, outline, top, bare, solid, thick, light, darkInk] = Array.from(document.querySelectorAll('.md-card'));
           const css = el => getComputedStyle(el);
           return [css(plain).backgroundColor !== 'rgba(0, 0, 0, 0)',
                   css(accent).borderLeftColor, css(accent).borderLeftWidth !== css(accent).borderTopWidth,
@@ -256,7 +267,8 @@ final class DocumentCardsTests: XCTestCase {
                   css(bare).backgroundColor, css(bare).borderTopWidth,
                   css(solid).backgroundColor, css(solid.querySelector('h3')).color, css(solid.querySelector('a')).color,
                   css(thick).borderTopColor, parseFloat(css(thick).borderTopWidth) > 1,
-                  css(accent).borderTopColor !== 'rgb(255, 0, 0)'];
+                  css(accent).borderTopColor !== 'rgb(255, 0, 0)',
+                  css(light.querySelector('h3')).color, css(darkInk.querySelector('h3')).color, css(darkInk).color];
         })()
         """) as? [Any]
         XCTAssertEqual(result?[0] as? Bool, true, "a plain card has a fill")
@@ -274,5 +286,8 @@ final class DocumentCardsTests: XCTestCase {
         XCTAssertEqual(result?[12] as? String, "rgb(255, 0, 0)", "without a bar, the border takes the color")
         XCTAssertEqual(result?[13] as? Bool, true, "border=thick is thicker than a thin border")
         XCTAssertEqual(result?[14] as? Bool, true, "with a bar, the border keeps the theme's separator color")
+        XCTAssertEqual(result?[15] as? String, "rgb(255, 255, 255)", "ink=light wins over warning's dark text")
+        XCTAssertEqual(result?[16] as? String, "rgb(29, 29, 31)", "ink=dark sets a heading's color on any card")
+        XCTAssertEqual(result?[17] as? String, "rgb(29, 29, 31)", "and the card's text")
     }
 }

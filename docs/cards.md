@@ -33,6 +33,7 @@ Each part of a card's look is its own option. `style` is a shortcut that sets se
 | `shape` | `rounded` (default), `square`, `pill`, `circle` | The card's outline. `square` has square corners and `pill` fully round ends. `circle` is a circle at most 14em across, centered, with its content centered in it; it keeps its shape instead of filling its column's height, so keep its content short, such as a number and a word. |
 | `padding` | `none`, `compact`, `normal` (default), `roomy` | Space inside the card. A `pill` or `circle` keeps its own padding. |
 | `align` | `start` (default), `center` | Centers the card's content, for example a single number or a gauge. |
+| `ink` | `light`, `dark` | The text color: white or near-black, on any card. Without it, the theme's text color, or on a solid card white (dark on `warning`). Use it for a solid card in a light hex color (`ink=dark`), or a card whose look you've set yourself. |
 | `style` | `plain` (default), `outline`, `filled`, `accent`, `solid`, `none` | A preset; see below. |
 
 ### Style presets
@@ -59,7 +60,7 @@ Values may be quoted (`color="#6366F1"`). There is no way to write CSS in a card
 
 ### Solid cards
 
-On a `solid` card, headings, links (underlined), list markers, quotes, rules, table lines and inline code take the card's text color instead of the theme's, so they stay readable. A [`shape`](widgets.md#shapes) inside one is drawn in the text color so it doesn't vanish into the card. Other widgets, such as stat tiles, charts and progress bars, keep their own colors; put them in a `fill=soft` or `tint` card instead. For a light hex color, use `tint`: a solid card's text is white.
+On a `solid` card, or any card with `ink`, headings, links (underlined), list markers, quotes, rules and table lines take the card's text color instead of the theme's, so they stay readable; on a solid card, inline code does too. A [`shape`](widgets.md#shapes) inside one is drawn in the text color so it doesn't vanish into the card. Other widgets, such as stat tiles, charts and progress bars, keep their own colors; put them in a `fill=soft` or `tint` card instead. A solid card's text is white unless the color is `warning`; for a light hex color, add `ink=dark`.
 
 ## Rules
 
