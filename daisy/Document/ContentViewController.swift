@@ -547,8 +547,25 @@ final class ContentViewController: NSViewController {
         }
     }
 
+    /// A setting change (theme, appearance, font…) loads a fresh page, which
+    /// would land at the top. Capture the source position first and restore
+    /// it once the new page lays out, so the reader stays where they were.
     func reloadPreviewForSettingChange() {
-        webView.reloadPreviewForSettingChange()
+        // A mode switch already owns the pending anchor; don't overwrite it.
+        guard pendingPreviewScrollAnchor == nil,
+              webView.isPageReady,
+              webView.scrollMetrics.position > 0 else {
+            webView.reloadPreviewForSettingChange()
+            return
+        }
+        sourceScrollAnchor { [weak self] anchor in
+            guard let self else { return }
+            if let anchor, self.pendingPreviewScrollAnchor == nil {
+                self.pendingPreviewScrollAnchor = anchor
+                self.shouldApplyPendingAnchorOnHeight = true
+            }
+            self.webView.reloadPreviewForSettingChange()
+        }
     }
 
     /// Repaints the native page background and restyles the loaded preview

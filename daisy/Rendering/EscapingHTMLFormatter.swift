@@ -751,6 +751,9 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
     let rendersHighlights: Bool
     /// Upgrade GitHub-style alert blockquotes.
     let rendersCallouts: Bool
+    /// Stamp dashboard widget fences (`stat`, `chart`, `progress`, `badge`)
+    /// so the page script can draw them (`DashboardDocument`).
+    let rendersDashboard: Bool
     /// Render the document as presentation slides (`SlideDeck`).
     let rendersSlides: Bool
     /// The deck's frontmatter settings, for its header, footer and aspect.
@@ -789,6 +792,7 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
          highlightsCode: Bool = true,
          rendersHighlights: Bool = true,
          rendersCallouts: Bool = true,
+         rendersDashboard: Bool = false,
          rendersSlides: Bool = false,
          slideSettings: SlideDeckSettings = SlideDeckSettings(),
          strictLineBreaks: Bool = false) {
@@ -798,6 +802,7 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
         self.highlightsCode = highlightsCode
         self.rendersHighlights = rendersHighlights
         self.rendersCallouts = rendersCallouts
+        self.rendersDashboard = rendersDashboard
         self.rendersSlides = rendersSlides
         self.slideSettings = slideSettings
         // Escapes/entities can decode into a URL even without a literal scheme.
@@ -814,6 +819,7 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
                        highlightsCode: Bool = true,
                        rendersHighlights: Bool = true,
                        rendersCallouts: Bool = true,
+                       rendersDashboard: Bool = false,
                        rendersSlides: Bool = false,
                        slideSettings: SlideDeckSettings = SlideDeckSettings(),
                        strictLineBreaks: Bool = false) -> String {
@@ -827,6 +833,7 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
             highlightsCode: highlightsCode,
             rendersHighlights: rendersHighlights,
             rendersCallouts: rendersCallouts,
+            rendersDashboard: rendersDashboard,
             rendersSlides: rendersSlides,
             slideSettings: slideSettings,
             strictLineBreaks: strictLineBreaks
@@ -974,26 +981,42 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
         result += "</div>\n"
     }
 
+    /// Visits a region of a slide's blocks, framing each card that starts in
+    /// it (`SlideDeck` keeps only cards that end in the same region).
     private mutating func visitSlideBlocks(_ slide: SlideDeck.Slide, in range: Range<Int>) {
-        for blockIndex in range {
-            if let paragraph = slide.blocks[blockIndex] as? Paragraph,
-               let caption = SlideDeck.caption(paragraph) {
-                result += "<p class=\"mdp-slide-caption\"\(sourceLineAttribute(paragraph))>"
-                result += MarkdownHTML.htmlEscape(caption) + "</p>\n"
-                continue
-            }
-            if let lines = slide.spaces[blockIndex] {
-                result += "<div class=\"mdp-slide-space mdp-slide-space-\(lines)\" aria-hidden=\"true\"></div>\n"
-                continue
-            }
-            // `display: contents` keeps the block in the slide's layout.
-            if let step = slide.blockSteps[blockIndex] {
-                result += "<div class=\"mdp-step\" data-step=\"\(step)\">"
-                visit(slide.blocks[blockIndex])
+        var blockIndex = range.lowerBound
+        while blockIndex < range.upperBound {
+            if let card = slide.cards.first(where: { $0.blocks.lowerBound == blockIndex }),
+               card.blocks.upperBound <= range.upperBound {
+                result += card.style.openingTag
+                for inner in card.blocks { visitSlideBlock(slide, at: inner) }
                 result += "</div>\n"
-            } else {
-                visit(slide.blocks[blockIndex])
+                blockIndex = card.blocks.upperBound
+                continue
             }
+            visitSlideBlock(slide, at: blockIndex)
+            blockIndex += 1
+        }
+    }
+
+    private mutating func visitSlideBlock(_ slide: SlideDeck.Slide, at blockIndex: Int) {
+        if let paragraph = slide.blocks[blockIndex] as? Paragraph,
+           let caption = SlideDeck.caption(paragraph) {
+            result += "<p class=\"mdp-slide-caption\"\(sourceLineAttribute(paragraph))>"
+            result += MarkdownHTML.htmlEscape(caption) + "</p>\n"
+            return
+        }
+        if let lines = slide.spaces[blockIndex] {
+            result += "<div class=\"mdp-slide-space mdp-slide-space-\(lines)\" aria-hidden=\"true\"></div>\n"
+            return
+        }
+        // `display: contents` keeps the block in the slide's layout.
+        if let step = slide.blockSteps[blockIndex] {
+            result += "<div class=\"mdp-step\" data-step=\"\(step)\">"
+            visit(slide.blocks[blockIndex])
+            result += "</div>\n"
+        } else {
+            visit(slide.blocks[blockIndex])
         }
     }
 
@@ -1151,6 +1174,10 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
             detectedLanguage = CodeHighlighter.detectLanguage(codeBlock.code)
         }
         let language = info.language.isEmpty ? detectedLanguage : info.highlightLanguage
+        // A widget fence keeps its plain text for the page script (and for
+        // any viewer that cannot draw it), so it is not highlighted.
+        let isDashboardWidget = rendersDashboard
+            && DashboardDocument.widgetLanguages.contains(info.language.lowercased())
         var languageAttr: String
         if let language, !language.isEmpty {
             let detectedAttr = detectedLanguage == nil
@@ -1163,7 +1190,7 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
         // Mermaid fences become figures later in the pipeline and math is
         // extracted before the walker runs, so every other fence is ours.
         var body = escapeText(codeBlock.code)
-        if highlighter, language != "mermaid" {
+        if highlighter, language != "mermaid", !isDashboardWidget {
             if let language, !language.isEmpty,
                let highlighted = CodeHighlighter.highlight(codeBlock.code, language: language) {
                 body = highlighted
@@ -1180,7 +1207,9 @@ nonisolated struct EscapingHTMLFormatter: MarkupWalker {
         let isFenced = opening.hasPrefix("```") || opening.hasPrefix("~~~")
         let labelAttribute = isFenced && language != "mermaid"
             ? " data-code-language=\"\(escapeAttribute(label))\"" : ""
-        result += "<pre\(sourceLineAttribute(codeBlock))\(labelAttribute)><code\(languageAttr)>\(body)</code></pre>\n"
+        let dashboardAttribute = isDashboardWidget ? " \(DashboardDocument.stampAttribute)=\"\"" : ""
+        let preAttributes = sourceLineAttribute(codeBlock) + labelAttribute + dashboardAttribute
+        result += "<pre\(preAttributes)><code\(languageAttr)>\(body)</code></pre>\n"
     }
 
     mutating func visitHeading(_ heading: Heading) {

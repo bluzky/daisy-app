@@ -102,6 +102,10 @@ nonisolated struct SlideDeck {
         /// Empty lines from `<!-- space -->` / `<!-- space: n -->`, by index
         /// in `blocks`; the comment block itself holds the place.
         var spaces: [Int: Int] = [:]
+        /// Cards from `<!-- card … -->` … `<!-- end-card -->`, each a range
+        /// of `blocks` inside one region (above the columns, one column,
+        /// below them, or the whole slide without columns).
+        var cards: [Card] = []
         /// `<!-- _font_size: … -->`: this slide's base text size in `cqw`;
         /// nil follows the deck.
         var fontSize: Double?
@@ -123,6 +127,15 @@ nonisolated struct SlideDeck {
         /// Index in `blocks` of the first block after `<!-- columns -->`: what
         /// comes before it is shown above the columns, whatever it is.
         fileprivate var columnsStart: Int?
+        /// The card opened and not yet closed: where its blocks start, and
+        /// its options (nil when they are invalid, so it frames nothing).
+        fileprivate var openCard: (start: Int, style: CardStyle?)?
+    }
+
+    /// A card on a slide: its options and its blocks.
+    struct Card: Equatable {
+        let blocks: Range<Int>
+        let style: CardStyle
     }
 
     /// The most columns a slide is split into; later breaks are ignored.
@@ -146,6 +159,13 @@ nonisolated struct SlideDeck {
                 of: current.blocks, breaks: current.columnBreaks, end: current.columnsEnd,
                 start: current.columnsStart
             )
+            // A card that crosses a column break frames nothing.
+            let regions = current.columns.isEmpty
+                ? [current.blocks.indices]
+                : [current.columnHeader] + current.columns + [current.columnFooter]
+            current.cards = current.cards.filter { card in
+                regions.contains { $0.lowerBound <= card.blocks.lowerBound && card.blocks.upperBound <= $0.upperBound }
+            }
             current.layout = current.layoutOverride
                 ?? (current.columns.isEmpty ? nil : .columns)
                 ?? Self.layout(of: current.blocks, background: current.background)
@@ -166,7 +186,11 @@ nonisolated struct SlideDeck {
                 current.notes.append(child)
             } else if let directives = Self.directives(in: child) {
                 for (key, value) in directives {
-                    if key == "space" {
+                    // `<!-- card style=accent -->` has no colon, so the whole
+                    // comment line arrives as the key.
+                    if let marker = DocumentCards.marker(ofComment: value.isEmpty ? key : key + ": " + value) {
+                        current.applyCard(marker)
+                    } else if key == "space" {
                         current.addSpace(value, block: child)
                     } else {
                         current.apply(key: key, value: value, pendingStep: &pendingStep)
@@ -584,6 +608,21 @@ nonisolated private extension SlideDeck.Slide {
             if columnsEnd == nil, !columnBreaks.isEmpty { columnsEnd = blocks.count }
         default:
             break
+        }
+    }
+
+    /// Opens or closes a card at the current block. An opener while another
+    /// card is open drops that one (cards do not nest); a card must hold at
+    /// least one block and valid options.
+    mutating func applyCard(_ marker: DocumentCards.Marker) {
+        switch marker {
+        case .open(let style):
+            openCard = (blocks.count, style)
+        case .end:
+            if let open = openCard, let style = open.style, open.start < blocks.count {
+                cards.append(SlideDeck.Card(blocks: open.start..<blocks.count, style: style))
+            }
+            openCard = nil
         }
     }
 

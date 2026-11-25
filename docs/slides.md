@@ -37,6 +37,7 @@ See [`samples/slides.md`](../samples/slides.md) for a deck that uses every featu
 - [Empty lines](#empty-lines)
 - [Captions](#captions)
 - [Footnotes](#footnotes)
+- [Dashboard widgets](#dashboard-widgets)
 - [Editing a deck](#editing-a-deck)
 - [Presenting](#presenting)
 - [Export](#export)
@@ -144,6 +145,7 @@ footer:
 | `colors.code_background` | Code block background. |
 | `colors.table_header`, `table_header_text` | Background and text of a table's header row. |
 | `colors.table_border`, `table_stripe` | A table's lines, and the shaded rows of a `striped` table. |
+| `colors.dashboard_default`, `dashboard_accent`, `dashboard_success`, `dashboard_info`, `dashboard_warning`, `dashboard_danger`, `dashboard_series_1` … `dashboard_series_8` | The [dashboard palette](dashboard.md#colors) for widgets on the deck's slides. |
 | `table.style` | `lines` (default: a rule above and below each row), `grid` (borders between all cells), `striped` (every other row shaded) or `minimal` (only a rule under the header). |
 | `colors.primary`, `title_text` | Background and text of title and section slides. |
 | `fonts.body`, `title`, `code` | Font lists for body text, headings and code. |
@@ -427,6 +429,57 @@ Revenue grew 12%[^q3].
 [^q3]: Q3 report, page 4.
 ```
 
+## Cards
+
+Frame blocks as a panel with `<!-- card -->` and `<!-- end-card -->`, each on its own line, as in an ordinary document; options such as `style=accent color=success` go in the opening comment. See [Cards](cards.md) for every option.
+
+````markdown
+## Q3 at a glance
+
+<!-- card style=accent color=success -->
+### Revenue
+$48.2k, up 12%
+<!-- end-card -->
+<!-- column -->
+<!-- card style=accent color=danger -->
+### Churn
+2.1%, down 0.4%
+<!-- end-card -->
+````
+
+- A card goes in the slide body or inside a column. Alone in a column, it fills the column's height, so a row of cards lines up.
+- A card must open and close within one column, or within the part of the slide above or below the columns; one that crosses a `<!-- column -->` frames nothing.
+- A card's padding and corners follow the slide's text size.
+
+## Dashboard widgets
+
+Stat tiles, charts, progress bars and status badges work on slides too. Write `stat`, `chart`, `progress` and `badge` blocks as in an ordinary document; see [Dashboard](dashboard.md) for every key.
+
+````markdown
+---
+slides: true
+---
+
+## Revenue grew 12% this quarter
+
+```stat
+label: Revenue
+value: $48.2k
+delta: +12%
+trend: up
+---
+label: Churn
+value: 2.1%
+delta: -0.4%
+trend: down
+good: down
+```
+````
+
+- A `---` line inside a `stat`, `progress` or `badge` block separates its items; it does not start a new slide.
+- Widgets size their text from the slide's text, like everything else on it.
+- A bar or line chart is drawn at the full width of its column, twice as wide as it is tall (a horizontal bar chart grows taller with each row), and does not shrink to fit the slide. Give it a slide with only a short heading, or put it in a column; a `pie` or `donut` is at most 320px wide. Mermaid's `xychart-beta` and `pie` also work and shrink to fit like any Mermaid diagram.
+
 ## Editing a deck
 
 - **Slide Preview.** **View → Slide Preview** (<kbd>⌘9</kbd>) opens the deck's slides in the right-hand pane, next to the editor. It updates a moment after you stop typing, outlines the slide the cursor is in, and scrolls to it when the cursor moves to another slide. Click a slide to jump to it: the editor scrolls there and puts the cursor at the start of the slide, or, in Read Mode, the document scrolls to it. Clicks on links, buttons and selected text are left alone. Notes are hidden there. Widen the pane for bigger slides.
@@ -470,6 +523,7 @@ Presentation clickers send Page Up and Page Down, so they work without setup. Th
 | `<!-- color: value -->` | Text color. |
 | `<!-- step -->`, `<!-- step: n -->` | Reveals on a click. |
 | `<!-- column -->`, `<!-- end-columns -->` | Columns. |
+| `<!-- card key=value … -->`, `<!-- end-card -->` | A card around the blocks between them. |
 | `<!-- space -->`, `<!-- space: n -->` | Empty lines. |
 | `<!-- _paginate: … -->`, `<!-- _header: … -->`, `<!-- _footer: … -->` | This slide's number, header and footer. |
 | `<!-- _font_size: … -->` | This slide's base text size. |

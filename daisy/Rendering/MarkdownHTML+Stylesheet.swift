@@ -68,6 +68,15 @@ nonisolated extension MarkdownHTML {
         "calc(\(px)px * var(\(textScaleProperty), 1))"
     }
 
+    /// `--md-card-accent`, `--md-card-success`, …: the palette names a card's
+    /// `color` accepts. Each follows the dashboard color of the same name when
+    /// a theme or deck sets one, else the built-in light or dark value.
+    static func cardPaletteCSS(dark: Bool) -> String {
+        CardStyle.paletteColors.map {
+            "--md-card-\($0.rawValue): var(\($0.cssProperty), \($0.defaultHex(dark: dark)));"
+        }.joined(separator: " ")
+    }
+
     private static let baseStylesheet = """
     :root {
         color-scheme: light dark;
@@ -91,6 +100,7 @@ nonisolated extension MarkdownHTML {
         \(lightCodePaletteCSS)
         --mdp-list-indent: 2.1em;
         --mdp-list-gap: 0.75em;
+        \(cardPaletteCSS(dark: false))
     }
     :root[data-mdp-color-scheme="light"] {
         color-scheme: light;
@@ -103,6 +113,7 @@ nonisolated extension MarkdownHTML {
         --code-bg: #262626;
         --code-border: #323232;
         \(darkCodePaletteCSS)
+        \(cardPaletteCSS(dark: true))
     }
     :root[data-mdp-color-scheme],
     :root[data-mdp-color-scheme] body {
@@ -116,6 +127,7 @@ nonisolated extension MarkdownHTML {
             --code-bg: #262626;
             --code-border: #323232;
             \(darkCodePaletteCSS)
+            \(cardPaletteCSS(dark: true))
         }
     }
 
@@ -862,6 +874,49 @@ nonisolated extension MarkdownHTML {
         .md-columns { display: flex; align-items: flex-start; gap: 0 2em; }
         .md-column { flex: 1 1 0; }
     }
+
+    /* Cards from `<!-- card … -->` … `<!-- end-card -->`
+       (EscapingHTMLFormatter+Cards.swift): a panel on the theme's code
+       background and separator. `--md-card-color` comes from a palette class
+       or a checked hex set by CardColorExtension; tints mix it into the background, so they follow
+       light and dark. Sizes are in em, so a card scales with slide text. A
+       card alone in a column fills its height, so a row of cards lines up. */
+    .md-card {
+        --md-card-color: var(--md-card-accent);
+        min-width: 0;
+        margin: \(textScaled(largeBlockSpacing)) 0 0;
+        padding: 1em 1.25em;
+        border: 1px solid var(--grid);
+        border-radius: 0.6em;
+        background: var(--code-bg);
+        break-inside: avoid;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    .md-card > :first-child { margin-top: 0; }
+    .md-card > :last-child { margin-bottom: 0; }
+    \(CardStyle.paletteColors.map { ".md-card-color-\($0.rawValue) { --md-card-color: var(--md-card-\($0.rawValue)); }" }.joined(separator: "\n    "))
+    .md-card-colored { border-color: var(--md-card-color); }
+    .md-card-outline { background: transparent; }
+    .md-card-filled {
+        border-color: transparent;
+        background: color-mix(in srgb, var(--md-card-color) 14%, var(--code-bg));
+    }
+    .md-card-accent,
+    .md-card-accent.md-card-colored {
+        border-color: var(--grid);
+        border-left: 0.25em solid var(--md-card-color);
+    }
+    .md-card-accent.md-card-edge-top {
+        border-left: 1px solid var(--grid);
+        border-top: 0.25em solid var(--md-card-color);
+    }
+    .md-card-tint { background: color-mix(in srgb, var(--md-card-color) 8%, var(--code-bg)); }
+    .md-card-pad-compact { padding: 0.6em 0.85em; }
+    .md-card-pad-roomy { padding: 1.6em 1.9em; }
+    .md-card-align-center { text-align: center; }
+    .md-card-align-center .md-chart-body { justify-content: center; }
+    .md-column > .md-card:only-child { height: 100%; }
 
     /* Tables always span the full column, however little their cells hold.
        The wrapper owns the margin and the horizontal scroll: a table box

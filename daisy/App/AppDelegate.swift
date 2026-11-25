@@ -533,23 +533,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    // MARK: - Install Slides Skill
+    // MARK: - Install AI Skills
 
-    @objc private func installSlidesSkill(_ sender: Any?) {
-        guard let bundledSkill = Bundle.main.url(forResource: SlidesSkillInstaller.bundledFolderName,
-                                                 withExtension: nil)
-        else {
-            presentSlidesSkillError(L("The bundled slides skill could not be found."))
-            return
-        }
-        guard let target = askSlidesSkillTarget() else { return }
+    /// Installs every bundled agent skill (`AgentSkillsInstaller.skills`)
+    /// into one skills folder.
+    @objc private func installAgentSkills(_ sender: Any?) {
+        guard let target = askAgentSkillsTarget() else { return }
 
         let folder: URL
         if let preset = target.defaultFolder(home: FileSearchResults.realHomeDirectory) {
             folder = preset
         } else {
             let panel = NSOpenPanel()
-            panel.message = L("Choose the folder your AI agent reads skills from. Daisy adds a “daisy-slides” folder inside it.")
+            panel.message = L("Choose the folder your AI agent reads skills from. Daisy adds a “daisy-slides” and a “daisy-dashboard” folder inside it.")
             panel.prompt = L("Install Here")
             panel.canChooseDirectories = true
             panel.canChooseFiles = false
@@ -560,23 +556,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         do {
-            let installed = try SlidesSkillInstaller.install(bundledSkill: bundledSkill, into: folder)
-            presentSlidesSkillInstalled(at: installed)
+            let installed = try AgentSkillsInstaller.installAll(into: folder) { skill in
+                Bundle.main.url(forResource: skill.bundledFolderName, withExtension: nil)
+            }
+            presentAgentSkillsInstalled(at: installed)
         } catch {
-            presentSlidesSkillError(error.localizedDescription)
+            presentAgentSkillsError(error.localizedDescription)
         }
     }
 
     /// Asks where to install. Claude Code and Codex use their global skills
     /// folder; Custom folder is followed by a folder selector.
-    private func askSlidesSkillTarget() -> SlidesSkillInstaller.Target? {
+    private func askAgentSkillsTarget() -> AgentSkillsInstaller.Target? {
         let titles = [L("Claude Code (~/.claude/skills)"),
                       L("Codex (~/.codex/skills)"),
                       L("Custom folder…")]
         let radios = titles.enumerated().map { index, title -> NSButton in
             let button = NSButton(radioButtonWithTitle: title,
                                   target: self,
-                                  action: #selector(slidesSkillRadioChanged(_:)))
+                                  action: #selector(agentSkillsRadioChanged(_:)))
             button.state = index == 0 ? .on : .off
             return button
         }
@@ -587,41 +585,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         stack.frame = NSRect(origin: .zero, size: stack.fittingSize)
 
         let alert = NSAlert()
-        alert.messageText = L("Install Slides Skill")
-        alert.informativeText = L("Install the Daisy slides skill so your AI agent can write decks in Daisy’s format.")
+        alert.messageText = L("Install AI Skills")
+        alert.informativeText = L("Install Daisy’s skills so your AI agent can write slide decks, dashboards, charts and cards in Daisy’s format.")
         alert.accessoryView = stack
         alert.addButton(withTitle: L("Continue"))
         alert.addButton(withTitle: L("Cancel"))
         guard alert.runModal() == .alertFirstButtonReturn else { return nil }
 
-        let targets = SlidesSkillInstaller.Target.allCases
+        let targets = AgentSkillsInstaller.Target.allCases
         let index = radios.firstIndex { $0.state == .on } ?? 0
         return targets[index]
     }
 
-    @objc private func slidesSkillRadioChanged(_ sender: NSButton) {
+    @objc private func agentSkillsRadioChanged(_ sender: NSButton) {
         sender.superview?.subviews
             .compactMap { $0 as? NSButton }
             .forEach { $0.state = $0 === sender ? .on : .off }
     }
 
-    private func presentSlidesSkillInstalled(at url: URL) {
+    private func presentAgentSkillsInstalled(at urls: [URL]) {
         let alert = NSAlert()
-        alert.messageText = L("Slides skill installed")
+        alert.messageText = L("AI skills installed")
         alert.informativeText = String(
-            format: L("Daisy installed the slides skill to %@. Restart your AI agent if it was running."),
-            url.path)
+            format: L("Daisy installed its skills to %@. Restart your AI agent if it was running."),
+            urls.first?.deletingLastPathComponent().path ?? "")
         alert.addButton(withTitle: L("OK"))
         alert.addButton(withTitle: L("Reveal in Finder"))
         if alert.runModal() == .alertSecondButtonReturn {
-            NSWorkspace.shared.activateFileViewerSelecting([url])
+            NSWorkspace.shared.activateFileViewerSelecting(urls)
         }
     }
 
-    private func presentSlidesSkillError(_ message: String) {
+    private func presentAgentSkillsError(_ message: String) {
         let alert = NSAlert()
         alert.alertStyle = .warning
-        alert.messageText = L("Couldn’t install the slides skill")
+        alert.messageText = L("Couldn’t install the AI skills")
         alert.informativeText = message
         alert.addButton(withTitle: L("OK"))
         alert.runModal()
@@ -1582,8 +1580,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         cliItem.target = self
         appMenu.insertItem(cliItem, at: appMenu.index(of: updatesItem) + 1)
 
-        let skillItem = NSMenuItem(title: L("Install Slides Skill…"),
-                                   action: #selector(installSlidesSkill(_:)),
+        let skillItem = NSMenuItem(title: L("Install AI Skills…"),
+                                   action: #selector(installAgentSkills(_:)),
                                    keyEquivalent: "")
         skillItem.target = self
         appMenu.insertItem(skillItem, at: appMenu.index(of: cliItem) + 1)

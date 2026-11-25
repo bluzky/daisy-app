@@ -163,7 +163,7 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
     }
 
     private var loadedFingerprint: RendererFingerprint?
-    private var isPageReady = false
+    private(set) var isPageReady = false
     // Bumped on every display() call so a slower render finishing after a
     // newer one is dropped instead of clobbering the latest article.
     private var renderGeneration: UInt64 = 0

@@ -12,6 +12,7 @@ Exit status is 1 when there are errors, else 0. Warnings don't fail.
 """
 
 import difflib
+import math
 import os
 import re
 import sys
@@ -36,6 +37,35 @@ LIST_ITEM = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s")
 CODE_SPAN = re.compile(r"(`+)(?:(?!\1).)+\1")
 # Fenced blocks that scale down to fit the slide instead of being cut off.
 SCALING_FENCES = ("mermaid",)
+
+# Dashboard widgets: fenced blocks the page draws as tiles,
+# charts, progress bars and badges. A block Daisy can't read stays plain code,
+# silently, so the rules below mirror the page script's.
+WIDGETS = {"stat", "chart", "progress", "badge"}
+CHART_TYPES = {"bar", "line", "pie", "donut"}
+CHART_LEGENDS = {"top", "bottom", "left", "right", "none"}
+CHART_GROUPS = {"legend", "x-axis", "y-axis"}
+TRENDS = {"up", "down", "flat"}
+# `color:` on a stat, progress bar, badge or card, and each of a chart's
+# `colors`: one of these names or a #RGB / #RRGGBB hex.
+COLOR_NAMES = ("default", "accent", "success", "info", "warning", "danger")
+COLOR_HINT = "default, accent, success, info, warning, danger or a hex like `#6366F1`"
+
+
+def is_color(value):
+    value = (value or "").strip().lower()
+    return value in COLOR_NAMES or re.fullmatch(r"#(?:[0-9a-f]{3}|[0-9a-f]{6})", value) is not None
+# ExternalLinkPolicy.blockedSchemes: a stat link with one of these is refused.
+BLOCKED_SCHEMES = {"javascript", "vbscript", "data", "file", "about", "blob", "filesystem", "md-asset"}
+WIDGET_KEY = re.compile(r"^([A-Za-z][A-Za-z0-9_-]*)\s*:\s*(.*)$")
+NUMBER = re.compile(r"^[-+]?(\d+\.?\d*|\.\d+)$")
+# Slide lines a widget takes, roughly: a stat row is a short tile, a progress
+# item one line (label, bar, value), a badge row one line. A bar or line chart is
+# half as tall as the slide is wide, nearly the whole slide; a pie is smaller.
+STAT_LINES, BADGE_LINES, PROGRESS_ROW_LINES = 3, 1, 1
+# A row of rings: the ring and its label.
+RING_LINES = 5
+CHART_LINES, PIE_LINES = 10, 7
 
 # Rough capacity of a 16:9 slide at Daisy's slide text size.
 MAX_LINES = 12
@@ -130,13 +160,271 @@ def check_directive(key, value, line, report, in_list):
         report.error(line, f"`{key}` isn't a directive; did you mean `{close[0]}`?")
 
 
+CARD_OPTIONS = {
+    "style": {"plain", "outline", "filled", "accent"},
+    "color": set(COLOR_NAMES),
+    "tint": {"true", "false"},
+    "padding": {"compact", "normal", "roomy"},
+    "align": {"start", "center"},
+    "edge": {"left", "top"},
+}
+
+
+def check_card(raw, line, report, in_list):
+    """Checks `<!-- card key=value … -->` / `<!-- end-card -->`; False when `raw` is neither."""
+    lower = raw.lower()
+    if lower != "end-card" and lower != "card" and not re.match(r"card\s", lower):
+        return False
+    if in_list:
+        report.error(line, f"`<!-- {raw} -->` inside a list is ignored; put it at the top level")
+    seen = set()
+    for token in raw.split()[1:] if lower != "end-card" else []:
+        key, equals, value = token.partition("=")
+        key, value = key.lower(), value.strip("\"'").lower()
+        if not equals or not value:
+            report.error(line, f"card option `{token}` isn't `key=value`; the card frames nothing")
+        elif key in seen:
+            report.error(line, f"card option `{key}` appears twice; the card frames nothing")
+        elif key not in CARD_OPTIONS:
+            report.error(line, f"`{key}` isn't a card option ({', '.join(sorted(CARD_OPTIONS))}); "
+                               "the card frames nothing")
+        elif key == "color" and re.fullmatch(r"#(?:[0-9a-f]{3}|[0-9a-f]{6})", value):
+            pass
+        elif value not in CARD_OPTIONS[key]:
+            report.error(line, f"card `{key}={value}` isn't one of {', '.join(sorted(CARD_OPTIONS[key]))}"
+                               + (" or a hex color" if key == "color" else "") + "; the card frames nothing")
+        seen.add(key)
+    return True
+
+
 def check_comment(text, line, report, in_list):
     for raw in text.splitlines() or [text]:
         raw = raw.strip()
         if not raw:
             continue
+        if check_card(raw, line, report, in_list):
+            continue
         key, _, value = raw.partition(":")
         check_directive(key.strip().lower(), value.strip().strip("\"'"), line, report, in_list)
+
+
+def parse_widget(kind, body, line, report):
+    """The block's items, or None after reporting why it stays plain."""
+    items = [{}]
+    for raw in body:
+        text = raw.strip()
+        if not text:
+            continue
+        if re.fullmatch(r"-{3,}", text):
+            if items[-1]:
+                items.append({})
+            continue
+        match = WIDGET_KEY.match(text)
+        if not match:
+            report.error(line, f"`{kind}` block: `{text}` isn't a `key: value` line; the block stays plain code")
+            return None
+        key = match.group(1).lower()
+        if key in items[-1]:
+            report.error(line, f"`{kind}` block: `{key}` appears twice in one item; the block stays plain code")
+            return None
+        items[-1][key] = match.group(2).strip()
+    if not items[-1]:
+        items.pop()
+    if not items:
+        report.error(line, f"`{kind}` block is empty; it stays plain code")
+        return None
+    return items
+
+
+def table_cells(row):
+    row = row.strip()
+    if row.startswith("|"):
+        row = row[1:]
+    if row.endswith("|"):
+        row = row[:-1]
+    return [cell.strip() for cell in row.split("|")]
+
+
+def check_chart(body, line, report):
+    """Reports what would leave a chart as plain code; returns its slide lines."""
+    def plain(text):
+        report.error(line, f"`chart` block: {text}; the block stays plain code")
+        return len(body) + 2
+
+    # A group key with no value (`legend:`) takes the indented lines under it.
+    options, rows, group = {}, [], None
+    for raw in body:
+        text = raw.strip()
+        if not text:
+            continue
+        if text.startswith("|"):
+            rows.append(text)
+            continue
+        if rows:
+            return plain(f"`{text}` comes after the table; put every `key: value` line before it")
+        match = WIDGET_KEY.match(text)
+        if not match:
+            return plain(f"`{text}` isn't a `key: value` line or a table row")
+        key, value = match.group(1).lower(), match.group(2).strip()
+        if raw[:1].isspace():
+            if group is None:
+                return plain(f"`{text}` is indented but not under `legend:`, `x-axis:` or `y-axis:`")
+            if key in group:
+                return plain(f"`{key}` appears twice")
+            group[key] = value
+            continue
+        if key in options:
+            return plain(f"`{key}` appears twice")
+        group = None
+        if not value and key in CHART_GROUPS:
+            group = options[key] = {}
+        else:
+            options[key] = value
+
+    kind = options.get("type", "").lower()
+    if kind not in CHART_TYPES:
+        return plain("`type` must be bar, line, pie or donut")
+    legend = options.get("legend", "bottom")
+    if isinstance(legend, dict):
+        if legend.get("position", "bottom").lower() not in CHART_LEGENDS - {"none"}:
+            return plain(f"legend `position: {legend['position']}` isn't top, bottom, left or right")
+        if legend.get("visible", "true").lower() not in ("true", "false"):
+            return plain(f"legend `visible: {legend['visible']}` isn't true or false")
+    elif legend.lower() not in CHART_LEGENDS:
+        return plain(f"`legend: {legend}` isn't top, bottom, left, right or none")
+    for axis in ("x-axis", "y-axis"):
+        if axis not in options:
+            continue
+        if not isinstance(options[axis], dict):
+            return plain(f"`{axis}` takes indented options, like `visible: false` on the next line")
+        if options[axis].get("visible", "true").lower() not in ("true", "false"):
+            return plain(f"{axis} `visible: {options[axis]['visible']}` isn't true or false")
+    if options.get("values", "true").lower() not in ("true", "false"):
+        return plain(f"`values: {options['values']}` isn't true or false")
+    stacked = options.get("stacked", "false").lower()
+    if stacked not in ("true", "false"):
+        return plain(f"`stacked: {options['stacked']}` isn't true or false")
+    direction = options.get("direction", "vertical").lower()
+    if direction not in ("vertical", "horizontal"):
+        return plain(f"`direction: {options['direction']}` isn't vertical or horizontal")
+    if "colors" in options:
+        colors = options["colors"].split(",")
+        if len(colors) > 8 or not all(is_color(c) for c in colors):
+            return plain(f"`colors` must be up to eight of {COLOR_HINT}, separated by commas")
+    if options.get("grid", "true").lower() not in ("true", "false"):
+        return plain(f"`grid: {options['grid']}` isn't true or false")
+    height = None
+    if "height" in options:
+        raw_height = re.sub(r"px$", "", options["height"], flags=re.IGNORECASE)
+        if not NUMBER.match(raw_height) or not 80 <= float(raw_height) <= 1200:
+            return plain(f"`height: {options['height']}` isn't a number of pixels from 80 to 1200")
+        height = float(raw_height)
+    if len(rows) < 3:
+        return plain("it needs a table: a header row, a `| --- |` row and at least one data row")
+    header = table_cells(rows[0])
+    rule = table_cells(rows[1])
+    if len(header) < 2 or len(rule) != len(header) or not all(re.fullmatch(r":?-+:?", cell) for cell in rule):
+        return plain("the table needs a label column, at least one number column and a `| --- |` row under the header")
+    values = []
+    for row in rows[2:]:
+        cells = table_cells(row)
+        if len(cells) != len(header):
+            return plain(f"the row `{row}` has {len(cells)} cells, the header {len(header)}")
+        for cell in cells[1:]:
+            if not NUMBER.match(cell.replace(",", "")):
+                return plain(f"`{cell}` isn't a plain number (put units in the title or header)")
+            values.append(float(cell.replace(",", "")))
+    if kind in ("pie", "donut"):
+        if len(header) != 2:
+            return plain(f"a {kind} takes exactly one number column")
+        if any(value < 0 for value in values) or sum(values) <= 0:
+            return plain(f"a {kind}'s values must be zero or more, with a total above zero")
+        return PIE_LINES if height is None else math.ceil(height / 30)
+    if height is not None:
+        # About 30px a line, plus the axis labels.
+        return math.ceil((height + 30) / 30)
+    if kind == "bar" and direction == "horizontal":
+        # Grows per row, like the page's bar renderer: about 30px a line.
+        per_band = 1 if stacked == "true" else len(header) - 1
+        band = max(28, per_band * 14 + 12)
+        return math.ceil((50 + (len(rows) - 2) * band) / 30)
+    return CHART_LINES
+
+
+def check_widget(kind, body, line, report):
+    """Reports what would leave a widget as plain code; returns its slide lines."""
+    if kind == "chart":
+        return check_chart(body, line, report)
+    items = parse_widget(kind, body, line, report)
+    if items is None:
+        return len(body) + 2
+
+    def plain(text):
+        report.error(line, f"`{kind}` block: {text}; the block stays plain code")
+        return len(body) + 2
+
+    if kind == "stat":
+        for item in items:
+            if not item.get("label") or not item.get("value"):
+                return plain("every tile needs `label` and `value`")
+            if item.get("trend") and item["trend"].lower() not in TRENDS:
+                return plain(f"`trend: {item['trend']}` isn't up, down or flat")
+            if item.get("good") and item["good"].lower() not in ("up", "down"):
+                return plain(f"`good: {item['good']}` isn't up or down")
+            if "color" in item and not is_color(item["color"]):
+                return plain(f"`color: {item['color']}` isn't {COLOR_HINT}")
+            if "link" in item:
+                href = item["link"]
+                scheme = re.match(r"^([a-z][a-z0-9+.-]*):", href, re.I)
+                if not href or re.search(r"\s", href) or (scheme and scheme.group(1).lower() in BLOCKED_SCHEMES):
+                    return plain(f"`link: {href}` isn't a link Daisy follows")
+        return STAT_LINES + (1 if any(item.get("note") for item in items) else 0)
+
+    if kind == "badge":
+        for item in items:
+            if not item.get("text"):
+                return plain("every badge needs `text`")
+            if "status" in item:
+                report.warn(line, "badge `status` isn't read: use `color: success` (or warning, danger, …); "
+                                  "without it the badge is grey")
+            if "color" in item and not is_color(item["color"]):
+                return plain(f"`color: {item['color']}` isn't {COLOR_HINT}")
+        return BADGE_LINES
+
+    # progress
+    shape = (items[0].get("shape") or "bar").lower()
+    if shape not in ("bar", "ring"):
+        return plain(f"`shape: {items[0]['shape']}` isn't bar or ring")
+    if any("shape" in item for item in items[1:]):
+        return plain("`shape` goes on the first item only; it sets the whole block")
+    for item in items:
+        value = (item.get("value") or "").replace(",", "")
+        maximum = (item.get("max") or "").replace(",", "")
+        if not item.get("label") or not NUMBER.match(value) or not NUMBER.match(maximum):
+            return plain("every bar needs `label`, and numbers for `value` and `max`")
+        if float(value) < 0 or float(maximum) <= 0:
+            return plain("`value` must be zero or more and `max` above zero")
+        if "color" in item and not is_color(item["color"]):
+            return plain(f"a bar's `color` isn't {COLOR_HINT}")
+        if (item.get("striped") or "false").lower() not in ("true", "false"):
+            return plain("a bar's `striped` must be true or false")
+        if shape == "ring" and (item.get("striped") or "false").lower() == "true":
+            return plain("a ring takes no `striped`")
+        if "text" in item:
+            for placeholder in re.findall(r"\{([^}]*)\}", item["text"]):
+                if placeholder not in ("value", "max", "percent"):
+                    report.warn(line, f"`{{{placeholder}}}` in `text` isn't a placeholder "
+                                      "({value}, {max}, {percent}); it shows as typed")
+            if shape == "ring" and item["text"].lower() != "none":
+                number = lambda raw: f"{float(raw.replace(',', '')):,.2f}".rstrip("0").rstrip(".")
+                percent = f"{round(min(float(value) / float(maximum), 1) * 100)}%"
+                shown = (item["text"].replace("{value}", number(value)).replace("{max}", number(maximum))
+                         .replace("{percent}", percent))
+                if len(shown) > 8:
+                    report.warn(line, f"ring text `{item['text']}` is long; it shrinks and may be cut off")
+    if shape == "ring":
+        return RING_LINES
+    return math.ceil(len(items) * PROGRESS_ROW_LINES)
 
 
 def check_slide(slide, number, report, deck_dir):
@@ -156,16 +444,32 @@ def check_slide(slide, number, report, deck_dir):
         else:
             after += count
     in_code, code_lines, code_start, scales = False, 0, 0, False
+    widget, widget_body = None, []
     for index, (line_no, raw) in enumerate(lines):
         if FENCE.match(raw):
-            if in_code and code_lines > MAX_CODE_LINES and not scales:
-                report.warn(code_start, f"slide {number}: a {code_lines}-line code block will likely be cut off")
             if not in_code:
-                scales = raw.strip().lstrip("`~").strip().lower().startswith(SCALING_FENCES)
-            in_code, code_lines, code_start = not in_code, 0, line_no
-            add()
+                info = raw.strip().lstrip("`~").strip().lower()
+                words = info.split()
+                scales = info.startswith(SCALING_FENCES)
+                widget = words[0] if words and words[0] in WIDGETS else None
+                widget_body = []
+                in_code, code_lines, code_start = True, 0, line_no
+                if not widget:
+                    add()
+            elif widget:
+                # A widget takes its drawn height, not one line per source line.
+                add(check_widget(widget, widget_body, code_start, report))
+                in_code, widget = False, None
+            else:
+                if code_lines > MAX_CODE_LINES and not scales:
+                    report.warn(code_start, f"slide {number}: a {code_lines}-line code block will likely be cut off")
+                in_code = False
+                add()
             continue
         if in_code:
+            if widget:
+                widget_body.append(raw)
+                continue
             code_lines += 1
             add(0 if scales else 1)
             continue

@@ -1,0 +1,1 @@
+../../daisy-slides/scripts/check_deck.py

@@ -536,3 +536,12 @@ const slashInsertTemplate = (body, { source = "", locale = "en" } = {}) => {
   check("Columns inserts an opener, a break and a closer",
     editor.getMarkdown() === "<!-- columns -->\n\n<!-- column -->\n\n<!-- end-columns -->")
 }
+
+{
+  const { host, editor } = slashEditor(" Revenue")
+  editor.insertTextAt("/card", 0, 0)
+  check("Card is offered in a plain document", slashLabels()[0] === "Card")
+  slashKey(host, "Enter")
+  check("Card frames the line's text between an opener and a closer",
+    editor.getMarkdown() === "<!-- card -->\nRevenue\n<!-- end-card -->")
+}

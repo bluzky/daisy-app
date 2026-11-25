@@ -290,4 +290,60 @@ final class SlideDeckTests: XCTestCase {
     """) as? String
     XCTAssertEqual(result, "1|400|false|2|1")
   }
+
+  // MARK: - Dashboard widgets in a deck (AC-1.3)
+
+  private let dashboardDeck = """
+  ---
+  slides: true
+  ---
+
+  # Metrics
+
+  ```stat
+  label: Revenue
+  value: $48.2k
+  ---
+  label: Users
+  value: 3,204
+  ```
+
+  ---
+
+  ## Release
+
+  ```progress
+  label: Features
+  value: 7
+  max: 12
+  ---
+  label: Tests
+  value: 182
+  max: 190
+  ```
+  """
+
+  func testAC_1_3_ADashSeparatorInsideAWidgetDoesNotSplitTheSlide() {
+    let html = MarkdownHTML.render(markdown: dashboardDeck).articleHTML
+    XCTAssertEqual(html.components(separatedBy: "mdp-slide-frame").count - 1, 2, "two slides, not four")
+    XCTAssertEqual(html.components(separatedBy: "data-md-dashboard").count - 1, 2)
+  }
+
+  @MainActor
+  func testAC_1_3_DashboardWidgetsDrawInsideSlides() async throws {
+    let webView = try await loadedWebView(dashboardDeck)
+    let script = """
+    [document.querySelectorAll('.mdp-slide-frame .md-dash-stat').length,
+     document.querySelectorAll('.mdp-slide-frame .md-dash-track').length]
+    """
+    // The dashboard script draws after the page loads.
+    var drawn: [Int]?
+    let deadline = Date().addingTimeInterval(5)
+    repeat {
+      drawn = try await webView.evaluateJavaScript(script) as? [Int]
+      if drawn == [2, 2] { break }
+      try await Task.sleep(for: .milliseconds(50))
+    } while Date() < deadline
+    XCTAssertEqual(drawn, [2, 2])
+  }
 }

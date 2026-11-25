@@ -24,5 +24,6 @@ Type `/columns` to insert the three lines. The comments are invisible in other M
 - Windows narrower than about 600 px stack the columns. A wide table or code block scrolls inside its column.
 - Read mode, Quick Look and PDF export lay the columns out. The editor shows the comment lines and the blocks one under another. DOCX export lists them one after another.
 - Comments, find and scroll sync work inside columns like anywhere else.
+- A [card](cards.md) can go inside a column; alone in one, it fills the column's height, so a row of cards lines up.
 
 The same comments work in a [slide deck](slides.md#columns), where `<!-- columns -->` and `<!-- end-columns -->` are optional: the columns start at `<!-- columns -->` (or right after the heading without it), and everything above stays across the slide.
