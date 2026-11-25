@@ -12,7 +12,7 @@ Up 12% on last month.
 
 Type `/card` to insert the two lines around the current line. The comments are invisible in other Markdown viewers, which show the blocks as usual.
 
-A card holds any blocks: text, lists, tables, images, code, and [dashboard](dashboard.md) widgets and charts. Put a heading inside it for a title.
+A card holds any blocks: text, lists, tables, images, code, and [widgets](widgets.md) and charts. Put a heading inside it for a title.
 
 ## Options
 
@@ -25,7 +25,7 @@ Options go in the opening comment as `key=value` pairs, separated by spaces:
 | Option | Values | What it does |
 | --- | --- | --- |
 | `style` | `plain` (default), `outline`, `filled`, `accent` | `plain` is the theme's code-block background with a thin border. `outline` is the border only. `filled` is a background tinted with the color and no border. `accent` adds a bar in the color down the left side, or across the top with `edge=top`. |
-| `color` | `default`, `accent`, `success`, `info`, `warning`, `danger`, or a hex color (`#6366F1`, `#fff`) | The color of the border, the accent bar or the tint: the same [colors](dashboard.md#colors) as every dashboard widget, which follow light and dark mode and the theme. `default` is the card's normal look, the accent. A hex color stays the same in both modes. |
+| `color` | `default` (or `neutral`), `accent`, `success`, `info`, `warning`, `danger`, or a hex color (`#6366F1`, `#fff`) | The color of the border, the accent bar or the tint: the same [colors](widgets.md#colors) as every widget, which follow light and dark mode and the theme. `default` is the card's normal look, the accent. A hex color stays the same in both modes. |
 | `tint` | `true`, `false` (default) | Mixes a little of the color into the background. The tint is mixed into the theme's background, so it stays readable in light and dark mode. |
 | `padding` | `compact`, `normal` (default), `roomy` | Space inside the card. |
 | `align` | `start` (default), `center` | Centers the card's content, for example a single number or a gauge. |

@@ -1,6 +1,6 @@
-# Dashboard
+# Widgets
 
-Turn a Markdown file into a dashboard with four kinds of fenced block: `stat` tiles, `chart` bar, line, pie and donut charts, `progress` bars and rings, and `badge` labels. They work in any Markdown file; there is nothing to turn on. A block with a missing or invalid field stays a plain code block. Every value is written in the file: there are no data files, no network fetches and no formulas. See [`samples/dashboard.md`](../samples/dashboard.md) for a complete example.
+Draw widgets in any Markdown document with three kinds of fenced block — `stat` tiles, `chart` bar, line, pie and donut charts, and `progress` bars and rings — and three inline [shortcodes](#shortcodes), `sparkline`, `badge` and `progress`, that sit in a sentence or a table cell. They work in any Markdown file; there is nothing to turn on. A block or shortcode with a missing or invalid field stays plain code. Every value is written in the file: there are no data files, no network fetches and no formulas. See [`samples/widgets.md`](../samples/widgets.md) for a complete example.
 
 Each block is a few `key: value` lines. Where a block holds several items, a line of `---` separates them. A chart adds a Markdown table after its `key: value` lines; see [Charts](#charts).
 
@@ -100,19 +100,35 @@ Anything that isn't one of the three placeholders shows as typed, so a typo such
 
 `striped: true` draws moving diagonal stripes over a bar's fill, to mark work still in progress. The stripes move only while the bar is on screen, stand still when macOS Reduce Motion is on and in print and PDF, and a full bar has none. Any value other than `true` or `false` leaves the block plain.
 
-## Badges
+## Shortcodes
 
-````markdown
-```badge
-text: Build passing
-color: success
----
-text: Docs outdated
-color: warning
+A shortcode is a widget written inline, as inline code: `` `{{name: arguments}}` ``. It sits in a sentence, a list item or a table cell, where a fenced block can't.
+
+```markdown
+| Service | Trend | Status |
+| --- | --- | --- |
+| API | `{{sparkline: 120,132,128,150,171}}` | `{{badge: Healthy color=success}}` |
+| Search | `{{sparkline: 80, 78, 64, 58 color=warning}}` | `{{badge: "Slow queries" color=warning}}` |
 ```
-````
 
-`text` is required. `color` is optional and sets the badge's fill ([colors](#colors)); without it a badge is grey. The text is white, or dark on a light hex color. Badges in one block sit side by side.
+- The colon right after the name is required: `{{badge Done}}`, an unknown name, or template code such as `{{ user.name }}` stays ordinary inline code.
+- Arguments are separated by spaces: the widget's main value first, then `key=value` options.
+- Wrap a value with spaces in `"…"` or `'…'` (`"In review"`); use one kind of quote to hold the other (`'Say "hi"'`). There are no backslash escapes.
+- A value ending in a comma continues into the next, so `3, 5, 2, 8` is one list.
+- An option a widget doesn't take, or an extra value, is ignored: `{{badge: In review}}` shows only "In", so quote text with spaces.
+- An unclosed quote, a repeated option, a missing main value or a bad value (`color=purple`) leaves the shortcode as the inline code it is.
+
+### Sparklines
+
+`` `{{sparkline: 3,5,2,8,6 color=success}}` `` draws two or more numbers, in order, as a small line the height of the text, scaled between the lowest and the highest; when every number is the same, the line is flat across the middle. `type=bar` draws one bar per number instead, growing from zero (down for a negative number); a zero shows as a thin sliver. `type` is `line` (the default) or `bar`; anything else leaves the shortcode as code. `color` is optional ([colors](#colors)); without it the line or bars are the accent color. Find, copy and VoiceOver get the values as text (`Sparkline: 3, 5, 2, 8, 6`).
+
+### Progress
+
+`` `{{progress: 7/12}}` `` or `` `{{progress: 58%}}` `` draws a small progress bar, half the text's height, for a table cell or a sentence. Write the value as a fraction (`7/12`, value 0 or more and maximum above 0) or a percentage; a value above the maximum shows a full bar. By default only the bar is drawn (screen readers and copy get "Progress: 7 / 12"); `text=` adds text after it, with the same `{value}`, `{max}` and `{percent}` template as the [block](#progress) (`text="{percent}"`, `text="7 of 12 done"`). `color` sets the fill (accent without one) and `striped=true` adds the moving stripes. The block form, with labels and rings, is unchanged.
+
+### Badges
+
+`` `{{badge: "Build passing" color=success}}` `` shows its text in a color on a pale tint of that color. `color` is optional ([colors](#colors)); without it a badge is grey. On a light page the text is darkened so it stays readable, a hex color too. Several badges side by side are several shortcodes on one line. A fenced ```` ```badge ```` block is no longer drawn; it shows as a plain code block.
 
 ## Charts
 
@@ -194,34 +210,34 @@ The `key: value` lines come first and the table last. In the table:
 
 Vertical bar and line charts are as wide as their column and half as tall (at least 200px), with an axis that always includes zero. A horizontal bar chart is as wide as the column and grows taller with each row. A pie or donut is at most 320px wide. A chart is drawn at the width it is shown at and redrawn when that changes, so values and axis labels keep the same size in a narrow column, a wide window or on a slide, however many bars there are.
 
-Mermaid's [`xychart-beta` and `pie`](https://mermaid.js.org) still work in any document and also render on GitHub, but they keep Mermaid's own colors rather than the dashboard palette below.
+Mermaid's [`xychart-beta` and `pie`](https://mermaid.js.org) still work in any document and also render on GitHub, but they keep Mermaid's own colors rather than the widget palette below.
 
 ## Colors
 
 Every widget draws with one shared palette of semantic colors, in a light and a dark version that follow the page's appearance.
 
-One key, `color`, picks a color on a stat (its value), a progress bar (its fill), a badge (its fill) and a [card](cards.md); a chart's `colors` takes a list of the same values. Each takes a name from the table below or a hex color (`#RGB` or `#RRGGBB`), and each widget puts it where it belongs: you say *what it means*, not "text" or "background". `default` is the widget's normal look. Anything else, such as `red` or `#12345`, leaves the block plain. A hex color stays the same in light and dark mode; the names follow it.
+One key, `color`, picks a color on a stat (its value), a progress bar (its fill), a sparkline (its line), a badge (its text and tint) and a [card](cards.md); a chart's `colors` takes a list of the same values. Each takes a name from the table below or a hex color (`#RGB` or `#RRGGBB`), and each widget puts it where it belongs: you say *what it means*, not "text" or "background". `default` is the widget's normal look. Anything else, such as `red` or `#12345`, leaves the block plain. A hex color stays the same in light and dark mode; the names follow it.
 
 | Name | Used for | Light | Dark |
 | --- | --- | --- | --- |
-| `default` (`--dashboard-default`) | Badges without a color, flat deltas | `#8E8E93` grey | `#98989D` |
-| `accent` (`--dashboard-accent`) | Progress bars and cards without a color | `#007AFF` blue | `#0A84FF` |
-| `success` (`--dashboard-success`) | Good deltas | `#34C759` green | `#30D158` |
-| `info` (`--dashboard-info`) | | `#30B0C7` teal | `#40C8E0` |
-| `warning` (`--dashboard-warning`) | | `#FF9500` orange | `#FF9F0A` |
-| `danger` (`--dashboard-danger`) | Bad deltas | `#FF3B30` red | `#FF453A` |
-| Series 1–8 (`--dashboard-series-1` … `-8`) | Chart series and pie slices, in order; a ninth starts again at the first | Apple's system blue, orange, teal, purple, green, pink, yellow, grey | their dark-mode versions |
+| `default` or `neutral` (`--widget-default`) | Badges without a color, flat deltas | `#8E8E93` grey | `#98989D` |
+| `accent` (`--widget-accent`) | Progress bars, sparklines and cards without a color | `#007AFF` blue | `#0A84FF` |
+| `success` (`--widget-success`) | Good deltas | `#34C759` green | `#30D158` |
+| `info` (`--widget-info`) | | `#30B0C7` teal | `#40C8E0` |
+| `warning` (`--widget-warning`) | | `#FF9500` orange | `#FF9F0A` |
+| `danger` (`--widget-danger`) | Bad deltas | `#FF3B30` red | `#FF453A` |
+| Series 1–8 (`--widget-series-1` … `-8`) | Chart series and pie slices, in order; a ninth starts again at the first | Apple's system blue, orange, teal, purple, green, pink, yellow, grey | their dark-mode versions |
 
-These are Apple's standard system colors, one set for every widget: a `warning` badge is the same orange as a chart's second series. Badges are white text on their color, or dark text on a light hex. Text in a named color, a stat's value or delta, is darkened on a light page so it stays readable, and is the color itself on a dark one; a hex color is used as written.
+These are Apple's standard system colors, one set for every widget: a `warning` badge is the same orange as a chart's second series. Badges are their color as text on a pale tint of it. Text and lines in a named color, a stat's value or delta and a sparkline, are darkened on a light page so they stay readable, and are the color itself on a dark one; a hex color is used as written.
 
-Text, the progress track (a light tint of the text color) and the stat tile's outline follow the page's own theme colors; a stat tile's fill (`--dashboard-card`) is the theme's code block background, in every app theme and slide theme.
+Text, the progress track (a light tint of the text color) and the stat tile's outline follow the page's own theme colors; a stat tile's fill (`--widget-card`) is the theme's code block background, in every app theme and slide theme.
 
-Every app theme, and Quick Look, uses these two palettes; there is no setting for them. A slide deck's theme can change them on its slides with the `colors:` keys `dashboard_default`, `dashboard_accent`, `dashboard_success`, `dashboard_info`, `dashboard_warning`, `dashboard_danger` and `dashboard_series_1` … `dashboard_series_8` (see [Slides](slides.md#themes)).
+Every app theme, and Quick Look, uses these two palettes; there is no setting for them. A slide deck's theme can change them on its slides with the `colors:` keys `widget_default`, `widget_accent`, `widget_success`, `widget_info`, `widget_warning`, `widget_danger` and `widget_series_1` … `widget_series_8` (see [Slides](slides.md#themes)).
 
 ## Invalid blocks and other viewers
 
-A block with a missing required key, an unknown value (`color: purple`, `trend: sideways`, `type: radar`), a value that should be a number but isn't, a line that is not `key: value`, or a chart table with a missing separator row or a row of the wrong length is left as the plain code block it is in the file. The rest of the document still renders. Other Markdown viewers show every block that way.
+A block with a missing required key, an unknown value (`color: purple`, `trend: sideways`, `type: radar`), a value that should be a number but isn't, a line that is not `key: value`, or a chart table with a missing separator row or a row of the wrong length is left as the plain code block it is in the file. The rest of the document still renders. Other Markdown viewers show every block that way, and every shortcode as inline code.
 
 ## Where it renders
 
-Read mode, Quick Look, PDF export and [slides](slides.md) (a deck draws widgets inside its slides) draw the widgets. The editor shows the blocks as text, and DOCX export writes each block as the code block it is.
+Read mode, Quick Look, PDF export and [slides](slides.md) (a deck draws widgets inside its slides) draw the widgets. The editor shows the blocks and shortcodes as text, and DOCX export writes each as the code it is. A shortcode in a footnote stays inline code.

@@ -69,7 +69,7 @@ nonisolated extension MarkdownHTML {
     }
 
     /// `--md-card-accent`, `--md-card-success`, …: the palette names a card's
-    /// `color` accepts. Each follows the dashboard color of the same name when
+    /// `color` accepts. Each follows the widget color of the same name when
     /// a theme or deck sets one, else the built-in light or dark value.
     static func cardPaletteCSS(dark: Bool) -> String {
         CardStyle.paletteColors.map {

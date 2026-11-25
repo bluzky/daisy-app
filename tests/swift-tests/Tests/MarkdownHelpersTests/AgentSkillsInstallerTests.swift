@@ -95,13 +95,13 @@ final class AgentSkillsInstallerTests: XCTestCase {
 
         let installed = try AgentSkillsInstaller.installAll(into: target) { bundled[$0.folderName] }
 
-        XCTAssertEqual(installed.map(\.lastPathComponent), ["daisy-slides", "daisy-dashboard"])
+        XCTAssertEqual(installed.map(\.lastPathComponent), ["daisy-slides", "daisy-widgets"])
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: target.path).sorted(),
-                       ["daisy-dashboard", "daisy-slides"])
+                       ["daisy-slides", "daisy-widgets"])
         XCTAssertEqual(try String(contentsOf: installed[1].appendingPathComponent("SKILL.md"), encoding: .utf8),
-                       "daisy-dashboard")
+                       "daisy-widgets")
         XCTAssertEqual(AgentSkillsInstaller.skills.map(\.bundledFolderName),
-                       ["daisy-slides-skill", "daisy-dashboard-skill"], "matches the Bundle AI Skills build phase")
+                       ["daisy-slides-skill", "daisy-widgets-skill"], "matches the Bundle AI Skills build phase")
     }
 
     func testInstallAllReportsAMissingBundledSkill() throws {
@@ -112,7 +112,7 @@ final class AgentSkillsInstallerTests: XCTestCase {
         XCTAssertThrowsError(try AgentSkillsInstaller.installAll(into: target) {
             $0.folderName == "daisy-slides" ? slides : nil
         }) { error in
-            XCTAssertTrue(error.localizedDescription.contains("daisy-dashboard"))
+            XCTAssertTrue(error.localizedDescription.contains("daisy-widgets"))
         }
     }
 }

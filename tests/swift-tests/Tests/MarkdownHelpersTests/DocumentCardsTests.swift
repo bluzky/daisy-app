@@ -30,6 +30,7 @@ final class DocumentCardsTests: XCTestCase {
         XCTAssertEqual(CardStyle().classes, "md-card")
         XCTAssertEqual(CardStyle().colorAttribute, "")
         XCTAssertEqual(CardStyle(options: "color=default")?.classes, "md-card", "`default` is the card's normal look")
+        XCTAssertEqual(CardStyle(options: "color=neutral")?.classes, "md-card", "`neutral` is `default`")
         XCTAssertNil(CardStyle(options: "color=positive"), "the old names are gone")
         XCTAssertFalse(style.openingTag.contains("style="), "the page drops style attributes")
         XCTAssertEqual(CardStyle(options: "style=accent edge=top")?.classes, "md-card md-card-accent md-card-edge-top")

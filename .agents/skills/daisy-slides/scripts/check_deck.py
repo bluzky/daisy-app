@@ -38,18 +38,29 @@ CODE_SPAN = re.compile(r"(`+)(?:(?!\1).)+\1")
 # Fenced blocks that scale down to fit the slide instead of being cut off.
 SCALING_FENCES = ("mermaid",)
 
-# Dashboard widgets: fenced blocks the page draws as tiles,
-# charts, progress bars and badges. A block Daisy can't read stays plain code,
+# Widgets: fenced blocks the page draws as tiles,
+# charts and progress bars. A block Daisy can't read stays plain code,
 # silently, so the rules below mirror the page script's.
-WIDGETS = {"stat", "chart", "progress", "badge"}
+WIDGETS = {"stat", "chart", "progress"}
+# Inline widgets: shortcodes written as inline code, `{{name: arguments}}`.
+INLINE_WIDGETS = {"sparkline", "badge", "progress"}
+SHORTCODE = re.compile(r"^\{\{\s*([a-z][a-z0-9-]*):(.*)\}\}$", re.S)
+# A shortcode missing its colon (`{{badge Done}}`) is ordinary code.
+NEAR_SHORTCODE = re.compile(r"^\{\{\s*([A-Za-z][\w-]*)\b(?!:)")
+OPTION_KEY = re.compile(r"^[a-z][a-z0-9-]*$")
+# The options each shortcode reads; any other is ignored.
+INLINE_OPTIONS = {"sparkline": {"color", "type"}, "badge": {"color"},
+                  "progress": {"color", "striped", "text"}}
+SPARK_TYPES = ("line", "bar")
 CHART_TYPES = {"bar", "line", "pie", "donut"}
 CHART_LEGENDS = {"top", "bottom", "left", "right", "none"}
 CHART_GROUPS = {"legend", "x-axis", "y-axis"}
 TRENDS = {"up", "down", "flat"}
-# `color:` on a stat, progress bar, badge or card, and each of a chart's
+# `color:` on a stat, progress bar or card, `color=` on a sparkline or badge, and each of a chart's
 # `colors`: one of these names or a #RGB / #RRGGBB hex.
-COLOR_NAMES = ("default", "accent", "success", "info", "warning", "danger")
-COLOR_HINT = "default, accent, success, info, warning, danger or a hex like `#6366F1`"
+# `neutral` is another name for `default`.
+COLOR_NAMES = ("default", "neutral", "accent", "success", "info", "warning", "danger")
+COLOR_HINT = "default (or neutral), accent, success, info, warning, danger or a hex like `#6366F1`"
 
 
 def is_color(value):
@@ -60,9 +71,9 @@ BLOCKED_SCHEMES = {"javascript", "vbscript", "data", "file", "about", "blob", "f
 WIDGET_KEY = re.compile(r"^([A-Za-z][A-Za-z0-9_-]*)\s*:\s*(.*)$")
 NUMBER = re.compile(r"^[-+]?(\d+\.?\d*|\.\d+)$")
 # Slide lines a widget takes, roughly: a stat row is a short tile, a progress
-# item one line (label, bar, value), a badge row one line. A bar or line chart is
+# item one line (label, bar, value). A bar or line chart is
 # half as tall as the slide is wide, nearly the whole slide; a pie is smaller.
-STAT_LINES, BADGE_LINES, PROGRESS_ROW_LINES = 3, 1, 1
+STAT_LINES, PROGRESS_ROW_LINES = 3, 1
 # A row of rings: the ring and its label.
 RING_LINES = 5
 CHART_LINES, PIE_LINES = 10, 7
@@ -380,17 +391,6 @@ def check_widget(kind, body, line, report):
                     return plain(f"`link: {href}` isn't a link Daisy follows")
         return STAT_LINES + (1 if any(item.get("note") for item in items) else 0)
 
-    if kind == "badge":
-        for item in items:
-            if not item.get("text"):
-                return plain("every badge needs `text`")
-            if "status" in item:
-                report.warn(line, "badge `status` isn't read: use `color: success` (or warning, danger, …); "
-                                  "without it the badge is grey")
-            if "color" in item and not is_color(item["color"]):
-                return plain(f"`color: {item['color']}` isn't {COLOR_HINT}")
-        return BADGE_LINES
-
     # progress
     shape = (items[0].get("shape") or "bar").lower()
     if shape not in ("bar", "ring"):
@@ -427,6 +427,143 @@ def check_widget(kind, body, line, report):
     return math.ceil(len(items) * PROGRESS_ROW_LINES)
 
 
+def check_fence_name(word, line, report):
+    """A ```badge block is no longer drawn: badges are inline shortcodes."""
+    if word == "badge":
+        report.error(line, "a ```badge block isn't drawn any more; write the badge inline as "
+                           "`{{badge: \"text\" color=success}}`")
+
+
+def tokenize(text):
+    """Shortcode arguments as (positional, options), or None when Daisy can't read them.
+
+    Mirrors the page script: values split on spaces; "…" or '…' quote a value
+    with spaces (no escapes); a value ending in a comma continues into the next;
+    `key=value` is an option. An unclosed quote or an empty, malformed or
+    repeated key makes the shortcode unreadable.
+    """
+    positional, options = [], {}
+    i, n = 0, len(text)
+    while i < n:
+        while i < n and text[i].isspace():
+            i += 1
+        if i >= n:
+            break
+        token, key_end, quoted, trailing_comma = "", -1, False, False
+        while True:
+            if i >= n or text[i].isspace():
+                if not trailing_comma:
+                    break
+                while i < n and text[i].isspace():
+                    i += 1
+                if i >= n:
+                    break
+            ch = text[i]
+            if ch in "\"'":
+                end = text.find(ch, i + 1)
+                if end < 0:
+                    return None
+                token += text[i + 1:end]
+                quoted, trailing_comma, i = True, False, end + 1
+                continue
+            if ch == "=" and key_end < 0 and not quoted:
+                key_end = len(token)
+            token += ch
+            trailing_comma = ch == ","
+            i += 1
+        if key_end < 0:
+            positional.append(token)
+            continue
+        key = token[:key_end]
+        if not OPTION_KEY.match(key) or key in options:
+            return None
+        options[key] = token[key_end + 1:]
+    return positional, options
+
+
+def check_shortcodes(raw, line, report):
+    """Reports shortcodes in a line's code spans that Daisy leaves as code; returns how many it draws."""
+    drawn = 0
+    for span in CODE_SPAN.finditer(raw):
+        fence = len(span.group(1))
+        code = span.group(0)[fence:-fence]
+        if len(code) > 2 and code.startswith(" ") and code.endswith(" ") and code.strip():
+            code = code[1:-1]
+        match = SHORTCODE.match(code)
+        if not match:
+            near = NEAR_SHORTCODE.match(code)
+            if near and near.group(1).lower() in INLINE_WIDGETS:
+                report.error(line, f"`{code}` needs a colon after the name (`{{{{{near.group(1).lower()}: …}}}}`); "
+                                   "it stays inline code")
+            continue
+        name = match.group(1)
+        if name not in INLINE_WIDGETS:
+            hint = difflib.get_close_matches(name, sorted(INLINE_WIDGETS), n=1)
+            if hint or name in WIDGETS:
+                suggestion = f"; did you mean `{hint[0]}`?" if hint else f"; `{name}` is a fenced block, not a shortcode"
+                report.error(line, f"`{code}`: `{name}` isn't a shortcode{suggestion}")
+            continue
+        args = tokenize(match.group(2))
+        if args is None:
+            report.error(line, f"`{code}`: an unclosed quote, or a key that's empty, malformed or repeated; "
+                               "it stays inline code")
+            continue
+        positional, options = args
+
+        def plain(text):
+            report.error(line, f"`{code}`: {text}; it stays inline code")
+
+        if "color" in options and not is_color(options["color"]):
+            plain(f"`color={options['color']}` isn't {COLOR_HINT}")
+            continue
+        if name == "sparkline":
+            values = positional[0].split(",") if positional else []
+            if not positional or any(not NUMBER.match(v.strip()) for v in values):
+                plain("a sparkline needs a comma list of numbers, like `3,5,2,8`")
+                continue
+            if len(values) < 2:
+                plain("a sparkline needs at least two numbers")
+                continue
+            if "type" in options and options["type"].lower() not in SPARK_TYPES:
+                plain(f"`type={options['type']}` isn't line or bar")
+                continue
+            if len(positional) > 1:
+                report.warn(line, f"`{code}`: only the first list is drawn; `{' '.join(positional[1:])}` is ignored")
+        elif name == "progress":
+            written = positional[0].strip() if positional else ""
+            parts = written.split("/")
+            if len(parts) == 2:
+                value, maximum = (NUMBER.match(p.strip().replace(",", "")) and float(p.strip().replace(",", ""))
+                                  for p in parts)
+            elif written.endswith("%") and NUMBER.match(written[:-1].strip()):
+                value, maximum = float(written[:-1].strip()), 100.0
+            else:
+                value = maximum = None
+            if value is None or maximum is None or value is False or maximum is False \
+                    or value < 0 or maximum <= 0:
+                plain("inline progress is a fraction like `7/12` or a percentage like `58%` "
+                      "(value 0 or more, maximum above 0)")
+                continue
+            if options.get("striped", "false").lower() not in ("true", "false"):
+                plain(f"`striped={options['striped']}` isn't true or false")
+                continue
+            if len(positional) > 1:
+                report.warn(line, f"`{code}`: only `{written}` is read; `{' '.join(positional[1:])}` is ignored "
+                                  "(put words in `text=\"…\"`)")
+        else:
+            if not positional or not positional[0].strip():
+                plain("a badge needs its text")
+                continue
+            if len(positional) > 1:
+                report.warn(line, f"`{code}`: the badge shows only `{positional[0]}`; quote text with spaces, "
+                                  f"like `\"{' '.join(positional)}\"`")
+        for key in options:
+            if key not in INLINE_OPTIONS[name]:
+                report.warn(line, f"`{code}`: `{key}` isn't a {name} option; it's ignored")
+        drawn += 1
+    return drawn
+
+
 def check_slide(slide, number, report, deck_dir):
     lines = slide["lines"]
     bullets, backgrounds, column_breaks = 0, 0, 0
@@ -452,6 +589,7 @@ def check_slide(slide, number, report, deck_dir):
                 words = info.split()
                 scales = info.startswith(SCALING_FENCES)
                 widget = words[0] if words and words[0] in WIDGETS else None
+                check_fence_name(words[0] if words else "", line_no, report)
                 widget_body = []
                 in_code, code_lines, code_start = True, 0, line_no
                 if not widget:
@@ -473,6 +611,7 @@ def check_slide(slide, number, report, deck_dir):
             code_lines += 1
             add(0 if scales else 1)
             continue
+        check_shortcodes(raw, line_no, report)
         # Text in `code spans` is literal: an example, never a marker.
         raw = CODE_SPAN.sub(lambda match: "x" * len(match.group(0)), raw)
         stripped = raw.strip()

@@ -197,7 +197,7 @@ nonisolated extension MarkdownHTML {
     HideCompletedTasksExtension(),
     MetadataLinksExtension(),
     QueryBlocksExtension(),
-    DashboardExtension(),
+    WidgetsExtension(),
     CardColorExtension(),
     SlashCommandsExtension(),
     MetadataCompletionExtension(),

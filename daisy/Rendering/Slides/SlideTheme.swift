@@ -132,8 +132,8 @@ nonisolated struct SlideTheme: Equatable {
             deck.append((isDark ? MarkdownHTML.darkCodePaletteCSS : MarkdownHTML.lightCodePaletteCSS)
                 .replacingOccurrences(of: "\n", with: " "))
             deck.append(isDark
-                ? "--code-bg: #262626; --dashboard-card: #262626; --code-border: #323232; --quote-border: rgb(255 255 255 / 25%); --grid: rgb(255 255 255 / 20%);"
-                : "--code-bg: #f9f9f9; --dashboard-card: #f9f9f9; --code-border: #f0f0f0; --quote-border: rgb(0 0 0 / 15%); --grid: rgb(0 0 0 / 15%);")
+                ? "--code-bg: #262626; --widget-card: #262626; --code-border: #323232; --quote-border: rgb(255 255 255 / 25%); --grid: rgb(255 255 255 / 20%);"
+                : "--code-bg: #f9f9f9; --widget-card: #f9f9f9; --code-border: #f0f0f0; --quote-border: rgb(0 0 0 / 15%); --grid: rgb(0 0 0 / 15%);")
         }
         if let background = colors["background"] { deck.append("--mdp-slide-bg: \(background);") }
         if let text = colors["text"] {
@@ -148,14 +148,14 @@ nonisolated struct SlideTheme: Equatable {
             deck.append((["--heading"] + (1...6).map { "--heading-\($0)" }).map { "\($0): initial;" }.joined(separator: " "))
         }
         if let accent = colors["accent"] ?? colors["primary"] { deck.append("--link: \(accent);") }
-        // The code background is also the dashboard stat tile fill.
-        if let code = colors["code_background"] { deck.append("--code-bg: \(code); --dashboard-card: \(code);") }
+        // The code background is also the stat tile fill.
+        if let code = colors["code_background"] { deck.append("--code-bg: \(code); --widget-card: \(code);") }
         if let fontSize { deck.append("--mdp-font-size: \(SlideDeck.cqw(fontSize));") }
         for (key, property) in Self.tableColorProperties {
             if let color = colors[key] { deck.append("\(property): \(color);") }
         }
-        // The dashboard palette: `dashboard_accent`, `dashboard_series_1`, …
-        for color in DashboardColor.allCases {
+        // The widget palette: `widget_accent`, `widget_series_1`, …
+        for color in WidgetColor.allCases {
             if let value = colors[color.slideThemeKey] { deck.append("\(color.cssProperty): \(value);") }
         }
 

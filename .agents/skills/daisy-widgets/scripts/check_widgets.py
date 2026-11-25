@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""Check a Markdown document's Daisy dashboard blocks, cards and columns.
+"""Check a Markdown document's Daisy widget blocks, cards and columns.
 
-Usage: python3 check_dashboard.py doc.md [more.md ...]
+Usage: python3 check_widgets.py doc.md [more.md ...]
 
-Reports what Daisy would quietly leave as plain text: a `stat`, `chart`,
-`progress` or `badge` block it can't read, a bad color, a card option it
-doesn't know, a card or column group that never closes, a card that crosses
-a column break. Exit code 1 when any file has an error.
+Reports what Daisy would quietly leave as plain text: a `stat`, `chart` or
+`progress` block it can't read, a `{{sparkline: …}}` or `{{badge: …}}`
+shortcode it can't read (and arguments it ignores), a ```badge block, a bad
+color, a card option it doesn't know, a card or column group that never
+closes, a card that crosses a column break. Exit code 1 when any file has an
+error.
 
 The widget and card rules are shared with the slides skill's checker
 (`check_deck.py`, next to this file), so both skills agree with the app.
@@ -39,6 +41,7 @@ def check(path):
             if not in_code:
                 info = raw.strip().lstrip("`~").strip().lower().split()
                 widget = info[0] if info and info[0] in rules.WIDGETS else None
+                rules.check_fence_name(info[0] if info else "", line_no, report)
                 in_code, widget_body, code_start = True, [], line_no
             else:
                 if widget:
@@ -51,6 +54,7 @@ def check(path):
                 widget_body.append(raw)
             continue
 
+        widgets += rules.check_shortcodes(raw, line_no, report)
         stripped = rules.CODE_SPAN.sub(lambda m: "x" * len(m.group(0)), raw).strip()
         if not (stripped.startswith("<!--") and stripped.endswith("-->")):
             continue

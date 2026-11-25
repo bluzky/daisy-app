@@ -291,9 +291,9 @@ final class SlideDeckTests: XCTestCase {
     XCTAssertEqual(result, "1|400|false|2|1")
   }
 
-  // MARK: - Dashboard widgets in a deck (AC-1.3)
+  // MARK: - Widgets in a deck (AC-1.3)
 
-  private let dashboardDeck = """
+  private let widgetsDeck = """
   ---
   slides: true
   ---
@@ -324,19 +324,19 @@ final class SlideDeckTests: XCTestCase {
   """
 
   func testAC_1_3_ADashSeparatorInsideAWidgetDoesNotSplitTheSlide() {
-    let html = MarkdownHTML.render(markdown: dashboardDeck).articleHTML
+    let html = MarkdownHTML.render(markdown: widgetsDeck).articleHTML
     XCTAssertEqual(html.components(separatedBy: "mdp-slide-frame").count - 1, 2, "two slides, not four")
-    XCTAssertEqual(html.components(separatedBy: "data-md-dashboard").count - 1, 2)
+    XCTAssertEqual(html.components(separatedBy: "data-md-widget").count - 1, 2)
   }
 
   @MainActor
-  func testAC_1_3_DashboardWidgetsDrawInsideSlides() async throws {
-    let webView = try await loadedWebView(dashboardDeck)
+  func testAC_1_3_WidgetsDrawInsideSlides() async throws {
+    let webView = try await loadedWebView(widgetsDeck)
     let script = """
-    [document.querySelectorAll('.mdp-slide-frame .md-dash-stat').length,
-     document.querySelectorAll('.mdp-slide-frame .md-dash-track').length]
+    [document.querySelectorAll('.mdp-slide-frame .md-widget-stat').length,
+     document.querySelectorAll('.mdp-slide-frame .md-widget-track').length]
     """
-    // The dashboard script draws after the page loads.
+    // The widget script draws after the page loads.
     var drawn: [Int]?
     let deadline = Date().addingTimeInterval(5)
     repeat {

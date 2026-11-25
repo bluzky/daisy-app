@@ -1,8 +1,8 @@
 //
-//  MarkdownHTML+Dashboard.swift
+//  MarkdownHTML+Widgets.swift
 //  daisy
 //
-//  Dashboard widgets in an ordinary document. In any document, four fenced
+//  Widgets in an ordinary document. In any document, three fenced
 //  blocks become widgets in the page:
 //
 //      ```stat      label / value / color / delta / trend / good / note / link
@@ -12,38 +12,73 @@
 //                   then a Markdown table
 //      ```progress  shape (first item) / label / value / max / color / text /
 //                   striped
-//      ```badge     text / color
 //
 //  Each block is `key: value` lines; a line of `---` separates items. A chart
 //  ends with its table and is drawn by `MdChart`
-//  (`MarkdownHTML+DashboardChart.swift`).
+//  (`MarkdownHTML+WidgetChart.swift`).
 //
-//  The formatter stamps `data-md-dashboard` on those fences. The page script
-//  draws the widgets from the stamped blocks and leaves any block it cannot
-//  read as the plain code block it already is, so other viewers, and a typo,
+//  Three widgets are inline shortcodes, written as inline code:
+//
+//      `{{sparkline: 3,5,2,8 color=success}}`   numbers / color / type (line, bar)
+//      `{{badge: "In review" color=warning}}`   text / color
+//      `{{progress: 7/12 color=success}}`       7/12 or 58% / color / striped /
+//                                               text
+//
+//  `progress` is both a block and a shortcode.
+//
+//  Arguments are separated by spaces, positional values first, then
+//  `key=value`; `"…"` or `'…'` quote a value with spaces, and a value ending
+//  in a comma continues into the next one (`3, 5, 2`). Unknown keys and extra
+//  positional values are ignored; broken quoting, a missing main value or a
+//  bad value for a known key leave the code as it is.
+//
+//  The formatter stamps `data-md-widget` on those fences and shortcodes.
+//  The page script draws the widgets from them and leaves any it cannot
+//  read as the plain code it already is, so other viewers, and a typo,
 //  show the source. The extension loads only when a stamp is present.
 //
-//  Colors come from the `--dashboard-*` custom properties in
-//  `dashboardStylesheet`. Widgets only ever carry classes, so a theme
+//  Colors come from the `--widget-*` custom properties in
+//  `widgetStylesheet`. Widgets only ever carry classes, so a theme
 //  restyles every widget by setting the properties.
 //
 
 import Foundation
 
-nonisolated enum DashboardDocument {
+nonisolated enum WidgetDocument {
 
     /// Fence languages that become widgets.
-    static let widgetLanguages: Set<String> = ["stat", "chart", "progress", "badge"]
+    static let widgetLanguages: Set<String> = ["stat", "chart", "progress"]
 
-    /// Attribute the formatter stamps on a widget fence's `<pre>`.
-    static let stampAttribute = "data-md-dashboard"
+    /// Widgets written inline as a shortcode, `` `{{name: arguments}}` ``.
+    /// The page script has one inline builder per name.
+    static let inlineWidgets: Set<String> = ["sparkline", "badge", "progress"]
+
+    /// Attribute the formatter stamps on a widget fence's `<pre>` and on a
+    /// shortcode's `<code>`.
+    static let stampAttribute = "data-md-widget"
+
+    /// Attribute naming the widget on a shortcode's `<code>`.
+    static let inlineAttribute = "data-md-inline"
+
+    /// The widget a code span names when its whole text is a shortcode:
+    /// `{{name: arguments}}`, the colon right after the name and required.
+    /// Nil for any other code, a template's `{{ user.name }}` included. The
+    /// arguments are read by the page script, which leaves the code as it is
+    /// when they don't parse.
+    static func inlineWidgetName(in code: String) -> String? {
+        guard code.hasPrefix("{{"), code.hasSuffix("}}"),
+              let match = code.wholeMatch(of: #/\{\{\s*([a-z][a-z0-9-]*):(?s:.*)\}\}/#)
+        else { return nil }
+        let name = String(match.1)
+        return inlineWidgets.contains(name) ? name : nil
+    }
 }
 
-/// The dashboard palette: semantic colors every widget reads. Two built-in
+/// The widget palette: semantic colors every widget reads. Two built-in
 /// palettes of standard colors, light and dark; a slide deck's theme can
 /// override a color. Stats, progress bars, badges and cards pick one with
 /// `color:` by its name (`ColorName`), or take a checked hex instead.
-nonisolated enum DashboardColor: String, CaseIterable, Sendable {
+nonisolated enum WidgetColor: String, CaseIterable, Sendable {
     /// `default` is grey; a widget's `color: default` is its normal look.
     case neutral = "default"
     case accent, success, info, warning, danger
@@ -52,22 +87,32 @@ nonisolated enum DashboardColor: String, CaseIterable, Sendable {
     static let seriesCount = 8
 
     /// The names `color:` accepts, in the order the docs list them.
-    static let named: [DashboardColor] = [.neutral, .accent, .success, .info, .warning, .danger]
+    static let named: [WidgetColor] = [.neutral, .accent, .success, .info, .warning, .danger]
 
-    /// The chart series colors, in order.
-    static let series: [DashboardColor] = [.series1, .series2, .series3, .series4,
-                                           .series5, .series6, .series7, .series8]
+    /// Another name `color:` accepts for `default`.
+    static let neutralAlias = "neutral"
 
-    /// `--dashboard-accent`, `--dashboard-series-1`, …
-    var cssProperty: String {
-        if let index = Self.series.firstIndex(of: self) { return "--dashboard-series-\(index + 1)" }
-        return "--dashboard-\(rawValue)"
+    /// The palette color a `color:` name means (`neutral` is `default`), or
+    /// nil for anything else. Expects a lowercased name.
+    static func named(_ name: String) -> WidgetColor? {
+        if name == neutralAlias { return .neutral }
+        return named.first { $0.rawValue == name }
     }
 
-    /// The slide theme `colors:` key: `dashboard_accent`, `dashboard_series_1`, …
+    /// The chart series colors, in order.
+    static let series: [WidgetColor] = [.series1, .series2, .series3, .series4,
+                                           .series5, .series6, .series7, .series8]
+
+    /// `--widget-accent`, `--widget-series-1`, …
+    var cssProperty: String {
+        if let index = Self.series.firstIndex(of: self) { return "--widget-series-\(index + 1)" }
+        return "--widget-\(rawValue)"
+    }
+
+    /// The slide theme `colors:` key: `widget_accent`, `widget_series_1`, …
     var slideThemeKey: String {
-        if let index = Self.series.firstIndex(of: self) { return "dashboard_series_\(index + 1)" }
-        return "dashboard_\(rawValue)"
+        if let index = Self.series.firstIndex(of: self) { return "widget_series_\(index + 1)" }
+        return "widget_\(rawValue)"
     }
 
     /// The CSS value a widget uses.
@@ -78,7 +123,7 @@ nonisolated enum DashboardColor: String, CaseIterable, Sendable {
         let pair: (String, String) = switch self {
         // Apple's system colors, one set shared by every widget: the status
         // colors are the same hues as the chart series. Stat deltas, drawn as
-        // text, darken them in the light palette (`--dashboard-text-mix`).
+        // text, darken them in the light palette (`--widget-text-mix`).
         case .accent, .series1: ("#007AFF", "#0A84FF")
         case .success: ("#34C759", "#30D158")
         case .info: ("#30B0C7", "#40C8E0")
@@ -96,7 +141,7 @@ nonisolated enum DashboardColor: String, CaseIterable, Sendable {
         return dark ? pair.1 : pair.0
     }
 
-    /// One palette's declarations, for the dashboard stylesheet.
+    /// One palette's declarations, for the widget stylesheet.
     static func defaultDeclarations(dark: Bool) -> String {
         allCases.map { "\($0.cssProperty): \($0.defaultHex(dark: dark));" }.joined(separator: " ")
     }
@@ -104,15 +149,15 @@ nonisolated enum DashboardColor: String, CaseIterable, Sendable {
 
 nonisolated extension MarkdownHTML {
 
-    /// Draws the dashboard widgets. Always on, with no reading preference to
+    /// Draws the widgets. Always on, with no reading preference to
     /// toggle; it activates only when a widget fence is stamped. The
     /// script and styles ship in every vendor-loading mode, Quick Look's
     /// `.inline` included, because the script is small and the widgets are
     /// the content.
-    struct DashboardExtension: MarkdownRenderExtension {
-        let id = "dashboard"
+    struct WidgetsExtension: MarkdownRenderExtension {
+        let id = "widgets"
         let descriptor = RenderExtensionDescriptor(
-            titleKey: "Dashboard",
+            titleKey: "Widgets",
             descriptionKey: nil,
             defaultEnabled: true,
             userToggleable: false
@@ -120,89 +165,89 @@ nonisolated extension MarkdownHTML {
         let order = 230
 
         func isActive(in context: RenderContext) -> Bool {
-            context.html.contains(DashboardDocument.stampAttribute)
+            context.html.contains(WidgetDocument.stampAttribute)
         }
 
         func assets(mode _: VendorLoading) -> RenderAssets {
             // The chart library loads first: the widget script's `chart`
             // builder calls it.
             RenderAssets(
-                css: MarkdownHTML.dashboardStylesheet + "\n" + MarkdownHTML.dashboardChartStylesheet,
-                bodyJS: MarkdownHTML.dashboardChartScript + "\n" + MarkdownHTML.dashboardScript,
+                css: MarkdownHTML.widgetStylesheet + "\n" + MarkdownHTML.widgetChartStylesheet,
+                bodyJS: MarkdownHTML.widgetChartScript + "\n" + MarkdownHTML.widgetScript,
                 scriptAssetIDs: [id]
             )
         }
     }
 
-    static let dashboardStylesheet = """
-    /* Dashboard palette (DashboardColor): semantic colors, one light and one
+    static let widgetStylesheet = """
+    /* Widget palette (WidgetColor): semantic colors, one light and one
        dark palette; a slide theme can override them. The stat tile fill
-       (`--dashboard-card`) is the code block background's value. Text,
-       surface and border follow the page theme. `--dashboard-text-mix` is
+       (`--widget-card`) is the code block background's value. Text,
+       surface and border follow the page theme. `--widget-text-mix` is
        how much of a palette color text keeps when mixed with black: the
        bright colors are too light for text on a light page, fine on a dark
-       one. Badges are white text on their color, dark on a light hex. */
+       one. A badge is its color as text on a pale tint of the same color. */
     :root {
-        \(DashboardColor.defaultDeclarations(dark: false))
-        --dashboard-text-mix: 65%;
-        --dashboard-card: #f9f9f9;
-        --dashboard-text: var(--secondary, #6e6e73);
-        --dashboard-surface: var(--aside-bg, #f5f5f7);
-        --dashboard-border: var(--grid, #d2d2d7);
+        \(WidgetColor.defaultDeclarations(dark: false))
+        --widget-text-mix: 65%;
+        --widget-card: #f9f9f9;
+        --widget-text: var(--secondary, #6e6e73);
+        --widget-surface: var(--aside-bg, #f5f5f7);
+        --widget-border: var(--grid, #d2d2d7);
         /* The empty part of a progress bar or ring: a tint of the text, so it
            shows on the page, in a card and on a slide, light or dark. */
-        --dashboard-track: color-mix(in srgb, currentColor 12%, transparent);
+        --widget-track: color-mix(in srgb, currentColor 12%, transparent);
     }
     :root[data-mdp-color-scheme="dark"] {
-        \(DashboardColor.defaultDeclarations(dark: true))
-        --dashboard-text-mix: 100%;
-        --dashboard-card: #262626;
+        \(WidgetColor.defaultDeclarations(dark: true))
+        --widget-text-mix: 100%;
+        --widget-card: #262626;
     }
     @media (prefers-color-scheme: dark) {
         :root:not([data-mdp-color-scheme="light"]) {
-            \(DashboardColor.defaultDeclarations(dark: true))
-            --dashboard-text-mix: 100%;
-            --dashboard-card: #262626;
+            \(WidgetColor.defaultDeclarations(dark: true))
+            --widget-text-mix: 100%;
+            --widget-card: #262626;
         }
     }
-    .md-dash-stats, .md-dash-progress, .md-dash-rings, .md-dash-badges {
+    .md-widget-stats, .md-widget-progress, .md-widget-rings, .md-widget-badge, .md-widget-spark, .md-widget-iprogress {
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
     }
 
     /* Stat tiles */
-    .md-dash-stats {
+    .md-widget-stats {
         display: flex;
         flex-wrap: wrap;
         gap: 12px;
         margin: 1em 0;
     }
-    .md-dash-stat {
+    .md-widget-stat {
         flex: 1 1 160px;
         min-width: 0;
         padding: 14px 16px;
-        border: 1px solid var(--dashboard-border);
+        border: 1px solid var(--widget-border);
         border-radius: 10px;
-        background: var(--dashboard-card);
+        background: var(--widget-card);
     }
-    .md-dash-stat-head {
+    .md-widget-stat-head {
         display: flex;
         align-items: center;
         justify-content: space-between;
         gap: 8px;
     }
-    .md-dash-label {
+    .md-widget-label {
         font-size: 0.95em;
         overflow-wrap: anywhere;
     }
-    .md-dash-link {
+    .md-widget-link {
         display: inline-flex;
         flex: 0 0 auto;
-        color: var(--dashboard-text);
+        color: var(--widget-text);
         border-radius: 4px;
     }
-    .md-dash-link:hover { color: var(--link, currentColor); }
-    .md-dash-link svg {
+    .md-widget-link:hover { color: var(--link, currentColor); }
+    .md-widget-link svg {
         width: 18px;
         height: 18px;
         fill: none;
@@ -211,22 +256,22 @@ nonisolated extension MarkdownHTML {
         stroke-linecap: round;
         stroke-linejoin: round;
     }
-    .md-dash-stat-main {
+    .md-widget-stat-main {
         display: flex;
         flex-wrap: wrap;
         align-items: baseline;
         gap: 4px 12px;
         margin-top: 6px;
     }
-    .md-dash-value {
-        color: var(--md-dash-ink, inherit);
+    .md-widget-value {
+        color: var(--md-widget-ink, inherit);
         font-size: 1.5em;
         font-weight: 600;
         line-height: 1.2;
         font-variant-numeric: tabular-nums;
         overflow-wrap: anywhere;
     }
-    .md-dash-delta {
+    .md-widget-delta {
         /* Pushed to the right edge, on the value's line or, when the tile is
            too narrow, on the next one. */
         margin-left: auto;
@@ -234,29 +279,29 @@ nonisolated extension MarkdownHTML {
         font-variant-numeric: tabular-nums;
         white-space: nowrap;
     }
-    .md-dash-note {
+    .md-widget-note {
         margin-top: 2px;
         font-size: 0.8em;
-        color: var(--dashboard-text);
+        color: var(--widget-text);
     }
-    .md-dash-delta.md-dash-good { color: color-mix(in srgb, \(DashboardColor.success.cssValue) var(--dashboard-text-mix), black); }
-    .md-dash-delta.md-dash-bad { color: color-mix(in srgb, \(DashboardColor.danger.cssValue) var(--dashboard-text-mix), black); }
-    .md-dash-delta.md-dash-flat { color: color-mix(in srgb, \(DashboardColor.neutral.cssValue) var(--dashboard-text-mix), black); }
+    .md-widget-delta.md-widget-good { color: color-mix(in srgb, \(WidgetColor.success.cssValue) var(--widget-text-mix), black); }
+    .md-widget-delta.md-widget-bad { color: color-mix(in srgb, \(WidgetColor.danger.cssValue) var(--widget-text-mix), black); }
+    .md-widget-delta.md-widget-flat { color: color-mix(in srgb, \(WidgetColor.neutral.cssValue) var(--widget-text-mix), black); }
 
     /* `color:` on a stat, progress bar or badge. A palette name is a class
-       (`md-dash-c-success`) and a hex a pair of custom properties set by the
-       widget script (`md-dash-c-custom`), never a style the block writes.
-       `--md-dash-color` is the color for a fill; `--md-dash-ink` the same
+       (`md-widget-c-success`) and a hex a pair of custom properties set by the
+       widget script (`md-widget-c-custom`), never a style the block writes.
+       `--md-widget-color` is the color for a fill; `--md-widget-ink` the same
        color for text, a palette one darkened on a light page so it stays
        readable, a hex as written. `default` sets nothing: the widget keeps
        its normal look. */
-    \(DashboardColor.named.map { "." + "md-dash-c-\($0.rawValue) { --md-dash-color: \($0.cssValue); --md-dash-ink: color-mix(in srgb, \($0.cssValue) var(--dashboard-text-mix), black); }" }.joined(separator: "\n    "))
+    \(WidgetColor.named.map { "." + "md-widget-c-\($0.rawValue) { --md-widget-color: \($0.cssValue); --md-widget-ink: color-mix(in srgb, \($0.cssValue) var(--widget-text-mix), black); }" }.joined(separator: "\n    "))
 
     /* Progress */
     /* One row per bar: label | bar | value. The rows share the block's grid
        (`display: contents`), so labels, bars and values line up; a long
        label wraps within 40% of the width. */
-    .md-dash-progress {
+    .md-widget-progress {
         display: grid;
         grid-template-columns: fit-content(40%) minmax(60px, 1fr) max-content;
         align-items: center;
@@ -264,35 +309,35 @@ nonisolated extension MarkdownHTML {
         margin: 1em 0;
         font-size: 0.9em;
     }
-    .md-dash-progress-item { display: contents; }
-    .md-dash-progress-value {
-        color: var(--dashboard-text);
+    .md-widget-progress-item { display: contents; }
+    .md-widget-progress-value {
+        color: var(--widget-text);
         font-variant-numeric: tabular-nums;
         text-align: right;
     }
-    .md-dash-track {
+    .md-widget-track {
         height: 12px;
         border-radius: 6px;
-        background: var(--dashboard-track);
+        background: var(--widget-track);
         overflow: hidden;
     }
-    .md-dash-fill {
+    .md-widget-fill {
         height: 100%;
         border-radius: 6px;
-        background: var(--md-dash-color, \(DashboardColor.accent.cssValue));
+        background: var(--md-widget-color, \(WidgetColor.accent.cssValue));
     }
     /* Rings (`shape: ring`): one per item, side by side and wrapping. The arc
        is the share, drawn with the circle's dash pattern from 12 o'clock; the
        text sits in the middle and shrinks for longer text. Sizes are in em,
        so a ring scales with slide text. */
-    .md-dash-rings {
+    .md-widget-rings {
         display: flex;
         flex-wrap: wrap;
         gap: 1em 1.75em;
         margin: 1em 0;
     }
-    .md-card-align-center .md-dash-rings { justify-content: center; }
-    .md-dash-ring {
+    .md-card-align-center .md-widget-rings { justify-content: center; }
+    .md-widget-ring {
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -300,24 +345,24 @@ nonisolated extension MarkdownHTML {
         width: 7.5em;
         text-align: center;
     }
-    .md-dash-ring-meter {
+    .md-widget-ring-meter {
         position: relative;
         width: 6.5em;
         height: 6.5em;
     }
-    .md-dash-ring-meter svg { display: block; width: 100%; height: 100%; }
-    .md-dash-ring-track {
+    .md-widget-ring-meter svg { display: block; width: 100%; height: 100%; }
+    .md-widget-ring-track {
         fill: none;
-        stroke: var(--dashboard-track);
+        stroke: var(--widget-track);
         stroke-width: 10;
     }
-    .md-dash-ring-arc {
+    .md-widget-ring-arc {
         fill: none;
-        stroke: var(--md-dash-color, \(DashboardColor.accent.cssValue));
+        stroke: var(--md-widget-color, \(WidgetColor.accent.cssValue));
         stroke-width: 10;
         stroke-linecap: round;
     }
-    .md-dash-ring-text {
+    .md-widget-ring-text {
         position: absolute;
         top: 50%;
         left: 0;
@@ -332,61 +377,114 @@ nonisolated extension MarkdownHTML {
         overflow: hidden;
         text-overflow: ellipsis;
     }
-    .md-dash-ring-text-long { font-size: 1.05em; }
-    .md-dash-ring-text-xlong { font-size: 0.85em; }
-    .md-dash-ring-label {
+    .md-widget-ring-text-long { font-size: 1.05em; }
+    .md-widget-ring-text-xlong { font-size: 0.85em; }
+    .md-widget-ring-label {
         font-size: 0.9em;
         line-height: 1.3;
         overflow-wrap: anywhere;
     }
     /* `striped: true`: diagonal stripes over the fill, moving only while the
-       bar is on screen (`md-dash-moving`, set by the widget script). Still
+       bar is on screen (`md-widget-moving`, set by the widget script). Still
        for Reduce Motion and in print and PDF; every frame looks alike, so a
        still capture never shows a half-drawn state. */
-    .md-dash-fill-striped {
+    .md-widget-fill-striped {
         background-image: linear-gradient(45deg,
             rgb(255 255 255 / 28%) 25%, transparent 25%,
             transparent 50%, rgb(255 255 255 / 28%) 50%,
             rgb(255 255 255 / 28%) 75%, transparent 75%, transparent);
         background-size: 16px 16px;
     }
-    .md-dash-fill-striped.md-dash-moving {
-        animation: md-dash-stripes 1s linear infinite;
+    .md-widget-fill-striped.md-widget-moving {
+        animation: md-widget-stripes 1s linear infinite;
     }
-    @keyframes md-dash-stripes {
+    @keyframes md-widget-stripes {
         from { background-position: 0 0; }
         to { background-position: 16px 0; }
     }
     @media (prefers-reduced-motion: reduce) {
-        .md-dash-fill-striped.md-dash-moving { animation: none; }
+        .md-widget-fill-striped.md-widget-moving { animation: none; }
     }
     @media print {
-        .md-dash-fill-striped.md-dash-moving { animation: none; }
+        .md-widget-fill-striped.md-widget-moving { animation: none; }
     }
 
-    /* Badges */
-    .md-dash-badges {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        margin: 1em 0;
-    }
-    .md-dash-badge {
+    /* Badges (`{{badge: …}}`), inline in the text */
+    .md-widget-badge {
         display: inline-block;
-        padding: 2px 10px;
+        padding: 0 0.7em;
         border-radius: 999px;
         font-size: 0.85em;
         font-weight: 600;
-        color: #fff;
-        background: var(--md-dash-color, \(DashboardColor.neutral.cssValue));
+        line-height: 1.6;
+        white-space: nowrap;
+        /* Text in the color, darkened on a light page like other colored
+           text (a hex too, so a light one stays readable), on a pale tint
+           of it. Grey without a color. */
+        --md-widget-badge-color: var(--md-widget-color, \(WidgetColor.neutral.cssValue));
+        color: color-mix(in srgb, var(--md-widget-badge-color) var(--widget-text-mix), black);
+        background: color-mix(in srgb, var(--md-widget-badge-color) 18%, transparent);
     }
-    /* A light hex fill takes dark text. */
-    .md-dash-badge.md-dash-on-light { color: #1d1d1f; }
+
+    /* Sparklines (`{{sparkline: …}}`): a line the height of the text, on its
+       baseline. The stroke keeps its width however the line is scaled. A
+       palette color is the darker text shade on a light page (`--md-widget-ink`)
+       so a thin line stays visible; without a color it is the accent. */
+    .md-widget-spark {
+        display: inline-block;
+        width: 4.5em;
+        height: 1em;
+        vertical-align: -0.15em;
+    }
+    .md-widget-spark svg { display: block; width: 100%; height: 100%; overflow: visible; }
+    .md-widget-spark polyline {
+        fill: none;
+        stroke: var(--md-widget-ink, color-mix(in srgb, \(WidgetColor.accent.cssValue) var(--widget-text-mix), black));
+        stroke-width: 1.5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        vector-effect: non-scaling-stroke;
+    }
+    /* `type=bar`: filled bars in the fill shade, like a progress bar. */
+    .md-widget-spark rect {
+        fill: var(--md-widget-color, \(WidgetColor.accent.cssValue));
+    }
+    /* Inline progress (`{{progress: 7/12}}`): a bar half the text's height,
+       centered on the line, with optional text after it. */
+    /* Inline, so the text after the bar keeps the line's baseline. */
+    .md-widget-iprogress { white-space: nowrap; }
+    .md-widget-iprogress-track {
+        display: inline-block;
+        width: 5em;
+        height: 0.55em;
+        vertical-align: middle;
+        border-radius: 0.275em;
+        background: var(--widget-track);
+        overflow: hidden;
+    }
+    .md-widget-iprogress .md-widget-fill { display: block; border-radius: 0.275em; }
+    .md-widget-iprogress .md-widget-fill-striped { background-size: 0.55em 0.55em; }
+    .md-widget-iprogress-text {
+        margin-left: 0.4em;
+        font-size: 0.9em;
+        color: var(--widget-text);
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+    }
+    /* The values as text, for find, copy and VoiceOver; not shown. */
+    .md-widget-sr {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
     """
 
     /// The palette names `color:` accepts, as a JavaScript array literal.
     static var colorNamesLiteral: String {
-        "[" + DashboardColor.named.map { "'\($0.rawValue)'" }.joined(separator: ", ") + "]"
+        "[" + WidgetColor.named.map { "'\($0.rawValue)'" }.joined(separator: ", ") + "]"
     }
 
     /// `ExternalLinkPolicy.blockedSchemes` as a JavaScript array literal: a
@@ -395,12 +493,12 @@ nonisolated extension MarkdownHTML {
         "[" + ExternalLinkPolicy.blockedSchemes.map { "'\($0)'" }.joined(separator: ", ") + "]"
     }
 
-    /// Reads every `pre[data-md-dashboard]` and replaces it with its widget.
-    /// A block that does not parse is left alone. Text reaches the page only
+    /// Reads every `pre[data-md-widget]` and `code[data-md-inline]` and
+    /// replaces it with its widget. One that does not parse is left alone. Text reaches the page only
     /// through `textContent` and attributes, never `innerHTML`, and colors
     /// only through classes or checked hex custom properties, so a value
     /// cannot inject markup or styles.
-    static let dashboardScript = #"""
+    static let widgetScript = #"""
     <script>
     (function() {
       const KEY = /^([A-Za-z][A-Za-z0-9_-]*)\s*:\s*(.*)$/;
@@ -424,10 +522,12 @@ nonisolated extension MarkdownHTML {
       // properties set here, never by a style the block writes; `default`
       // keeps the widget's normal look.
       const COLOR_NAMES = \#(colorNamesLiteral);
+      const NEUTRAL_ALIAS = '\#(WidgetColor.neutralAlias)';
       const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
       function readColor(text) {
         if (text == null) return { name: 'default' };
         const value = String(text).trim().toLowerCase();
+        if (value === NEUTRAL_ALIAS) return { name: 'default' };
         if (COLOR_NAMES.includes(value)) return { name: value };
         if (HEX.test(value)) return { hex: value };
         return null;
@@ -435,19 +535,12 @@ nonisolated extension MarkdownHTML {
       function paint(node, color) {
         if (color.name === 'default') return;
         if (color.name) {
-          node.classList.add('md-dash-c-' + color.name);
+          node.classList.add('md-widget-c-' + color.name);
           return;
         }
-        node.classList.add('md-dash-c-custom');
-        node.style.setProperty('--md-dash-color', color.hex);
-        node.style.setProperty('--md-dash-ink', color.hex);
-      }
-      // Whether a hex is light enough to need dark text on it.
-      function isLight(hex) {
-        let h = hex.slice(1);
-        if (h.length === 3) h = h.split('').map(c => c + c).join('');
-        const [r, g, b] = [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16));
-        return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.62;
+        node.classList.add('md-widget-c-custom');
+        node.style.setProperty('--md-widget-color', color.hex);
+        node.style.setProperty('--md-widget-ink', color.hex);
       }
 
       // `key: value` lines, items split by a line of dashes. Anything else
@@ -498,7 +591,7 @@ nonisolated extension MarkdownHTML {
       function stat(source) {
         const items = parse(source);
         if (!items) return null;
-        const wrap = el('div', 'md-dash-stats');
+        const wrap = el('div', 'md-widget-stats');
         for (const item of items) {
           if (!item.label || !item.value) return null;
           const trend = item.trend ? item.trend.toLowerCase() : '';
@@ -511,19 +604,19 @@ nonisolated extension MarkdownHTML {
           const color = readColor(item.color);
           if (!color) return null;
 
-          const tile = el('div', 'md-dash-stat');
-          const head = el('div', 'md-dash-stat-head');
-          head.append(el('div', 'md-dash-label', item.label));
+          const tile = el('div', 'md-widget-stat');
+          const head = el('div', 'md-widget-stat-head');
+          head.append(el('div', 'md-widget-label', item.label));
           if (href) {
-            const link = el('a', 'md-dash-link');
+            const link = el('a', 'md-widget-link');
             link.setAttribute('href', href);
             link.setAttribute('title', href);
             link.setAttribute('aria-label', item.label);
             link.append(arrowIcon());
             head.append(link);
           }
-          const main = el('div', 'md-dash-stat-main');
-          const valueNode = el('div', 'md-dash-value', item.value);
+          const main = el('div', 'md-widget-stat-main');
+          const valueNode = el('div', 'md-widget-value', item.value);
           paint(valueNode, color);
           main.append(valueNode);
           // `trend` only decorates a delta: without one it is ignored.
@@ -533,10 +626,10 @@ nonisolated extension MarkdownHTML {
               sentiment = (trend === 'up') === (good === 'up') ? 'good' : 'bad';
             }
             const arrow = TREND_ARROWS[trend] || '';
-            main.append(el('div', 'md-dash-delta md-dash-' + sentiment, arrow + item.delta));
+            main.append(el('div', 'md-widget-delta md-widget-' + sentiment, arrow + item.delta));
           }
           tile.append(head, main);
-          if (item.note) tile.append(el('div', 'md-dash-note', item.note));
+          if (item.note) tile.append(el('div', 'md-widget-note', item.note));
           wrap.append(tile);
         }
         return wrap;
@@ -568,8 +661,8 @@ nonisolated extension MarkdownHTML {
       // drawn with the circle's dash pattern; the text sits in the middle.
       function ringItem(item, share, color, shown, custom, value, max) {
         const SVGNS = 'http://www.w3.org/2000/svg';
-        const node = el('div', 'md-dash-ring');
-        const meter = el('div', 'md-dash-ring-meter');
+        const node = el('div', 'md-widget-ring');
+        const meter = el('div', 'md-widget-ring-meter');
         meterAttributes(meter, item, value, max, custom);
         const svg = document.createElementNS(SVGNS, 'svg');
         svg.setAttribute('viewBox', '0 0 100 100');
@@ -583,17 +676,17 @@ nonisolated extension MarkdownHTML {
           svg.append(c);
           return c;
         };
-        circle('md-dash-ring-track');
+        circle('md-widget-ring-track');
         if (share > 0) {
-          const arc = circle('md-dash-ring-arc');
+          const arc = circle('md-widget-ring-arc');
           arc.setAttribute('pathLength', '100');
           arc.setAttribute('stroke-dasharray', (share * 100) + ' 100');
           arc.setAttribute('transform', 'rotate(-90 50 50)');
           paint(arc, color);
         }
-        const size = shown.length > 6 ? ' md-dash-ring-text-xlong' : shown.length > 4 ? ' md-dash-ring-text-long' : '';
-        meter.append(svg, el('div', 'md-dash-ring-text' + size, shown));
-        node.append(meter, el('div', 'md-dash-ring-label', item.label));
+        const size = shown.length > 6 ? ' md-widget-ring-text-xlong' : shown.length > 4 ? ' md-widget-ring-text-long' : '';
+        meter.append(svg, el('div', 'md-widget-ring-text' + size, shown));
+        node.append(meter, el('div', 'md-widget-ring-label', item.label));
         return node;
       }
       function progress(source) {
@@ -602,7 +695,7 @@ nonisolated extension MarkdownHTML {
         const shape = (items[0].shape || 'bar').toLowerCase();
         if (!SHAPES.includes(shape) || items.slice(1).some(item => 'shape' in item)) return null;
         const ring = shape === 'ring';
-        const list = el('div', ring ? 'md-dash-rings' : 'md-dash-progress');
+        const list = el('div', ring ? 'md-widget-rings' : 'md-widget-progress');
         for (const item of items) {
           const value = num(item.value || '');
           const max = num(item.max || '');
@@ -619,38 +712,185 @@ nonisolated extension MarkdownHTML {
             list.append(ringItem(item, share, color, shown, custom, value, max));
             continue;
           }
-          const row = el('div', 'md-dash-progress-item');
-          const track = el('div', 'md-dash-track');
+          const row = el('div', 'md-widget-progress-item');
+          const track = el('div', 'md-widget-track');
           meterAttributes(track, item, value, max, custom);
-          const fill = el('div', 'md-dash-fill'
-            + (striped === 'true' && value < max ? ' md-dash-fill-striped' : ''));
+          const fill = el('div', 'md-widget-fill'
+            + (striped === 'true' && value < max ? ' md-widget-fill-striped' : ''));
           paint(fill, color);
           fill.style.width = (share * 100) + '%';
           track.append(fill);
           // An empty value cell keeps the block's columns lined up.
-          row.append(el('span', 'md-dash-progress-label', item.label), track,
-                     el('span', 'md-dash-progress-value', shown));
+          row.append(el('span', 'md-widget-progress-label', item.label), track,
+                     el('span', 'md-widget-progress-value', shown));
           list.append(row);
         }
         return list;
       }
 
-      // `text`, and an optional `color` for the badge's fill: grey by
-      // default; a light hex takes dark text.
-      function badge(source) {
-        const items = parse(source);
-        if (!items) return null;
-        const wrap = el('div', 'md-dash-badges');
-        for (const item of items) {
-          const color = readColor(item.color);
-          if (!item.text || !color) return null;
-          const node = el('span', 'md-dash-badge', item.text);
-          paint(node, color);
-          if (color.hex && isLight(color.hex)) node.classList.add('md-dash-on-light');
-          wrap.append(node);
+      // Shortcode arguments: `{{name: arguments}}` in inline code. Separated
+      // by spaces; `"…"` or `'…'` quote a value with spaces (no escapes); a
+      // value ending in an unquoted comma continues into the next, so
+      // `3, 5, 2` is one value. `key=value` is an option, anything else a
+      // positional value. Null for an unclosed quote or an empty, malformed
+      // or repeated key; a builder ignores what it doesn't take.
+      const SHORTCODE = /^\{\{\s*[a-z][a-z0-9-]*:([\s\S]*)\}\}$/;
+      const OPTION_KEY = /^[a-z][a-z0-9-]*$/;
+      function tokenize(text) {
+        const positional = [];
+        const options = {};
+        let i = 0;
+        while (i < text.length) {
+          while (i < text.length && /\s/.test(text[i])) i++;
+          if (i >= text.length) break;
+          let token = '', keyEnd = -1, quotedYet = false, trailingComma = false;
+          for (;;) {
+            if (i >= text.length || /\s/.test(text[i])) {
+              if (!trailingComma) break;
+              // A value ending in a comma continues past the spaces.
+              while (i < text.length && /\s/.test(text[i])) i++;
+              if (i >= text.length) break;
+            }
+            const ch = text[i];
+            if (ch === '"' || ch === "'") {
+              const end = text.indexOf(ch, i + 1);
+              if (end < 0) return null;
+              token += text.slice(i + 1, end);
+              quotedYet = true;
+              trailingComma = false;
+              i = end + 1;
+              continue;
+            }
+            if (ch === '=' && keyEnd < 0 && !quotedYet) keyEnd = token.length;
+            token += ch;
+            trailingComma = ch === ',';
+            i++;
+          }
+          if (keyEnd < 0) { positional.push(token); continue; }
+          const key = token.slice(0, keyEnd);
+          if (!OPTION_KEY.test(key) || key in options) return null;
+          options[key] = token.slice(keyEnd + 1);
         }
-        return wrap;
+        return { positional, options };
       }
+
+      // `{{badge: text color=…}}`: the text in its color on a tinted pill,
+      // grey without a color.
+      function badge(args) {
+        const text = args.positional[0];
+        const color = readColor(args.options.color);
+        if (!text || !text.trim() || !color) return null;
+        const node = el('span', 'md-widget-badge', text);
+        paint(node, color);
+        return node;
+      }
+
+      // `{{sparkline: 3,5,2,8 color=… type=line|bar}}`: two or more numbers,
+      // in order. A line is scaled between the lowest and the highest, flat
+      // across the middle when they are all the same. Bars grow from zero
+      // (down for a negative number), one per number, at least a sliver tall
+      // so a zero still shows. The values stay as hidden text for find, copy
+      // and VoiceOver.
+      const SPARK_WIDTH = 100, SPARK_HEIGHT = 20, SPARK_PAD = 2;
+      const SPARK_TYPES = ['line', 'bar'];
+      const round = n => Math.round(n * 100) / 100;
+      function sparkline(args) {
+        const list = args.positional[0];
+        if (!list) return null;
+        const values = list.split(',').map(part => {
+          const t = part.trim();
+          return NUMBER.test(t) ? Number(t) : null;
+        });
+        if (values.length < 2 || values.some(value => value === null)) return null;
+        const color = readColor(args.options.color);
+        if (!color) return null;
+        const type = args.options.type == null ? 'line' : args.options.type.toLowerCase();
+        if (!SPARK_TYPES.includes(type)) return null;
+        const min = Math.min(...values), max = Math.max(...values);
+        const inner = SPARK_HEIGHT - 2 * SPARK_PAD;
+        const SVGNS = 'http://www.w3.org/2000/svg';
+        const svg = document.createElementNS(SVGNS, 'svg');
+        svg.setAttribute('viewBox', '0 0 ' + SPARK_WIDTH + ' ' + SPARK_HEIGHT);
+        svg.setAttribute('preserveAspectRatio', 'none');
+        svg.setAttribute('aria-hidden', 'true');
+        if (type === 'bar') {
+          // The scale always includes zero, so bars are comparable.
+          const lo = Math.min(0, min), hi = Math.max(0, max), span = hi - lo;
+          const y = value => span ? SPARK_PAD + (hi - value) / span * inner : SPARK_HEIGHT - SPARK_PAD;
+          const zero = y(0);
+          const slot = SPARK_WIDTH / values.length, width = slot * 0.7;
+          values.forEach((value, index) => {
+            const height = Math.max(Math.abs(y(value) - zero), 1);
+            const bar = document.createElementNS(SVGNS, 'rect');
+            bar.setAttribute('x', round(index * slot + (slot - width) / 2));
+            bar.setAttribute('y', round(value < 0 ? zero : zero - height));
+            bar.setAttribute('width', round(width));
+            bar.setAttribute('height', round(height));
+            svg.append(bar);
+          });
+        } else {
+          const points = values.map((value, index) => {
+            const x = index / (values.length - 1) * SPARK_WIDTH;
+            const y = max === min
+              ? SPARK_HEIGHT / 2
+              : SPARK_PAD + (1 - (value - min) / (max - min)) * inner;
+            return round(x) + ',' + round(y);
+          });
+          const line = document.createElementNS(SVGNS, 'polyline');
+          line.setAttribute('points', points.join(' '));
+          svg.append(line);
+        }
+        const node = el('span', 'md-widget-spark md-widget-spark-' + type);
+        paint(node, color);
+        node.append(svg, el('span', 'md-widget-sr', 'Sparkline: ' + values.map(v => formatter.format(v)).join(', ')));
+        return node;
+      }
+
+      // `{{progress: 7/12 color=… striped=true text=…}}` or
+      // `{{progress: 58%}}`: a text-height bar, nothing beside it unless
+      // `text` (the block's template: `{value}`, `{max}`, `{percent}`) adds
+      // some. A value above the maximum shows a full bar. Without `text` the
+      // value stays as hidden text for find, copy and VoiceOver.
+      const FRACTION = /^([^/]+)\/([^/]+)$/;
+      function inlineProgress(args) {
+        const written = (args.positional[0] || '').trim();
+        let value = null, max = null;
+        const fraction = FRACTION.exec(written);
+        if (fraction) {
+          value = num(fraction[1]);
+          max = num(fraction[2]);
+        } else if (written.endsWith('%')) {
+          value = num(written.slice(0, -1));
+          max = 100;
+        }
+        if (value == null || max == null || value < 0 || max <= 0) return null;
+        const color = readColor(args.options.color);
+        if (!color) return null;
+        const striped = (args.options.striped || 'false').toLowerCase();
+        if (!['true', 'false'].includes(striped)) return null;
+        const template = args.options.text;
+        const shown = template == null || template.trim().toLowerCase() === 'none'
+          ? '' : progressText(template, value, max);
+        const node = el('span', 'md-widget-iprogress');
+        const track = el('span', 'md-widget-iprogress-track');
+        track.setAttribute('role', 'progressbar');
+        track.setAttribute('aria-valuemin', '0');
+        track.setAttribute('aria-valuemax', String(max));
+        track.setAttribute('aria-valuenow', String(value));
+        if (shown) track.setAttribute('aria-valuetext', shown);
+        const fill = el('span', 'md-widget-fill'
+          + (striped === 'true' && value < max ? ' md-widget-fill-striped' : ''));
+        paint(fill, color);
+        fill.style.width = (Math.min(value / max, 1) * 100) + '%';
+        track.append(fill);
+        node.append(track);
+        node.append(shown
+          ? el('span', 'md-widget-iprogress-text', shown)
+          : el('span', 'md-widget-sr', 'Progress: ' + progressText('{value} / {max}', value, max)));
+        return node;
+      }
+
+      const INLINE = { sparkline, badge, progress: inlineProgress };
 
       // A chart: `key: value` options, then a Markdown table whose first
       // column holds the labels and every other column a series of numbers.
@@ -762,7 +1002,7 @@ nonisolated extension MarkdownHTML {
           if (read.length > 8 || read.some(color => !color)) return null;
           // A palette name becomes its variable; `default` keeps the series color.
           colors = read.map(color => color.hex
-            || (color.name === 'default' ? null : 'var(--dashboard-' + color.name + ')'));
+            || (color.name === 'default' ? null : 'var(--widget-' + color.name + ')'));
         }
         const data = table(rows);
         if (!data) return null;
@@ -773,7 +1013,7 @@ nonisolated extension MarkdownHTML {
         });
       }
 
-      const BUILDERS = { stat, chart, progress, badge };
+      const BUILDERS = { stat, chart, progress };
 
       // Striped fills move only while on screen, so an open document doesn't
       // keep repainting bars nobody can see.
@@ -781,14 +1021,14 @@ nonisolated extension MarkdownHTML {
         ? new IntersectionObserver(entries => {
             for (const entry of entries) {
               if (!entry.target.isConnected) { motion.unobserve(entry.target); continue; }
-              entry.target.classList.toggle('md-dash-moving', entry.isIntersecting);
+              entry.target.classList.toggle('md-widget-moving', entry.isIntersecting);
             }
           })
         : null;
 
       function upgrade(root) {
         const scope = root && root.querySelectorAll ? root : document;
-        for (const pre of scope.querySelectorAll('pre[data-md-dashboard]')) {
+        for (const pre of scope.querySelectorAll('pre[data-md-widget]')) {
           const code = pre.querySelector('code');
           const match = code && /(?:^|\s)language-([a-z]+)(?:\s|$)/.exec(code.className);
           const build = match && BUILDERS[match[1]];
@@ -804,13 +1044,28 @@ nonisolated extension MarkdownHTML {
           const frame = pre.parentElement && pre.parentElement.classList.contains('md-code-wrap')
             ? pre.parentElement : pre;
           frame.replaceWith(node);
-          for (const fill of node.querySelectorAll('.md-dash-fill-striped')) {
-            if (motion) motion.observe(fill); else fill.classList.add('md-dash-moving');
+          for (const fill of node.querySelectorAll('.md-widget-fill-striped')) {
+            if (motion) motion.observe(fill); else fill.classList.add('md-widget-moving');
+          }
+        }
+        for (const code of scope.querySelectorAll('code[data-md-inline]')) {
+          const build = INLINE[code.getAttribute('data-md-inline')];
+          const match = build && SHORTCODE.exec(code.textContent);
+          if (!match) continue;
+          let node = null;
+          try {
+            const args = tokenize(match[1]);
+            node = args && build(args);
+          } catch (e) { node = null; }
+          if (!node) continue;
+          code.replaceWith(node);
+          for (const fill of node.querySelectorAll('.md-widget-fill-striped')) {
+            if (motion) motion.observe(fill); else fill.classList.add('md-widget-moving');
           }
         }
       }
 
-      window.MdPreview?.registerExtension({ id: 'dashboard', render(root) { upgrade(root); } });
+      window.MdPreview?.registerExtension({ id: 'widgets', render(root) { upgrade(root); } });
     })();
     </script>
     """#

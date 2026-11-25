@@ -1,18 +1,6 @@
-# Weekly dashboard
+# Weekly report
 
-```badge
-text: Build passing
-color: success
----
-text: Docs outdated
-color: warning
----
-text: Notarization failing
-color: danger
----
-text: Maintenance on Sunday
-color: info
-```
+`{{badge: "Build passing" color=success}}` `{{badge: "Docs outdated" color=warning}}` `{{badge: "Notarization failing" color=danger}}` `{{badge: "Maintenance on Sunday" color=info}}` `{{badge: "v2.4 beta" color=accent}}` `{{badge: Archived color=neutral}}` `{{badge: Draft}}` `{{badge: Design color=#AF52DE}}`
 
 ```stat
 label: Revenue
@@ -185,6 +173,19 @@ x-axis:
 | Phone   | 0.3   |
 ```
 <!-- end-card -->
+
+## Services
+
+Sparklines and badges are shortcodes: inline code that sits in a sentence or a table cell.
+
+| Service | Requests, last 8 weeks                                         | p95 latency | Status                                    |
+| ------- | -------------------------------------------------------------- | ----------- | ----------------------------------------- |
+| API     | `{{sparkline: 120, 132, 128, 141, 150, 147, 162, 171}}`        | 180 ms      | `{{badge: Healthy color=success}}`        |
+| Search  | `{{sparkline: 80,78,90,85,70,64,60,58 color=warning}}`         | 420 ms      | `{{badge: Degraded color=warning}}`       |
+| Billing | `{{sparkline: 22,31,18,35,27,40,33,44 color=danger type=bar}}` | 95 ms       | `{{badge: Healthy color=success}}`        |
+| Sync    | `{{sparkline: 30,32,35,12,8,6,5,5 color=danger}}`              | 1.2 s       | `{{badge: "Incident open" color=danger}}` |
+
+Error budget used this month: `{{progress: 72% color=warning text="{percent}"}}` · on-call handover checklist `{{progress: 5/8}}`
 
 ## Release 4.2
 

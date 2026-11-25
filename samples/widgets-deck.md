@@ -1,6 +1,6 @@
 ---
 slides: true
-theme: midnight
+theme: pitch
 paginate: true
 font_size: 80%
 title: Q3 Business Review
@@ -43,16 +43,7 @@ delta: +6
 trend: up
 ```
 
-```badge
-text: Revenue on plan
-color: success
----
-text: Hiring behind
-color: warning
----
-text: Notarization flaky
-color: danger
-```
+`{{badge: "Revenue on plan" color=success}}` `{{badge: "Hiring behind" color=warning}}` `{{badge: "Notarization flaky" color=danger}}`
 
 ???
 Four numbers to remember. Revenue, users and NPS all up; churn down, which is the direction we want.
@@ -241,13 +232,7 @@ value: 9
 note: Code freeze on Friday
 ```
 
-```badge
-text: Beta feedback in
-color: success
----
-text: Docs behind
-color: warning
-```
+`{{badge: "Beta feedback in" color=success}}` `{{badge: "Docs behind" color=warning}}`
 
 ???
 Nine of twelve features are in; the striped bar is the work still moving.
@@ -335,4 +320,4 @@ One owner per column. We review these three at the start of every month.
 
 # Thank you
 
-Questions? · numbers live in `samples/dashboard.md`
+Questions? · numbers live in `samples/widgets.md`

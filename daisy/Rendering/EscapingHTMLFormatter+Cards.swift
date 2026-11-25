@@ -34,7 +34,7 @@ nonisolated struct CardStyle: Equatable, Sendable {
     enum Edge: String, CaseIterable, Sendable { case left, top }
 
     var look = Look.plain
-    /// A palette color name (`DashboardColor`'s semantic ones) or a
+    /// A palette color name (`WidgetColor`'s semantic ones) or a
     /// lowercased `#rgb` / `#rrggbb`; nil uses the accent.
     var color: String?
     var tint = false
@@ -42,9 +42,10 @@ nonisolated struct CardStyle: Equatable, Sendable {
     var align = Align.start
     var edge = Edge.left
 
-    /// The palette names `color` accepts, the same as every dashboard
-    /// widget's; `default` is the card's normal look.
-    static let paletteColors: [DashboardColor] = DashboardColor.named
+    /// `color` takes the same palette names as every widget
+    /// (`WidgetColor.named(_:)`); `default` or `neutral` is the card's
+    /// normal look.
+    static let paletteColors: [WidgetColor] = WidgetColor.named
 
     init() {}
 
@@ -66,10 +67,13 @@ nonisolated struct CardStyle: Equatable, Sendable {
                 guard let look = Look(rawValue: value) else { return nil }
                 self.look = look
             case "color":
-                guard Self.paletteColors.contains(where: { $0.rawValue == value })
-                        || value.range(of: #"^#(?:[0-9a-f]{3}|[0-9a-f]{6})$"#, options: .regularExpression) != nil
-                else { return nil }
-                color = value == DashboardColor.neutral.rawValue ? nil : value
+                if let named = WidgetColor.named(value) {
+                    color = named == .neutral ? nil : named.rawValue
+                } else if value.range(of: #"^#(?:[0-9a-f]{3}|[0-9a-f]{6})$"#, options: .regularExpression) != nil {
+                    color = value
+                } else {
+                    return nil
+                }
             case "tint":
                 guard value == "true" || value == "false" else { return nil }
                 tint = value == "true"

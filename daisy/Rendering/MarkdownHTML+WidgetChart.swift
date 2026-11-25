@@ -1,8 +1,8 @@
 //
-//  MarkdownHTML+DashboardChart.swift
+//  MarkdownHTML+WidgetChart.swift
 //  daisy
 //
-//  MdChart: the small SVG chart library behind the dashboard `chart` block.
+//  MdChart: the small SVG chart library behind the `chart` widget.
 //
 //  A chart type is a renderer registered by name:
 //
@@ -21,12 +21,12 @@
 //  and `grid` (false hides grid lines) apply to every type that has them;
 //  `xAxis` and `yAxis` (`{ visible }`) hide the bottom and left labels. `size` may also be a
 //  function of the spec. The `chart` block parser in
-//  `dashboardScript` accepts any registered type, so a new type needs only a
+//  `widgetScript` accepts any registered type, so a new type needs only a
 //  `register` call. `bar`, `line`, `pie` and `donut` are registered the same way.
 //
 //  Colors are classes only (`md-chart-s1` … `s8`), mapped to the theme's
-//  dashboard series colors (`DashboardColor.series`). A spec's `colors`
-//  (checked hex or `var(--dashboard-name)`, at most eight; null keeps the
+//  widget series colors (`WidgetColor.series`). A spec's `colors`
+//  (checked hex or `var(--widget-name)`, at most eight; null keeps the
 //  series color) override them as
 //  `--md-chart-color-N` custom properties on the figure, never as markup.
 //  Text reaches the SVG through `textContent`, never markup.
@@ -37,10 +37,10 @@ import Foundation
 nonisolated extension MarkdownHTML {
 
     /// Number of series colors before they repeat.
-    static let dashboardChartSeriesColors = DashboardColor.seriesCount
+    static let widgetChartSeriesColors = WidgetColor.seriesCount
 
-    private static var dashboardChartSeriesCSS: String {
-        DashboardColor.series.enumerated().map { offset, color in
+    private static var widgetChartSeriesCSS: String {
+        WidgetColor.series.enumerated().map { offset, color in
             let index = offset + 1
             // A chart's own `colors` set `--md-chart-color-N` on its figure.
             let value = "var(--md-chart-color-\(index), \(color.cssValue))"
@@ -52,9 +52,9 @@ nonisolated extension MarkdownHTML {
         }.joined(separator: "\n")
     }
 
-    /// Chart layout. The series colors are part of the dashboard palette,
-    /// defined in `dashboardStylesheet`.
-    static let dashboardChartStylesheet = """
+    /// Chart layout. The series colors are part of the widget palette,
+    /// defined in `widgetStylesheet`.
+    static let widgetChartStylesheet = """
     .md-chart {
         margin: 1em 0;
         container-type: inline-size;
@@ -128,14 +128,14 @@ nonisolated extension MarkdownHTML {
     }
     .md-chart-plot text { font-family: inherit; }
     .md-chart-axis {
-        fill: var(--dashboard-text);
+        fill: var(--widget-text);
         font-size: 12px;
     }
     .md-chart-grid {
-        stroke: var(--dashboard-border);
+        stroke: var(--widget-border);
         stroke-width: 1;
     }
-    .md-chart-zero { stroke: var(--dashboard-text); }
+    .md-chart-zero { stroke: var(--widget-text); }
     .md-chart-value {
         fill: currentColor;
         font-size: 10px;
@@ -168,20 +168,20 @@ nonisolated extension MarkdownHTML {
         stroke: Canvas;
         stroke-width: 1.5;
     }
-    \(dashboardChartSeriesCSS)
+    \(widgetChartSeriesCSS)
     """
 
     /// Defines `window.MdChart` with the `bar`, `line`, `pie` and `donut` types. Loaded
-    /// before `dashboardScript`, whose `chart` builder calls it.
-    static let dashboardChartScript = #"""
+    /// before `widgetScript`, whose `chart` builder calls it.
+    static let widgetChartScript = #"""
     <script>
     (function() {
       if (window.MdChart) return;
       const SVGNS = 'http://www.w3.org/2000/svg';
-      const SERIES_COLORS = \#(dashboardChartSeriesColors);
+      const SERIES_COLORS = \#(widgetChartSeriesColors);
       const types = Object.create(null);
       const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
-      const PALETTE_VAR = /^var\(--dashboard-[a-z]+\)$/;
+      const PALETTE_VAR = /^var\(--widget-[a-z]+\)$/;
       const formatter = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
 
       function el(tag, cls, text) {
