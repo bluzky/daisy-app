@@ -10,7 +10,8 @@
 //                   height / grid / colors / x-axis / y-axis; legend, x-axis and
 //                   y-axis may be groups of indented `key: value` lines,
 //                   then a Markdown table
-//      ```progress  label / value / max / color / striped
+//      ```progress  shape (first item) / label / value / max / color / text /
+//                   striped
 //      ```badge     text / color
 //
 //  Each block is `key: value` lines; a line of `---` separates items. A chart
@@ -148,6 +149,9 @@ nonisolated extension MarkdownHTML {
         --dashboard-text: var(--secondary, #6e6e73);
         --dashboard-surface: var(--aside-bg, #f5f5f7);
         --dashboard-border: var(--grid, #d2d2d7);
+        /* The empty part of a progress bar or ring: a tint of the text, so it
+           shows on the page, in a card and on a slide, light or dark. */
+        --dashboard-track: color-mix(in srgb, currentColor 12%, transparent);
     }
     :root[data-mdp-color-scheme="dark"] {
         \(DashboardColor.defaultDeclarations(dark: true))
@@ -161,7 +165,7 @@ nonisolated extension MarkdownHTML {
             --dashboard-card: #262626;
         }
     }
-    .md-dash-stats, .md-dash-progress, .md-dash-badges {
+    .md-dash-stats, .md-dash-progress, .md-dash-rings, .md-dash-badges {
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
     }
@@ -269,13 +273,71 @@ nonisolated extension MarkdownHTML {
     .md-dash-track {
         height: 12px;
         border-radius: 6px;
-        background: var(--dashboard-surface);
+        background: var(--dashboard-track);
         overflow: hidden;
     }
     .md-dash-fill {
         height: 100%;
         border-radius: 6px;
         background: var(--md-dash-color, \(DashboardColor.accent.cssValue));
+    }
+    /* Rings (`shape: ring`): one per item, side by side and wrapping. The arc
+       is the share, drawn with the circle's dash pattern from 12 o'clock; the
+       text sits in the middle and shrinks for longer text. Sizes are in em,
+       so a ring scales with slide text. */
+    .md-dash-rings {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1em 1.75em;
+        margin: 1em 0;
+    }
+    .md-card-align-center .md-dash-rings { justify-content: center; }
+    .md-dash-ring {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.4em;
+        width: 7.5em;
+        text-align: center;
+    }
+    .md-dash-ring-meter {
+        position: relative;
+        width: 6.5em;
+        height: 6.5em;
+    }
+    .md-dash-ring-meter svg { display: block; width: 100%; height: 100%; }
+    .md-dash-ring-track {
+        fill: none;
+        stroke: var(--dashboard-track);
+        stroke-width: 10;
+    }
+    .md-dash-ring-arc {
+        fill: none;
+        stroke: var(--md-dash-color, \(DashboardColor.accent.cssValue));
+        stroke-width: 10;
+        stroke-linecap: round;
+    }
+    .md-dash-ring-text {
+        position: absolute;
+        top: 50%;
+        left: 0;
+        right: 0;
+        transform: translateY(-50%);
+        padding: 0 0.9em;
+        font-size: 1.3em;
+        font-weight: 600;
+        line-height: 1.2;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .md-dash-ring-text-long { font-size: 1.05em; }
+    .md-dash-ring-text-xlong { font-size: 0.85em; }
+    .md-dash-ring-label {
+        font-size: 0.9em;
+        line-height: 1.3;
+        overflow-wrap: anywhere;
     }
     /* `striped: true`: diagonal stripes over the fill, moving only while the
        bar is on screen (`md-dash-moving`, set by the widget script). Still
@@ -480,14 +542,67 @@ nonisolated extension MarkdownHTML {
         return wrap;
       }
 
-      // One bar per item: `label`, `value` (zero or more) and `max` (above
-      // zero). A value above its maximum shows a full bar. An optional
-      // `color` colors the bar; the default is the accent.
-      // `striped: true` adds moving stripes, except on a full bar.
+      // One item per bar or ring: `label`, `value` (zero or more) and `max`
+      // (above zero); a value above its maximum shows a full bar or ring.
+      // `shape: bar | ring` on the first item sets the whole block's shape.
+      // `color` colors the bar or the arc. `text` is what shows beside the
+      // bar or inside the ring: a template with `{value}`, `{max}` and
+      // `{percent}`, or `none`; by default `{value} / {max}` for a bar and
+      // `{percent}` for a ring. `striped: true` adds moving stripes to a bar,
+      // except a full one; a ring takes no stripes.
+      const SHAPES = ['bar', 'ring'];
+      function progressText(template, value, max) {
+        const percent = formatter.format(Math.round(Math.min(value / max, 1) * 100)) + '%';
+        return template.replace(/\{(value|max|percent)\}/g, (_, key) =>
+          key === 'value' ? formatter.format(value) : key === 'max' ? formatter.format(max) : percent);
+      }
+      function meterAttributes(node, item, value, max, custom) {
+        node.setAttribute('role', 'progressbar');
+        node.setAttribute('aria-label', item.label);
+        node.setAttribute('aria-valuemin', '0');
+        node.setAttribute('aria-valuemax', String(max));
+        node.setAttribute('aria-valuenow', String(value));
+        if (custom) node.setAttribute('aria-valuetext', custom);
+      }
+      // A ring: the track, and an arc from 12 o'clock as long as the share,
+      // drawn with the circle's dash pattern; the text sits in the middle.
+      function ringItem(item, share, color, shown, custom, value, max) {
+        const SVGNS = 'http://www.w3.org/2000/svg';
+        const node = el('div', 'md-dash-ring');
+        const meter = el('div', 'md-dash-ring-meter');
+        meterAttributes(meter, item, value, max, custom);
+        const svg = document.createElementNS(SVGNS, 'svg');
+        svg.setAttribute('viewBox', '0 0 100 100');
+        svg.setAttribute('aria-hidden', 'true');
+        const circle = cls => {
+          const c = document.createElementNS(SVGNS, 'circle');
+          c.setAttribute('cx', '50');
+          c.setAttribute('cy', '50');
+          c.setAttribute('r', '42');
+          c.setAttribute('class', cls);
+          svg.append(c);
+          return c;
+        };
+        circle('md-dash-ring-track');
+        if (share > 0) {
+          const arc = circle('md-dash-ring-arc');
+          arc.setAttribute('pathLength', '100');
+          arc.setAttribute('stroke-dasharray', (share * 100) + ' 100');
+          arc.setAttribute('transform', 'rotate(-90 50 50)');
+          paint(arc, color);
+        }
+        const size = shown.length > 6 ? ' md-dash-ring-text-xlong' : shown.length > 4 ? ' md-dash-ring-text-long' : '';
+        meter.append(svg, el('div', 'md-dash-ring-text' + size, shown));
+        node.append(meter, el('div', 'md-dash-ring-label', item.label));
+        return node;
+      }
       function progress(source) {
         const items = parse(source);
         if (!items) return null;
-        const list = el('div', 'md-dash-progress');
+        const shape = (items[0].shape || 'bar').toLowerCase();
+        if (!SHAPES.includes(shape) || items.slice(1).some(item => 'shape' in item)) return null;
+        const ring = shape === 'ring';
+        const list = el('div', ring ? 'md-dash-rings' : 'md-dash-progress');
         for (const item of items) {
           const value = num(item.value || '');
           const max = num(item.max || '');
@@ -495,21 +610,26 @@ nonisolated extension MarkdownHTML {
           const color = readColor(item.color);
           if (!color) return null;
           const striped = (item.striped || 'false').toLowerCase();
-          if (!['true', 'false'].includes(striped)) return null;
+          if (!['true', 'false'].includes(striped) || (ring && striped === 'true')) return null;
+          const template = item.text != null ? item.text : (ring ? '{percent}' : '{value} / {max}');
+          const shown = template.trim().toLowerCase() === 'none' ? '' : progressText(template, value, max);
+          const custom = item.text != null ? shown : null;
+          const share = Math.min(value / max, 1);
+          if (ring) {
+            list.append(ringItem(item, share, color, shown, custom, value, max));
+            continue;
+          }
           const row = el('div', 'md-dash-progress-item');
           const track = el('div', 'md-dash-track');
-          track.setAttribute('role', 'progressbar');
-          track.setAttribute('aria-label', item.label);
-          track.setAttribute('aria-valuemin', '0');
-          track.setAttribute('aria-valuemax', String(max));
-          track.setAttribute('aria-valuenow', String(value));
+          meterAttributes(track, item, value, max, custom);
           const fill = el('div', 'md-dash-fill'
             + (striped === 'true' && value < max ? ' md-dash-fill-striped' : ''));
           paint(fill, color);
-          fill.style.width = (Math.min(value / max, 1) * 100) + '%';
+          fill.style.width = (share * 100) + '%';
           track.append(fill);
+          // An empty value cell keeps the block's columns lined up.
           row.append(el('span', 'md-dash-progress-label', item.label), track,
-                     el('span', 'md-dash-progress-value', formatter.format(value) + ' / ' + formatter.format(max)));
+                     el('span', 'md-dash-progress-value', shown));
           list.append(row);
         }
         return list;

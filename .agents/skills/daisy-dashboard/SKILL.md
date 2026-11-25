@@ -1,6 +1,6 @@
 ---
 name: daisy-dashboard
-description: Write and fix dashboards, KPI pages, status reports and metric summaries as ordinary Markdown documents for Daisy — `stat` tiles, `chart` blocks (bar, stacked and horizontal bar, line, pie, donut), `progress` bars and `badge` labels, `<!-- card … -->` panels, and `<!-- columns -->` layouts, with the shared `color` key (default, accent, success, info, warning, danger or a hex). Use this whenever the user wants a dashboard, scorecard, metrics page, project status, OKR or release tracker, weekly report, or any chart or KPI in a Markdown file for Daisy — even if they only say "make a dashboard from these numbers". For slide decks use the daisy-slides skill instead; the same blocks work on slides.
+description: Write and fix dashboards, KPI pages, status reports and metric summaries as ordinary Markdown documents for Daisy — `stat` tiles, `chart` blocks (bar, stacked and horizontal bar, line, pie, donut), `progress` bars and rings, and `badge` labels, `<!-- card … -->` panels, and `<!-- columns -->` layouts, with the shared `color` key (default, accent, success, info, warning, danger or a hex). Use this whenever the user wants a dashboard, scorecard, metrics page, project status, OKR or release tracker, weekly report, or any chart or KPI in a Markdown file for Daisy — even if they only say "make a dashboard from these numbers". For slide decks use the daisy-slides skill instead; the same blocks work on slides.
 ---
 
 # Daisy dashboards
@@ -58,7 +58,7 @@ color: warning
 ````
 
 - **`stat`** — `label` and `value` required; `color` (the value), `delta`, `trend` (`up`/`down`/`flat`, colors the delta; ignored without a `delta`), `good: down` for metrics where down is good, `note`, `link` (an arrow to a URL, file or `#heading`). Tiles in one block share a row.
-- **`progress`** — `label`, `value` (≥ 0), `max` (> 0); `color` (default accent), `striped: true` for work still moving. One row per bar: label, bar, `value / max`.
+- **`progress`** — `label`, `value` (≥ 0), `max` (> 0); `color` (default accent), `striped: true` for work still moving (bars only). One row per bar: label, bar, `value / max`. `shape: ring` **on the first item** turns the whole block into rings side by side (percent in the middle, label under): the gauge for a KPI card. `text` changes the number shown, as a template: `{value} / {max}` (a bar's default), `{percent}` (a ring's default), `${value}k of ${max}k`, plain words, or `none`; keep ring text to ~6 characters.
 - **`badge`** — `text`; `color` (grey without one).
 
 ## Colors
@@ -105,8 +105,9 @@ Up 12% on Pro upgrades
 <!-- end-columns -->
 ```
 
+- A row of gauges: one `progress` block with `shape: ring` inside a card with `align=center`, or one ring per card in columns.
 - Card options, `key=value` in the opening comment: `style` (`plain`, `outline`, `filled`, `accent`), `color`, `tint=true`, `padding` (`compact`, `normal`, `roomy`), `align=center`, `edge=top` (accent bar across the top). There is no CSS.
-- A card alone in a column fills the column's height, so a row of cards lines up. `align=center padding=compact` around a small donut makes a gauge.
+- A card alone in a column fills the column's height, so a row of cards lines up. `align=center padding=compact` around a ring progress block makes a gauge.
 - Columns: `<!-- columns -->`, `<!-- column -->` between parts, `<!-- end-columns -->`; 2–4 equal columns, stacked on a narrow window.
 
 ## Traps that render silently wrong

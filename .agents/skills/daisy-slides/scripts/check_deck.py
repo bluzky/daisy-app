@@ -63,6 +63,8 @@ NUMBER = re.compile(r"^[-+]?(\d+\.?\d*|\.\d+)$")
 # item one line (label, bar, value), a badge row one line. A bar or line chart is
 # half as tall as the slide is wide, nearly the whole slide; a pie is smaller.
 STAT_LINES, BADGE_LINES, PROGRESS_ROW_LINES = 3, 1, 1
+# A row of rings: the ring and its label.
+RING_LINES = 5
 CHART_LINES, PIE_LINES = 10, 7
 
 # Rough capacity of a 16:9 slide at Daisy's slide text size.
@@ -390,6 +392,11 @@ def check_widget(kind, body, line, report):
         return BADGE_LINES
 
     # progress
+    shape = (items[0].get("shape") or "bar").lower()
+    if shape not in ("bar", "ring"):
+        return plain(f"`shape: {items[0]['shape']}` isn't bar or ring")
+    if any("shape" in item for item in items[1:]):
+        return plain("`shape` goes on the first item only; it sets the whole block")
     for item in items:
         value = (item.get("value") or "").replace(",", "")
         maximum = (item.get("max") or "").replace(",", "")
@@ -401,6 +408,22 @@ def check_widget(kind, body, line, report):
             return plain(f"a bar's `color` isn't {COLOR_HINT}")
         if (item.get("striped") or "false").lower() not in ("true", "false"):
             return plain("a bar's `striped` must be true or false")
+        if shape == "ring" and (item.get("striped") or "false").lower() == "true":
+            return plain("a ring takes no `striped`")
+        if "text" in item:
+            for placeholder in re.findall(r"\{([^}]*)\}", item["text"]):
+                if placeholder not in ("value", "max", "percent"):
+                    report.warn(line, f"`{{{placeholder}}}` in `text` isn't a placeholder "
+                                      "({value}, {max}, {percent}); it shows as typed")
+            if shape == "ring" and item["text"].lower() != "none":
+                number = lambda raw: f"{float(raw.replace(',', '')):,.2f}".rstrip("0").rstrip(".")
+                percent = f"{round(min(float(value) / float(maximum), 1) * 100)}%"
+                shown = (item["text"].replace("{value}", number(value)).replace("{max}", number(maximum))
+                         .replace("{percent}", percent))
+                if len(shown) > 8:
+                    report.warn(line, f"ring text `{item['text']}` is long; it shrinks and may be cut off")
+    if shape == "ring":
+        return RING_LINES
     return math.ceil(len(items) * PROGRESS_ROW_LINES)
 
 

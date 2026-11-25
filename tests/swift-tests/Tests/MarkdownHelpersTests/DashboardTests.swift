@@ -266,6 +266,96 @@ final class DashboardTests: XCTestCase {
     }
 
     @MainActor
+    func testRingShapeDrawsOneRingPerItemWithThePercentInside() async throws {
+        let webView = try await load("""
+        ```progress
+        shape: ring
+        label: Revenue
+        value: 48
+        max: 52
+        color: success
+        ---
+        label: Empty
+        value: 0
+        max: 10
+        ---
+        label: Over
+        value: 12
+        max: 10
+        ```
+        """)
+        let result = try await eval(webView, """
+        (() => {
+          const rings = Array.from(document.querySelectorAll('.md-dash-ring'));
+          return [document.querySelectorAll('.md-dash-progress').length,
+                  rings.map(r => r.querySelector('.md-dash-ring-text').textContent).join(','),
+                  rings.map(r => r.querySelector('.md-dash-ring-label').textContent).join(','),
+                  rings.map(r => { const a = r.querySelector('.md-dash-ring-arc'); return a ? a.getAttribute('stroke-dasharray') : 'none'; }).join(','),
+                  rings[0].querySelector('.md-dash-ring-arc').classList.contains('md-dash-c-success'),
+                  rings[0].querySelector('[role=progressbar]').getAttribute('aria-valuenow'),
+                  rings[0].getBoundingClientRect().top === rings[1].getBoundingClientRect().top];
+        })()
+        """) as? [Any]
+        XCTAssertEqual(result?[0] as? Int, 0, "rings replace the bar rows")
+        XCTAssertEqual(result?[1] as? String, "92%,0%,100%", "the percent is rounded and capped at 100%")
+        XCTAssertEqual(result?[2] as? String, "Revenue,Empty,Over")
+        XCTAssertEqual(result?[3] as? String, "92.3076923076923 100,none,100 100", "no arc at zero, a full arc above max")
+        XCTAssertEqual(result?[4] as? Bool, true, "the arc takes the color")
+        XCTAssertEqual(result?[5] as? String, "48")
+        XCTAssertEqual(result?[6] as? Bool, true, "rings sit side by side")
+    }
+
+    @MainActor
+    func testTextIsATemplateOnBarsAndRings() async throws {
+        let webView = try await load("""
+        ```progress
+        label: Default
+        value: 1200
+        max: 1500
+        ---
+        label: Template
+        value: 48
+        max: 52
+        text: ${value}k of ${max}k
+        ---
+        label: Literal
+        value: 1
+        max: 2
+        text: On track
+        ---
+        label: Hidden
+        value: 1
+        max: 2
+        text: none
+        ---
+        label: Typo
+        value: 1
+        max: 2
+        text: {total}
+        ```
+
+        ```progress
+        shape: ring
+        label: Fraction
+        value: 3
+        max: 4
+        text: {value}/{max}
+        ```
+        """)
+        let result = try await eval(webView, """
+        [Array.from(document.querySelectorAll('.md-dash-progress-value')).map(v => v.textContent),
+         document.querySelector('.md-dash-ring-text').textContent,
+         document.querySelectorAll('.md-dash-track')[1].getAttribute('aria-valuetext'),
+         document.querySelectorAll('.md-dash-track')[0].hasAttribute('aria-valuetext')]
+        """) as? [Any]
+        XCTAssertEqual(result?[0] as? [String], ["1,200 / 1,500", "$48k of $52k", "On track", "", "{total}"],
+                       "default, placeholders, literal text, none, and an unknown placeholder kept as typed")
+        XCTAssertEqual(result?[1] as? String, "3/4")
+        XCTAssertEqual(result?[2] as? String, "$48k of $52k", "custom text is what a screen reader hears")
+        XCTAssertEqual(result?[3] as? Bool, false)
+    }
+
+    @MainActor
     func testAC_4_1_InvalidProgressStaysPlain() async throws {
         for block in [
             "```progress\nlabel: A\nvalue: 3\n```",
@@ -277,6 +367,9 @@ final class DashboardTests: XCTestCase {
             "```progress\nlabel: A\nvalue: 1\nmax: 4\ncolor: purple\n```",
             "```progress\nlabel: A\nvalue: 1\nmax: 4\ncolor: positive\n```",
             "```progress\nlabel: A\nvalue: 1\nmax: 4\nstriped: yes\n```",
+            "```progress\nshape: circle\nlabel: A\nvalue: 1\nmax: 4\n```",
+            "```progress\nlabel: A\nvalue: 1\nmax: 4\n---\nshape: ring\nlabel: B\nvalue: 1\nmax: 4\n```",
+            "```progress\nshape: ring\nlabel: A\nvalue: 1\nmax: 4\nstriped: true\n```",
         ] {
             let drawn = try await count(block, ".md-dash-progress")
             XCTAssertEqual(drawn, 0, block)

@@ -107,58 +107,31 @@ colors: #94A3B8, #6366F1, #F59E0B
 
 ## Goals
 
-<!-- columns -->
-
-<!-- card align=center padding=compact -->
-```chart
-type: donut
-title: Quarterly target
-height: 120
-colors: #22C55E, #E5E7EB
-legend:
-  visible: false
-| Part      | k$ |
-| --------- | -- |
-| Reached   | 72 |
-| Remaining | 28 |
+<!-- card align=center -->
+```progress
+shape: ring
+label: Quarterly target
+value: 72
+max: 100
+color: success
+---
+label: Onboarding done
+value: 58
+max: 100
+text: {value}/{max}
+---
+label: Revenue
+value: 48
+max: 52
+color: accent
+text: ${value}k
+---
+label: Tickets in SLA
+value: 91
+max: 100
+color: warning
 ```
 <!-- end-card -->
-
-<!-- column -->
-
-<!-- card align=center padding=compact -->
-```chart
-type: donut
-title: Onboarding done
-height: 120
-colors: #6366F1, #E5E7EB
-legend:
-  visible: false
-| Part      | Users |
-| --------- | ----- |
-| Done      | 58    |
-| Remaining | 42    |
-```
-<!-- end-card -->
-
-<!-- column -->
-
-<!-- card align=center padding=compact -->
-```chart
-type: donut
-title: Tickets in SLA
-height: 120
-colors: #F59E0B, #E5E7EB
-legend:
-  visible: false
-| Part    | % |
-| ------- | - |
-| In SLA  | 91 |
-| Late    | 9 |
-```
-<!-- end-card -->
-
-<!-- end-columns -->
 
 ## Support
 

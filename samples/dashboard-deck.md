@@ -163,58 +163,39 @@ Free costs us little but feeds Pro. Enterprise is small today, but each deal is 
 ## Two of three goals on track
 
 <!-- card align=center padding=compact -->
-```chart
-type: donut
-title: Revenue
-height: 150
-values: false
-colors: #22C55E, #334155
-legend: none
-| Part      | k$ |
-| --------- | -- |
-| Reached   | 92 |
-| Remaining | 8  |
+### Revenue
+```progress
+shape: ring
+label: $48k of $52k
+value: 48
+max: 52
+color: success
 ```
-
-**92%** of $52k
 <!-- end-card -->
 
 <!-- column -->
 
 <!-- card align=center padding=compact -->
-```chart
-type: donut
-title: Onboarding
-height: 150
-values: false
-colors: #6366F1, #334155
-legend: none
-| Part      | % |
-| --------- | - |
-| Done      | 81 |
-| Remaining | 19 |
+### Onboarding
+```progress
+shape: ring
+label: of new teams
+value: 81
+max: 100
 ```
-
-**81%** of new teams
 <!-- end-card -->
 
 <!-- column -->
 
 <!-- card align=center padding=compact style=accent color=danger -->
-```chart
-type: donut
-title: Support SLA
-height: 150
-values: false
-colors: #F43F5E, #334155
-legend: none
-| Part   | % |
-| ------ | - |
-| In SLA | 68 |
-| Late   | 32 |
+### Support SLA
+```progress
+shape: ring
+label: target 90%
+value: 68
+max: 100
+color: danger
 ```
-
-**68%** against 90%
 <!-- end-card -->
 
 ???

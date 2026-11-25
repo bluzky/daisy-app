@@ -1,6 +1,6 @@
 # Dashboard
 
-Turn a Markdown file into a dashboard with four kinds of fenced block: `stat` tiles, `chart` bar, line, pie and donut charts, `progress` bars and `badge` labels. They work in any Markdown file; there is nothing to turn on. A block with a missing or invalid field stays a plain code block. Every value is written in the file: there are no data files, no network fetches and no formulas. See [`samples/dashboard.md`](../samples/dashboard.md) for a complete example.
+Turn a Markdown file into a dashboard with four kinds of fenced block: `stat` tiles, `chart` bar, line, pie and donut charts, `progress` bars and rings, and `badge` labels. They work in any Markdown file; there is nothing to turn on. A block with a missing or invalid field stays a plain code block. Every value is written in the file: there are no data files, no network fetches and no formulas. See [`samples/dashboard.md`](../samples/dashboard.md) for a complete example.
 
 Each block is a few `key: value` lines. Where a block holds several items, a line of `---` separates them. A chart adds a Markdown table after its `key: value` lines; see [Charts](#charts).
 
@@ -57,7 +57,46 @@ color: success
 
 `label`, `value` and `max` are required. `value` is zero or more and `max` above zero; a value above its maximum shows a full bar. Each bar is one row: its label, the bar, then `value / max`. The bars in one block stack, with their labels, bars and values lined up.
 
-`color` is optional and sets the bar's [color](#colors); the default is the accent.
+| Key | Required | What it does |
+| --- | --- | --- |
+| `label` | yes | The bar's or ring's name. |
+| `value`, `max` | yes | How far along: `value` zero or more, `max` above zero. |
+| `shape` | no | `bar` (the default) or `ring`, on the **first item only**; it sets the whole block. `shape` on a later item leaves the block plain. |
+| `color` | no | The bar's or the ring's arc [color](#colors); the default is the accent. |
+| `text` | no | What shows beside the bar or inside the ring (see below). |
+| `striped` | no | `true` for moving stripes on a bar. A ring takes none: `striped: true` on a ring leaves the block plain. |
+
+### Rings
+
+`shape: ring` draws each item as a ring instead of a bar: an arc from 12 o'clock as long as the share, the percentage in the middle and the label under it. The rings in one block sit side by side and wrap; in a card with `align=center` they are centered. A ring scales with the text, so it fits a slide or a column the same way.
+
+````markdown
+```progress
+shape: ring
+label: Revenue target
+value: 48
+max: 52
+color: success
+---
+label: Onboarding
+value: 81
+max: 100
+```
+````
+
+### The text
+
+`text` sets what shows beside a bar or inside a ring. It is a template: `{value}` and `{max}` are the numbers as written in the block (with thousands separators), and `{percent}` is the share, rounded, with its `%` sign (`100%` at most).
+
+| You want | Write | Shows for 48 of 52 |
+| --- | --- | --- |
+| Value and max | `text: {value} / {max}` | `48 / 52` — a bar's default |
+| Percentage | `text: {percent}` | `92%` — a ring's default |
+| Your own words, with numbers | `text: ${value}k of ${max}k` | `$48k of $52k` |
+| Your own words | `text: On track` | `On track` |
+| Nothing | `text: none` | — |
+
+Anything that isn't one of the three placeholders shows as typed, so a typo such as `{total}` is visible rather than lost. A ring's text shrinks to fit and is cut off when it is much longer than about 6 characters. Screen readers read the `text` when you set one, and the value otherwise.
 
 `striped: true` draws moving diagonal stripes over a bar's fill, to mark work still in progress. The stripes move only while the bar is on screen, stand still when macOS Reduce Motion is on and in print and PDF, and a full bar has none. Any value other than `true` or `false` leaves the block plain.
 
@@ -175,7 +214,7 @@ One key, `color`, picks a color on a stat (its value), a progress bar (its fill)
 
 These are Apple's standard system colors, one set for every widget: a `warning` badge is the same orange as a chart's second series. Badges are white text on their color, or dark text on a light hex. Text in a named color, a stat's value or delta, is darkened on a light page so it stays readable, and is the color itself on a dark one; a hex color is used as written.
 
-Text, the progress track and the stat tile's outline follow the page's own theme colors; a stat tile's fill (`--dashboard-card`) is the theme's code block background, in every app theme and slide theme.
+Text, the progress track (a light tint of the text color) and the stat tile's outline follow the page's own theme colors; a stat tile's fill (`--dashboard-card`) is the theme's code block background, in every app theme and slide theme.
 
 Every app theme, and Quick Look, uses these two palettes; there is no setting for them. A slide deck's theme can change them on its slides with the `colors:` keys `dashboard_default`, `dashboard_accent`, `dashboard_success`, `dashboard_info`, `dashboard_warning`, `dashboard_danger` and `dashboard_series_1` … `dashboard_series_8` (see [Slides](slides.md#themes)).
 
