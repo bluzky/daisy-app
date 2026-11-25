@@ -847,7 +847,7 @@ extension MarkdownWebView {
                     allowsScroll: true,
                     assetBaseHref: assetBaseURL?.absoluteString,
                     vendorLoading: .inline,
-                    slideThemes: SlideThemeStore.catalog()
+                    slideThemes: ThemeLibrary.catalog()
                 )
                 try html.write(to: url, atomically: true, encoding: .utf8)
                 done(nil)

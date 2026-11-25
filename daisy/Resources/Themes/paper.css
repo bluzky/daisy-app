@@ -1,0 +1,18 @@
+/* @theme
+name: Paper
+appearance: light
+*/
+/* Apple Books "Paper": neutral light gray, softened ink, serif. */
+:root {
+  --bg: #EEEDED;
+  --code-bg: #E3E1E1;
+  --text: #262626;
+  --link: #DE4A4F;
+  --heading-1: #B3363B;
+  --heading-2: #8F5410;
+  --heading-3: #46702A;
+  --heading-4: #1F6F7A;
+  --heading-5: #4B5CA8;
+  --heading-6: #8A4C7A;
+  --font-body: Charter, ui-serif, Georgia, serif;
+}

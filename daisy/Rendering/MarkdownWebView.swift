@@ -418,11 +418,11 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
         // A deck reads the reader's theme files; Quick Look keeps the
         // built-in themes. Off the main actor, so the file reads are free.
         #if QUICK_LOOK_EXTENSION
-        let slideThemes = SlideTheme.builtInCatalog
+        let slideThemes = BuiltInThemes.catalog
         #else
         let slideThemes = forcesSlides || SlideDeck.isDeck(markdown: markdown)
-            ? SlideThemeStore.catalog()
-            : SlideTheme.builtInCatalog
+            ? ThemeLibrary.catalog()
+            : BuiltInThemes.catalog
         #endif
         let rendered = MarkdownHTML.render(markdown: markdown,
                                            allowsScroll: true,

@@ -1,6 +1,6 @@
 ---
 name: daisy-slides
-description: Write, convert and fix slide decks in Daisy's Markdown slide format — `slides: true` frontmatter, `---` slide breaks, `???` speaker notes, inferred layouts, `<!-- … -->` directives (layout, _class, color, step, columns, column, end-columns, space, _paginate/_header/_footer), `![bg …]` backgrounds with left/right/fit/dim/blur, `!caption[…]`, themes and theme files, and widgets on slides (`stat` tiles, `chart` bar/line/pie/donut charts, `progress` bars, inline `{{sparkline: …}}`, `{{progress: …}}`, `{{badge: …}}` and `{{shape: …}}` shortcodes). Use this whenever the user wants a presentation, deck, talk, pitch or slides written in Markdown — including a metrics review, KPI or status deck — wants notes or a document turned into slides, mentions Daisy, Daisy slides or presenting a .md file, asks for a Marp/Kova-style deck to open in Daisy, or wants a Daisy slide theme (`~/.config/daisy/slide-themes/*.yaml`) — even if they only say "make slides from this".
+description: Write, convert and fix slide decks in Daisy's Markdown slide format — `slides: true` frontmatter, `---` slide breaks, `???` speaker notes, inferred layouts, `<!-- … -->` directives (layout, _class, color, step, columns, column, end-columns, space, _paginate/_header/_footer), `![bg …]` backgrounds with left/right/fit/dim/blur, `!caption[…]`, themes and theme files, and widgets on slides (`stat` tiles, `chart` bar/line/pie/donut charts, `progress` bars, inline `{{sparkline: …}}`, `{{progress: …}}`, `{{badge: …}}` and `{{shape: …}}` shortcodes). Use this whenever the user wants a presentation, deck, talk, pitch or slides written in Markdown — including a metrics review, KPI or status deck — wants notes or a document turned into slides, mentions Daisy, Daisy slides or presenting a .md file, asks for a Marp/Kova-style deck to open in Daisy, or wants a Daisy theme (`~/.config/daisy/themes/*.css`) — even if they only say "make slides from this".
 ---
 
 # Daisy slides
@@ -27,7 +27,7 @@ Daisy never shrinks text to fit. A slide is a fixed 16:9 canvas with roughly 28 
 ```markdown
 ---
 slides: true
-theme: midnight       # default, light, dark, paper, midnight, pitch, or a theme file's id
+theme: midnight-navy  # a reading theme (original, paper, ember, midnight, …), pitch, paper-warm, midnight-navy, or a theme file's id
 paginate: true        # slide number, bottom right
 footer: "{title} | | {slide_number}/{total}"   # also header; {author} {date}; | splits left/center/right
 aspect: 16:9          # 16:10, 4:3
@@ -176,32 +176,35 @@ max: 190
 
 ## Themes
 
-`theme:` picks the deck's look; without it, slides follow the reader's Daisy theme. Built in: `default`, `light`, `dark`, `paper` (warm, serif), `midnight` (dark blue, bright title slides), `pitch` (white, blue headings, solid-blue title slides). Code colors follow the theme automatically.
+`theme:` picks the deck's look; without it (or with `default` or an unknown name), slides follow the reader's Daisy theme. Any reading theme works: `original`, `quiet`, `paper`, `bold`, `calm`, `focus`, `ember`, `dusk`, `midnight`. Made for slides: `pitch` (white, blue headings, solid-blue title slides), `paper-warm` (warm, serif), `midnight-navy` (dark blue, bright title slides). There is no `light` or `dark` theme any more. Code colors follow the theme automatically.
 
-To tweak one deck, use `theme_overrides:` in the frontmatter with `colors:` / `fonts:`. To make a reusable theme, write `~/.config/daisy/slide-themes/<id>.yaml`:
+To tweak one deck, use `theme_overrides:` in the frontmatter with `colors:` (hex only) / `fonts:` (YAML keys: `background`, `text`, `heading`, `accent`, `bold`, `code_background`, `primary`, `title_text`, `table_*`, `widget_*`; fonts `body`, `title`, `code`, `size`). To make a reusable theme, write a CSS file `~/.config/daisy/themes/<id>.css` (YAML slide themes are no longer read):
 
-```yaml
+```css
+/* @theme
 name: My Brand
-extends: light          # start from a built-in or another theme file
-appearance: light       # dark|light, for code colors; inferred from a hex background
-colors:
-  background: "#FFFFFF"
-  text: "#1A1A1A"
-  heading: "#0057B8"
-  accent: "#0057B8"     # links and bullets
-  bold: "#B8003F"
-  code_background: "#F5F7FA"
-  primary: "#0057B8"    # background of title and section slides
-  title_text: "#FFFFFF" # their text
-fonts:
-  title: "Georgia, serif"
-  body: "Inter, sans-serif"
-  code: "JetBrains Mono, monospace"
-footer:
-  text: "{title} | | {slide_number}/{total}"
+appearance: light       # light | dark | system — required unless the base has one
+extends: pitch          # optional: start from a built-in or another theme file
+footer: "{title} | | {slide_number}/{total}"
+*/
+:root {
+  --bg: #FFFFFF;
+  --text: #1A1A1A;
+  --heading: #0057B8;
+  --link: #0057B8;              /* links and bullets */
+  --bold: #B8003F;
+  --code-bg: #F5F7FA;
+  --slide-title-bg: #0057B8;    /* title and section slides */
+  --slide-title-text: #FFFFFF;
+  --font-heading: Georgia, serif;
+  --font-body: Inter, sans-serif;
+  --font-code: JetBrains Mono, monospace;
+}
+/* appearance: system themes add their dark values here */
+@media (prefers-color-scheme: dark) { :root { } }
 ```
 
-Colors must be hex or CSS color names and fonts plain font lists — anything else is dropped, so stick to those forms. A deck's own `header`/`footer` win over the theme's.
+Theme files hold only these custom properties (also `--heading-1`…`--heading-6`, `--table-header-bg`, `--table-header-text`, `--table-border`, `--table-stripe`, `--table-style`, `--widget-accent` and the other widget colors, `--body-weight` 400/600, `--slide-font-size`). Colors must be hex (`#rgb`, `#rrggbb`, with or without alpha) — no color names — and fonts plain font lists; anything else is dropped. A file named after a built-in theme is ignored. A deck's own `header`/`footer` win over the theme's.
 
 ## Writing good slides
 

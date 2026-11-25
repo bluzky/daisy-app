@@ -3,12 +3,12 @@
 //  daisy
 //
 //  A deck's frontmatter settings, and the small YAML reader for them and
-//  for slide theme files.
+//  for a theme file's `@theme` comment.
 //
 
 import Foundation
 
-/// Reads the YAML used in deck frontmatter and slide theme files: nested
+/// Reads the YAML used in deck frontmatter and `@theme` comments: nested
 /// mappings by indentation, plain and quoted scalars, and `#` comments.
 /// Sequences, anchors and multi-line scalars are not supported; a line it
 /// can't read is skipped.

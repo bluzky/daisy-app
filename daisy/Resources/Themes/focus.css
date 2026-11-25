@@ -1,0 +1,12 @@
+/* @theme
+name: Focus
+appearance: light
+*/
+/* Apple Books "Focus": warm cream, high-contrast ink, serif. */
+:root {
+  --bg: #FFFCF5;
+  --code-bg: #F5F1E4;
+  --text: #14120B;
+  --link: #A0630F;
+  --font-body: ui-serif, "New York", "Iowan Old Style", Georgia, serif;
+}

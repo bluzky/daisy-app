@@ -270,9 +270,9 @@ One key, `color`, picks a color on a stat (its value), a progress bar (its fill)
 
 These are Apple's standard system colors, one set for every widget: a `warning` badge is the same orange as a chart's second series. Badges are their color as text on a pale tint of it. Text and lines in a named color, a stat's value or delta and a sparkline, are darkened on a light page so they stay readable, and are the color itself on a dark one; a hex color is used as written.
 
-Text, the progress track (a light tint of the text color) and the stat tile's outline follow the page's own theme colors; a stat tile's fill (`--widget-card`) is the theme's code block background, in every app theme and slide theme.
+Text, the progress track (a light tint of the text color) and the stat tile's outline follow the page's own theme colors; a stat tile's fill (`--widget-card`) is the theme's code block background, in every theme.
 
-Every app theme, and Quick Look, uses these two palettes; there is no setting for them. A slide deck's theme can change them on its slides with the `colors:` keys `widget_default`, `widget_accent`, `widget_success`, `widget_info`, `widget_warning`, `widget_danger` and `widget_series_1` … `widget_series_8` (see [Slides](slides.md#themes)).
+Every app theme, and Quick Look, uses these two palettes; there is no setting for them. A slide deck's theme can change them on its slides. A theme file sets `--widget-default`, `--widget-accent`, `--widget-success`, `--widget-info`, `--widget-warning`, `--widget-danger` and `--widget-series-1` … `--widget-series-8`. A deck's `theme_overrides:` uses the `colors:` keys `widget_default`, `widget_accent`, … `widget_series_8`. See [Slides](slides.md#themes).
 
 ## Invalid blocks and other viewers
 

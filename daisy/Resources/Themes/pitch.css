@@ -1,0 +1,17 @@
+/* @theme
+name: Pitch
+appearance: light
+*/
+/* White slides with a blue accent and blue title slides. */
+:root {
+  --bg: #ffffff;
+  --text: #111111;
+  --heading: #0057b8;
+  --link: #0057b8;
+  --bold: #b8003f;
+  --slide-title-bg: #0057b8;
+  --slide-title-text: #ffffff;
+  --table-header-bg: #0057b8;
+  --table-header-text: #ffffff;
+  --table-border: #c9d6e8;
+}

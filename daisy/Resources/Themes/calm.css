@@ -1,0 +1,12 @@
+/* @theme
+name: Calm
+appearance: light
+*/
+/* Bear "Solarized Light", with Books' serif reading face. */
+:root {
+  --bg: #FDF6E3;
+  --code-bg: #F6EDDB;
+  --text: #313D45;
+  --link: #A0630F;
+  --font-body: Georgia, ui-serif, serif;
+}
