@@ -1,6 +1,6 @@
 # Widgets
 
-Draw widgets in any Markdown document with three kinds of fenced block — `stat` tiles, `chart` bar, line, pie and donut charts, and `progress` bars and rings — and three inline [shortcodes](#shortcodes), `sparkline`, `badge` and `progress`, that sit in a sentence or a table cell. They work in any Markdown file; there is nothing to turn on. A block or shortcode with a missing or invalid field stays plain code. Every value is written in the file: there are no data files, no network fetches and no formulas. See [`samples/widgets.md`](../samples/widgets.md) for a complete example.
+Draw widgets in any Markdown document with three kinds of fenced block — `stat` tiles, `chart` bar, line, pie and donut charts, and `progress` bars and rings — and four inline [shortcodes](#shortcodes), `sparkline`, `badge`, `progress` and `shape`, that sit in a sentence or a table cell. They work in any Markdown file; there is nothing to turn on. A block or shortcode with a missing or invalid field stays plain code. Every value is written in the file: there are no data files, no network fetches and no formulas. See [`samples/widgets.md`](../samples/widgets.md) for a complete example.
 
 Each block is a few `key: value` lines. Where a block holds several items, a line of `---` separates them. A chart adds a Markdown table after its `key: value` lines; see [Charts](#charts).
 
@@ -129,6 +129,25 @@ A shortcode is a widget written inline, as inline code: `` `{{name: arguments}}`
 ### Badges
 
 `` `{{badge: "Build passing" color=success}}` `` shows its text in a color on a pale tint of that color. `color` is optional ([colors](#colors)); without it a badge is grey. On a light page the text is darkened so it stays readable, a hex color too. Several badges side by side are several shortcodes on one line. A fenced ```` ```badge ```` block is no longer drawn; it shows as a plain code block.
+
+### Shapes
+
+`` `{{shape: 1}}` `` draws one to three characters (a step number, a letter, `98%`) in the middle of a circle, centered on the line. Use it to number steps on a slide, or to mark items in a list or a table.
+
+```markdown
+`{{shape: 1}}` Import · `{{shape: 2}}` Style · `{{shape: 3 color=success}}` Present
+
+`{{shape: A kind=square style=tint size=lg}}` `{{shape: 98% style=outline color=info size=xl}}`
+```
+
+| Option | Values | What it does |
+| --- | --- | --- |
+| `kind` | `circle` (default), `square` | A circle, or a square with rounded corners. |
+| `style` | `filled` (default), `tint`, `outline` | `filled` is the color with white text, or dark text on `warning`; with a light hex color, use `tint` instead. `tint` is a badge's look: the text in the color on a pale tint of it. `outline` is a ring in the color around text in the color. |
+| `color` | [colors](#colors) | The shape's color; the accent without one. |
+| `size` | `sm`, `md` (default), `lg`, `xl` | A shape scales with the text around it, so one in a heading or on a slide is bigger; `size` makes it smaller or bigger than that. |
+
+A shape is always as tall as it is wide; two or three characters are drawn smaller to fit, and a trailing `%` smaller still, as on a gauge. More than three characters, no text, or a `kind`, `style` or `size` outside its list leaves the shortcode as code. For a step's title next to its number, write both on one line or put the shape at the top of a [column](columns.md).
 
 ## Charts
 

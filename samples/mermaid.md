@@ -286,3 +286,19 @@ $$
 With $c = 10$ workers, $\rho \approx 0.76$ and $W_q < 12$ ms, which leaves
 headroom for a single-AZ failure ($c = 7$, $\rho \approx 0.99$ — too hot, so
 the fleet floor is 12).
+
+## Block diagram arrows
+
+The first connection is solid. The second and third are dotted, and all three
+connections have an arrowhead pointing right.
+
+```mermaid
+block-beta
+  columns 3
+  A space B
+  C space D
+  E space F
+  A --> B
+  C -.-> D
+  E -. "label" .-> F
+```

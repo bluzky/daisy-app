@@ -15,5 +15,5 @@ bundles the ELK layout engine and lays out flowcharts with it by default, so
 no separate `@mermaid-js/layout-elk` package is needed. The block-arrow fix
 from 11.15.0 ([upstream PR](https://github.com/mermaid-js/mermaid/pull/7633)),
 which preserves dotted strokes and arrowheads in `block-beta` diagrams, is
-still covered by `samples/mermaid-block-arrows.md` and `MermaidBlockArrowTests`
+still covered by `tests/fixtures/mermaid-block-arrows.md` (also in `samples/mermaid.md`) and `MermaidBlockArrowTests`
 using the production HTML in WebKit.

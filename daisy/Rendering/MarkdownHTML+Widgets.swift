@@ -17,10 +17,12 @@
 //  ends with its table and is drawn by `MdChart`
 //  (`MarkdownHTML+WidgetChart.swift`).
 //
-//  Three widgets are inline shortcodes, written as inline code:
+//  Four widgets are inline shortcodes, written as inline code:
 //
 //      `{{sparkline: 3,5,2,8 color=success}}`   numbers / color / type (line, bar)
 //      `{{badge: "In review" color=warning}}`   text / color
+//      `{{shape: 1 kind=circle size=lg}}`       1-3 characters / kind / style /
+//                                               color / size
 //      `{{progress: 7/12 color=success}}`       7/12 or 58% / color / striped /
 //                                               text
 //
@@ -51,7 +53,7 @@ nonisolated enum WidgetDocument {
 
     /// Widgets written inline as a shortcode, `` `{{name: arguments}}` ``.
     /// The page script has one inline builder per name.
-    static let inlineWidgets: Set<String> = ["sparkline", "badge", "progress"]
+    static let inlineWidgets: Set<String> = ["sparkline", "badge", "progress", "shape"]
 
     /// Attribute the formatter stamps on a widget fence's `<pre>` and on a
     /// shortcode's `<code>`.
@@ -210,7 +212,7 @@ nonisolated extension MarkdownHTML {
             --widget-card: #262626;
         }
     }
-    .md-widget-stats, .md-widget-progress, .md-widget-rings, .md-widget-badge, .md-widget-spark, .md-widget-iprogress {
+    .md-widget-stats, .md-widget-progress, .md-widget-rings, .md-widget-badge, .md-widget-spark, .md-widget-iprogress, .md-widget-shape {
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
     }
@@ -425,6 +427,49 @@ nonisolated extension MarkdownHTML {
         color: color-mix(in srgb, var(--md-widget-badge-color) var(--widget-text-mix), black);
         background: color-mix(in srgb, var(--md-widget-badge-color) 18%, transparent);
     }
+
+    /* Shapes (`{{shape: 1}}`): a circle or rounded square with up to three
+       characters in the middle, centered on the line. Sized in em, so a
+       shape follows its text: a heading's or a slide's is bigger. `filled`
+       is the color with white text (dark text on `warning`); `tint` is a badge's look; `outline` a ring in
+       the color. Without a color it is the accent. */
+    .md-widget-shape {
+        --md-widget-shape-color: var(--md-widget-color, \(WidgetColor.accent.cssValue));
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        box-sizing: border-box;
+        width: 1.75em;
+        height: 1.75em;
+        vertical-align: middle;
+        border-radius: 50%;
+        font-size: 0.9em;
+        font-weight: 600;
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+        color: #fff;
+        background: var(--md-widget-shape-color);
+    }
+    /* Warning is too light for white text. */
+    .md-widget-shape.md-widget-c-warning:not(.md-widget-shape-tint, .md-widget-shape-outline) { color: #1d1d1f; }
+    .md-widget-shape-square { border-radius: 0.3em; }
+    .md-widget-shape-tint,
+    .md-widget-shape-outline {
+        color: color-mix(in srgb, var(--md-widget-shape-color) var(--widget-text-mix), black);
+    }
+    .md-widget-shape-tint { background: color-mix(in srgb, var(--md-widget-shape-color) 18%, transparent); }
+    .md-widget-shape-outline {
+        background: transparent;
+        border: 0.1em solid var(--md-widget-shape-color);
+    }
+    .md-widget-shape-sm { font-size: 0.7em; }
+    .md-widget-shape-lg { font-size: 1.25em; }
+    .md-widget-shape-xl { font-size: 2em; }
+    /* Two or three characters step down to fit the shape. */
+    .md-widget-shape-2 > span { font-size: 0.8em; }
+    .md-widget-shape-3 > span { font-size: 0.6em; letter-spacing: -0.02em; }
+    .md-widget-shape-unit { font-size: 0.65em; margin-left: 0.04em; }
 
     /* Sparklines (`{{sparkline: …}}`): a line the height of the text, on its
        baseline. The stroke keeps its width however the line is scaled. A
@@ -890,7 +935,42 @@ nonisolated extension MarkdownHTML {
         return node;
       }
 
-      const INLINE = { sparkline, badge, progress: inlineProgress };
+      // `{{shape: 1 kind=circle style=filled color=… size=md}}`: one to three
+      // characters (a step number, a letter, `98%`) in a circle or a rounded
+      // square. More characters, or a kind, style or size outside its list,
+      // leave the code as it is.
+      const SHAPE_KINDS = ['circle', 'square'];
+      const SHAPE_STYLES = ['filled', 'tint', 'outline'];
+      const SHAPE_SIZES = ['sm', 'md', 'lg', 'xl'];
+      function shape(args) {
+        const text = (args.positional[0] || '').trim();
+        const length = Array.from(text).length;
+        if (length < 1 || length > 3) return null;
+        const kind = (args.options.kind || 'circle').toLowerCase();
+        const style = (args.options.style || 'filled').toLowerCase();
+        const size = (args.options.size || 'md').toLowerCase();
+        if (!SHAPE_KINDS.includes(kind) || !SHAPE_STYLES.includes(style)
+            || !SHAPE_SIZES.includes(size)) return null;
+        const color = readColor(args.options.color);
+        if (!color) return null;
+        const node = el('span', 'md-widget-shape');
+        if (kind !== 'circle') node.classList.add('md-widget-shape-' + kind);
+        if (style !== 'filled') node.classList.add('md-widget-shape-' + style);
+        if (size !== 'md') node.classList.add('md-widget-shape-' + size);
+        if (length > 1) node.classList.add('md-widget-shape-' + length);
+        // A trailing `%` is drawn smaller, as on a gauge, so `98%` fits.
+        const label = el('span');
+        if (length > 1 && text.endsWith('%')) {
+          label.append(text.slice(0, -1), el('span', 'md-widget-shape-unit', '%'));
+        } else {
+          label.textContent = text;
+        }
+        node.append(label);
+        paint(node, color);
+        return node;
+      }
+
+      const INLINE = { sparkline, badge, progress: inlineProgress, shape };
 
       // A chart: `key: value` options, then a Markdown table whose first
       // column holds the labels and every other column a series of numbers.

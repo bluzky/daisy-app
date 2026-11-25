@@ -1,11 +1,11 @@
 ---
 name: daisy-widgets
-description: Write and fix dashboards, KPI pages, status reports and metric summaries as ordinary Markdown documents for Daisy — `stat` tiles, `chart` blocks (bar, stacked and horizontal bar, line, pie, donut), `progress` bars and rings, inline `{{sparkline: …}}` trend lines, `{{progress: 7/12}}` bars and `{{badge: …}}` labels, `<!-- card … -->` panels, and `<!-- columns -->` layouts, with the shared `color` key (default, accent, success, info, warning, danger or a hex). Use this whenever the user wants a dashboard, scorecard, metrics page, project status, OKR or release tracker, weekly report, or any chart or KPI in a Markdown file for Daisy — even if they only say "make a dashboard from these numbers". For slide decks use the daisy-slides skill instead; the same blocks work on slides.
+description: Write and fix dashboards, KPI pages, status reports and metric summaries as ordinary Markdown documents for Daisy — `stat` tiles, `chart` blocks (bar, stacked and horizontal bar, line, pie, donut), `progress` bars and rings, inline `{{sparkline: …}}` trend lines, `{{progress: 7/12}}` bars, `{{badge: …}}` labels and `{{shape: 1}}` numbered markers, `<!-- card … -->` panels, and `<!-- columns -->` layouts, with the shared `color` key (default, accent, success, info, warning, danger or a hex). Use this whenever the user wants a dashboard, scorecard, metrics page, project status, OKR or release tracker, weekly report, or any chart or KPI in a Markdown file for Daisy — even if they only say "make a dashboard from these numbers". For slide decks use the daisy-slides skill instead; the same blocks work on slides.
 ---
 
 # Daisy widgets
 
-Daisy is a macOS Markdown app. In any Markdown file, three fenced blocks become widgets — `stat` tiles, `chart` charts and `progress` bars — and three shortcodes, written as inline code, draw inline widgets: `` `{{sparkline: …}}` ``, `` `{{progress: …}}` `` and `` `{{badge: …}}` ``. `<!-- card -->` frames blocks as a panel, and `<!-- columns -->` puts them side by side. Read mode, Quick Look and PDF export draw them; every other Markdown viewer shows the blocks and shortcodes as plain text, so the file stays readable anywhere. No frontmatter flag is needed.
+Daisy is a macOS Markdown app. In any Markdown file, three fenced blocks become widgets — `stat` tiles, `chart` charts and `progress` bars — and four shortcodes, written as inline code, draw inline widgets: `` `{{sparkline: …}}` ``, `` `{{progress: …}}` ``, `` `{{badge: …}}` `` and `` `{{shape: …}}` ``. `<!-- card -->` frames blocks as a panel, and `<!-- columns -->` puts them side by side. Read mode, Quick Look and PDF export draw them; every other Markdown viewer shows the blocks and shortcodes as plain text, so the file stays readable anywhere. No frontmatter flag is needed.
 
 The exact rules are in `references/widgets-guide.md` (widgets, charts, colors), `references/cards-guide.md` and `references/columns-guide.md` — Daisy's own docs. Read the relevant section when you need a rule this file only summarizes.
 
@@ -60,11 +60,12 @@ Status `{{badge: "Build passing" color=success}}` `{{badge: "Docs behind" color=
 - **Shortcodes** — inline code `{{name: arguments}}`, the colon right after the name: the main value first, then `key=value` options, separated by spaces. Quote a value with spaces (`"In review"`); a value ending in a comma continues (`3, 5, 2`). Options a widget doesn't take and extra values are **ignored**, so `{{badge: In review}}` shows only "In".
 - **`{{sparkline: 3,5,2,8 color=… type=bar}}`** — two or more numbers as a text-height trend line, or bars from zero with `type=bar` (good for counts per day or week); `color` (default accent). Ideal in table cells, one per row.
 - **`{{progress: 7/12 color=… striped=true text="{percent}"}}`** — a small bar from a fraction or a percentage (`58%`), bar only unless `text=` adds the same template as the block; for a table cell or a sentence. The ```` ```progress ```` block stays for labelled bars and rings.
+- **`{{shape: 1 kind=… style=… color=… size=…}}`** — one to three characters (a step number, a letter, `98%`) in a circle, or a rounded square with `kind=square`; `style` filled (default), tint or outline; `size` sm, md (default), lg, xl. More than three characters stays code.
 - **`{{badge: "text" color=…}}`** — a status pill; `color` (grey without one). Several badges are several shortcodes on one line. There is no ```` ```badge ```` block any more: it shows as plain code.
 
 ## Colors
 
-One key, `color`, everywhere: a stat's value, a progress bar's fill, a sparkline's line, a badge's text and tint, a card's border or bar (in a shortcode it's `color=success`). A chart's `colors` takes a comma list of the same. Values: `default` or `neutral` (the widget's normal look), `accent`, `success`, `info`, `warning`, `danger`, or a hex (`#6366F1`, `#fff`). Say what it *means*; each widget puts the color in the right place and keeps text readable in light and dark mode. Prefer names over hex: names follow the theme and dark mode, a hex is the same everywhere.
+One key, `color`, everywhere: a stat's value, a progress bar's fill, a sparkline's line, a badge's text and tint, a card's border, bar or fill (in a shortcode it's `color=success`). A chart's `colors` takes a comma list of the same. Values: `default` or `neutral` (the widget's normal look), `accent`, `success`, `info`, `warning`, `danger`, or a hex (`#6366F1`, `#fff`). Say what it *means*; each widget puts the color in the right place and keeps text readable in light and dark mode. Prefer names over hex: names follow the theme and dark mode, a hex is the same everywhere.
 
 ## Charts
 
@@ -98,7 +99,7 @@ Up 12% on Pro upgrades
 <!-- end-card -->
 
 <!-- column -->
-<!-- card style=accent edge=top color=danger -->
+<!-- card style=accent bar=top color=danger -->
 ### Support SLA
 68% against 90%
 <!-- end-card -->
@@ -107,7 +108,7 @@ Up 12% on Pro upgrades
 ```
 
 - A row of gauges: one `progress` block with `shape: ring` inside a card with `align=center`, or one ring per card in columns.
-- Card options, `key=value` in the opening comment: `style` (`plain`, `outline`, `filled`, `accent`), `color`, `tint=true`, `padding` (`compact`, `normal`, `roomy`), `align=center`, `edge=top` (accent bar across the top). There is no CSS.
+- Card options, `key=value` in the opening comment: `fill` (`none`, `surface`, `soft`, `tint`, `solid`), `border` (`none`, `thin`, `thick`), `bar` (`none`, `left`, `top`), `color`, `shape` (`rounded`, `square`, `pill`, `circle`; a circle is centered, at most 14em across and keeps its shape, so keep its content short), `padding` (`none`, `compact`, `normal`, `roomy`), `align=center`. `style` is a preset: `plain`, `outline`, `filled`, `accent` (bar down the left), `solid` (the color itself, white text; widgets inside keep their colors, so use it for text), `none` (no box, just grouping). An option beside `style` overrides it: `style=accent bar=top`. `tint` and `edge` are gone (`fill=soft`, `bar=`). There is no CSS.
 - A card alone in a column fills the column's height, so a row of cards lines up. `align=center padding=compact` around a ring progress block makes a gauge.
 - Columns: `<!-- columns -->`, `<!-- column -->` between parts, `<!-- end-columns -->`; 2–4 equal columns, stacked on a narrow window.
 

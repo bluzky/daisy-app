@@ -450,10 +450,11 @@ $48.2k, up 12%
 - A card goes in the slide body or inside a column. Alone in a column, it fills the column's height, so a row of cards lines up.
 - A card must open and close within one column, or within the part of the slide above or below the columns; one that crosses a `<!-- column -->` frames nothing.
 - A card's padding and corners follow the slide's text size.
+- `shape=circle` draws a circle that keeps its shape: it is centered in its column and not stretched to the column's height.
 
 ## Widgets
 
-Stat tiles, charts, progress bars, sparklines and status badges work on slides too. Write `stat`, `chart` and `progress` blocks and `{{sparkline: …}}`, `{{progress: …}}` and `{{badge: …}}` shortcodes as in an ordinary document; see [Widgets](widgets.md) for every key.
+Stat tiles, charts, progress bars, sparklines, status badges and shapes work on slides too. Write `stat`, `chart` and `progress` blocks and `{{sparkline: …}}`, `{{progress: …}}`, `{{badge: …}}` and `{{shape: …}}` shortcodes as in an ordinary document; see [Widgets](widgets.md) for every key.
 
 ````markdown
 ---

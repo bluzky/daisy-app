@@ -172,6 +172,51 @@ final class ShortcodeTests: XCTestCase {
         XCTAssertEqual(result?[3] as? String, "text: Shipped")
     }
 
+    // MARK: Shapes
+
+    @MainActor
+    func testShapesDrawTheirTextInTheirKindStyleAndSize() async throws {
+        let webView = try await load("""
+        `{{shape: 1}}` `{{shape: AB kind=square style=tint color=success size=xl}}` \
+        `{{shape: 98% style=outline color=#ff00ff size=sm}}` `{{shape: '★'}}`
+        """)
+        let result = try await eval(webView, """
+        Array.from(document.querySelectorAll('.md-widget-shape'), s => {
+          const box = s.getBoundingClientRect();
+          return [s.textContent, s.className, Math.round(box.width) === Math.round(box.height)];
+        })
+        """) as? [[Any]]
+        XCTAssertEqual(result?.map { $0[0] as? String }, ["1", "AB", "98%", "★"])
+        XCTAssertEqual(result?.map { $0[1] as? String }, [
+            "md-widget-shape",
+            "md-widget-shape md-widget-shape-square md-widget-shape-tint md-widget-shape-xl md-widget-shape-2 md-widget-c-success",
+            "md-widget-shape md-widget-shape-outline md-widget-shape-sm md-widget-shape-3 md-widget-c-custom",
+            "md-widget-shape",
+        ])
+        XCTAssertEqual(result?.map { $0[2] as? Bool }, [true, true, true, true], "a shape is as tall as it is wide")
+        let border = try await eval(webView,
+            "getComputedStyle(document.querySelectorAll('.md-widget-shape')[2]).borderTopColor") as? String
+        XCTAssertEqual(border, "rgb(255, 0, 255)", "a hex colors the outline exactly")
+    }
+
+    @MainActor
+    func testInvalidShapesStayInlineCode() async throws {
+        for markdown in [
+            "`{{shape:}}`",
+            "`{{shape: 1234}}`",
+            "`{{shape: 1 kind=hexagon}}`",
+            "`{{shape: 1 style=glow}}`",
+            "`{{shape: 1 size=huge}}`",
+            "`{{shape: 1 color=purple}}`",
+        ] {
+            let webView = try await load(markdown)
+            let result = try await eval(webView, """
+            [document.querySelectorAll('code').length, document.querySelectorAll('.md-widget-shape').length]
+            """) as? [Int]
+            XCTAssertEqual(result, [1, 0], markdown)
+        }
+    }
+
     @MainActor
     func testAC_1_6_UnsupportedArgumentsAreIgnored() async throws {
         let webView = try await load("`{{sparkline: 1,4,2 size=big}}` `{{badge: In review}}`")

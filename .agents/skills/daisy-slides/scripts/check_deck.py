@@ -43,14 +43,18 @@ SCALING_FENCES = ("mermaid",)
 # silently, so the rules below mirror the page script's.
 WIDGETS = {"stat", "chart", "progress"}
 # Inline widgets: shortcodes written as inline code, `{{name: arguments}}`.
-INLINE_WIDGETS = {"sparkline", "badge", "progress"}
+INLINE_WIDGETS = {"sparkline", "badge", "progress", "shape"}
 SHORTCODE = re.compile(r"^\{\{\s*([a-z][a-z0-9-]*):(.*)\}\}$", re.S)
 # A shortcode missing its colon (`{{badge Done}}`) is ordinary code.
 NEAR_SHORTCODE = re.compile(r"^\{\{\s*([A-Za-z][\w-]*)\b(?!:)")
 OPTION_KEY = re.compile(r"^[a-z][a-z0-9-]*$")
 # The options each shortcode reads; any other is ignored.
 INLINE_OPTIONS = {"sparkline": {"color", "type"}, "badge": {"color"},
-                  "progress": {"color", "striped", "text"}}
+                  "progress": {"color", "striped", "text"},
+                  "shape": {"color", "kind", "style", "size"}}
+# `{{shape: …}}`: each option's values; the first is the default.
+SHAPE_OPTIONS = {"kind": ("circle", "square"), "style": ("filled", "tint", "outline"),
+                 "size": ("sm", "md", "lg", "xl")}
 SPARK_TYPES = ("line", "bar")
 CHART_TYPES = {"bar", "line", "pie", "donut"}
 CHART_LEGENDS = {"top", "bottom", "left", "right", "none"}
@@ -172,13 +176,17 @@ def check_directive(key, value, line, report, in_list):
 
 
 CARD_OPTIONS = {
-    "style": {"plain", "outline", "filled", "accent"},
+    "style": {"plain", "outline", "filled", "accent", "solid", "none"},
+    "fill": {"none", "surface", "soft", "tint", "solid"},
+    "border": {"none", "thin", "thick"},
+    "bar": {"none", "left", "top"},
     "color": set(COLOR_NAMES),
-    "tint": {"true", "false"},
-    "padding": {"compact", "normal", "roomy"},
+    "padding": {"none", "compact", "normal", "roomy"},
     "align": {"start", "center"},
-    "edge": {"left", "top"},
+    "shape": {"rounded", "square", "pill", "circle"},
 }
+# Card options that were renamed before cards shipped.
+CARD_RENAMED = {"tint": "`fill=soft`", "edge": "`bar=left` or `bar=top`"}
 
 
 def check_card(raw, line, report, in_list):
@@ -196,6 +204,9 @@ def check_card(raw, line, report, in_list):
             report.error(line, f"card option `{token}` isn't `key=value`; the card frames nothing")
         elif key in seen:
             report.error(line, f"card option `{key}` appears twice; the card frames nothing")
+        elif key in CARD_RENAMED:
+            report.error(line, f"card option `{key}` is gone; write {CARD_RENAMED[key]} instead; "
+                               "the card frames nothing")
         elif key not in CARD_OPTIONS:
             report.error(line, f"`{key}` isn't a card option ({', '.join(sorted(CARD_OPTIONS))}); "
                                "the card frames nothing")
@@ -550,6 +561,19 @@ def check_shortcodes(raw, line, report):
             if len(positional) > 1:
                 report.warn(line, f"`{code}`: only `{written}` is read; `{' '.join(positional[1:])}` is ignored "
                                   "(put words in `text=\"…\"`)")
+        elif name == "shape":
+            text = positional[0].strip() if positional else ""
+            if not 1 <= len(text) <= 3:
+                plain("a shape needs one to three characters, like `1`, `A` or `98%`")
+                continue
+            bad = next((key for key, values in SHAPE_OPTIONS.items()
+                        if key in options and options[key].lower() not in values), None)
+            if bad:
+                plain(f"`{bad}={options[bad]}` isn't {' or '.join(SHAPE_OPTIONS[bad])}")
+                continue
+            if len(positional) > 1:
+                report.warn(line, f"`{code}`: the shape shows only `{positional[0]}`; "
+                                  f"`{' '.join(positional[1:])}` is ignored")
         else:
             if not positional or not positional[0].strip():
                 plain("a badge needs its text")

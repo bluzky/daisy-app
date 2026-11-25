@@ -4,7 +4,7 @@
 Usage: python3 check_widgets.py doc.md [more.md ...]
 
 Reports what Daisy would quietly leave as plain text: a `stat`, `chart` or
-`progress` block it can't read, a `{{sparkline: …}}` or `{{badge: …}}`
+`progress` block it can't read, a `{{sparkline: …}}`, `{{badge: …}}` or `{{shape: …}}`
 shortcode it can't read (and arguments it ignores), a ```badge block, a bad
 color, a card option it doesn't know, a card or column group that never
 closes, a card that crosses a column break. Exit code 1 when any file has an

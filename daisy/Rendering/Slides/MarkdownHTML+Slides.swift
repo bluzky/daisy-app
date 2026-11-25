@@ -421,6 +421,10 @@ nonisolated extension MarkdownHTML {
     .mdp-slide .md-card { margin: 0 0 0.6em; }
     .mdp-slide .md-card:last-child { margin-bottom: 0; }
     .mdp-slide-column > .md-card:only-child { flex: 1 1 auto; }
+    /* A circle keeps its shape: centered, and not stretched to the
+       column's height. */
+    .mdp-slide .md-card-shape-circle { margin-inline: auto; }
+    .mdp-slide-column > .md-card-shape-circle:only-child { flex: 0 0 auto; }
 
     /* Backgrounds: behind the whole slide, or one half beside the text. */
     .mdp-slide-bg { position: absolute; inset: 0; overflow: hidden; }

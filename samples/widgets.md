@@ -187,6 +187,8 @@ Sparklines and badges are shortcodes: inline code that sits in a sentence or a t
 
 Error budget used this month: `{{progress: 72% color=warning text="{percent}"}}` · on-call handover checklist `{{progress: 5/8}}`
 
+Release steps: `{{shape: 1}}` Freeze · `{{shape: 2}}` Test · `{{shape: 3 color=success}}` Ship · `{{shape: ✓ kind=square style=tint color=success}}` Done · `{{shape: 98% style=outline color=info size=lg}}` uptime
+
 ## Release 4.2
 
 <!-- columns -->
@@ -215,7 +217,7 @@ color: warning
 
 <!-- column -->
 
-<!-- card style=accent edge=top color=warning tint=true -->
+<!-- card style=accent bar=top color=warning fill=soft -->
 ```stat
 label: Days to release
 value: 9
@@ -229,6 +231,29 @@ trend: up
 <!-- end-card -->
 
 <!-- end-columns -->
+
+## Launch steps
+
+Step numbers in card headings, with the `shape` shortcode:
+
+<!-- columns -->
+<!-- card style=accent bar=top -->
+### `{{shape: 1}}` Freeze
+Code freeze on Friday; only blockers land after it.
+<!-- end-card -->
+<!-- column -->
+<!-- card style=accent bar=top color=info -->
+### `{{shape: 2 color=info}}` Test
+Beta group for a week, crash-free above 99.5%.
+<!-- end-card -->
+<!-- column -->
+<!-- card style=accent bar=top color=success -->
+### `{{shape: 3 color=success}}` Ship
+Publish the release and the appcast.
+<!-- end-card -->
+<!-- end-columns -->
+
+Card styles and shapes have their own sample: [Layout](layout.md#cards).
 
 This block is missing its `value`, so it stays a plain code block:
 
