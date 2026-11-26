@@ -82,6 +82,8 @@ struct ThemesPopoverView: View {
             .buttonStyle(.plain)
             .background(Capsule().fill(Color.primary.opacity(0.06)))
             .accessibilityLabel(L("Customize"))
+            .disabled(!model.isCustomizeAvailable)
+            .help(model.isCustomizeAvailable ? L("Customize") : SettingsModel.customizeUnavailableNote)
             .padding(.top, 12)
         }
         // Generous side padding, with the popover's own width fixed — the

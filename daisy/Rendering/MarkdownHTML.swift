@@ -92,6 +92,15 @@ nonisolated enum MarkdownHTML {
         var darkTableColors: [String: String] = [:]
         /// How tables are drawn; nil or `lines` is the plain look.
         var tableStyle: TableStyle?
+        /// Other theme colors by custom property (`--table-header-text`,
+        /// `--bold`, `--widget-accent`, …).
+        var lightColors: [String: String] = [:]
+        var darkColors: [String: String] = [:]
+        /// Theme fonts (`--font-body`, `--font-heading`, `--font-code`),
+        /// sanitized CSS font lists.
+        var bodyFont: String?
+        var headingFont: String?
+        var codeFont: String?
 
         /// "#RRGGBB" (or #RRGGBBAA), or nil for anything else.
         static func sanitizedHexColor(_ value: String?) -> String? {
@@ -171,19 +180,13 @@ nonisolated enum MarkdownHTML {
                 }
                 """)
             }
-            let tableProperties = ["--table-header-bg", "--table-border", "--table-stripe"]
-            for property in tableProperties {
-                if let light = Self.sanitizedHexColor(lightTableColors[property]) {
-                    rules.append(":root { \(property): \(light); }")
-                }
-                if let dark = Self.sanitizedHexColor(darkTableColors[property]) {
-                    rules.append(":root[data-mdp-color-scheme=\"dark\"] { \(property): \(dark); }")
-                    rules.append("""
-                    @media (prefers-color-scheme: dark) {
-                        :root:not([data-mdp-color-scheme="light"]) { \(property): \(dark); }
-                    }
-                    """)
-                }
+            for property in ["--table-header-bg", "--table-border", "--table-stripe"] {
+                rules += Self.propertyRules(property, light: lightTableColors[property],
+                                            dark: darkTableColors[property])
+            }
+            for property in Set(lightColors.keys).union(darkColors.keys).sorted()
+            where Self.isColorProperty(property) {
+                rules += Self.propertyRules(property, light: lightColors[property], dark: darkColors[property])
             }
             if let tableStyle, tableStyle != .lines {
                 rules.append(MarkdownHTML.tableStyleRules(tableStyle))
@@ -199,11 +202,46 @@ nonisolated enum MarkdownHTML {
                 }
                 """)
             }
-            guard !rules.isEmpty else { return "" }
             // Scoped to screen so the print stylesheet's forced-light
             // palette is never overridden — dark theme text on white paper
-            // printed nearly invisible otherwise.
-            return "@media screen {\n" + rules.joined(separator: "\n") + "\n}"
+            // printed nearly invisible otherwise. Fonts aren't colors: they
+            // stay outside, so a theme's fonts print like the built-in ones.
+            var css = rules.isEmpty ? "" : "@media screen {\n" + rules.joined(separator: "\n") + "\n}"
+            if !fontCSS.isEmpty { css += (css.isEmpty ? "" : "\n") + fontCSS }
+            return css
+        }
+
+        /// `:root { --font-body: …; }` for the fonts set, or "".
+        var fontCSS: String {
+            let fonts = [("--font-body", bodyFont), ("--font-heading", headingFont), ("--font-code", codeFont)]
+                .compactMap { property, value in
+                    value.flatMap(Theme.sanitizedFontFamily).map { "\(property): \($0);" }
+                }
+            return fonts.isEmpty ? "" : ":root { " + fonts.joined(separator: " ") + " }"
+        }
+
+        /// One custom property's rules in the three palette buckets; a value
+        /// that isn't a hex color is dropped.
+        private static func propertyRules(_ property: String, light: String?, dark: String?) -> [String] {
+            var rules: [String] = []
+            if let light = sanitizedHexColor(light) {
+                rules.append(":root { \(property): \(light); }")
+            }
+            if let dark = sanitizedHexColor(dark) {
+                rules.append(":root[data-mdp-color-scheme=\"dark\"] { \(property): \(dark); }")
+                rules.append("""
+                @media (prefers-color-scheme: dark) {
+                    :root:not([data-mdp-color-scheme="light"]) { \(property): \(dark); }
+                }
+                """)
+            }
+            return rules
+        }
+
+        /// Only `--name` properties of letters, digits and hyphens are
+        /// emitted, so a key can't break out of its rule.
+        static func isColorProperty(_ property: String) -> Bool {
+            property.range(of: "^--[a-z0-9-]+$", options: .regularExpression) != nil
         }
     }
 

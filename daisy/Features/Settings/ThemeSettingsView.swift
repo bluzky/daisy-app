@@ -60,7 +60,7 @@ struct ThemeSettingsView: View {
             } footer: {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(String(format: L("Current theme: %@"),
-                                selected.map { L($0.name) } ?? L("Custom colors")))
+                                selected.map { L($0.name) } ?? model.appliedTheme.name))
                     Text(L("Each theme remembers its colors, font and layout. Original and Ember also remember your appearance choice. Reset restores the selected theme’s defaults."))
                 }
             }
@@ -70,9 +70,12 @@ struct ThemeSettingsView: View {
                     Button(L("Customize…")) {
                         openCustomizeSheet()
                     }
+                    .disabled(!model.isCustomizeAvailable)
                 }
             } footer: {
-                Text(L("Customize the selected theme’s font, spacing and colors. Reset restores that theme’s defaults; global Reading preferences stay unchanged."))
+                Text(model.isCustomizeAvailable
+                     ? L("Customize the selected theme’s font, spacing and colors. Reset restores that theme’s defaults; global Reading preferences stay unchanged.")
+                     : SettingsModel.customizeUnavailableNote)
             }
         }
         .formStyle(.grouped)

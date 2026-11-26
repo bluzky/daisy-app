@@ -191,6 +191,70 @@ final class WidgetTests: XCTestCase {
         }
     }
 
+    @MainActor
+    func testStatTileTakesACardsLookOptions() async throws {
+        let webView = try await load("""
+        ```stat
+        label: Plain
+        value: 1
+        color: success
+        ---
+        label: Accent
+        value: 2
+        style: accent
+        color: success
+        ---
+        label: Solid
+        value: 3
+        delta: +1
+        trend: up
+        style: solid
+        color: info
+        ---
+        label: Override
+        value: 4
+        style: accent
+        bar: top
+        border: none
+        fill: soft
+        padding: compact
+        ---
+        label: Warning
+        value: 5
+        style: solid
+        color: warning
+        ```
+        """, colorScheme: .light)
+        let result = try await eval(webView, """
+        Array.from(document.querySelectorAll('.md-widget-stat')).map(tile => {
+          const s = getComputedStyle(tile);
+          const value = getComputedStyle(tile.querySelector('.md-widget-value')).color;
+          const delta = tile.querySelector('.md-widget-delta');
+          return [tile.className, s.borderLeftWidth, s.borderTopWidth, s.color, value,
+                  delta ? getComputedStyle(delta).color : ''].join('|');
+        })
+        """) as? [String]
+        let tiles = try XCTUnwrap(result)
+        XCTAssertEqual(tiles.count, 5)
+        // Only `color`: the tile keeps its normal look.
+        XCTAssertTrue(tiles[0].hasPrefix("md-widget-stat|1px|1px|"), tiles[0])
+        XCTAssertTrue(tiles[1].hasPrefix("md-widget-stat md-widget-c-success md-widget-stat-colored md-widget-stat-bar-left|4px|1px|"), tiles[1])
+        // Solid: white text, the value and delta included.
+        let solid = tiles[2].split(separator: "|").map(String.init)
+        XCTAssertTrue(solid[0].contains("md-widget-stat-fill-solid"))
+        XCTAssertEqual(solid[1], "0px")
+        XCTAssertEqual(Array(solid[3...]), ["rgb(255, 255, 255)", "rgb(255, 255, 255)", "rgb(255, 255, 255)"])
+        // Options beside `style` override it.
+        XCTAssertTrue(tiles[3].hasPrefix("md-widget-stat md-widget-stat-fill-soft md-widget-stat-border-none md-widget-stat-bar-top md-widget-stat-pad-compact|0px|4px|"), tiles[3])
+        // A solid warning tile has dark text.
+        XCTAssertTrue(tiles[4].contains("|rgb(29, 29, 31)|rgb(29, 29, 31)|"), tiles[4])
+
+        for bad in ["style: none", "fill: glow", "bar: right", "ink: grey", "padding: none", "shape: pill"] {
+            let drawn = try await count("```stat\nlabel: A\nvalue: 1\n\(bad)\n```", ".md-widget-stat")
+            XCTAssertEqual(drawn, bad == "shape: pill" ? 1 : 0, bad)
+        }
+    }
+
     // MARK: Progress (BR-4)
 
     @MainActor
@@ -353,13 +417,36 @@ final class WidgetTests: XCTestCase {
     }
 
     @MainActor
+    func testProgressLabelIsOptional() async throws {
+        let bars = try await load("```progress\nvalue: 3\nmax: 4\n---\nvalue: 1\nmax: 4\n```")
+        let result = try await eval(bars, """
+        (() => { const list = document.querySelector('.md-widget-progress');
+          return [list.classList.contains('md-widget-progress-unlabelled'),
+                  list.querySelectorAll('.md-widget-progress-label').length,
+                  list.querySelectorAll('.md-widget-fill').length,
+                  list.querySelector('.md-widget-track').hasAttribute('aria-label')] })()
+        """) as? [Any]
+        XCTAssertEqual(result?[0] as? Bool, true, "no label column")
+        XCTAssertEqual(result?[1] as? Int, 0)
+        XCTAssertEqual(result?[2] as? Int, 2, "both bars drawn")
+        XCTAssertEqual(result?[3] as? Bool, false)
+
+        let mixed = try await load("```progress\nlabel: A\nvalue: 3\nmax: 4\n---\nvalue: 1\nmax: 4\n```")
+        let labels = try await eval(mixed, "Array.from(document.querySelectorAll('.md-widget-progress-label')).map(l => l.textContent)") as? [String]
+        XCTAssertEqual(labels, ["A", ""], "an empty cell keeps the bars lined up")
+
+        let rings = try await load("```progress\nshape: ring\nvalue: 20\nmax: 100\n```")
+        let ring = try await eval(rings, "[document.querySelectorAll('.md-widget-ring').length, document.querySelectorAll('.md-widget-ring-label').length]") as? [Int]
+        XCTAssertEqual(ring, [1, 0], "a ring without its name")
+    }
+
+    @MainActor
     func testAC_4_1_InvalidProgressStaysPlain() async throws {
         for block in [
             "```progress\nlabel: A\nvalue: 3\n```",
             "```progress\nlabel: A\nvalue: 3\nmax: 0\n```",
             "```progress\nlabel: A\nvalue: -1\nmax: 4\n```",
             "```progress\nlabel: A\nvalue: many\nmax: 4\n```",
-            "```progress\nvalue: 1\nmax: 4\n```",
             "```progress\nlabel: A\nvalue: 1\nmax: 4\ncolor: #ff00\n```",
             "```progress\nlabel: A\nvalue: 1\nmax: 4\ncolor: purple\n```",
             "```progress\nlabel: A\nvalue: 1\nmax: 4\ncolor: positive\n```",
@@ -1015,5 +1102,29 @@ final class WidgetTests: XCTestCase {
         XCTAssertEqual(drawn, 2, "both Mermaid charts render")
         let errors = try await eval(webView, "document.querySelectorAll('.mermaid .error-icon, .mermaid [aria-roledescription=\"error\"]').length") as? Int
         XCTAssertEqual(errors, 0)
+    }
+
+    // MARK: Theme widget colors (unified CSS themes, BR-10)
+
+    @MainActor
+    func testAC_2_6_accentWidgetColorFromThemeInPageAndSlides() async throws {
+        let css = "/* @theme\nname: Brand\nappearance: light\n*/ :root { --widget-accent: #123456; }"
+        let catalog = Theme.catalog(builtIns: BuiltInThemes.files, user: [Theme.File(id: "brand", css: css)])
+        let brand = try XCTUnwrap(catalog["brand"])
+        let overrides = ThemeLibrary.look(for: brand).colors.markdownThemeOverrides
+        XCTAssertTrue(try XCTUnwrap(overrides).css.contains(":root { --widget-accent: #123456; }"))
+
+        let rendered = MarkdownHTML.render(markdown: "Text\n", vendorLoading: .lazy, colorScheme: .light,
+                                           themeOverrides: overrides)
+        let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 900, height: 700))
+        webView.loadHTMLString(rendered.html, baseURL: nil)
+        let deadline = Date().addingTimeInterval(10)
+        while webView.isLoading && Date() < deadline { try await Task.sleep(for: .milliseconds(50)) }
+        let value = try await webView.evaluateJavaScript(
+            "getComputedStyle(document.documentElement).getPropertyValue('--widget-accent').trim()") as? String
+        XCTAssertEqual(value?.lowercased(), "#123456", "The page's --widget-accent, which every widget reads")
+
+        let deck = Theme.forDeck(SlideDeckSettings(markdown: "---\nslides: true\ntheme: brand\n---\n"), in: catalog)
+        XCTAssertTrue(deck.slideCSS.contains("--widget-accent: #123456"))
     }
 }

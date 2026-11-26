@@ -28,17 +28,52 @@ color: success
 | --- | --- | --- |
 | `label` | yes | The tile's title, top left. |
 | `value` | yes | The big number. Written as you want it shown: `$48.2k`, `3,204`, `2.1%`. |
-| `color` | no | The big number's [color](#colors): `success`, `danger`, … or a hex. The default is the theme's text color. |
+| `color` | no | The big number's [color](#colors): `success`, `danger`, … or a hex. The default is the theme's text color. With a look option below, the tile's fill, border and bar take it too. |
 | `delta` | no | The change, on the value's line at the tile's right edge. |
 | `trend` | no | `up`, `down` or `flat`: the arrow before the delta, and its color. Ignored without a `delta`. |
 | `good` | no | `down` for a metric where down is good, such as churn. The default is `up`. |
 | `note` | no | A small line under the value. |
 | `link` | no | An arrow in the tile's top right corner that opens like any Markdown link: a web address, a relative file (`reports/q3.md`) or a heading in the same file (`#sales-by-month`). |
+| `style` | no | `plain` (default), `outline`, `filled`, `accent` or `solid`: the same presets as a [card's](cards.md#style-presets). |
+| `fill` | no | `none`, `surface` (default), `soft`, `tint` or `solid`, as on a card. |
+| `border` | no | `none`, `thin` (default) or `thick`. |
+| `bar` | no | `none` (default), `left` or `top`: a bar in the color down the left side or across the top. |
+| `ink` | no | `light` or `dark`: the tile's text color, white or near-black. |
+| `padding` | no | `compact`, `normal` (default) or `roomy`. |
 
 - All the tiles in one block share a row and wrap on a narrow window.
 - Color follows `trend` and `good`: a move in the good direction is green, the other red, and `flat` grey. So `trend: down` with `good: down` is green.
 - A tile needs only `label` and `value`. A `delta` without a `trend` shows grey with no arrow. A `trend` without a `delta` is ignored.
 - A `javascript:`, `data:` or `file:` link leaves the block plain.
+
+### A tile's look
+
+`style`, `fill`, `border`, `bar`, `ink` and `padding` work as they do on a [card](cards.md#options), one tile at a time. An option written beside `style` overrides the preset: `style: accent` with `bar: top` puts the bar across the top. A tile has no `shape`: it keeps its rounded corners.
+
+````markdown
+```stat
+label: Revenue
+value: $48.2k
+style: accent
+color: success
+---
+label: Uptime
+value: 99.98%
+style: solid
+color: info
+---
+label: Incidents
+value: 3
+fill: soft
+bar: top
+border: none
+color: warning
+```
+````
+
+- With any of these options, the tile's `color` also goes to its border, bar and fill. Without a `color`, the bar and a `soft`, `tint` or `solid` fill are the accent and the border stays the theme's, as on a card. A tile with only `color` keeps its normal outline, with the color on its value alone.
+- On a `solid` tile, or one with `ink`, the label, value, delta and note all take the text color, so nothing vanishes into the fill; the delta keeps its arrow but not its green or red. A solid tile's text is white, or dark on `warning`; for a light hex color, add `ink: dark`.
+- A value outside its list leaves the block plain.
 
 ## Progress
 
@@ -55,11 +90,11 @@ color: success
 ```
 ````
 
-`label`, `value` and `max` are required. `value` is zero or more and `max` above zero; a value above its maximum shows a full bar. Each bar is one row: its label, the bar, then `value / max`. The bars in one block stack, with their labels, bars and values lined up.
+`value` and `max` are required; `label` is optional. `value` is zero or more and `max` above zero; a value above its maximum shows a full bar. Each bar is one row: its label, the bar, then `value / max`. A bar without a label leaves its label cell empty; when no bar in the block has one, the bars take the whole width. The bars in one block stack, with their labels, bars and values lined up.
 
 | Key | Required | What it does |
 | --- | --- | --- |
-| `label` | yes | The bar's or ring's name. |
+| `label` | no | The bar's or ring's name. Without it, a ring shows no name under it. |
 | `value`, `max` | yes | How far along: `value` zero or more, `max` above zero. |
 | `shape` | no | `bar` (the default) or `ring`, on the **first item only**; it sets the whole block. `shape` on a later item leaves the block plain. |
 | `color` | no | The bar's or the ring's arc [color](#colors); the default is the accent. |
@@ -256,7 +291,7 @@ Mermaid's [`xychart-beta` and `pie`](https://mermaid.js.org) still work in any d
 
 Every widget draws with one shared palette of semantic colors, in a light and a dark version that follow the page's appearance.
 
-One key, `color`, picks a color on a stat (its value), a progress bar (its fill), a sparkline (its line), a badge (its text and tint) and a [card](cards.md); a chart's `colors` takes a list of the same values. Each takes a name from the table below or a hex color (`#RGB` or `#RRGGBB`), and each widget puts it where it belongs: you say *what it means*, not "text" or "background". `default` is the widget's normal look. Anything else, such as `red` or `#12345`, leaves the block plain. A hex color stays the same in light and dark mode; the names follow it.
+One key, `color`, picks a color on a stat (its value, and with a look option its tile), a progress bar (its fill), a sparkline (its line), a badge (its text and tint) and a [card](cards.md); a chart's `colors` takes a list of the same values. Each takes a name from the table below or a hex color (`#RGB` or `#RRGGBB`), and each widget puts it where it belongs: you say *what it means*, not "text" or "background". `default` is the widget's normal look. Anything else, such as `red` or `#12345`, leaves the block plain. A hex color stays the same in light and dark mode; the names follow it.
 
 | Name | Used for | Light | Dark |
 | --- | --- | --- | --- |
@@ -272,7 +307,7 @@ These are Apple's standard system colors, one set for every widget: a `warning` 
 
 Text, the progress track (a light tint of the text color) and the stat tile's outline follow the page's own theme colors; a stat tile's fill (`--widget-card`) is the theme's code block background, in every theme.
 
-Every app theme, and Quick Look, uses these two palettes; there is no setting for them. A slide deck's theme can change them on its slides. A theme file sets `--widget-default`, `--widget-accent`, `--widget-success`, `--widget-info`, `--widget-warning`, `--widget-danger` and `--widget-series-1` … `--widget-series-8`. A deck's `theme_overrides:` uses the `colors:` keys `widget_default`, `widget_accent`, … `widget_series_8`. See [Slides](slides.md#themes).
+The built-in themes, and Quick Look, use these two palettes; there is no setting for them. A theme file can change them: as the reading theme (**View → Theme**) for every document, or as a deck's `theme:` on its slides. A theme file sets `--widget-default`, `--widget-accent`, `--widget-success`, `--widget-info`, `--widget-warning`, `--widget-danger` and `--widget-series-1` … `--widget-series-8`. A deck's `theme_overrides:` uses the `colors:` keys `widget_default`, `widget_accent`, … `widget_series_8`. See [Slides](slides.md#themes).
 
 ## Invalid blocks and other viewers
 

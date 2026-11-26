@@ -123,7 +123,7 @@ nonisolated enum EditorHTML {
             html, body { background: \(darkPageBackground); }
         }
         body {
-            font-family: var(--mdp-doc-font, \(MarkdownHTML.bodyFontFamily));
+            font-family: var(--font-body, var(--mdp-doc-font, \(MarkdownHTML.bodyFontFamily)));
             font-size: \(MarkdownHTML.textScaled(MarkdownHTML.bodyFontSize));
             font-weight: var(--mdp-body-weight, 400);
             line-height: var(--mdp-line-height, \(MarkdownHTML.bodyLineHeight));
@@ -155,7 +155,7 @@ nonisolated enum EditorHTML {
             padding-top: calc(\(MarkdownHTML.pagePaddingTop + (usesPageScrolling ? MarkdownHTML.appPageTopClearance : 0))px / var(--mdp-chrome-zoom, 1));
             cursor: default;
             box-sizing: border-box;
-            font-family: var(--mdp-doc-font, \(MarkdownHTML.bodyFontFamily)) !important;
+            font-family: var(--font-body, var(--mdp-doc-font, \(MarkdownHTML.bodyFontFamily))) !important;
             font-size: \(MarkdownHTML.textScaled(MarkdownHTML.bodyFontSize));
             font-weight: var(--mdp-body-weight, 400);
             line-height: var(--mdp-line-height, \(MarkdownHTML.bodyLineHeight));
@@ -187,7 +187,7 @@ nonisolated enum EditorHTML {
         /* Code files: a full-width monospace buffer with a line-number
            gutter, not the reader column. */
         html[data-code-mode] #editor .cm-scroller {
-            font-family: ui-monospace, "SF Mono", Menlo, monospace !important;
+            font-family: var(--font-code, ui-monospace, "SF Mono", Menlo, monospace) !important;
             font-size: 0.9em;
             line-height: 1.5;
             padding-inline: 0;
@@ -218,6 +218,7 @@ nonisolated enum EditorHTML {
            `#editor .cm-line { padding: 0 }` above. */
         #editor .cm-md-h1, #editor .cm-md-h2, #editor .cm-md-h3,
         #editor .cm-md-h4, #editor .cm-md-h5, #editor .cm-md-h6 {
+            font-family: var(--font-heading, inherit);
             font-weight: 600;
             line-height: 1.25;
             padding-top: calc(0.6rem * var(--mdp-text-scale, 1) + 0.5em);
@@ -341,7 +342,7 @@ nonisolated enum EditorHTML {
             line-height: 1;
         }
         .cm-md-alert-icon { width: 1em; height: 1em; margin-right: 0.5em; fill: currentColor; }
-        .cm-md-strong { font-weight: 600; }
+        .cm-md-strong { font-weight: 600; color: var(--bold, inherit); }
         .cm-md-emphasis { font-style: italic; }
         .cm-md-strikethrough { text-decoration: line-through; }
         .cm-md-highlight {
@@ -354,7 +355,7 @@ nonisolated enum EditorHTML {
            document font (smaller beside a serif), and a heading's code takes
            the heading size. */
         .cm-md-inline-code {
-            font-family: ui-monospace, "SF Mono", Menlo, monospace;
+            font-family: var(--font-code, ui-monospace, "SF Mono", Menlo, monospace);
             font-size: var(--mdp-code-font-size, 0.9em);
             background: var(--code-bg);
             border: 0.5px solid var(--code-border);
@@ -537,7 +538,7 @@ nonisolated enum EditorHTML {
             background: var(--code-bg);
         }
         #editor .cm-md-codeblock {
-            font-family: ui-monospace, "SF Mono", Menlo, monospace;
+            font-family: var(--font-code, ui-monospace, "SF Mono", Menlo, monospace);
             font-size: 1em;
             line-height: 1.3;
             position: relative;
@@ -630,7 +631,7 @@ nonisolated enum EditorHTML {
            the preview's properties panel. YAML stays editable; only the
            --- delimiters are dimmed. */
         #editor .cm-md-frontmatter {
-            font-family: ui-monospace, "SF Mono", Menlo, monospace;
+            font-family: var(--font-code, ui-monospace, "SF Mono", Menlo, monospace);
             font-size: 0.82em;
             line-height: 1.6;
             color: var(--secondary);
@@ -658,7 +659,7 @@ nonisolated enum EditorHTML {
             gap: 8px;
             padding: 8px 14px;
             border-radius: 15px;
-            font-family: ui-monospace, "SF Mono", Menlo, monospace;
+            font-family: var(--font-code, ui-monospace, "SF Mono", Menlo, monospace);
             font-size: 0.82em;
             line-height: 1.6;
             color: var(--secondary);
@@ -733,7 +734,7 @@ nonisolated enum EditorHTML {
             border: 1px solid color-mix(in srgb, #d1242f 45%, transparent);
         }
         .cm-md-table {
-            font-family: ui-monospace, "SF Mono", Menlo, monospace;
+            font-family: var(--font-code, ui-monospace, "SF Mono", Menlo, monospace);
             font-size: 0.88em;
         }
         .cm-md-table-widget {
@@ -746,7 +747,7 @@ nonisolated enum EditorHTML {
             overflow: visible;
             /* The widget sits inside .cm-md-table's monospace line, so it
                restates the document type settings. */
-            font-family: var(--mdp-doc-font, \(MarkdownHTML.bodyFontFamily));
+            font-family: var(--font-body, var(--mdp-doc-font, \(MarkdownHTML.bodyFontFamily)));
             font-size: \(MarkdownHTML.textScaled(MarkdownHTML.bodyFontSize));
             font-weight: var(--mdp-body-weight, 400);
             line-height: var(--mdp-line-height, \(MarkdownHTML.bodyLineHeight));

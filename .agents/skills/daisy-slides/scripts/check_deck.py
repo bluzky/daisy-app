@@ -26,7 +26,7 @@ LAYOUTS = {"title", "section", "quote", "code", "math", "title-image", "split",
            "full-bleed", "columns", "title-content", "blank"}
 CLASSES = {"center", "center-x", "center-y", "lead", "invert"}
 BG_KEYWORDS = {"left", "right", "fit", "contain", "dim", "blur"}
-THEMES = {"default", "original", "quiet", "paper", "bold", "calm", "focus", "ember", "dusk", "midnight",
+THEMES = {"default", "original", "quiet", "paper", "calm", "focus", "ember", "dusk", "midnight",
           "pitch", "paper-warm", "midnight-navy"}
 ASPECTS = {"16:9", "16:10", "4:3"}
 BREAK = re.compile(r"^ {0,3}(?:-{3,}|\*{3,}|_{3,})\s*$")
@@ -83,6 +83,16 @@ NUMBER = re.compile(r"^[-+]?(\d+\.?\d*|\.\d+)$")
 # item one line (label, bar, value). A bar or line chart is
 # half as tall as the slide is wide, nearly the whole slide; a pie is smaller.
 STAT_LINES, PROGRESS_ROW_LINES = 3, 1
+
+# A stat tile's look: a card's options, without `shape` or `style: none`.
+STAT_LOOK = {
+    "style": ("plain", "outline", "filled", "accent", "solid"),
+    "fill": ("none", "surface", "soft", "tint", "solid"),
+    "border": ("none", "thin", "thick"),
+    "bar": ("none", "left", "top"),
+    "ink": ("light", "dark"),
+    "padding": ("compact", "normal", "roomy"),
+}
 # A row of rings: the ring and its label.
 RING_LINES = 5
 CHART_LINES, PIE_LINES = 10, 7
@@ -396,6 +406,9 @@ def check_widget(kind, body, line, report):
                 return plain(f"`good: {item['good']}` isn't up or down")
             if "color" in item and not is_color(item["color"]):
                 return plain(f"`color: {item['color']}` isn't {COLOR_HINT}")
+            for key, allowed in STAT_LOOK.items():
+                if key in item and item[key].lower() not in allowed:
+                    return plain(f"`{key}: {item[key]}` isn't {', '.join(allowed)}")
             if "link" in item:
                 href = item["link"]
                 scheme = re.match(r"^([a-z][a-z0-9+.-]*):", href, re.I)
@@ -412,8 +425,8 @@ def check_widget(kind, body, line, report):
     for item in items:
         value = (item.get("value") or "").replace(",", "")
         maximum = (item.get("max") or "").replace(",", "")
-        if not item.get("label") or not NUMBER.match(value) or not NUMBER.match(maximum):
-            return plain("every bar needs `label`, and numbers for `value` and `max`")
+        if not NUMBER.match(value) or not NUMBER.match(maximum):
+            return plain("every bar needs numbers for `value` and `max`")
         if float(value) < 0 or float(maximum) <= 0:
             return plain("`value` must be zero or more and `max` above zero")
         if "color" in item and not is_color(item["color"]):

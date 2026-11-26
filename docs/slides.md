@@ -101,18 +101,26 @@ Every reading theme can be named, and a few themes are made for slides:
 
 | Theme | Look |
 | --- | --- |
-| `original`, `quiet`, `paper`, `bold`, `calm`, `focus`, `ember`, `dusk`, `midnight` | The reading themes of the same names: their colors and fonts on the slides. |
-| `pitch` | White slides, blue headings; title and section slides on solid blue; table headers in white on blue. |
+| `original`, `quiet`, `paper`, `calm`, `focus`, `ember`, `dusk`, `midnight` | The reading themes of the same names: their colors and fonts on the slides. |
+| `pitch` | A reading theme too. White slides, blue headings; title and section slides on solid blue; table headers in white on blue. |
 | `paper-warm` | Warm off-white, brown headings, serif type. |
 | `midnight-navy` | Dark blue slides; title and section slides on a brighter blue. |
 
 Values a theme doesn't set still come from the reading theme. Code on a slide follows the theme: a dark-only theme gets dark-mode code colors even in a light window, and the other way round; a theme that follows the system follows the window.
 
-> **Renamed slide themes.** The slide themes `paper` and `midnight` are now `paper-warm` and `midnight-navy`. `paper` and `midnight` mean the reading themes. The `light` and `dark` slide themes are gone, so a deck that names them uses the reading theme.
+> **Renamed slide themes.** The slide themes `paper` and `midnight` are now `paper-warm` and `midnight-navy`. `paper` and `midnight` mean the reading themes. The `light` and `dark` slide themes are gone, and so is the reading theme `bold`, so a deck that names them uses the reading theme.
 
 ### Your own themes
 
 A theme is a CSS file in `~/.config/daisy/themes/`. Its file name without `.css` is its id. A file with a built-in theme's id is ignored, and so is a file that doesn't say `light`, `dark` or `system` (itself or through `extends`).
+
+The same file works as a deck's `theme:` and as the reading theme. **View → Theme** lists the built-in themes, then yours; choosing one restyles the reading view and the editor in every window. **View → Theme → Open Themes Folder** opens (and creates) the folder.
+
+As the reading theme:
+
+- A light-only or dark-only theme locks the app's appearance to match; a `system` theme sets it to Automatic.
+- Customize is unavailable and the page uses the default spacing: change the theme by editing its file.
+- If the file is deleted or no longer valid, the reading theme goes back to Original.
 
 ```css
 /* @theme
@@ -157,13 +165,15 @@ The `@theme` comment holds the theme's settings:
 | `--table-header-bg`, `--table-header-text` | Background and text of a table's header row. |
 | `--table-border`, `--table-stripe` | A table's lines, and the shaded rows of a `striped` table. |
 | `--table-style` | `lines` (default: a rule above and below each row), `grid` (borders between all cells), `striped` (every other row shaded) or `minimal` (only a rule under the header). |
-| `--widget-default`, `--widget-accent`, `--widget-success`, `--widget-info`, `--widget-warning`, `--widget-danger`, `--widget-series-1` … `--widget-series-8` | The [widget palette](widgets.md#colors) for widgets on the deck's slides. |
+| `--widget-default`, `--widget-accent`, `--widget-success`, `--widget-info`, `--widget-warning`, `--widget-danger`, `--widget-series-1` … `--widget-series-8` | The [widget palette](widgets.md#colors): cards, badges, shapes, stat tiles, progress bars and charts. |
 | `--font-body`, `--font-heading`, `--font-code` | Font lists for body text, headings and code. |
 | `--body-weight` | `400` or `600` (heavier body text). |
-| `--slide-title-bg`, `--slide-title-text` | Background and text of title and section slides. |
-| `--slide-font-size` | The base text size, like the frontmatter's `font_size`, which wins over it. |
+| `--slide-title-bg`, `--slide-title-text` | Background and text of title and section slides. Slides only. |
+| `--slide-font-size` | The base text size, like the frontmatter's `font_size`, which wins over it. Slides only. |
 
-Colors are hex values (`#rgb`, `#rgba`, `#rrggbb` or `#rrggbbaa`); color names aren't accepted. Fonts are lists of names. Any other rule, value or property is ignored, so a theme can't break the page. Theme files are read each time a deck renders: after editing one, edit or reopen the deck to see it. Quick Look uses the built-in themes only.
+Everything else applies to the reading view and the editor too (the editor shows widgets as text). `header` and `footer` are slides only. If a theme sets no heading or code font, headings use the body font and code keeps the default monospace.
+
+Colors are hex values (`#rgb`, `#rgba`, `#rrggbb` or `#rrggbbaa`); color names aren't accepted. Fonts are lists of names. Any other rule, value or property is ignored, so a theme can't break the page. Theme files are read each time a deck renders: after editing one, edit or reopen the deck to see it. An edit to the reading theme's file shows when you switch back to Daisy or open **View → Theme**. Quick Look decks use the built-in themes only, and Quick Look ignores your reading theme's colors.
 
 #### Themes from earlier versions
 
@@ -491,7 +501,7 @@ $48.2k, up 12%
 <!-- end-card -->
 ````
 
-- A card goes in the slide body or inside a column. Alone in a column, it fills the column's height, so a row of cards lines up.
+- A card goes in the slide body or inside a column. Alone in a column, it fills the column's height, so a row of cards lines up. Columns are as tall as the tallest one, not the whole slide, so a lone card next to shorter columns doesn't stretch to the bottom.
 - A card must open and close within one column, or within the part of the slide above or below the columns; one that crosses a `<!-- column -->` frames nothing.
 - A card's padding and corners follow the slide's text size.
 - `shape=circle` draws a circle that keeps its shape: it is centered in its column and not stretched to the column's height.

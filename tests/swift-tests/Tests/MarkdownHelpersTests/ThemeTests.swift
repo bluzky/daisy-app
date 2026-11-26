@@ -186,7 +186,7 @@ final class ThemeTests: XCTestCase {
 
   func testAC_3_4_quickLookCatalogHasBuiltInsOnly() throws {
     XCTAssertEqual(BuiltInThemes.all.map(\.id), BuiltInThemes.ids, "every built-in file is bundled and valid")
-    XCTAssertEqual(BuiltInThemes.ids.count, 12)
+    XCTAssertEqual(BuiltInThemes.ids.count, 11)
     let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: folder) }
@@ -243,10 +243,13 @@ final class ThemeTests: XCTestCase {
     ]
   }()
 
-  func testAC_4_1_builtInPresetsMatchTodaysValues() {
-    XCTAssertEqual(ThemePreset.builtIn.map(\.id), Self.recordedPresets.map(\.name),
-                   "same ids and order: the applied-theme and saved-look keys keep working")
-    for (preset, recorded) in zip(ThemePreset.builtIn, Self.recordedPresets) {
+  func testAC_4_1_builtInPresetsMatchTodaysValues() throws {
+    // Q-34: Pitch took Bold's gallery card; the other eight keep their ids,
+    // order and values, so their applied-theme and saved-look keys still work.
+    let expectedOrder = Self.recordedPresets.map { $0.name == "Bold" ? "Pitch" : $0.name }
+    XCTAssertEqual(ThemePreset.builtIn.map(\.id), expectedOrder)
+    for recorded in Self.recordedPresets where recorded.name != "Bold" {
+      let preset = try XCTUnwrap(ThemePreset.builtIn.first { $0.id == recorded.name })
       var expected = ThemeColorsSetting()
       for (slot, hex) in recorded.light { expected.setHex(hex, slot, .light) }
       for (slot, hex) in recorded.dark { expected.setHex(hex, slot, .dark) }
@@ -255,7 +258,18 @@ final class ThemeTests: XCTestCase {
       XCTAssertEqual(preset.font, recorded.font, preset.name)
       XCTAssertEqual(preset.boldText, recorded.boldText, preset.name)
     }
-    XCTAssertEqual(ThemePreset.all.map(\.name).suffix(3), ["Pitch", "Paper Warm", "Midnight Navy"])
+    XCTAssertEqual(ThemePreset.all.map(\.name).suffix(2), ["Paper Warm", "Midnight Navy"])
+  }
+
+  func testQ34_boldIsRemovedAndASavedBoldFallsBackToOriginal() {
+    XCTAssertNil(BuiltInThemes.catalog["bold"])
+    XCTAssertFalse(ThemePreset.all.contains { $0.id == "Bold" })
+    XCTAssertEqual(ThemeLibrary.applied(id: "Bold", catalog: { BuiltInThemes.catalog }), .builtIn(.defaultPreset))
+    XCTAssertEqual(ThemeLibrary.refresh(appliedID: "Bold", catalog: BuiltInThemes.catalog,
+                                        current: ThemePreset.defaultPreset.restoredLook()),
+                   .original, "the next activation applies Original")
+    let deck = SlideDeckSettings(markdown: "---\nslides: true\ntheme: bold\n---\n")
+    XCTAssertEqual(Theme.forDeck(deck, in: BuiltInThemes.catalog).slideCSS, "", "a deck uses the reading theme")
   }
 
   func testAC_4_1_customizedLookIsStillRestored() throws {
@@ -268,7 +282,7 @@ final class ThemeTests: XCTestCase {
     paper.save(ThemePreset.SavedLook(colors: colors, font: .charter, layout: ReaderLayoutSetting(),
                                      appearance: .light), in: defaults)
     paper.recordApplied(in: defaults)
-    XCTAssertEqual(ThemePreset.applied(in: defaults).id, "Paper")
+    XCTAssertEqual(ThemeLibrary.applied(in: defaults, userDirectory: nil).id, "Paper")
     XCTAssertEqual(paper.restoredLook(in: defaults).colors.hexValue(.linkColor, .light), "#123456")
   }
 
@@ -754,4 +768,190 @@ final class ThemeTests: XCTestCase {
     XCTAssertTrue(css.contains("--table-header-text: #ffffff;"))
     XCTAssertTrue(css.contains("--table-border: #c9d6e8;"))
   }
+
+  // MARK: - Any theme as the reading theme (P2: US-1, US-2)
+
+  /// A reader's `brand.css`, resolved against the built-ins.
+  private func userTheme(_ css: String, id: String = "brand") throws -> Theme {
+    let catalog = Theme.catalog(builtIns: BuiltInThemes.files, user: [Theme.File(id: id, css: css)])
+    return try XCTUnwrap(catalog[id])
+  }
+
+  func testAC_1_4_darkOnlyThemeRequiresDarkAppearance() throws {
+    let dark = try userTheme("/* @theme\nname: Night\nappearance: dark\n*/ :root { --bg: #101010; }")
+    XCTAssertEqual(ThemeLibrary.Applied.user(dark).requiredAppearance, .dark)
+    XCTAssertEqual(ThemeLibrary.look(for: dark).appearance, .dark)
+    let system = try userTheme("/* @theme\nname: Sys\nappearance: system\n*/ :root { --bg: #FAFAFA; }")
+    XCTAssertNil(ThemeLibrary.Applied.user(system).requiredAppearance)
+    XCTAssertEqual(ThemeLibrary.look(for: system).appearance, .automatic, "Q-29: back to Automatic")
+  }
+
+  func testAC_1_5_userThemeUsesTheDefaultSpacing() throws {
+    let bold = try userTheme("/* @theme\nname: Heavy\nappearance: light\n*/ :root { --body-weight: 600; }")
+    XCTAssertEqual(ThemeLibrary.look(for: bold).layout, ReaderLayoutSetting(boldText: true))
+    XCTAssertNil(ThemeLibrary.Applied.user(bold).preset, "No preset: Customize is unavailable")
+  }
+
+  func testAC_2_1_sameThemeFeedsPageEditorAndSlideCSS() throws {
+    let brand = try userTheme("""
+    /* @theme
+    name: Brand
+    appearance: light
+    */
+    :root { --link: #0057B8; --text: #1A1A1A; --font-body: Inter, sans-serif; }
+    """)
+    let colors = ThemeLibrary.look(for: brand).colors
+    let page = try XCTUnwrap(colors.markdownThemeOverrides).css
+    XCTAssertTrue(page.contains(":root { --link: #0057B8; }"))
+    XCTAssertTrue(page.contains("--font-body: Inter, sans-serif;"))
+    XCTAssertTrue(colors.editorOverrideCSS.contains(":root { --link: #0057B8; }"))
+    XCTAssertTrue(colors.editorOverrideCSS.contains("--font-body: Inter, sans-serif;"))
+    let deck = Theme.forDeck(SlideDeckSettings(markdown: "---\nslides: true\ntheme: brand\n---\n"),
+                             in: ["brand": brand])
+    XCTAssertTrue(deck.slideCSS.contains("#0057B8"))
+    XCTAssertTrue(deck.slideCSS.contains("font-family: Inter, sans-serif;"))
+  }
+
+  func testAC_2_2_invalidColorFallsBackToBaseValue() throws {
+    let brand = try userTheme("""
+    /* @theme
+    name: Brand
+    extends: ember
+    */
+    :root { --link: red; --text: #111111; }
+    """)
+    let colors = ThemeColorsSetting(theme: brand)
+    let ember = ThemeColorsSetting(theme: try XCTUnwrap(BuiltInThemes.catalog["ember"]))
+    XCTAssertEqual(colors.hexValue(.linkColor, .light), ember.hexValue(.linkColor, .light))
+    XCTAssertEqual(colors.hexValue(.textColor, .light), "#111111")
+  }
+
+  @MainActor
+  func testAC_2_3_systemThemeEmitsLightAndDarkBuckets() async throws {
+    let brand = try userTheme("""
+    /* @theme
+    name: Brand
+    appearance: system
+    */
+    :root { --link: #112233; }
+    @media (prefers-color-scheme: dark) { :root { --link: #445566; } }
+    """)
+    let overrides = ThemeLibrary.look(for: brand).colors.markdownThemeOverrides
+    for (scheme, expected) in [(MarkdownHTML.ColorScheme.light, "rgb(17, 34, 51)"),
+                               (.dark, "rgb(68, 85, 102)")] {
+      let rendered = MarkdownHTML.render(markdown: "[link](https://example.com)\n", vendorLoading: .lazy,
+                                         colorScheme: scheme, themeOverrides: overrides)
+      let color = try await evaluate(rendered.html, "getComputedStyle(document.querySelector('a')).color")
+      XCTAssertEqual(color, expected, "\(scheme) link color")
+    }
+  }
+
+  func testAC_2_4_extendsEmberOverridesOnlyLink() throws {
+    let brand = try userTheme("""
+    /* @theme
+    name: Brand
+    extends: ember
+    */
+    :root { --link: #0057B8; }
+    """)
+    let emberTheme = try XCTUnwrap(BuiltInThemes.catalog["ember"])
+    let colors = ThemeColorsSetting(theme: brand)
+    let ember = ThemeColorsSetting(theme: emberTheme)
+    XCTAssertEqual(colors.hexValue(.linkColor, .light), "#0057B8")
+    for scheme in ThemeColorScheme.allCases {
+      for slot in ThemeColorSlot.allCases where slot != .linkColor {
+        XCTAssertEqual(colors.hexValue(slot, scheme), ember.hexValue(slot, scheme), "\(scheme) \(slot)")
+      }
+    }
+    XCTAssertEqual(colors.tableStyle, ember.tableStyle)
+    XCTAssertEqual(ThemeLibrary.look(for: brand).font, emberTheme.documentFont ?? .system)
+  }
+
+  @MainActor
+  func testAC_2_5_fontsAndH2InPageCSSSlideOnlyKeysOnlyInSlideCSS() async throws {
+    let brand = try userTheme("""
+    /* @theme
+    name: Brand
+    appearance: light
+    footer: "Brand | | {slide_number}"
+    */
+    :root { --font-heading: Futura, sans-serif; --font-code: Courier, monospace; --heading-2: #AA0000;
+            --slide-title-bg: #003366; --slide-title-text: #FFFFFF; }
+    """)
+    let colors = ThemeLibrary.look(for: brand).colors
+    let page = try XCTUnwrap(colors.markdownThemeOverrides).css
+    XCTAssertTrue(page.contains("--font-heading: Futura, sans-serif;"))
+    XCTAssertTrue(page.contains("--font-code: Courier, monospace;"))
+    XCTAssertTrue(page.contains("--heading-2: #AA0000;"))
+    XCTAssertFalse(page.contains("#003366"), "Title slide colors are slides only")
+    XCTAssertFalse(page.contains("Brand |"), "The footer is slides only")
+    XCTAssertTrue(colors.editorOverrideCSS.contains("--font-heading: Futura, sans-serif;"))
+    let deck = Theme.forDeck(SlideDeckSettings(markdown: "---\nslides: true\ntheme: brand\n---\n"),
+                             in: ["brand": brand])
+    XCTAssertTrue(deck.slideCSS.contains("#003366"))
+    XCTAssertEqual(deck.footer, "Brand | | {slide_number}")
+
+    let rendered = MarkdownHTML.render(markdown: "## Two\n\n`code`\n", vendorLoading: .lazy,
+                                       colorScheme: .light, themeOverrides: colors.markdownThemeOverrides)
+    let result = try await evaluate(rendered.html, """
+    (() => { const h = document.querySelector('h2'), c = document.querySelector('code');
+      return getComputedStyle(h).fontFamily + '|' + getComputedStyle(h).color + '|' + getComputedStyle(c).fontFamily })()
+    """)
+    XCTAssertEqual(result, "Futura, sans-serif|rgb(170, 0, 0)|Courier, monospace")
+  }
+
+  func testThemeFontsAreOutsideTheScreenOnlyBlockSoTheyPrint() throws {
+    let css = MarkdownHTML.ThemeOverrides(lightLink: "#112233", bodyFont: "Inter, sans-serif").css
+    let screen = try XCTUnwrap(css.components(separatedBy: "\n}\n").first)
+    XCTAssertTrue(screen.hasPrefix("@media screen {"))
+    XCTAssertFalse(screen.contains("--font-body"))
+    XCTAssertTrue(css.contains(":root { --font-body: Inter, sans-serif; }"))
+  }
+
+  func testAnEmptySettingEmitsNoOverrides() {
+    XCTAssertNil(ThemeColorsSetting().markdownThemeOverrides)
+  }
+
+  func testAListedFaceGoesThroughTheDocumentFontNotThemeFont() throws {
+    let paper = try XCTUnwrap(ThemePreset.builtIn.first { $0.name == "Paper" })
+    XCTAssertEqual(paper.font, .charter)
+    XCTAssertNil(paper.setting.bodyFont)
+  }
+
+  func testEveryPageColorTokenFillsASlot() {
+    let slideOnly: Set = ["slide-title-bg", "slide-title-text"]
+    for (token, kind) in Theme.tokenKinds where kind == .color && !slideOnly.contains(token) {
+      XCTAssertNotNil(ThemeColorsSetting.themeTokenSlots[token], token)
+    }
+  }
+
+  @MainActor
+  func testASolidCardOnADeckUsesTheDeckThemesColorAndKeepsBoldReadable() async throws {
+    let css = """
+    /* @theme
+    name: Brand
+    appearance: light
+    */
+    :root { --bold: #2f5fcc; --widget-accent: #3a6fd8; }
+    """
+    let catalog = Theme.catalog(builtIns: BuiltInThemes.files, user: [Theme.File(id: "brand", css: css)])
+    let rendered = MarkdownHTML.render(markdown: """
+    ---
+    slides: true
+    theme: brand
+    ---
+
+    ## Numbers
+
+    <!-- card style=solid color=accent -->
+    **Bold on blue**
+    <!-- end-card -->
+    """, vendorLoading: .lazy, colorScheme: .light, slideThemes: catalog)
+    let result = try await evaluate(rendered.html, """
+    (() => { const card = document.querySelector('.mdp-slide .md-card');
+      return getComputedStyle(card).backgroundColor + '|' + getComputedStyle(card.querySelector('strong')).color })()
+    """)
+    XCTAssertEqual(result, "rgb(58, 111, 216)|rgb(255, 255, 255)", "The theme's accent fill, white bold text")
+  }
 }
+

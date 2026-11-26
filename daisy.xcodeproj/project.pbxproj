@@ -147,7 +147,6 @@
 				Rendering/TextAlignmentSetting.swift,
 				Rendering/Theme.swift,
 				Rendering/URLSchemeTaskCallbackGate.swift,
-				Resources/Themes/bold.css,
 				Resources/Themes/calm.css,
 				Resources/Themes/dusk.css,
 				Resources/Themes/ember.css,

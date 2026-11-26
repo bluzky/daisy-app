@@ -88,7 +88,6 @@
 "Solarized Dark" = "Solarized Dark";
 "Dracula" = "Dracula";
 "Each color has a separate value for the Light and Dark appearance. Picking the default color removes the override." = "Each color has a separate value for the Light and Dark appearance. Picking the default color removes the override.";
-"Custom colors" = "Custom colors";
 "Reset Colors" = "Reset Colors";
 "Restores the default Normal theme." = "Restores the default Normal theme.";
 "Current theme: %@" = "Current theme: %@";
@@ -101,6 +100,12 @@
 "Light" = "Light";
 "Dark" = "Dark";
 "Content Width" = "Content Width";
+"Theme" = "Theme";
+"Open Themes Folder" = "Open Themes Folder";
+"Your own themes are changed by editing their file." = "Your own themes are changed by editing their file.";
+"Pitch" = "Pitch";
+"Paper Warm" = "Paper Warm";
+"Midnight Navy" = "Midnight Navy";
 "Narrow" = "Narrow";
 "Normal" = "Normal";
 "Full Width" = "Full Width";
