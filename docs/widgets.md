@@ -315,4 +315,4 @@ A block with a missing required key, an unknown value (`color: purple`, `trend: 
 
 ## Where it renders
 
-Read mode, Quick Look, PDF export and [slides](slides.md) (a deck draws widgets inside its slides) draw the widgets. The editor shows the blocks and shortcodes as text, and DOCX export writes each as the code it is. A shortcode in a footnote stays inline code.
+Read mode, Quick Look, PDF export, [slides](slides.md) (a deck draws widgets inside its slides) and the editor draw the widgets. In the editor a block is drawn in place of its fence, and a shortcode in its line, until the caret or either end of a selection moves into it: then its source shows, so editing stays plain Markdown. A selection that reaches past both ends of a block leaves it drawn. Click a widget to edit its source. A shortcode in a table cell shows its source while you edit the cell. Copying a widget copies its Markdown. In a deck, the editor draws widgets with the reading theme's colors, not the deck theme's. DOCX export writes each widget as the code it is. A shortcode in a footnote stays inline code.

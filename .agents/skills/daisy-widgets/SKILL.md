@@ -5,7 +5,7 @@ description: Write and fix dashboards, KPI pages, status reports and metric summ
 
 # Daisy widgets
 
-Daisy is a macOS Markdown app. In any Markdown file, three fenced blocks become widgets — `stat` tiles, `chart` charts and `progress` bars — and four shortcodes, written as inline code, draw inline widgets: `` `{{sparkline: …}}` ``, `` `{{progress: …}}` ``, `` `{{badge: …}}` `` and `` `{{shape: …}}` ``. `<!-- card -->` frames blocks as a panel, and `<!-- columns -->` puts them side by side. Read mode, Quick Look and PDF export draw them; every other Markdown viewer shows the blocks and shortcodes as plain text, so the file stays readable anywhere. No frontmatter flag is needed.
+Daisy is a macOS Markdown app. In any Markdown file, three fenced blocks become widgets — `stat` tiles, `chart` charts and `progress` bars — and four shortcodes, written as inline code, draw inline widgets: `` `{{sparkline: …}}` ``, `` `{{progress: …}}` ``, `` `{{badge: …}}` `` and `` `{{shape: …}}` ``. `<!-- card -->` frames blocks as a panel, and `<!-- columns -->` puts them side by side. The editor, Read mode, Quick Look and PDF export draw them; every other Markdown viewer shows the blocks and shortcodes as plain text, so the file stays readable anywhere. No frontmatter flag is needed.
 
 The exact rules are in `references/widgets-guide.md` (widgets, charts, colors), `references/cards-guide.md` and `references/columns-guide.md` — Daisy's own docs. Read the relevant section when you need a rule this file only summarizes.
 

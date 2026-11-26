@@ -393,7 +393,8 @@ nonisolated struct ThemeColorsSetting: Equatable, Codable, Sendable {
 
     /// Override stylesheet for the edit-mode page. The editor themes through
     /// `prefers-color-scheme` only (no host color-scheme attribute), so two
-    /// media buckets cover it.
+    /// media buckets cover it. The widget palette is appended with Read
+    /// mode's selectors instead, to outrank the widget stylesheet's defaults.
     var editorOverrideCSS: String {
         func rules(for scheme: ThemeColorScheme) -> String {
             var lines: [String] = []
@@ -415,7 +416,6 @@ nonisolated struct ThemeColorsSetting: Equatable, Codable, Sendable {
                     lines.append(":root { --heading-\(level): \(heading); }")
                 }
             }
-            // The editor shows widgets as text, so only bold text takes a color.
             if let bold = sanitizedHex(.boldText, scheme) {
                 lines.append(":root { --bold: \(bold); }")
             }
@@ -436,6 +436,22 @@ nonisolated struct ThemeColorsSetting: Equatable, Codable, Sendable {
         if !dark.isEmpty {
             css += (css.isEmpty ? "" : "\n")
                 + "@media (prefers-color-scheme: dark) {\n\(dark)\n}"
+        }
+        // The editor draws widgets, so it takes the theme's widget palette,
+        // and its code background as the stat tile fill, as Read mode does.
+        // These use Read mode's selectors: the widget stylesheet's dark
+        // defaults are `:root:not([data-mdp-color-scheme="light"])` in the
+        // media query, which a bare `:root` there would lose to.
+        var widgetRules: [String] = []
+        for (property, slot) in ThemeColorSlot.pageColorProperties where slot.widgetColor != nil {
+            widgetRules += MarkdownHTML.ThemeOverrides.propertyRules(
+                property, light: hexValue(slot, .light), dark: hexValue(slot, .dark))
+        }
+        widgetRules += MarkdownHTML.ThemeOverrides.propertyRules(
+            "--widget-card", light: hexValue(.codeBlockBackground, .light),
+            dark: hexValue(.codeBlockBackground, .dark))
+        if !widgetRules.isEmpty {
+            css += (css.isEmpty ? "" : "\n") + widgetRules.joined(separator: "\n")
         }
         let fonts = MarkdownHTML.ThemeOverrides(bodyFont: bodyFont, headingFont: headingFont,
                                                 codeFont: codeFont).fontCSS

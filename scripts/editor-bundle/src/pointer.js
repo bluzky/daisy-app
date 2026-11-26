@@ -1,6 +1,6 @@
 import { EditorView, ViewPlugin } from "@codemirror/view"
 import { EditorSelection, StateEffect, StateField } from "@codemirror/state"
-import { fencedCodeAt } from "./fenced-code.js"
+import { WIDGET_LANGUAGES, fencedCodeAt } from "./fenced-code.js"
 
 // Snapshot only the state that controls source visibility during a gesture.
 const setPointerPreview = StateEffect.define()
@@ -88,9 +88,22 @@ export const anchoredPointerSelection = EditorView.mouseSelectionStyle.of((view,
   }
 })
 
+// The widget fence holding `pos`, looking forward too so that a caret on its
+// first position counts. Not at offset zero: the implicit cursor there must
+// not open a leading block.
+function widgetFenceAt(state, pos) {
+  for (const side of pos > 0 ? [-1, 1] : [-1]) {
+    const fence = fencedCodeAt(state, pos, side)
+    if (WIDGET_LANGUAGES.includes(fence?.language)) return fence
+  }
+  return null
+}
+
 // A cursor exists at offset zero as soon as CodeMirror is created. Do not let
 // that implicit cursor put a leading code block into source mode. A fenced
-// block becomes active only after a pointer selection lands inside it.
+// block becomes active after a pointer selection lands inside it, or typing
+// creates it around the caret. A widget block hides its whole source, so it
+// also becomes active when any other selection or edit puts the caret in it.
 export const activeCodeBlock = StateField.define({
   create: () => null,
   update(value, tr) {
@@ -111,6 +124,10 @@ export const activeCodeBlock = StateField.define({
     if (tr.isUserEvent("select.pointer")) {
       const fence = fencedCodeAt(tr.state, head)
       return contains(fence) ? fence : null
+    }
+    if (tr.selection || tr.docChanged) {
+      const fence = widgetFenceAt(tr.state, head)
+      if (contains(fence)) return fence
     }
     // A fence authored from plain text has no prior active range. Resolve it
     // after input so its source stays editable as soon as the opening marker

@@ -1,6 +1,12 @@
 import { syntaxTree } from "@codemirror/language"
 import { detectLanguage } from "./languages.js"
 
+// The fence languages drawn as widgets.
+export const WIDGET_LANGUAGES = ["stat", "chart", "progress"]
+
+// The language a fence names: its info string's first word.
+const explicitLanguageOf = (info) => info.trim().split(/\s+/, 1)[0].toLowerCase()
+
 export function fencedCodeDetails(state, node) {
   let info = ""
   let infoNode = null
@@ -13,7 +19,7 @@ export function fencedCodeDetails(state, node) {
     if (child.name === "CodeMark") codeMarks.push(child)
   }
 
-  const explicitLanguage = info.trim().split(/\s+/, 1)[0].toLowerCase()
+  const explicitLanguage = explicitLanguageOf(info)
   const openingLine = state.doc.lineAt(node.from)
   const openingMark = codeMarks[0]
   const sourceFrom = openingLine.to < state.doc.length ? openingLine.to + 1 : openingLine.to
@@ -43,16 +49,19 @@ export function fencedCodeDetails(state, node) {
   }
 }
 
-export function fencedCodeAt(state, pos) {
+// The fence at `pos`; `side` picks which neighbor counts at a boundary.
+export function fencedCodeAt(state, pos, side = -1) {
   // Stay in the outer Markdown tree—the innermost mounted language tree does
   // not retain FencedCode as one of its parents.
-  let node = syntaxTree(state).resolve(pos, -1)
+  let node = syntaxTree(state).resolve(pos, side)
   while (node) {
     if (node.name === "FencedCode") {
+      const info = node.node.getChild("CodeInfo")
       return {
         from: node.from,
         to: node.to,
         closed: node.node.getChildren("CodeMark").length > 1,
+        language: info ? explicitLanguageOf(state.sliceDoc(info.from, info.to)) : "",
       }
     }
     node = node.parent

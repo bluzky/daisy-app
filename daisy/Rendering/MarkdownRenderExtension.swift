@@ -112,8 +112,13 @@ nonisolated protocol MarkdownRenderExtension: Sendable {
 nonisolated protocol EditorCapability: Sendable {
   var moduleID: String { get }
   /// Static CSS for the editor page. It is emitted whether or not the module
-  /// is enabled, so scope every rule to a class the module adds.
+  /// is enabled, so scope every rule to a class the module adds. A module
+  /// that can't be turned off (`userToggleable: false`) may also set
+  /// page-wide custom properties, as the widget palette does.
   var css: String { get }
+  /// Complete `<script>` elements for the editor page, emitted unchanged
+  /// before the editor bundle so the module can call what they define.
+  var bodyHTML: String { get }
   /// Strings handed to the module at creation, typically localized labels.
   /// Keep them plain `String` pairs so they serialize to the editor page.
   var options: [String: String] { get }
@@ -122,6 +127,7 @@ nonisolated protocol EditorCapability: Sendable {
 nonisolated struct EditorModule: EditorCapability {
   let moduleID: String
   var css: String = ""
+  var bodyHTML: String = ""
   var options: [String: String] = [:]
 }
 
@@ -274,6 +280,14 @@ nonisolated extension MarkdownHTML {
     extensions: [any MarkdownRenderExtension] = renderExtensions
   ) -> String {
     extensions.compactMap { $0.editor?.css }.filter { !$0.isEmpty }.joined(separator: "\n")
+  }
+
+  /// Concatenated `<script>` elements of every editor-capable extension, for
+  /// the editor page; see `EditorCapability.bodyHTML`.
+  static func editorExtensionBodyHTML(
+    extensions: [any MarkdownRenderExtension] = renderExtensions
+  ) -> String {
+    extensions.compactMap { $0.editor?.bodyHTML }.filter { !$0.isEmpty }.joined(separator: "\n")
   }
 
   static func validatedAndOrdered(

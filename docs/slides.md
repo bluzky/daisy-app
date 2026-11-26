@@ -171,7 +171,7 @@ The `@theme` comment holds the theme's settings:
 | `--slide-title-bg`, `--slide-title-text` | Background and text of title and section slides. Slides only. |
 | `--slide-font-size` | The base text size, like the frontmatter's `font_size`, which wins over it. Slides only. |
 
-Everything else applies to the reading view and the editor too (the editor shows widgets as text). `header` and `footer` are slides only. If a theme sets no heading or code font, headings use the body font and code keeps the default monospace.
+Everything else applies to the reading view and the editor too, except that the editor draws a deck's widgets with the reading theme's `--widget-*` colors. `header` and `footer` are slides only. If a theme sets no heading or code font, headings use the body font and code keeps the default monospace.
 
 Colors are hex values (`#rgb`, `#rgba`, `#rrggbb` or `#rrggbbaa`); color names aren't accepted. Fonts are lists of names. Any other rule, value or property is ignored, so a theme can't break the page. Theme files are read each time a deck renders: after editing one, edit or reopen the deck to see it. An edit to the reading theme's file shows when you switch back to Daisy or open **View → Theme**. Quick Look decks use the built-in themes only, and Quick Look ignores your reading theme's colors.
 

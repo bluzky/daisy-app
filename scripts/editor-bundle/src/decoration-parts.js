@@ -48,6 +48,7 @@ export const METRICS = {
   alert: 24,      // .markdown-alert
   table: 24,      // .md-table-scroll
   hr: 12,         // hr (top only; the next block's margin supplies the bottom)
+  widget: 16,     // .md-widget-stats / -progress / -chart (1em)
 }
 export const SEPARATOR_BLOCKS = new Set([
   "Paragraph", "FencedCode", "CodeBlock", "Blockquote",

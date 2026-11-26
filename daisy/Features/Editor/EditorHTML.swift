@@ -36,6 +36,9 @@ nonisolated enum EditorHTML {
         var extensionState: [String: Bool] = [:]
         /// Static CSS from editor-capable extensions; see `MarkdownHTML.editorExtensionCSS`.
         var extensionCSS = ""
+        /// `<script>` elements from editor-capable extensions, emitted before
+        /// the bundle; see `MarkdownHTML.editorExtensionBodyHTML`.
+        var extensionBodyHTML = ""
         /// Per-module option strings, keyed by module id (localized labels).
         var extensionOptions: [String: [String: String]] = [:]
     }
@@ -957,6 +960,7 @@ nonisolated enum EditorHTML {
         })();
         </script>
         """ : "")
+        \(configuration.extensionBodyHTML)
         <script>\(editorJavaScript)</script>
         <script>
         (function () {
@@ -1044,7 +1048,9 @@ nonisolated enum EditorHTML {
                             quote: \(MarkdownHTML.quoteSpacing),
                             alert: \(MarkdownHTML.largeBlockSpacing),
                             table: \(MarkdownHTML.largeBlockSpacing),
-                            hr: \(MarkdownHTML.hrSpacing)
+                            hr: \(MarkdownHTML.hrSpacing),
+                            // Widget blocks' own margin is 1em.
+                            widget: \(MarkdownHTML.bodyFontSize)
                         }
                     }
                 );
