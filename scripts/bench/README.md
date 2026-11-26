@@ -12,7 +12,8 @@ GitHub Actions; see [the performance check](../../tests/performance/README.md).
 | `bench-app.sh` | Launches the app cold per sample, samples RSS/CPU of the app + its WebContent process(es) every 500 ms, parses debug perf logs (FCP, Swift render, `MdPreview.update`) into a CSV. |
 | `bench-ql.sh` | Resets Quick Look, opens `qlmanage -p <sample>`, samples RSS/CPU of `qlmanage`, `QuickLookUIService`, and the `quick-look` appex; captures the appex's provide wall-time from debug logs. |
 | `report.py` | Joins two CSV directories on (sample, metric) and prints a markdown comparison table. Stdlib python3 only. |
-| `../../samples/mermaid-heavy.md` | Stress sample: ~10 Mermaid diagrams, Swift/TypeScript/Bash code fences, `$...$` / `$$...$$` math — exercises all three renderers at once. |
+| `fixtures/small.md` | Small plain page of text and links: the light case. |
+| `../../samples/mermaid.md` | Stress sample: ~10 Mermaid diagrams, Swift/TypeScript/Bash code fences, `$...$` / `$$...$$` math — exercises all three renderers at once. |
 
 All log-derived metrics (`fcp_ms`, `render_ms`, `update_ms`, `ql_provide_ms`)
 require a **Debug** build — the perf instrumentation is compiled out of
@@ -33,8 +34,8 @@ scripts/bench/report.py --baseline /tmp/bench/baseline --candidate /tmp/bench/ca
 
 `bench-app.sh` builds Debug via xcodebuild by default; pass
 `--app <path/to/Daisy.app>` to reuse an existing build. Default
-samples are `samples/navigation.md` (small/plain), `samples/full.md`
-(math + code), and `samples/mermaid-heavy.md`; pass sample paths as
+samples are `scripts/bench/fixtures/small.md` (small/plain), `samples/full.md`
+(math + code), and `samples/mermaid.md`; pass sample paths as
 positional args to override. `--duration` (default 20 s) controls the
 sampling window per sample.
 
@@ -82,7 +83,7 @@ arbitrarily. Verify which binary actually served the preview with
 Measures the innerHTML-swap (or morphdom) update path under repeated edits:
 
 1. Start a long sampling window:
-   `scripts/bench/bench-app.sh --duration 60 --label edit-cycle samples/mermaid-heavy.md`
+   `scripts/bench/bench-app.sh --duration 60 --label edit-cycle samples/mermaid.md`
 2. While it samples, in the app window that opens: enter edit mode, change
    one paragraph, exit edit mode. Repeat 5 times at a steady pace.
 3. The `MdPreview.update (+Nms)` log lines are the per-cycle timing source —

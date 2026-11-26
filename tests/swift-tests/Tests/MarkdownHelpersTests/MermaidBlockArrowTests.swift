@@ -6,7 +6,7 @@ final class MermaidBlockArrowTests: XCTestCase {
     @MainActor
     func testBlockDottedLinksKeepPatternAndArrowheads() async throws {
         let markdown = try String(
-            contentsOf: TestVendor.repositoryRoot.appendingPathComponent("samples/mermaid-block-arrows.md"),
+            contentsOf: TestVendor.repositoryRoot.appendingPathComponent("tests/fixtures/mermaid-block-arrows.md"),
             encoding: .utf8
         )
         // Exercise the production HTML and offline bundle used by Quick Look.

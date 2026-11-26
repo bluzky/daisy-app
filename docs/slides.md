@@ -37,7 +37,7 @@ See [`samples/slides.md`](../samples/slides.md) for a deck that uses every featu
 - [Empty lines](#empty-lines)
 - [Captions](#captions)
 - [Footnotes](#footnotes)
-- [Dashboard widgets](#dashboard-widgets)
+- [Widgets](#widgets)
 - [Editing a deck](#editing-a-deck)
 - [Presenting](#presenting)
 - [Export](#export)
@@ -145,7 +145,7 @@ footer:
 | `colors.code_background` | Code block background. |
 | `colors.table_header`, `table_header_text` | Background and text of a table's header row. |
 | `colors.table_border`, `table_stripe` | A table's lines, and the shaded rows of a `striped` table. |
-| `colors.dashboard_default`, `dashboard_accent`, `dashboard_success`, `dashboard_info`, `dashboard_warning`, `dashboard_danger`, `dashboard_series_1` … `dashboard_series_8` | The [dashboard palette](dashboard.md#colors) for widgets on the deck's slides. |
+| `colors.widget_default`, `widget_accent`, `widget_success`, `widget_info`, `widget_warning`, `widget_danger`, `widget_series_1` … `widget_series_8` | The [widget palette](widgets.md#colors) for widgets on the deck's slides. |
 | `table.style` | `lines` (default: a rule above and below each row), `grid` (borders between all cells), `striped` (every other row shaded) or `minimal` (only a rule under the header). |
 | `colors.primary`, `title_text` | Background and text of title and section slides. |
 | `fonts.body`, `title`, `code` | Font lists for body text, headings and code. |
@@ -450,10 +450,11 @@ $48.2k, up 12%
 - A card goes in the slide body or inside a column. Alone in a column, it fills the column's height, so a row of cards lines up.
 - A card must open and close within one column, or within the part of the slide above or below the columns; one that crosses a `<!-- column -->` frames nothing.
 - A card's padding and corners follow the slide's text size.
+- `shape=circle` draws a circle that keeps its shape: it is centered in its column and not stretched to the column's height.
 
-## Dashboard widgets
+## Widgets
 
-Stat tiles, charts, progress bars and status badges work on slides too. Write `stat`, `chart`, `progress` and `badge` blocks as in an ordinary document; see [Dashboard](dashboard.md) for every key.
+Stat tiles, charts, progress bars, sparklines, status badges and shapes work on slides too. Write `stat`, `chart` and `progress` blocks and `{{sparkline: …}}`, `{{progress: …}}`, `{{badge: …}}` and `{{shape: …}}` shortcodes as in an ordinary document; see [Widgets](widgets.md) for every key.
 
 ````markdown
 ---
@@ -476,7 +477,7 @@ good: down
 ```
 ````
 
-- A `---` line inside a `stat`, `progress` or `badge` block separates its items; it does not start a new slide.
+- A `---` line inside a `stat` or `progress` block separates its items; it does not start a new slide.
 - Widgets size their text from the slide's text, like everything else on it.
 - A bar or line chart is drawn at the full width of its column, twice as wide as it is tall (a horizontal bar chart grows taller with each row), and does not shrink to fit the slide. Give it a slide with only a short heading, or put it in a column; a `pie` or `donut` is at most 320px wide. Mermaid's `xychart-beta` and `pie` also work and shrink to fit like any Mermaid diagram.
 

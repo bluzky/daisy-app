@@ -42,15 +42,15 @@ revealed steps. The presentation windows turn presenting on with the
 pane uses `slides-pane`. A deck's theme is emitted by `render` itself, in the
 page head, not by the extension.
 
-Dashboard (`DashboardExtension`) is likewise registered but not toggleable,
-and needs no opt-in: `EscapingHTMLFormatter` stamps `data-md-dashboard` on the `stat`, `chart`,
+Widgets (`WidgetsExtension`) is likewise registered but not toggleable,
+and needs no opt-in: `EscapingHTMLFormatter` stamps `data-md-widget` on the `stat`, `chart`,
 `progress` and `badge` fences; the extension activates on that stamp. Its CSS
 and two small scripts ship in every vendor-loading mode, Quick Look's `.inline`
 included: `MdChart`, a chart library of our own
-(`MarkdownHTML+DashboardChart.swift`; `MdChart.register` adds a chart type),
+(`MarkdownHTML+WidgetChart.swift`; `MdChart.register` adds a chart type),
 then the widget script. The widget script replaces each stamped block's code
 frame with its widget; a block it cannot read stays a code block. See
-[Dashboard](dashboard.md).
+[Widgets](widgets.md).
 
 Cards (`<!-- card … -->`, see [Cards](cards.md)) are drawn by the formatter
 and the base stylesheet, not by an extension. The page sanitizer drops every

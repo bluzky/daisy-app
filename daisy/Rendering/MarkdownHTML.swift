@@ -108,9 +108,9 @@ nonisolated enum MarkdownHTML {
         /// Look), and the media query (app windows following the system).
         var css: String {
             var rules: [String] = []
-            // A theme's code background is also its dashboard stat tile fill
-            // (`--dashboard-card`).
-            for property in ["--code-bg", "--dashboard-card"] {
+            // A theme's code background is also its stat tile fill
+            // (`--widget-card`).
+            for property in ["--code-bg", "--widget-card"] {
                 if let light = Self.sanitizedHexColor(lightCodeBackground) {
                     rules.append(":root { \(property): \(light); }")
                 }
@@ -426,8 +426,8 @@ nonisolated enum MarkdownHTML {
             highlightsCode: highlightsCode && rendersHighlights,
             rendersHighlights: rendersHighlights,
             rendersCallouts: rendersCallouts,
-            // Every document draws dashboard widgets; no opt-in.
-            rendersDashboard: true,
+            // Every document draws widgets; no opt-in.
+            rendersWidgets: true,
             rendersSlides: rendersSlides,
             slideSettings: slideSettings,
             strictLineBreaks: strictLineBreaks

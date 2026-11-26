@@ -123,8 +123,8 @@
 				Rendering/MarkdownFrontmatter.swift,
 				Rendering/MarkdownHTML.swift,
 				"Rendering/MarkdownHTML+Comments.swift",
-				"Rendering/MarkdownHTML+Dashboard.swift",
-				"Rendering/MarkdownHTML+DashboardChart.swift",
+				"Rendering/MarkdownHTML+Widgets.swift",
+				"Rendering/MarkdownHTML+WidgetChart.swift",
 				"Rendering/MarkdownHTML+Footnotes.swift",
 				"Rendering/MarkdownHTML+Highlight.swift",
 				"Rendering/MarkdownHTML+HostBridge.swift",
@@ -459,11 +459,11 @@
 			);
 			outputPaths = (
 				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/daisy-slides-skill",
-				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/daisy-dashboard-skill",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/daisy-widgets-skill",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -e\n# Ships Daisy's agent skills inside the app so Install AI Skills...\n# can copy them (AgentSkillsInstaller.skills). -L turns the guide\n# symlinks into real files.\nfor SKILL in daisy-slides daisy-dashboard; do\n  DEST=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/$SKILL-skill\"\n  mkdir -p \"$DEST\"\n  rsync -aL --delete --exclude '__pycache__' --exclude '.DS_Store' \"$SRCROOT/.agents/skills/$SKILL/\" \"$DEST/\"\ndone\n";
+			shellScript = "set -e\n# Ships Daisy's agent skills inside the app so Install AI Skills...\n# can copy them (AgentSkillsInstaller.skills). -L turns the guide\n# symlinks into real files.\nfor SKILL in daisy-slides daisy-widgets; do\n  DEST=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/$SKILL-skill\"\n  mkdir -p \"$DEST\"\n  rsync -aL --delete --exclude '__pycache__' --exclude '.DS_Store' \"$SRCROOT/.agents/skills/$SKILL/\" \"$DEST/\"\ndone\n";
 			showEnvVarsInLog = 0;
 		};
 /* End PBXShellScriptBuildPhase section */

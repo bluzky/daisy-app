@@ -6,7 +6,7 @@
 import Foundation
 
 /// Copies the agent skills that ship inside the app into a skills folder the
-/// user picked: `daisy-slides` for decks and `daisy-dashboard` for dashboards,
+/// user picked: `daisy-slides` for decks and `daisy-widgets` for widgets,
 /// charts and cards in ordinary documents.
 nonisolated enum AgentSkillsInstaller {
 
@@ -18,7 +18,7 @@ nonisolated enum AgentSkillsInstaller {
     }
 
     /// Every skill the menu item installs, in order.
-    static let skills = [Skill(folderName: "daisy-slides"), Skill(folderName: "daisy-dashboard")]
+    static let skills = [Skill(folderName: "daisy-slides"), Skill(folderName: "daisy-widgets")]
 
     enum Target: CaseIterable {
         case claudeCode

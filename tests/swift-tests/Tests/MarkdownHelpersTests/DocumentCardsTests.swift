@@ -19,9 +19,9 @@ final class DocumentCardsTests: XCTestCase {
     // MARK: Options
 
     func testOptionsParseIntoClassesAndAColorProperty() throws {
-        let style = try XCTUnwrap(CardStyle(options: " style=accent color=#6366F1 tint=true padding=compact align=center"))
+        let style = try XCTUnwrap(CardStyle(options: " style=accent color=#6366F1 fill=soft padding=compact align=center"))
         XCTAssertEqual(style.classes,
-                       "md-card md-card-accent md-card-colored md-card-tint md-card-pad-compact md-card-align-center")
+                       "md-card md-card-fill-soft md-card-bar-left md-card-colored md-card-pad-compact md-card-align-center")
         XCTAssertEqual(style.colorAttribute, " data-md-card-color=\"#6366f1\"", "a hex color rides in a data attribute")
         let palette = CardStyle(options: "color=success")
         XCTAssertEqual(palette?.classes, "md-card md-card-colored md-card-color-success", "a palette color is a class")
@@ -30,18 +30,64 @@ final class DocumentCardsTests: XCTestCase {
         XCTAssertEqual(CardStyle().classes, "md-card")
         XCTAssertEqual(CardStyle().colorAttribute, "")
         XCTAssertEqual(CardStyle(options: "color=default")?.classes, "md-card", "`default` is the card's normal look")
+        XCTAssertEqual(CardStyle(options: "color=neutral")?.classes, "md-card", "`neutral` is `default`")
         XCTAssertNil(CardStyle(options: "color=positive"), "the old names are gone")
         XCTAssertFalse(style.openingTag.contains("style="), "the page drops style attributes")
-        XCTAssertEqual(CardStyle(options: "style=accent edge=top")?.classes, "md-card md-card-accent md-card-edge-top")
-        XCTAssertEqual(CardStyle(options: "style=accent edge=left")?.classes, "md-card md-card-accent", "left is the default")
-        XCTAssertEqual(CardStyle(options: "style=filled edge=top")?.classes, "md-card md-card-filled", "only an accent card has a bar")
+        XCTAssertEqual(CardStyle(options: "shape=circle style=filled")?.classes,
+                       "md-card md-card-fill-tint md-card-border-none md-card-shape-circle")
+        XCTAssertEqual(CardStyle(options: "shape=pill")?.classes, "md-card md-card-shape-pill")
+        XCTAssertEqual(CardStyle(options: "shape=square")?.classes, "md-card md-card-shape-square")
+        XCTAssertEqual(CardStyle(options: "shape=rounded")?.classes, "md-card", "rounded is the default")
+        XCTAssertEqual(CardStyle(options: "padding=none")?.classes, "md-card md-card-pad-none")
+        XCTAssertEqual(CardStyle(options: "style=solid color=warning ink=light")?.classes,
+                       "md-card md-card-fill-solid md-card-border-none md-card-colored md-card-color-warning md-card-ink-light")
+        XCTAssertEqual(CardStyle(options: "ink=dark")?.ink, .dark)
+    }
+
+    func testStylePresetsSetFillBorderAndBar() {
+        let expected: [String: String] = [
+            "plain": "md-card",
+            "outline": "md-card md-card-fill-none",
+            "filled": "md-card md-card-fill-tint md-card-border-none",
+            "accent": "md-card md-card-bar-left",
+            "solid": "md-card md-card-fill-solid md-card-border-none",
+            "none": "md-card md-card-fill-none md-card-border-none",
+        ]
+        for (preset, classes) in expected {
+            XCTAssertEqual(CardStyle(options: "style=\(preset)")?.classes, classes, preset)
+        }
+        XCTAssertEqual(Set(expected.keys), Set(CardStyle.Preset.allCases.map(\.rawValue)))
+    }
+
+    func testOptionsBesideAPresetOverrideIt() {
+        XCTAssertEqual(CardStyle(options: "style=accent bar=top")?.classes, "md-card md-card-bar-top")
+        XCTAssertEqual(CardStyle(options: "bar=top style=accent")?.classes, "md-card md-card-bar-top",
+                       "wherever the option stands")
+        XCTAssertEqual(CardStyle(options: "style=solid border=thick")?.classes,
+                       "md-card md-card-fill-solid md-card-border-thick")
+        XCTAssertEqual(CardStyle(options: "style=accent bar=none fill=none")?.classes, "md-card md-card-fill-none")
+        XCTAssertEqual(CardStyle(options: "fill=soft bar=top border=none")?.classes,
+                       "md-card md-card-fill-soft md-card-border-none md-card-bar-top", "no preset needed")
+    }
+
+    /// The skills' checker mirrors the parser; their option names must match.
+    func testTheSkillCheckerKnowsTheSameCardOptions() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: root.appendingPathComponent(".agents/skills/daisy-slides/scripts/check_deck.py"),
+                                encoding: .utf8)
+        let block = try XCTUnwrap(source.firstRange(of: #/CARD_OPTIONS = \{(?s:.*?)\n\}/#))
+        let keys = Set(source[block].matches(of: #/\n    "([a-z]+)":/#).map { String($0.1) })
+        XCTAssertEqual(keys, CardStyle.optionNames)
     }
 
     func testInvalidOptionsAreRejected() {
         for options in [
             "style=fancy", "color=red", "color=#12345", "color=#fff;background:url(x)",
-            "tint=yes", "padding=huge", "align=right", "edge=bottom", "size=big", "style", "style=",
-            "style=accent style=plain", "style=\"accent",
+            "fill=yes", "border=dotted", "bar=bottom", "padding=huge", "align=right", "size=big",
+            "shape=hexagon", "style", "style=", "style=accent style=plain", "style=\"accent",
+            "tint=true", "edge=top", "fill=soft fill=tint", "ink=grey", "ink=",
         ] {
             XCTAssertNil(CardStyle(options: options), options)
         }
@@ -59,7 +105,7 @@ final class DocumentCardsTests: XCTestCase {
 
     func testACardFramesItsBlocks() {
         let out = html("Before\n\n<!-- card style=filled color=warning -->\n### Title\n\nBody text\n\n<!-- end-card -->\n\nAfter")
-        XCTAssertTrue(out.contains("<div class=\"md-card md-card-filled md-card-colored md-card-color-warning\">"))
+        XCTAssertTrue(out.contains("<div class=\"md-card md-card-fill-tint md-card-border-none md-card-colored md-card-color-warning\">"))
         let open = out.range(of: "<div class=\"md-card")!.lowerBound
         XCTAssertLessThan(out.range(of: "Before")!.upperBound, open)
         XCTAssertGreaterThan(out.range(of: "Body text")!.lowerBound, open)
@@ -140,7 +186,7 @@ final class DocumentCardsTests: XCTestCase {
         Right
         """)
         XCTAssertEqual(cardCount(out), 2)
-        XCTAssertTrue(out.contains("<div class=\"md-card md-card-accent\">"))
+        XCTAssertTrue(out.contains("<div class=\"md-card md-card-bar-left\">"))
         XCTAssertTrue(out.contains("<div class=\"mdp-slide-column\">\n<div class=\"md-card md-card-colored\" data-md-card-color=\"#ff0000\">"))
     }
 
@@ -180,23 +226,49 @@ final class DocumentCardsTests: XCTestCase {
         Outline
         <!-- end-card -->
 
-        <!-- card style=accent edge=top color=#00ff00 -->
+        <!-- card style=accent bar=top color=#00ff00 -->
         Top bar
         <!-- end-card -->
+
+        <!-- card style=none -->
+        Bare
+        <!-- end-card -->
+
+        <!-- card style=solid color=#0000ff -->
+        ### Solid
+        [A link](https://example.com)
+        <!-- end-card -->
+
+        <!-- card border=thick color=#ff0000 -->
+        Thick
+        <!-- end-card -->
+
+        <!-- card style=solid color=warning ink=light -->
+        ### Light on warning
+        <!-- end-card -->
+
+        <!-- card ink=dark -->
+        ### Dark on the surface
+        <!-- end-card -->
         """)
-        let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 900, height: 600))
+        let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 900, height: 900))
         webView.loadHTMLString(rendered.html, baseURL: nil)
         let deadline = Date().addingTimeInterval(10)
         while webView.isLoading && Date() < deadline { try await Task.sleep(for: .milliseconds(50)) }
         let result = try await webView.evaluateJavaScript("""
         (() => {
-          const [plain, accent, outline, top] = Array.from(document.querySelectorAll('.md-card'));
+          const [plain, accent, outline, top, bare, solid, thick, light, darkInk] = Array.from(document.querySelectorAll('.md-card'));
           const css = el => getComputedStyle(el);
           return [css(plain).backgroundColor !== 'rgba(0, 0, 0, 0)',
                   css(accent).borderLeftColor, css(accent).borderLeftWidth !== css(accent).borderTopWidth,
                   css(outline).backgroundColor,
                   Math.round(plain.getBoundingClientRect().height) === Math.round(accent.getBoundingClientRect().height),
-                  css(top).borderTopColor, css(top).borderTopWidth !== css(top).borderLeftWidth];
+                  css(top).borderTopColor, css(top).borderTopWidth !== css(top).borderLeftWidth,
+                  css(bare).backgroundColor, css(bare).borderTopWidth,
+                  css(solid).backgroundColor, css(solid.querySelector('h3')).color, css(solid.querySelector('a')).color,
+                  css(thick).borderTopColor, parseFloat(css(thick).borderTopWidth) > 1,
+                  css(accent).borderTopColor !== 'rgb(255, 0, 0)',
+                  css(light.querySelector('h3')).color, css(darkInk.querySelector('h3')).color, css(darkInk).color];
         })()
         """) as? [Any]
         XCTAssertEqual(result?[0] as? Bool, true, "a plain card has a fill")
@@ -204,7 +276,18 @@ final class DocumentCardsTests: XCTestCase {
         XCTAssertEqual(result?[2] as? Bool, true, "the accent bar is thicker than the border")
         XCTAssertEqual(result?[3] as? String, "rgba(0, 0, 0, 0)", "an outline card has no fill")
         XCTAssertEqual(result?[4] as? Bool, true, "cards in a row of columns line up")
-        XCTAssertEqual(result?[5] as? String, "rgb(0, 255, 0)", "edge=top moves the bar to the top")
+        XCTAssertEqual(result?[5] as? String, "rgb(0, 255, 0)", "bar=top moves the bar to the top")
         XCTAssertEqual(result?[6] as? Bool, true, "the top bar is thicker than the side border")
+        XCTAssertEqual(result?[7] as? String, "rgba(0, 0, 0, 0)", "style=none has no fill")
+        XCTAssertEqual(result?[8] as? String, "0px", "style=none has no border")
+        XCTAssertEqual(result?[9] as? String, "rgb(0, 0, 255)", "a solid card is its color")
+        XCTAssertEqual(result?[10] as? String, "rgb(255, 255, 255)", "a heading on a solid card is white")
+        XCTAssertEqual(result?[11] as? String, "rgb(255, 255, 255)", "so is a link")
+        XCTAssertEqual(result?[12] as? String, "rgb(255, 0, 0)", "without a bar, the border takes the color")
+        XCTAssertEqual(result?[13] as? Bool, true, "border=thick is thicker than a thin border")
+        XCTAssertEqual(result?[14] as? Bool, true, "with a bar, the border keeps the theme's separator color")
+        XCTAssertEqual(result?[15] as? String, "rgb(255, 255, 255)", "ink=light wins over warning's dark text")
+        XCTAssertEqual(result?[16] as? String, "rgb(29, 29, 31)", "ink=dark sets a heading's color on any card")
+        XCTAssertEqual(result?[17] as? String, "rgb(29, 29, 31)", "and the card's text")
     }
 }

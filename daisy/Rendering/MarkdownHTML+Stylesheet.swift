@@ -69,7 +69,7 @@ nonisolated extension MarkdownHTML {
     }
 
     /// `--md-card-accent`, `--md-card-success`, …: the palette names a card's
-    /// `color` accepts. Each follows the dashboard color of the same name when
+    /// `color` accepts. Each follows the widget color of the same name when
     /// a theme or deck sets one, else the built-in light or dark value.
     static func cardPaletteCSS(dark: Bool) -> String {
         CardStyle.paletteColors.map {
@@ -876,19 +876,26 @@ nonisolated extension MarkdownHTML {
     }
 
     /* Cards from `<!-- card … -->` … `<!-- end-card -->`
-       (EscapingHTMLFormatter+Cards.swift): a panel on the theme's code
-       background and separator. `--md-card-color` comes from a palette class
-       or a checked hex set by CardColorExtension; tints mix it into the background, so they follow
-       light and dark. Sizes are in em, so a card scales with slide text. A
-       card alone in a column fills its height, so a row of cards lines up. */
+       (EscapingHTMLFormatter+Cards.swift). Each option is a class that sets
+       one part of the look through custom properties: `fill` the
+       background, `border` the outline, `bar` a colored edge. One color,
+       `--md-card-color` (a palette class, or a checked hex set by
+       CardColorExtension), goes to the bar when there is one, else to the
+       border, and to the fill. Tints mix it into the theme's code
+       background, so they follow light and dark. Sizes are in em, so a card
+       scales with slide text. A card alone in a column fills its height, so
+       a row of cards lines up. */
     .md-card {
         --md-card-color: var(--md-card-accent);
+        --md-card-bg: var(--code-bg);
+        --md-card-border-color: var(--grid);
+        --md-card-border-width: 1px;
         min-width: 0;
         margin: \(textScaled(largeBlockSpacing)) 0 0;
         padding: 1em 1.25em;
-        border: 1px solid var(--grid);
+        border: var(--md-card-border-width) solid var(--md-card-border-color);
         border-radius: 0.6em;
-        background: var(--code-bg);
+        background: var(--md-card-bg);
         break-inside: avoid;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
@@ -896,27 +903,77 @@ nonisolated extension MarkdownHTML {
     .md-card > :first-child { margin-top: 0; }
     .md-card > :last-child { margin-bottom: 0; }
     \(CardStyle.paletteColors.map { ".md-card-color-\($0.rawValue) { --md-card-color: var(--md-card-\($0.rawValue)); }" }.joined(separator: "\n    "))
-    .md-card-colored { border-color: var(--md-card-color); }
-    .md-card-outline { background: transparent; }
-    .md-card-filled {
-        border-color: transparent;
-        background: color-mix(in srgb, var(--md-card-color) 14%, var(--code-bg));
+    .md-card-colored { --md-card-border-color: var(--md-card-color); }
+    /* With a bar, the color is the bar's and the border stays quiet. */
+    :is(.md-card-bar-left, .md-card-bar-top).md-card-colored { --md-card-border-color: var(--grid); }
+    .md-card-fill-none { --md-card-bg: transparent; }
+    .md-card-fill-soft { --md-card-bg: color-mix(in srgb, var(--md-card-color) 8%, var(--code-bg)); }
+    .md-card-fill-tint { --md-card-bg: color-mix(in srgb, var(--md-card-color) 14%, var(--code-bg)); }
+    .md-card-border-none { --md-card-border-width: 0px; }
+    .md-card-border-thick { --md-card-border-width: 0.15em; }
+    .md-card-bar-left { border-left: 0.25em solid var(--md-card-color); }
+    .md-card-bar-top { border-top: 0.25em solid var(--md-card-color); }
+    /* `fill=solid`: the color itself, with white text (dark on warning,
+       which is too light for white). `ink=light` or `ink=dark` sets the
+       text color on any card, and wins over both. On a solid card or one
+       with `ink`, headings, links, quotes, rules and table lines inside
+       follow that text color instead of the theme's, so they stay
+       readable. Widgets keep their own colors. */
+    .md-card-fill-solid {
+        --md-card-bg: var(--md-card-color);
+        --md-card-ink: #fff;
+        --code-bg: color-mix(in srgb, var(--md-card-ink) 16%, transparent);
     }
-    .md-card-accent,
-    .md-card-accent.md-card-colored {
-        border-color: var(--grid);
-        border-left: 0.25em solid var(--md-card-color);
+    .md-card-fill-solid.md-card-color-warning { --md-card-ink: #1d1d1f; }
+    .md-card.md-card-ink-light { --md-card-ink: #fff; }
+    .md-card.md-card-ink-dark { --md-card-ink: #1d1d1f; }
+    :is(.md-card-fill-solid, .md-card-ink-light, .md-card-ink-dark) {
+        --heading: var(--md-card-ink);
+        --link: var(--md-card-ink);
+        --secondary: color-mix(in srgb, var(--md-card-ink) 80%, transparent);
+        --grid: color-mix(in srgb, var(--md-card-ink) 35%, transparent);
+        color: var(--md-card-ink);
     }
-    .md-card-accent.md-card-edge-top {
-        border-left: 1px solid var(--grid);
-        border-top: 0.25em solid var(--md-card-color);
-    }
-    .md-card-tint { background: color-mix(in srgb, var(--md-card-color) 8%, var(--code-bg)); }
+    :is(.md-card-fill-solid, .md-card-ink-light, .md-card-ink-dark) a { text-decoration: underline; }
+    :is(.md-card-fill-solid, .md-card-ink-light, .md-card-ink-dark) li::marker { color: inherit; }
+    /* A shape inside a solid card would vanish into it in the same color:
+       a solid one becomes the text color with the shape's color inside it,
+       a tint or outline one takes the text color. */
+    .md-card-fill-solid .md-widget-shape { --md-shape-fill: var(--md-card-ink); --md-shape-stroke: transparent; --md-shape-ink: var(--md-widget-shape-color); }
+    .md-card-fill-solid .md-widget-shape-tint { --md-shape-fill: color-mix(in srgb, var(--md-card-ink) 22%, transparent); --md-shape-ink: var(--md-card-ink); }
+    .md-card-fill-solid .md-widget-shape-outline { --md-shape-fill: transparent; --md-shape-stroke: var(--md-card-ink); --md-shape-ink: var(--md-card-ink); }
+    /* Badges likewise: a tint or solid badge in the card's text color, an
+       outline one as a ring of it. */
+    .md-card-fill-solid .md-widget-badge { --md-badge-fill: color-mix(in srgb, var(--md-card-ink) 22%, transparent); --md-badge-ink: var(--md-card-ink); }
+    .md-card-fill-solid .md-widget-badge-solid { --md-badge-fill: var(--md-card-ink); --md-badge-ink: var(--md-widget-badge-color); }
+    .md-card-fill-solid .md-widget-badge-outline { --md-badge-fill: transparent; --md-badge-stroke: var(--md-card-ink); --md-badge-ink: var(--md-card-ink); }
+    .md-card-pad-none { padding: 0; }
     .md-card-pad-compact { padding: 0.6em 0.85em; }
     .md-card-pad-roomy { padding: 1.6em 1.9em; }
     .md-card-align-center { text-align: center; }
     .md-card-align-center .md-chart-body { justify-content: center; }
     .md-column > .md-card:only-child { height: 100%; }
+    /* `shape=`: square corners, round ends, or a circle. A circle is as
+       tall as it is wide, at most 14em across, centered in its column with
+       its content centered in it; it keeps that shape instead of filling
+       its column's height. */
+    .md-card-shape-square { border-radius: 0; }
+    .md-card-shape-pill { border-radius: 999px; padding-inline: 1.75em; }
+    .md-card-shape-circle {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        box-sizing: border-box;
+        width: min(100%, 14em);
+        aspect-ratio: 1;
+        margin-inline: auto;
+        padding: 1.5em;
+        border-radius: 50%;
+        text-align: center;
+    }
+    .md-card-shape-circle > * { max-width: 100%; }
+    .md-column > .md-card-shape-circle:only-child { height: auto; }
 
     /* Tables always span the full column, however little their cells hold.
        The wrapper owns the margin and the horizontal scroll: a table box

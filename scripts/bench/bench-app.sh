@@ -13,8 +13,8 @@
 #                              [sample.md ...]
 #
 # Without --app it builds Debug via xcodebuild and locates the product in
-# DerivedData. Default samples: samples/navigation.md, samples/full.md,
-# samples/mermaid-heavy.md. Log-derived metrics (fcp_ms, render_ms, update_ms)
+# DerivedData. Default samples: scripts/bench/fixtures/small.md, samples/full.md,
+# samples/mermaid.md. Log-derived metrics (fcp_ms, render_ms, update_ms)
 # need a Debug build — Release compiles the perf instrumentation out.
 #
 # Tip: quit other WebKit-based apps (Safari, Mail previews, …) during runs so
@@ -46,9 +46,9 @@ done
 
 if [[ ${#SAMPLES[@]} -eq 0 ]]; then
     SAMPLES=(
-        "$REPO_ROOT/samples/navigation.md"
+        "$REPO_ROOT/scripts/bench/fixtures/small.md"
         "$REPO_ROOT/samples/full.md"
-        "$REPO_ROOT/samples/mermaid-heavy.md"
+        "$REPO_ROOT/samples/mermaid.md"
     )
 fi
 for s in "${SAMPLES[@]}"; do

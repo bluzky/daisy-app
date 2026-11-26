@@ -2,12 +2,12 @@
 "Install CLI..." = "Install CLI...";
 "Install AI Skills…" = "Install AI Skills…";
 "Install AI Skills" = "Install AI Skills";
-"Choose the folder your AI agent reads skills from. Daisy adds a “daisy-slides” and a “daisy-dashboard” folder inside it." = "Choose the folder your AI agent reads skills from. Daisy adds a “daisy-slides” and a “daisy-dashboard” folder inside it.";
+"Choose the folder your AI agent reads skills from. Daisy adds a “daisy-slides” and a “daisy-widgets” folder inside it." = "Choose the folder your AI agent reads skills from. Daisy adds a “daisy-slides” and a “daisy-widgets” folder inside it.";
 "Install Here" = "Install Here";
 "Claude Code (~/.claude/skills)" = "Claude Code (~/.claude/skills)";
 "Codex (~/.codex/skills)" = "Codex (~/.codex/skills)";
 "Custom folder…" = "Custom folder…";
-"Install Daisy’s skills so your AI agent can write slide decks, dashboards, charts and cards in Daisy’s format." = "Install Daisy’s skills so your AI agent can write slide decks, dashboards, charts and cards in Daisy’s format.";
+"Install Daisy’s skills so your AI agent can write slide decks, widgets, charts and cards in Daisy’s format." = "Install Daisy’s skills so your AI agent can write slide decks, widgets, charts and cards in Daisy’s format.";
 "AI skills installed" = "AI skills installed";
 "Daisy installed its skills to %@. Restart your AI agent if it was running." = "Daisy installed its skills to %@. Restart your AI agent if it was running.";
 "Couldn’t install the AI skills" = "Couldn’t install the AI skills";
@@ -423,8 +423,8 @@
 "Metadata suggestions" = "Metadata suggestions";
 "Metadata links" = "Metadata links";
 "Query blocks" = "Query blocks";
-/* Dashboard render extension */
-"Dashboard" = "Dashboard";
+/* Widgets render extension */
+"Widgets" = "Widgets";
 /* Card colors render extension */
 "Card Colors" = "Card Colors";
 "No matching tasks" = "No matching tasks";

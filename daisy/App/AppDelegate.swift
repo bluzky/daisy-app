@@ -545,7 +545,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             folder = preset
         } else {
             let panel = NSOpenPanel()
-            panel.message = L("Choose the folder your AI agent reads skills from. Daisy adds a “daisy-slides” and a “daisy-dashboard” folder inside it.")
+            panel.message = L("Choose the folder your AI agent reads skills from. Daisy adds a “daisy-slides” and a “daisy-widgets” folder inside it.")
             panel.prompt = L("Install Here")
             panel.canChooseDirectories = true
             panel.canChooseFiles = false
@@ -586,7 +586,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         let alert = NSAlert()
         alert.messageText = L("Install AI Skills")
-        alert.informativeText = L("Install Daisy’s skills so your AI agent can write slide decks, dashboards, charts and cards in Daisy’s format.")
+        alert.informativeText = L("Install Daisy’s skills so your AI agent can write slide decks, widgets, charts and cards in Daisy’s format.")
         alert.accessoryView = stack
         alert.addButton(withTitle: L("Continue"))
         alert.addButton(withTitle: L("Cancel"))

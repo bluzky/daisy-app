@@ -4,7 +4,7 @@ import XCTest
 
 @testable import MarkdownHelpers
 
-final class DashboardTests: XCTestCase {
+final class WidgetTests: XCTestCase {
 
     private let widgets = """
     ```stat
@@ -26,10 +26,7 @@ final class DashboardTests: XCTestCase {
     max: 12
     ```
 
-    ```badge
-    text: Passing
-    color: success
-    ```
+    Build `{{badge: Passing color=success}}`
 
     ```chart
     type: bar
@@ -44,21 +41,21 @@ final class DashboardTests: XCTestCase {
 
     func testEveryWidgetFenceIsStampedWithoutFrontmatter() {
         let rendered = MarkdownHTML.render(markdown: widgets)
-        XCTAssertEqual(rendered.articleHTML.components(separatedBy: "data-md-dashboard").count - 1, 4,
-                       "stat, progress, badge, chart")
-        XCTAssertTrue(rendered.scriptAssetIDs.contains("dashboard"))
+        XCTAssertEqual(rendered.articleHTML.components(separatedBy: "data-md-widget").count - 1, 4,
+                       "stat, progress, the badge shortcode, chart")
+        XCTAssertTrue(rendered.scriptAssetIDs.contains("widgets"))
     }
 
     func testOtherFencesAreNotStampedAndDoNotLoadTheScript() {
         let other = MarkdownHTML.render(markdown: "```swift\nlet x = 1\n```")
-        XCTAssertFalse(other.articleHTML.contains("data-md-dashboard"))
-        XCTAssertFalse(other.html.contains("id: 'dashboard'"), "the script loads only when a widget is stamped")
-        XCTAssertFalse(other.scriptAssetIDs.contains("dashboard"))
+        XCTAssertFalse(other.articleHTML.contains("data-md-widget"))
+        XCTAssertFalse(other.html.contains("id: 'widgets'"), "the script loads only when a widget is stamped")
+        XCTAssertFalse(other.scriptAssetIDs.contains("widgets"))
     }
 
     func testFrontmatterNoLongerTurnsWidgetsOff() {
-        let rendered = MarkdownHTML.render(markdown: "---\ndashboard: false\n---\n\n```badge\ntext: A\ncolor: success\n```")
-        XCTAssertTrue(rendered.articleHTML.contains("data-md-dashboard"))
+        let rendered = MarkdownHTML.render(markdown: "---\ndashboard: false\n---\n\n```stat\nlabel: A\nvalue: 1\n```")
+        XCTAssertTrue(rendered.articleHTML.contains("data-md-widget"))
     }
 
     func testAC_5_1_StampedFencesKeepTheirPlainText() {
@@ -72,8 +69,8 @@ final class DashboardTests: XCTestCase {
     func testAC_5_2_ScriptAndStylesShipInEveryVendorLoadingMode() {
         for mode in [MarkdownHTML.VendorLoading.inline, .lazy] {
             let html = MarkdownHTML.render(markdown: widgets, vendorLoading: mode).html
-            XCTAssertTrue(html.contains(".md-dash-stat"), "styles missing in \(mode)")
-            XCTAssertTrue(html.contains("id: 'dashboard'"), "script missing in \(mode)")
+            XCTAssertTrue(html.contains(".md-widget-stat"), "styles missing in \(mode)")
+            XCTAssertTrue(html.contains("id: 'widgets'"), "script missing in \(mode)")
         }
     }
 
@@ -111,25 +108,25 @@ final class DashboardTests: XCTestCase {
     @MainActor
     func testAC_2_1_And_2_2_StatBlockDrawsOneRowOfTiles() async throws {
         let webView = try await load(widgets)
-        let tiles = try await eval(webView, "document.querySelectorAll('.md-dash-stats .md-dash-stat').length") as? Int
+        let tiles = try await eval(webView, "document.querySelectorAll('.md-widget-stats .md-widget-stat').length") as? Int
         XCTAssertEqual(tiles, 2)
-        let rows = try await eval(webView, "document.querySelectorAll('.md-dash-stats').length") as? Int
+        let rows = try await eval(webView, "document.querySelectorAll('.md-widget-stats').length") as? Int
         XCTAssertEqual(rows, 1)
-        let first = try await eval(webView, "document.querySelector('.md-dash-stat .md-dash-value').textContent") as? String
+        let first = try await eval(webView, "document.querySelector('.md-widget-stat .md-widget-value').textContent") as? String
         XCTAssertEqual(first, "$48.2k")
     }
 
     @MainActor
     func testAC_2_3_And_2_4_DeltaColorFollowsTrendAndGood() async throws {
         let webView = try await load(widgets)
-        let classes = try await eval(webView, "Array.from(document.querySelectorAll('.md-dash-delta')).map(n => n.className)") as? [String]
-        XCTAssertEqual(classes, ["md-dash-delta md-dash-good", "md-dash-delta md-dash-good"])
-        let text = try await eval(webView, "document.querySelectorAll('.md-dash-delta')[0].textContent") as? String
+        let classes = try await eval(webView, "Array.from(document.querySelectorAll('.md-widget-delta')).map(n => n.className)") as? [String]
+        XCTAssertEqual(classes, ["md-widget-delta md-widget-good", "md-widget-delta md-widget-good"])
+        let text = try await eval(webView, "document.querySelectorAll('.md-widget-delta')[0].textContent") as? String
         XCTAssertTrue(try XCTUnwrap(text).contains("\u{25B2}"))
 
         let swapped = try await load("```stat\nlabel: Churn\nvalue: 3%\ndelta: +1%\ntrend: up\ngood: down\n```")
-        let bad = try await eval(swapped, "document.querySelector('.md-dash-delta').className") as? String
-        XCTAssertEqual(bad, "md-dash-delta md-dash-bad")
+        let bad = try await eval(swapped, "document.querySelector('.md-widget-delta').className") as? String
+        XCTAssertEqual(bad, "md-widget-delta md-widget-bad")
     }
 
     @MainActor
@@ -149,12 +146,12 @@ final class DashboardTests: XCTestCase {
         ```
         """)
         let result = try await eval(webView, """
-        Array.from(document.querySelectorAll('.md-dash-stat')).map(tile => {
-          const delta = tile.querySelector('.md-dash-delta');
+        Array.from(document.querySelectorAll('.md-widget-stat')).map(tile => {
+          const delta = tile.querySelector('.md-widget-delta');
           return delta ? delta.className + '|' + delta.textContent : '';
         })
         """) as? [String]
-        XCTAssertEqual(result, ["", "", "md-dash-delta md-dash-flat|+4%"])
+        XCTAssertEqual(result, ["", "", "md-widget-delta md-widget-flat|+4%"])
     }
 
     @MainActor
@@ -162,34 +159,34 @@ final class DashboardTests: XCTestCase {
         let webView = try await load("```stat\nlabel: Leads\nvalue: 2,947\ndelta: 21%\ntrend: up\nnote: Accurate growth\n```")
         let layout = try await eval(webView, """
         (() => {
-          const tile = document.querySelector('.md-dash-stat');
-          const main = tile.querySelector('.md-dash-stat-main').getBoundingClientRect();
-          const value = tile.querySelector('.md-dash-value').getBoundingClientRect();
-          const delta = tile.querySelector('.md-dash-delta').getBoundingClientRect();
+          const tile = document.querySelector('.md-widget-stat');
+          const main = tile.querySelector('.md-widget-stat-main').getBoundingClientRect();
+          const value = tile.querySelector('.md-widget-value').getBoundingClientRect();
+          const delta = tile.querySelector('.md-widget-delta').getBoundingClientRect();
           const sameLine = delta.top < value.bottom && delta.bottom > value.top;
           const atRightEdge = Math.abs(delta.right - main.right) <= 1;
-          return [sameLine && atRightEdge ? 1 : 0, tile.querySelector('.md-dash-note').textContent];
+          return [sameLine && atRightEdge ? 1 : 0, tile.querySelector('.md-widget-note').textContent];
         })()
         """) as? [Any]
         XCTAssertEqual(layout?[0] as? Int, 1, "delta is on the value's line, at the right edge")
         XCTAssertEqual(layout?[1] as? String, "Accurate growth")
-        let notes = try await count("```stat\nlabel: A\nvalue: 1\n```", ".md-dash-note")
+        let notes = try await count("```stat\nlabel: A\nvalue: 1\n```", ".md-widget-note")
         XCTAssertEqual(notes, 0)
     }
 
     @MainActor
     func testAC_2_6_StatLinkIsAnOrdinaryLinkWithAnArrow() async throws {
         let webView = try await load("```stat\nlabel: Leads\nvalue: 9\nlink: #sales-by-month\n---\nlabel: Docs\nvalue: 1\nlink: https://example.com/a\n```")
-        let links = try await eval(webView, "Array.from(document.querySelectorAll('.md-dash-stat a.md-dash-link')).map(a => a.getAttribute('href') + '|' + (a.querySelector('svg') ? 'arrow' : ''))") as? [String]
+        let links = try await eval(webView, "Array.from(document.querySelectorAll('.md-widget-stat a.md-widget-link')).map(a => a.getAttribute('href') + '|' + (a.querySelector('svg') ? 'arrow' : ''))") as? [String]
         XCTAssertEqual(links, ["#sales-by-month|arrow", "https://example.com/a|arrow"])
-        let none = try await count("```stat\nlabel: A\nvalue: 1\n```", ".md-dash-link")
+        let none = try await count("```stat\nlabel: A\nvalue: 1\n```", ".md-widget-link")
         XCTAssertEqual(none, 0, "no link, no arrow")
     }
 
     @MainActor
     func testAC_2_6_ABlockedLinkSchemeLeavesTheBlockPlain() async throws {
         for href in ["javascript:alert(1)", "JavaScript:alert(1)", "data:text/html,x", "file:///etc/hosts"] {
-            let drawn = try await count("```stat\nlabel: A\nvalue: 1\nlink: \(href)\n```", ".md-dash-stat")
+            let drawn = try await count("```stat\nlabel: A\nvalue: 1\nlink: \(href)\n```", ".md-widget-stat")
             XCTAssertEqual(drawn, 0, href)
         }
     }
@@ -199,13 +196,13 @@ final class DashboardTests: XCTestCase {
     @MainActor
     func testAC_4_1_ProgressFillMatchesTheShare() async throws {
         let webView = try await load(widgets)
-        let width = try await eval(webView, "document.querySelector('.md-dash-fill').style.width") as? String
+        let width = try await eval(webView, "document.querySelector('.md-widget-fill').style.width") as? String
         XCTAssertEqual(Double(try XCTUnwrap(width).dropLast()) ?? 0, 7.0 / 12.0 * 100, accuracy: 0.001)
         let valueNow = try await eval(webView, "document.querySelector('[role=progressbar]').getAttribute('aria-valuenow')") as? String
         XCTAssertEqual(valueNow, "7")
         let row = try await eval(webView, """
         (() => {
-          const item = document.querySelector('.md-dash-progress-item');
+          const item = document.querySelector('.md-widget-progress-item');
           const [label, track, value] = Array.from(item.children);
           const top = el => Math.round(el.getBoundingClientRect().top + el.getBoundingClientRect().height / 2);
           return [item.textContent,
@@ -225,7 +222,7 @@ final class DashboardTests: XCTestCase {
     @MainActor
     func testAC_4_1_EachProgressItemIsOneBarAndAFullBarCapsAtTheMaximum() async throws {
         let webView = try await load("```progress\nlabel: A\nvalue: 3\nmax: 4\n---\nlabel: B\nvalue: 9\nmax: 4\n```")
-        let widths = try await eval(webView, "Array.from(document.querySelectorAll('.md-dash-fill')).map(f => f.style.width)") as? [String]
+        let widths = try await eval(webView, "Array.from(document.querySelectorAll('.md-widget-fill')).map(f => f.style.width)") as? [String]
         XCTAssertEqual(widths, ["75%", "100%"])
     }
 
@@ -233,18 +230,18 @@ final class DashboardTests: XCTestCase {
     func testProgressColorPicksAPaletteColorAndDefaultsToAccent() async throws {
         let webView = try await load("```progress\nlabel: A\nvalue: 1\nmax: 4\n---\nlabel: B\nvalue: 1\nmax: 4\ncolor: Warning\n```")
         let result = try await eval(webView, """
-        Array.from(document.querySelectorAll('.md-dash-fill')).map(fill => {
+        Array.from(document.querySelectorAll('.md-widget-fill')).map(fill => {
           const probe = document.createElement('div');
           probe.style.color = getComputedStyle(document.documentElement)
-            .getPropertyValue(fill.classList.contains('md-dash-c-warning') ? '--dashboard-warning' : '--dashboard-accent');
+            .getPropertyValue(fill.classList.contains('md-widget-c-warning') ? '--widget-warning' : '--widget-accent');
           document.body.append(probe);
           const expected = getComputedStyle(probe).color;
           probe.remove();
           return fill.className + '|' + (getComputedStyle(fill).backgroundColor === expected);
         })
         """) as? [String]
-        XCTAssertEqual(result, ["md-dash-fill|true",
-                                "md-dash-fill md-dash-c-warning|true"])
+        XCTAssertEqual(result, ["md-widget-fill|true",
+                                "md-widget-fill md-widget-c-warning|true"])
     }
 
     @MainActor
@@ -253,14 +250,14 @@ final class DashboardTests: XCTestCase {
         // The observer reports after layout; give it a frame.
         try await Task.sleep(nanoseconds: 300_000_000)
         let result = try await eval(webView, """
-        Array.from(document.querySelectorAll('.md-dash-fill')).map(fill => [
-          fill.classList.contains('md-dash-fill-striped'),
-          fill.classList.contains('md-dash-moving'),
+        Array.from(document.querySelectorAll('.md-widget-fill')).map(fill => [
+          fill.classList.contains('md-widget-fill-striped'),
+          fill.classList.contains('md-widget-moving'),
           getComputedStyle(fill).backgroundImage !== 'none',
           getComputedStyle(fill).animationName
         ].join('|'))
         """) as? [String]
-        XCTAssertEqual(result, ["true|true|true|md-dash-stripes",
+        XCTAssertEqual(result, ["true|true|true|md-widget-stripes",
                                 "false|false|false|none",
                                 "false|false|false|none"])
     }
@@ -286,12 +283,12 @@ final class DashboardTests: XCTestCase {
         """)
         let result = try await eval(webView, """
         (() => {
-          const rings = Array.from(document.querySelectorAll('.md-dash-ring'));
-          return [document.querySelectorAll('.md-dash-progress').length,
-                  rings.map(r => r.querySelector('.md-dash-ring-text').textContent).join(','),
-                  rings.map(r => r.querySelector('.md-dash-ring-label').textContent).join(','),
-                  rings.map(r => { const a = r.querySelector('.md-dash-ring-arc'); return a ? a.getAttribute('stroke-dasharray') : 'none'; }).join(','),
-                  rings[0].querySelector('.md-dash-ring-arc').classList.contains('md-dash-c-success'),
+          const rings = Array.from(document.querySelectorAll('.md-widget-ring'));
+          return [document.querySelectorAll('.md-widget-progress').length,
+                  rings.map(r => r.querySelector('.md-widget-ring-text').textContent).join(','),
+                  rings.map(r => r.querySelector('.md-widget-ring-label').textContent).join(','),
+                  rings.map(r => { const a = r.querySelector('.md-widget-ring-arc'); return a ? a.getAttribute('stroke-dasharray') : 'none'; }).join(','),
+                  rings[0].querySelector('.md-widget-ring-arc').classList.contains('md-widget-c-success'),
                   rings[0].querySelector('[role=progressbar]').getAttribute('aria-valuenow'),
                   rings[0].getBoundingClientRect().top === rings[1].getBoundingClientRect().top];
         })()
@@ -343,10 +340,10 @@ final class DashboardTests: XCTestCase {
         ```
         """)
         let result = try await eval(webView, """
-        [Array.from(document.querySelectorAll('.md-dash-progress-value')).map(v => v.textContent),
-         document.querySelector('.md-dash-ring-text').textContent,
-         document.querySelectorAll('.md-dash-track')[1].getAttribute('aria-valuetext'),
-         document.querySelectorAll('.md-dash-track')[0].hasAttribute('aria-valuetext')]
+        [Array.from(document.querySelectorAll('.md-widget-progress-value')).map(v => v.textContent),
+         document.querySelector('.md-widget-ring-text').textContent,
+         document.querySelectorAll('.md-widget-track')[1].getAttribute('aria-valuetext'),
+         document.querySelectorAll('.md-widget-track')[0].hasAttribute('aria-valuetext')]
         """) as? [Any]
         XCTAssertEqual(result?[0] as? [String], ["1,200 / 1,500", "$48k of $52k", "On track", "", "{total}"],
                        "default, placeholders, literal text, none, and an unknown placeholder kept as typed")
@@ -371,7 +368,7 @@ final class DashboardTests: XCTestCase {
             "```progress\nlabel: A\nvalue: 1\nmax: 4\n---\nshape: ring\nlabel: B\nvalue: 1\nmax: 4\n```",
             "```progress\nshape: ring\nlabel: A\nvalue: 1\nmax: 4\nstriped: true\n```",
         ] {
-            let drawn = try await count(block, ".md-dash-progress")
+            let drawn = try await count(block, ".md-widget-progress")
             XCTAssertEqual(drawn, 0, block)
         }
     }
@@ -380,9 +377,9 @@ final class DashboardTests: XCTestCase {
 
     @MainActor
     func testAC_4_2_BadgeShowsItsColorClass() async throws {
-        let webView = try await load("```badge\ntext: Down\ncolor: danger\n---\ntext: Plain\n```")
-        let classes = try await eval(webView, "Array.from(document.querySelectorAll('.md-dash-badge')).map(b => b.className)") as? [String]
-        XCTAssertEqual(classes, ["md-dash-badge md-dash-c-danger", "md-dash-badge"], "without a color a badge is grey")
+        let webView = try await load("`{{badge: Down color=danger}}` `{{badge: Plain}}`")
+        let classes = try await eval(webView, "Array.from(document.querySelectorAll('.md-widget-badge')).map(b => b.className)") as? [String]
+        XCTAssertEqual(classes, ["md-widget-badge md-widget-c-danger", "md-widget-badge"], "without a color a badge is grey")
     }
 
     @MainActor
@@ -402,43 +399,58 @@ final class DashboardTests: XCTestCase {
         color: default
         ```
 
-        ```badge
-        text: Light
-        color: #ffee00
-        ---
-        text: Dark
-        color: #112233
-        ```
+        `{{badge: Light color=#ffee00}}` `{{badge: Dark color=#112233}}`
         """, colorScheme: .light)
         let result = try await eval(webView, """
         (() => {
-          const values = Array.from(document.querySelectorAll('.md-dash-value'));
-          const badges = Array.from(document.querySelectorAll('.md-dash-badge'));
-          const label = getComputedStyle(document.querySelector('.md-dash-label')).color;
+          const values = Array.from(document.querySelectorAll('.md-widget-value'));
+          const badges = Array.from(document.querySelectorAll('.md-widget-badge'));
+          const label = getComputedStyle(document.querySelector('.md-widget-label')).color;
           return [values[0].className,
                   getComputedStyle(values[1]).color,
-                  getComputedStyle(values[2]).color === getComputedStyle(values[2].closest('.md-dash-stat')).color,
+                  getComputedStyle(values[2]).color === getComputedStyle(values[2].closest('.md-widget-stat')).color,
                   getComputedStyle(badges[0]).backgroundColor, getComputedStyle(badges[0]).color,
                   getComputedStyle(badges[1]).color];
         })()
         """) as? [Any]
-        XCTAssertEqual(result?[0] as? String, "md-dash-value md-dash-c-danger", "a palette name is a class")
+        XCTAssertEqual(result?[0] as? String, "md-widget-value md-widget-c-danger", "a palette name is a class")
         XCTAssertEqual(result?[1] as? String, "rgb(255, 0, 255)", "a hex colors the value exactly")
         XCTAssertEqual(result?[2] as? Bool, true, "`default` keeps the tile's text color")
-        XCTAssertEqual(result?[3] as? String, "rgb(255, 238, 0)")
-        XCTAssertEqual(result?[4] as? String, "rgb(29, 29, 31)", "a light hex badge takes dark text")
-        XCTAssertEqual(result?[5] as? String, "rgb(255, 255, 255)")
+        XCTAssertEqual(result?[3] as? String, "color(srgb 1 0.933333 0 / 0.18)", "a badge sits on a tint of its color")
+        XCTAssertEqual(result?[4] as? String, "color(srgb 0.65 0.606667 0)", "a light hex badge's text is darkened on a light page")
+        XCTAssertEqual(result?[5] as? String, "color(srgb 0.043333 0.086667 0.13)")
+    }
+
+    @MainActor
+    func testNeutralIsAnotherNameForDefault() async throws {
+        let webView = try await load("""
+        ```stat
+        label: A
+        value: 1
+        color: neutral
+        ```
+
+        `{{badge: Plain}}` `{{badge: Neutral color=neutral}}` `{{badge: Default color=default}}`
+        """, colorScheme: .light)
+        let result = try await eval(webView, """
+        (() => {
+          const badges = Array.from(document.querySelectorAll('.md-widget-badge'))
+            .map(b => getComputedStyle(b).backgroundColor + ' ' + getComputedStyle(b).color);
+          return [document.querySelectorAll('.md-widget-stat').length, badges.length, new Set(badges).size];
+        })()
+        """) as? [Int]
+        XCTAssertEqual(result, [1, 3, 1], "`neutral` draws like `default` and like no color")
     }
 
     @MainActor
     func testInvalidColorsLeaveTheBlockPlain() async throws {
         for block in [
             "```stat\nlabel: A\nvalue: 1\ncolor: red\n```",
-            "```badge\ntext: A\ncolor: ok\n```",
-            "```badge\ntext: A\ncolor: #12345\n```",
+            "`{{badge: A color=ok}}`",
+            "`{{badge: A color=#12345}}`",
         ] {
             let webView = try await load(block)
-            let plain = try await eval(webView, "document.querySelectorAll('pre[data-md-dashboard]').length") as? Int
+            let plain = try await eval(webView, "document.querySelectorAll('[data-md-widget]').length") as? Int
             XCTAssertEqual(plain, 1, block)
         }
     }
@@ -447,9 +459,9 @@ final class DashboardTests: XCTestCase {
 
     @MainActor
     func testAC_5_3_OnlyTheInvalidBlockStaysPlain() async throws {
-        let webView = try await load("```badge\ntext: Fine\ncolor: success\n```\n\n```badge\ntext: Broken\ncolor: purple\n```")
-        let drawn = try await eval(webView, "document.querySelectorAll('.md-dash-badge').length") as? Int
-        let plain = try await eval(webView, "document.querySelectorAll('pre[data-md-dashboard]').length") as? Int
+        let webView = try await load("```stat\nlabel: Fine\nvalue: 1\ncolor: success\n```\n\n```stat\nlabel: Broken\nvalue: 2\ncolor: purple\n```")
+        let drawn = try await eval(webView, "document.querySelectorAll('.md-widget-stat').length") as? Int
+        let plain = try await eval(webView, "document.querySelectorAll('pre[data-md-widget]').length") as? Int
         XCTAssertEqual(drawn, 1)
         XCTAssertEqual(plain, 1)
     }
@@ -468,34 +480,35 @@ final class DashboardTests: XCTestCase {
     @MainActor
     func testAuthorTextNeverBecomesMarkup() async throws {
         let webView = try await load("```stat\nlabel: <img src=x onerror=alert(1)>\nvalue: <b>9</b>\n```")
-        let injected = try await eval(webView, "document.querySelectorAll('.md-dash-stat img, .md-dash-stat b').length") as? Int
+        let injected = try await eval(webView, "document.querySelectorAll('.md-widget-stat img, .md-widget-stat b').length") as? Int
         XCTAssertEqual(injected, 0)
-        let label = try await eval(webView, "document.querySelector('.md-dash-label').textContent") as? String
+        let label = try await eval(webView, "document.querySelector('.md-widget-label').textContent") as? String
         XCTAssertEqual(label, "<img src=x onerror=alert(1)>")
     }
 
     @MainActor
-    func testAC_5_4_WidgetColorsComeFromTheDashboardPalette() async throws {
+    func testAC_5_4_WidgetColorsComeFromTheWidgetPalette() async throws {
         let webView = try await load(widgets, colorScheme: .light)
         let colors = try await eval(webView, """
         (() => {
           const root = document.documentElement.style;
-          root.setProperty('--dashboard-accent', 'rgb(1, 2, 3)');
-          root.setProperty('--dashboard-success', 'rgb(4, 5, 6)');
-          return [getComputedStyle(document.querySelector('.md-dash-fill')).backgroundColor,
-                  getComputedStyle(document.querySelector('.md-dash-badge')).backgroundColor,
-                  getComputedStyle(document.querySelector('.md-dash-delta')).color];
+          root.setProperty('--widget-accent', 'rgb(1, 2, 3)');
+          root.setProperty('--widget-success', 'rgb(4, 5, 6)');
+          return [getComputedStyle(document.querySelector('.md-widget-fill')).backgroundColor,
+                  getComputedStyle(document.querySelector('.md-widget-badge')).backgroundColor,
+                  getComputedStyle(document.querySelector('.md-widget-delta')).color];
         })()
         """) as? [String]
-        // The badge fill is the success color; the delta, drawn as text, is
+        // The badge tint is the success color at 18%; the delta, drawn as text, is
         // that color mixed 65% with black in the light palette.
-        XCTAssertEqual(colors, ["rgb(1, 2, 3)", "rgb(4, 5, 6)", "color(srgb 0.010196 0.012745 0.015294)"])
+        XCTAssertEqual(colors, ["rgb(1, 2, 3)", "color(srgb 0.015686 0.019608 0.023529 / 0.18)",
+                                "color(srgb 0.010196 0.012745 0.015294)"])
     }
 
     @MainActor
     func testAC_1_2_WidgetsDrawInLazyMode() async throws {
         let webView = try await load(widgets, mode: .lazy)
-        let tiles = try await eval(webView, "document.querySelectorAll('.md-dash-stat').length") as? Int
+        let tiles = try await eval(webView, "document.querySelectorAll('.md-widget-stat').length") as? Int
         XCTAssertEqual(tiles, 2)
     }
 
@@ -799,7 +812,7 @@ final class DashboardTests: XCTestCase {
         for markdown in blocks {
             let webView = try await load(markdown)
             let drawn = try await eval(webView, "document.querySelectorAll('.md-chart').length") as? Int
-            let plain = try await eval(webView, "document.querySelectorAll('pre[data-md-dashboard]').length") as? Int
+            let plain = try await eval(webView, "document.querySelectorAll('pre[data-md-widget]').length") as? Int
             XCTAssertEqual(drawn, 0, markdown)
             XCTAssertEqual(plain, 1, markdown)
         }
@@ -891,35 +904,35 @@ final class DashboardTests: XCTestCase {
     /// Computed colors of: a progress fill, a good delta, a `success` badge,
     /// a `warning` badge, chart series 1 and chart series 2.
     private let paletteProbe = """
-    [getComputedStyle(document.querySelector('.md-dash-fill')).backgroundColor,
-     getComputedStyle(document.querySelector('.md-dash-delta.md-dash-good')).color,
-     getComputedStyle(document.querySelector('.md-dash-badge.md-dash-c-success')).backgroundColor,
-     getComputedStyle(document.querySelector('.md-dash-badge.md-dash-c-warning')).backgroundColor,
+    [getComputedStyle(document.querySelector('.md-widget-fill')).backgroundColor,
+     getComputedStyle(document.querySelector('.md-widget-delta.md-widget-good')).color,
+     getComputedStyle(document.querySelector('.md-widget-badge.md-widget-c-success')).backgroundColor,
+     getComputedStyle(document.querySelector('.md-widget-badge.md-widget-c-warning')).backgroundColor,
      getComputedStyle(document.querySelector('.md-chart-bar.md-chart-s1')).fill,
      getComputedStyle(document.querySelector('.md-chart-bar.md-chart-s2')).fill]
     """
 
     private var paletteDocument: String {
-        widgets + "\n\n```badge\ntext: Hm\ncolor: warning\n```\n\n```chart\ntype: bar\n| A | X | Y |\n| - | - | - |\n| a | 1 | 2 |\n```"
+        widgets + "\n\n`{{badge: Hm color=warning}}`\n\n```chart\ntype: bar\n| A | X | Y |\n| - | - | - |\n| a | 1 | 2 |\n```"
     }
 
     @MainActor
     func testAC_6_1_WidgetsUseTheLightOrDarkPalette() async throws {
         let light = try await load(paletteDocument, colorScheme: .light)
         let colors = try await eval(light, paletteProbe) as? [String]
-        // One set of Apple colors: the warning badge is series 2's orange and
-        // the ok badge series 5's green; the good delta is that green
-        // darkened for text.
+        // One set of Apple colors: the warning badge tints series 2's orange
+        // and the ok badge series 5's green; the good delta and the ok
+        // badge's text are that green darkened for text.
         XCTAssertEqual(colors, ["rgb(0, 122, 255)", "color(srgb 0.132549 0.507255 0.226863)",
-                                "rgb(52, 199, 89)", "rgb(255, 149, 0)",
+                                "color(srgb 0.203922 0.780392 0.34902 / 0.18)", "color(srgb 1 0.584314 0 / 0.18)",
                                 "rgb(0, 122, 255)", "rgb(255, 149, 0)"])
-        let badgeText = try await eval(light, "getComputedStyle(document.querySelector('.md-dash-badge')).color") as? String
-        XCTAssertEqual(badgeText, "rgb(255, 255, 255)")
+        let badgeText = try await eval(light, "getComputedStyle(document.querySelector('.md-widget-badge')).color") as? String
+        XCTAssertEqual(badgeText, "color(srgb 0.132549 0.507255 0.226863)")
         let dark = try await load(paletteDocument, colorScheme: .dark)
         let darkColors = try await eval(dark, paletteProbe) as? [String]
         // Dark: delta text keeps the full color.
         XCTAssertEqual(darkColors, ["rgb(10, 132, 255)", "color(srgb 0.188235 0.819608 0.345098)",
-                                    "rgb(48, 209, 88)", "rgb(255, 159, 10)",
+                                    "color(srgb 0.188235 0.819608 0.345098 / 0.18)", "color(srgb 1 0.623529 0.039216 / 0.18)",
                                     "rgb(10, 132, 255)", "rgb(255, 159, 10)"])
     }
 
@@ -938,35 +951,35 @@ final class DashboardTests: XCTestCase {
             webView.loadHTMLString(rendered.html, baseURL: nil)
             while webView.isLoading { try await Task.sleep(for: .milliseconds(50)) }
             try await Task.sleep(for: .milliseconds(200))
-            let fill = try await eval(webView, "getComputedStyle(document.querySelector('.md-dash-stat')).backgroundColor") as? String
+            let fill = try await eval(webView, "getComputedStyle(document.querySelector('.md-widget-stat')).backgroundColor") as? String
             XCTAssertEqual(fill, expected, "\(scheme)")
         }
         // Built-in presets: every preset's code background reaches the tiles.
         for preset in ThemePreset.builtIn {
             guard let css = preset.setting.markdownThemeOverrides?.css,
                   let code = preset.setting.hexValue(.codeBlockBackground, .light) else { continue }
-            XCTAssertTrue(css.contains(":root { --dashboard-card: \(code); }"), preset.name)
+            XCTAssertTrue(css.contains(":root { --widget-card: \(code); }"), preset.name)
         }
         // Slide theme: its code background, or the deck's light/dark default.
         let deck = SlideTheme(id: "t", values: SlideYAML.parse("colors:\n  code_background: \"#102030\""))
-        XCTAssertTrue(deck.css.contains("--code-bg: #102030; --dashboard-card: #102030;"))
+        XCTAssertTrue(deck.css.contains("--code-bg: #102030; --widget-card: #102030;"))
         let dark = SlideTheme(id: "d", values: SlideYAML.parse("appearance: dark"))
-        XCTAssertTrue(dark.css.contains("--dashboard-card: #262626;"))
+        XCTAssertTrue(dark.css.contains("--widget-card: #262626;"))
     }
 
-    func testAC_6_5_ASlideThemeSetsTheDashboardPalette() {
+    func testAC_6_5_ASlideThemeSetsTheWidgetPalette() {
         let theme = SlideTheme(id: "t", values: SlideYAML.parse("""
         colors:
-          dashboard_accent: "#123456"
-          dashboard_series_4: "#abcdef"
-          dashboard_bogus: "#000000"
+          widget_accent: "#123456"
+          widget_series_4: "#abcdef"
+          widget_bogus: "#000000"
         """))
-        XCTAssertTrue(theme.css.contains("--dashboard-accent: #123456;"))
-        XCTAssertTrue(theme.css.contains("--dashboard-series-4: #abcdef;"))
+        XCTAssertTrue(theme.css.contains("--widget-accent: #123456;"))
+        XCTAssertTrue(theme.css.contains("--widget-series-4: #abcdef;"))
         XCTAssertFalse(theme.css.contains("bogus"))
     }
 
-    // MARK: Mermaid still renders in a dashboard
+    // MARK: Mermaid still renders beside widgets
 
     @MainActor
     func testTheMermaidChartsTheDocsRecommendRender() async throws {

@@ -4,7 +4,7 @@
 //
 //  Cards: blocks framed as one panel, from HTML comments on their own lines:
 //
-//      <!-- card style=accent edge=top color=success padding=compact -->
+//      <!-- card style=accent bar=top color=success padding=compact shape=pill -->
 //      Any blocks
 //      <!-- end-card -->
 //
@@ -26,25 +26,70 @@ import Foundation
 import Markdown
 
 /// The options of one card, already checked.
+///
+/// Each part of the look is its own option: `fill` (the background),
+/// `border`, `bar` (a colored edge), `shape`, `padding` and `align`, plus one
+/// `color` that whichever of them takes a color uses. `style` is a preset
+/// that sets `fill` and `border` (and `bar` for `accent`); an option written
+/// beside it overrides the preset, wherever it stands in the comment.
 nonisolated struct CardStyle: Equatable, Sendable {
-    enum Look: String, CaseIterable, Sendable { case plain, outline, filled, accent }
-    enum Padding: String, CaseIterable, Sendable { case compact, normal, roomy }
+    /// None, the theme's code-block background, 8% or 14% of the color, or
+    /// the color itself (with text that reads on it).
+    enum Fill: String, CaseIterable, Sendable { case none, surface, soft, tint, solid }
+    enum Border: String, CaseIterable, Sendable { case none, thin, thick }
+    /// A colored bar down the left side or across the top.
+    enum Bar: String, CaseIterable, Sendable { case none, left, top }
+    enum Padding: String, CaseIterable, Sendable { case none, compact, normal, roomy }
     enum Align: String, CaseIterable, Sendable { case start, center }
-    /// Where an accent card's bar sits.
-    enum Edge: String, CaseIterable, Sendable { case left, top }
+    /// The outline: rounded corners (the default), square ones, fully
+    /// round ends, or a circle with its content centered.
+    enum Shape: String, CaseIterable, Sendable { case rounded, square, pill, circle }
+    /// `ink=`: the text color, white or near-black, instead of the theme's
+    /// (or, on a solid card, the automatic white or dark).
+    enum Ink: String, CaseIterable, Sendable { case light, dark }
 
-    var look = Look.plain
-    /// A palette color name (`DashboardColor`'s semantic ones) or a
+    /// `style=`: named sets of `fill`, `border` and `bar`.
+    enum Preset: String, CaseIterable, Sendable {
+        case plain, outline, filled, accent, solid, none
+
+        var fill: Fill {
+            switch self {
+            case .plain, .accent: .surface
+            case .outline, .none: .none
+            case .filled: .tint
+            case .solid: .solid
+            }
+        }
+
+        var border: Border {
+            switch self {
+            case .plain, .outline, .accent: .thin
+            case .filled, .solid, .none: .none
+            }
+        }
+
+        var bar: Bar { self == .accent ? .left : .none }
+    }
+
+    var fill = Fill.surface
+    var border = Border.thin
+    var bar = Bar.none
+    /// A palette color name (`WidgetColor`'s semantic ones) or a
     /// lowercased `#rgb` / `#rrggbb`; nil uses the accent.
     var color: String?
-    var tint = false
     var padding = Padding.normal
     var align = Align.start
-    var edge = Edge.left
+    var shape = Shape.rounded
+    /// Nil leaves the text color to the theme and the fill.
+    var ink: Ink?
 
-    /// The palette names `color` accepts, the same as every dashboard
-    /// widget's; `default` is the card's normal look.
-    static let paletteColors: [DashboardColor] = DashboardColor.named
+    /// `color` takes the same palette names as every widget
+    /// (`WidgetColor.named(_:)`); `default` or `neutral` is the card's
+    /// normal look.
+    static let paletteColors: [WidgetColor] = WidgetColor.named
+
+    /// Every option a card reads.
+    static let optionNames: Set<String> = ["style", "fill", "border", "bar", "color", "padding", "align", "shape", "ink"]
 
     init() {}
 
@@ -52,7 +97,7 @@ nonisolated struct CardStyle: Equatable, Sendable {
     /// separated `key=value` pairs, values optionally quoted. Nil when any
     /// pair is malformed, repeated, unknown or has a value outside its set.
     init?(options: String) {
-        var seen: Set<String> = []
+        var values: [String: String] = [:]
         for token in options.split(whereSeparator: \.isWhitespace) {
             guard let equals = token.firstIndex(of: "=") else { return nil }
             let key = token[..<equals].lowercased()
@@ -60,29 +105,36 @@ nonisolated struct CardStyle: Equatable, Sendable {
             if value.count >= 2, let first = value.first, first == value.last, first == "\"" || first == "'" {
                 value = String(value.dropFirst().dropLast())
             }
-            guard !value.isEmpty, seen.insert(key).inserted else { return nil }
-            switch key {
-            case "style":
-                guard let look = Look(rawValue: value) else { return nil }
-                self.look = look
-            case "color":
-                guard Self.paletteColors.contains(where: { $0.rawValue == value })
-                        || value.range(of: #"^#(?:[0-9a-f]{3}|[0-9a-f]{6})$"#, options: .regularExpression) != nil
-                else { return nil }
-                color = value == DashboardColor.neutral.rawValue ? nil : value
-            case "tint":
-                guard value == "true" || value == "false" else { return nil }
-                tint = value == "true"
-            case "padding":
-                guard let padding = Padding(rawValue: value) else { return nil }
-                self.padding = padding
-            case "align":
-                guard let align = Align(rawValue: value) else { return nil }
-                self.align = align
-            case "edge":
-                guard let edge = Edge(rawValue: value) else { return nil }
-                self.edge = edge
-            default:
+            guard !value.isEmpty, Self.optionNames.contains(key), values[key] == nil else { return nil }
+            values[key] = value
+        }
+        // The preset first, so the options beside it override it.
+        if let name = values["style"] {
+            guard let preset = Preset(rawValue: name) else { return nil }
+            fill = preset.fill
+            border = preset.border
+            bar = preset.bar
+        }
+        func read<Value: RawRepresentable>(_ key: String, into target: inout Value) -> Bool
+        where Value.RawValue == String {
+            guard let raw = values[key] else { return true }
+            guard let value = Value(rawValue: raw) else { return false }
+            target = value
+            return true
+        }
+        guard read("fill", into: &fill), read("border", into: &border), read("bar", into: &bar),
+              read("padding", into: &padding), read("align", into: &align), read("shape", into: &shape)
+        else { return nil }
+        if let raw = values["ink"] {
+            guard let value = Ink(rawValue: raw) else { return nil }
+            ink = value
+        }
+        if let value = values["color"] {
+            if let named = WidgetColor.named(value) {
+                color = named == .neutral ? nil : named.rawValue
+            } else if value.range(of: #"^#(?:[0-9a-f]{3}|[0-9a-f]{6})$"#, options: .regularExpression) != nil {
+                color = value
+            } else {
                 return nil
             }
         }
@@ -91,15 +143,17 @@ nonisolated struct CardStyle: Equatable, Sendable {
     /// The wrapper's classes; defaults add nothing beyond `md-card`.
     var classes: String {
         var classes = ["md-card"]
-        if look != .plain { classes.append("md-card-\(look.rawValue)") }
+        if fill != .surface { classes.append("md-card-fill-\(fill.rawValue)") }
+        if border != .thin { classes.append("md-card-border-\(border.rawValue)") }
+        if bar != .none { classes.append("md-card-bar-\(bar.rawValue)") }
         if let color {
             classes.append("md-card-colored")
             if !color.hasPrefix("#") { classes.append("md-card-color-\(color)") }
         }
-        if tint { classes.append("md-card-tint") }
         if padding != .normal { classes.append("md-card-pad-\(padding.rawValue)") }
         if align != .start { classes.append("md-card-align-\(align.rawValue)") }
-        if look == .accent, edge != .left { classes.append("md-card-edge-\(edge.rawValue)") }
+        if shape != .rounded { classes.append("md-card-shape-\(shape.rawValue)") }
+        if let ink { classes.append("md-card-ink-\(ink.rawValue)") }
         return classes.joined(separator: " ")
     }
 
