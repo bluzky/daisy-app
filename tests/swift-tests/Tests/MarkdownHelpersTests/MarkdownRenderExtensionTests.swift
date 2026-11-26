@@ -284,7 +284,7 @@ final class MarkdownRenderExtensionTests: XCTestCase {
       [
         "mermaid": true, "comments": true, "task-metadata": true, "hide-completed-tasks": true, "metadata-links": true,
         "query-blocks": true,
-        "slash-commands": true, "metadata-completion": true
+        "slash-commands": true, "metadata-completion": true, "widgets": true
       ]
     )
   }
@@ -298,7 +298,7 @@ final class MarkdownRenderExtensionTests: XCTestCase {
       [
         "mermaid": false, "comments": true, "task-metadata": true, "hide-completed-tasks": true, "metadata-links": true,
         "query-blocks": true,
-        "slash-commands": true, "metadata-completion": true
+        "slash-commands": true, "metadata-completion": true, "widgets": true
       ]
     )
   }
@@ -307,7 +307,7 @@ final class MarkdownRenderExtensionTests: XCTestCase {
     let renderOnly = MarkdownHTML.renderExtensions.filter { $0.editor == nil }.map(\.id)
     XCTAssertEqual(
       renderOnly,
-      ["highlight", "callout", "katex", "widgets", "card-colors", "slides"]
+      ["highlight", "callout", "katex", "card-colors", "slides"]
     )
   }
 

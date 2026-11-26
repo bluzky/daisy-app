@@ -1009,6 +1009,7 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
                     configuration: RenderExtensionPreferences.currentConfiguration
                 ),
                 extensionCSS: MarkdownHTML.editorExtensionCSS(),
+                extensionBodyHTML: MarkdownHTML.editorExtensionBodyHTML(),
                 extensionOptions: MarkdownHTML.editorExtensionOptions()
             )
         )

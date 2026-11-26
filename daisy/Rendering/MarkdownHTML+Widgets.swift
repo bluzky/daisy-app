@@ -173,16 +173,52 @@ nonisolated extension MarkdownHTML {
             context.html.contains(WidgetDocument.stampAttribute)
         }
 
+        /// The editor draws the same widgets with the same script and
+        /// styles, so they look as in Read mode.
+        let editor: (any EditorCapability)? = EditorModule(
+            moduleID: "widgets",
+            css: MarkdownHTML.widgetPageStyles + "\n" + MarkdownHTML.widgetEditorStylesheet,
+            bodyHTML: MarkdownHTML.widgetPageScripts
+        )
+
         func assets(mode _: VendorLoading) -> RenderAssets {
-            // The chart library loads first: the widget script's `chart`
-            // builder calls it.
             RenderAssets(
-                css: MarkdownHTML.widgetStylesheet + "\n" + MarkdownHTML.widgetChartStylesheet,
-                bodyJS: MarkdownHTML.widgetChartScript + "\n" + MarkdownHTML.widgetScript,
+                css: MarkdownHTML.widgetPageStyles,
+                bodyJS: MarkdownHTML.widgetPageScripts,
                 scriptAssetIDs: [id]
             )
         }
     }
+
+    /// The styles and scripts that draw widgets on a page. The chart library
+    /// loads first: the widget script's `chart` builder calls it.
+    static let widgetPageStyles = widgetStylesheet + "\n" + widgetChartStylesheet
+    static let widgetPageScripts = widgetChartScript + "\n" + widgetScript
+
+    /// Editor-only rules. A block widget sits in a `.cm-md-widget-preview`
+    /// box whose spacing comes from the lines around the block, as for a
+    /// Mermaid diagram, so the widget's own vertical margin is dropped.
+    static let widgetEditorStylesheet = """
+    .cm-md-widget-preview {
+        display: flow-root;
+        cursor: pointer;
+    }
+    .cm-md-widget-preview > * {
+        margin-top: 0 !important;
+        margin-bottom: 0 !important;
+    }
+    .cm-md-widget-inline { cursor: pointer; }
+    /* Read mode sizes every box as border-box; the editor page doesn't. */
+    .cm-md-widget-preview *, .cm-md-widget-inline * { box-sizing: border-box; }
+    /* Heading and list lines hang their marker with a negative text-indent,
+       and source lines keep spaces (pre-wrap). An inline-block badge or
+       shape would inherit both and push its text out of its pill, so the
+       widget starts from Read mode's values. */
+    .cm-md-widget-preview, .cm-md-widget-inline {
+        text-indent: 0;
+        white-space: normal;
+    }
+    """
 
     static let widgetStylesheet = """
     /* Widget palette (WidgetColor): semantic colors, one light and one
@@ -638,10 +674,12 @@ nonisolated extension MarkdownHTML {
     }
 
     /// Reads every `pre[data-md-widget]` and `code[data-md-inline]` and
-    /// replaces it with its widget. One that does not parse is left alone. Text reaches the page only
-    /// through `textContent` and attributes, never `innerHTML`, and colors
-    /// only through classes or checked hex custom properties, so a value
-    /// cannot inject markup or styles.
+    /// replaces it with its widget. One that does not parse is left alone.
+    /// The builders are also `window.MdWidgets` (`block`, `inline`,
+    /// `animate`), which the editor calls to draw the same widgets. Text
+    /// reaches the page only through `textContent` and attributes, never
+    /// `innerHTML`, and colors only through classes or checked hex custom
+    /// properties, so a value cannot inject markup or styles.
     static let widgetScript = #"""
     <script>
     (function() {
@@ -1298,15 +1336,46 @@ nonisolated extension MarkdownHTML {
           })
         : null;
 
+      // Read mode and the editor draw through `block`, `inline` and
+      // `animate`, so a block or shortcode is a widget in one exactly when it
+      // is in the other. `block` and `inline` return null when the source
+      // doesn't parse.
+      const has = (table, name) => Object.prototype.hasOwnProperty.call(table, name);
+      // A fence's widget: `language` is its info string's first word.
+      function block(language, source) {
+        const name = String(language || '').toLowerCase();
+        if (!has(BUILDERS, name)) return null;
+        try { return BUILDERS[name](String(source)) || null; } catch (e) { return null; }
+      }
+      // A shortcode's widget: `text` is the code span's content, without the
+      // backticks or CommonMark's padding space. The name is read as
+      // `WidgetDocument.inlineWidgetName` reads it.
+      const INLINE_NAME = /^\{\{\s*([a-z][a-z0-9-]*):/;
+      function inline(text) {
+        const source = String(text);
+        const name = INLINE_NAME.exec(source);
+        const match = name && has(INLINE, name[1]) && SHORTCODE.exec(source);
+        if (!match) return null;
+        try {
+          const args = tokenize(match[1]);
+          return (args && INLINE[name[1]](args)) || null;
+        } catch (e) { return null; }
+      }
+      // Striped fills move only while on screen.
+      function animate(node) {
+        if (!node || !node.querySelectorAll) return node;
+        for (const fill of node.querySelectorAll('.md-widget-fill-striped')) {
+          if (motion) motion.observe(fill); else fill.classList.add('md-widget-moving');
+        }
+        return node;
+      }
+
       function upgrade(root) {
         const scope = root && root.querySelectorAll ? root : document;
         for (const pre of scope.querySelectorAll('pre[data-md-widget]')) {
           const code = pre.querySelector('code');
           const match = code && /(?:^|\s)language-([a-z]+)(?:\s|$)/.exec(code.className);
-          const build = match && BUILDERS[match[1]];
-          if (!build) continue;
-          let node = null;
-          try { node = build(code.textContent); } catch (e) { node = null; }
+          const node = match && block(match[1], code.textContent);
           if (!node) continue;
           for (const attribute of Array.from(pre.attributes)) {
             if (attribute.name.indexOf('data-source') === 0) node.setAttribute(attribute.name, attribute.value);
@@ -1316,27 +1385,19 @@ nonisolated extension MarkdownHTML {
           const frame = pre.parentElement && pre.parentElement.classList.contains('md-code-wrap')
             ? pre.parentElement : pre;
           frame.replaceWith(node);
-          for (const fill of node.querySelectorAll('.md-widget-fill-striped')) {
-            if (motion) motion.observe(fill); else fill.classList.add('md-widget-moving');
-          }
+          animate(node);
         }
         for (const code of scope.querySelectorAll('code[data-md-inline]')) {
-          const build = INLINE[code.getAttribute('data-md-inline')];
-          const match = build && SHORTCODE.exec(code.textContent);
-          if (!match) continue;
-          let node = null;
-          try {
-            const args = tokenize(match[1]);
-            node = args && build(args);
-          } catch (e) { node = null; }
+          // Only a span stamped with a known name is upgraded; `inline` picks
+          // the builder from the name in the text.
+          const node = has(INLINE, code.getAttribute('data-md-inline')) && inline(code.textContent);
           if (!node) continue;
           code.replaceWith(node);
-          for (const fill of node.querySelectorAll('.md-widget-fill-striped')) {
-            if (motion) motion.observe(fill); else fill.classList.add('md-widget-moving');
-          }
+          animate(node);
         }
       }
 
+      window.MdWidgets = Object.freeze({ block, inline, animate });
       window.MdPreview?.registerExtension({ id: 'widgets', render(root) { upgrade(root); } });
     })();
     </script>

@@ -1,5 +1,6 @@
 import { markdownLanguage } from "@codemirror/lang-markdown"
 import { obsidianHighlight } from "../obsidian-highlight.js"
+import { inlineWidgetBox, isCodePadded, looksLikeShortcode, mdWidgets } from "../widgets/widget.js"
 
 // Inactive cells render inline formatting; focused cells expose their exact
 // Markdown. Build DOM nodes so authored HTML stays text and links stay editable.
@@ -34,8 +35,20 @@ export function renderTableCell(element, source) {
       const code = document.createElement('code')
       code.className = 'cm-md-inline-code'
       let text = source.slice(node.firstChild.to, node.lastChild.from).replace(/\n/g, ' ')
-      const padded = text.startsWith(' ') && text.endsWith(' ') && /[^ ]/.test(text)
+      const padded = isCodePadded(text)
       if (padded) text = text.slice(1, -1)
+      // A shortcode the widget script reads is drawn in the cell; focusing
+      // the cell shows its source. The node isn't editable text, so it has
+      // no offset: a click on it focuses the cell without a precise caret.
+      // GFM unescapes `\|` in a cell's code span, as Read mode does.
+      const widget = looksLikeShortcode(text)
+        ? mdWidgets()?.inline(text.replace(/\\\|/g, '|')) : null
+      if (widget) {
+        const box = inlineWidgetBox(widget)
+        box.contentEditable = 'false'
+        parent.append(box)
+        return
+      }
       appendText(code, text, node.firstChild.to + (padded ? 1 : 0))
       parent.append(code)
     } else if (classes[node.name]) {

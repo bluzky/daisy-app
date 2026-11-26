@@ -12,6 +12,9 @@ import { pendingCoversFence, previewTree } from "../commands/code-fence.js"
 import { activeCodeBlock, pointerPreview } from "../pointer.js"
 import { TaskCheckboxWidget } from "../task-list.js"
 import { ImageWidget } from "../widgets/basic.js"
+import {
+  WidgetInlineWidget, inlineValidity, isCodePadded, isInlineWidget, isWidgetBlock, looksLikeShortcode,
+} from "../widgets/widget.js"
 import { CodeLanguageWidget, unwrappedCodeBlocks } from "../widgets/code.js"
 
 function detectedCodeHighlights(details, cache) {
@@ -39,7 +42,37 @@ function detectedCodeHighlights(details, cache) {
   return tokens
 }
 
+// A code span's content as Read mode reads it, when it can be a shortcode:
+// one line, with CommonMark's single padding space stripped. Null otherwise.
+function shortcodeText(raw) {
+  if (raw.includes("\n")) return null
+  const text = isCodePadded(raw) ? raw.slice(1, -1) : raw
+  return looksLikeShortcode(text) ? text : null
+}
+
+// Whether `pos` is in a footnote definition (`[^label]: …` and its indented
+// continuation lines), read as `MarkdownHTML+Footnotes.swift` splits them.
+const FOOTNOTE_DEFINITION = /^[ \t]{0,3}\[\^[^\]\n]+\]:/
+const FOOTNOTE_CONTINUATION = /^(\t| {4})/
+// How far up to look for a definition's first line, so that a long indented
+// run can't make each shortcode in it scan the document. Past it, the
+// position counts as outside a footnote.
+const FOOTNOTE_SCAN_LINES = 200
+function inFootnoteDefinition(state, pos) {
+  let line = state.doc.lineAt(pos)
+  for (let steps = 0; steps < FOOTNOTE_SCAN_LINES; steps++) {
+    if (FOOTNOTE_DEFINITION.test(line.text)) return true
+    // Only an indented continuation (or a blank line inside one) can belong
+    // to a definition above it.
+    if (line.text.trim() !== "" && !FOOTNOTE_CONTINUATION.test(line.text)) return false
+    if (line.number === 1) return false
+    line = state.doc.line(line.number - 1)
+  }
+  return false
+}
+
 export function buildDecorations(view, detectedCodeCache) {
+  inlineValidity.begin()
   const ranges = []
   const { state } = view
   const pointer = state.field(pointerPreview)
@@ -165,10 +198,13 @@ export function buildDecorations(view, detectedCodeCache) {
       }
       case "Table": return METRICS.table
       case "HorizontalRule": return METRICS.hr
-      case "FencedCode":
-        // Mermaid fences render as .mermaid-figure (same margin as tables).
-        return fencedCodeDetails(state, node).language === "mermaid"
-          ? METRICS.table : METRICS.paragraph
+      case "FencedCode": {
+        // Mermaid fences render as .mermaid-figure (same margin as tables);
+        // a widget block as its widget, with a 1em margin.
+        const details = fencedCodeDetails(state, node)
+        if (details.language === "mermaid") return METRICS.table
+        return isWidgetBlock(details) ? METRICS.widget : METRICS.paragraph
+      }
       default: return METRICS.paragraph
     }
   }
@@ -405,6 +441,20 @@ export function buildDecorations(view, detectedCodeCache) {
           }
           const contentFrom = marks.length ? marks[0].to : node.from
           const contentTo = marks.length > 1 ? marks[marks.length - 1].from : node.to
+          // A shortcode (`{{badge: …}}`) the widget script reads is drawn
+          // inline while the caret is off it, as an image is. Read mode
+          // doesn't draw shortcodes in footnote definitions, so neither does
+          // the editor.
+          if (marks.length > 1 && !touches(node.from, node.to)) {
+            const text = shortcodeText(state.doc.sliceString(contentFrom, contentTo))
+            if (text && isInlineWidget(text) && !inFootnoteDefinition(state, node.from)) {
+              // Pruning skips Lezer's leave callback; balance the depth.
+              depth--
+              ranges.push(Decoration.replace({ widget: new WidgetInlineWidget(text) })
+                .range(node.from, node.to))
+              return false
+            }
+          }
           if (contentFrom < contentTo) {
             ranges.push(Decoration.mark({ class: "cm-md-inline-code" })
               .range(contentFrom, contentTo))

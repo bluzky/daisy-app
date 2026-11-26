@@ -222,7 +222,7 @@ nonisolated enum MarkdownHTML {
 
         /// One custom property's rules in the three palette buckets; a value
         /// that isn't a hex color is dropped.
-        private static func propertyRules(_ property: String, light: String?, dark: String?) -> [String] {
+        static func propertyRules(_ property: String, light: String?, dark: String?) -> [String] {
             var rules: [String] = []
             if let light = sanitizedHexColor(light) {
                 rules.append(":root { \(property): \(light); }")

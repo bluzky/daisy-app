@@ -32,6 +32,10 @@ if (!dom.window.Range.prototype.getBoundingClientRect) {
   })
 }
 
+// The bundle runs in Node's realm, where `Event` is Node's own; jsdom only
+// dispatches its events.
+globalThis.Event = dom.window.Event
+
 const bundle = readFileSync(new URL("../../../daisy/Vendor/CodeMirror/mdedit.min.js", import.meta.url), "utf8")
 dom.window.eval(bundle)
 
