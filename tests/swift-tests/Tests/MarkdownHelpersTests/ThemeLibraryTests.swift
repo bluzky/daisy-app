@@ -90,4 +90,30 @@ final class ThemeLibraryTests: XCTestCase {
                    "Built-in themes are never re-read")
     XCTAssertEqual(ThemeLibrary.refresh(appliedID: nil, catalog: catalog, current: current), .none)
   }
+
+  /// Every window draws from the shared store: what applying a user theme
+  /// writes there reads back unchanged, colors and fonts included.
+  func testAC_1_2_userThemeValuesRoundTripThroughTheSharedStore() throws {
+    try write("brand.css", name: "Brand", appearance: "system", """
+    :root { --link: #222222; --bold: #333333; --widget-accent: #444444; --font-heading: Futura, sans-serif; }
+    @media (prefers-color-scheme: dark) { :root { --link: #555555; } }
+    """)
+    let colors = ThemeLibrary.look(for: try XCTUnwrap(catalog["brand"])).colors
+    let suite = "ThemeLibraryTests.\(UUID().uuidString)"
+    let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    ThemeColorsSetting.write(colors, to: defaults)
+    let read = ThemeColorsSetting.read(from: defaults)
+    XCTAssertEqual(read, colors)
+    XCTAssertEqual(read.hexValue(.linkColor, .dark), "#555555")
+    XCTAssertEqual(read.headingFont, "Futura, sans-serif")
+  }
+
+  func testAC_1_3_userThemeHasNoGalleryCard() throws {
+    try write("brand.css", name: "Brand", ":root { --link: #222222; }")
+    let applied = ThemeLibrary.applied(id: "brand", catalog: { self.catalog })
+    XCTAssertNil(applied.preset, "no preset, so no card is selected")
+    XCTAssertFalse(ThemePreset.builtIn.contains { $0.name == "Brand" }, "and it isn't in the gallery")
+  }
 }
+
