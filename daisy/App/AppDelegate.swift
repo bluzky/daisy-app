@@ -134,7 +134,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         let storedAppearance = AppearanceMode.migrateLegacyValue()
         ThemePreset.migrateLegacyValues()
-        let appearanceMode = ThemePreset.applied().requiredAppearance ?? storedAppearance
+        let appearanceMode = ThemeLibrary.applied().requiredAppearance ?? storedAppearance
         if appearanceMode != storedAppearance { AppearanceMode.current = appearanceMode }
         applyAppearanceMode(appearanceMode, reloadPreviews: false)
         // Capture launch settings before another instance can change them while
@@ -142,6 +142,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         SettingsModel.shared.refreshFromExternalSources()
         installAppearanceMenuItems()
         installContentWidthMenuItems()
+        installThemeMenuItem()
         installSidebarViewMenuItems()
         installEditModeMenuItem()
         installFormatMenu()
@@ -189,7 +190,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         DocumentWindowController.refreshWorkspaceStates()
         WorkspaceMetadataIndex.reconcileAll()
         let model = SettingsModel.shared
-        let changed = model.appliedPreset != ThemePreset.applied()
+        // The reader may have edited or deleted their theme's file in
+        // another app (BR-16).
+        model.refreshAppliedUserTheme()
+        let changed = model.appliedTheme != ThemeLibrary.applied()
             || model.appearance != AppearanceMode.current
             || model.themeColors != ThemeColorsSetting.current
             || model.documentFont != DocumentFontSetting.current
@@ -203,7 +207,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // Language changes take effect on relaunch; only refresh their picker now.
         guard changed else { return }
         // Repaint only when another instance changed the shared reading look.
-        applyAppearanceMode(ThemePreset.applied().requiredAppearance ?? AppearanceMode.current,
+        applyAppearanceMode(ThemeLibrary.applied().requiredAppearance ?? AppearanceMode.current,
                             reloadPreviews: true)
     }
 
@@ -387,7 +391,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// Applies an appearance chosen in Settings, keeping the View menu's check
     /// marks and every open preview in step.
     func applyAppearanceSetting(_ mode: AppearanceMode) {
-        let resolved = ThemePreset.applied().requiredAppearance ?? mode
+        // The model's applied theme, not the folder: a theme file's edits
+        // are picked up only on activation and in View ▸ Theme (BR-16).
+        let resolved = SettingsModel.shared.appliedTheme.requiredAppearance ?? mode
         AppearanceMode.current = resolved
         applyAppearanceMode(resolved, reloadPreviews: true)
     }
@@ -691,7 +697,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func selectAppearanceMode(_ sender: NSMenuItem) {
-        guard ThemePreset.applied().requiredAppearance == nil else { return }
+        guard SettingsModel.shared.appliedTheme.requiredAppearance == nil else { return }
         guard let rawValue = sender.representedObject as? String,
               let mode = AppearanceMode(rawValue: rawValue),
               mode != AppearanceMode.current else { return }
@@ -734,7 +740,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             menuItem.toolTip = controller?.isWorkspace == true ? nil : L("References are available in a workspace.")
             return controller?.canToggleReferences == true
         case #selector(selectAppearanceMode(_:)):
-            return ThemePreset.applied().requiredAppearance == nil
+            return SettingsModel.shared.appliedTheme.requiredAppearance == nil
         case #selector(selectContentWidthSetting(_:)):
             return true
         case #selector(toggleDeveloperTools(_:)):
@@ -1504,6 +1510,67 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         syncContentWidthMenuState()
     }
 
+    private static let themeMenu = NSMenu(title: "Theme")
+
+    /// View ▸ Theme after Content Width: every theme, built-in first, then
+    /// the reader's own. Rebuilt each time it opens (see `menuNeedsUpdate`),
+    /// which also re-reads the themes folder.
+    private func installThemeMenuItem() {
+        guard let viewMenu = topLevelSubmenu(matching: Self.viewMenuTitles),
+              !viewMenu.items.contains(where: { $0.submenu === Self.themeMenu }) else { return }
+        let title = L("Theme")
+        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        if let image = NSImage(systemSymbolName: "paintpalette", accessibilityDescription: title) {
+            image.isTemplate = true
+            item.image = image
+        }
+        Self.themeMenu.delegate = self
+        item.submenu = Self.themeMenu
+        let insertIndex = viewMenu.items
+            .firstIndex(where: { Self.contentWidthMenuTitles.contains($0.title) })
+            .map { $0 + 1 } ?? 0
+        viewMenu.insertItem(item, at: insertIndex)
+    }
+
+    private func rebuildThemeMenu(_ menu: NSMenu, catalog: [String: Theme]) {
+        menu.removeAllItems()
+        let appliedID = SettingsModel.shared.appliedTheme.id
+        func add(_ title: String, _ applied: ThemeLibrary.Applied) {
+            let item = NSMenuItem(title: title, action: #selector(selectThemeFromMenu(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = applied
+            item.state = applied.id == appliedID ? .on : .off
+            menu.addItem(item)
+        }
+        for preset in ThemePreset.all {
+            add(L(preset.name), .builtIn(preset))
+        }
+        menu.addItem(.separator())
+        let userThemes = ThemeLibrary.userThemes(in: catalog)
+        for theme in userThemes {
+            add(theme.name, .user(theme))
+        }
+        if !userThemes.isEmpty { menu.addItem(.separator()) }
+        let open = NSMenuItem(title: L("Open Themes Folder"),
+                              action: #selector(openThemesFolder(_:)), keyEquivalent: "")
+        open.target = self
+        menu.addItem(open)
+    }
+
+    @objc private func selectThemeFromMenu(_ sender: NSMenuItem) {
+        switch sender.representedObject as? ThemeLibrary.Applied {
+        case .builtIn(let preset): SettingsModel.shared.applyPreset(preset)
+        case .user(let theme): SettingsModel.shared.applyUserTheme(theme)
+        case nil: break
+        }
+    }
+
+    @objc private func openThemesFolder(_ sender: Any?) {
+        let folder = ThemeLibrary.userDirectory
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        NSWorkspace.shared.open(folder)
+    }
+
     private func applyAppearanceMode(_ mode: AppearanceMode, reloadPreviews: Bool) {
         let appearance = mode.appearance
         NSApp.appearance = appearance
@@ -1920,6 +1987,14 @@ extension AppDelegate {
     func menuNeedsUpdate(_ menu: NSMenu) {
         if menu === Self.bookmarksMenu {
             rebuildBookmarksMenu(menu)
+            return
+        }
+        if menu === Self.themeMenu {
+            // Pick up an edited or deleted theme file first (BR-16). One
+            // read of the folder serves both.
+            let catalog = ThemeLibrary.catalog()
+            SettingsModel.shared.refreshAppliedUserTheme(catalog: catalog)
+            rebuildThemeMenu(menu, catalog: catalog)
             return
         }
         guard menu === NSApp.windowsMenu else { return }

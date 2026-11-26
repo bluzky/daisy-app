@@ -77,9 +77,8 @@ nonisolated struct ThemePreset: Identifiable, Equatable, Sendable {
         case .dark: flavor = .dark
         case .system: flavor = .system
         }
-        let bodyFont = theme.light["font-body"]
-        font = DocumentFontSetting.allCases.first { $0.fontFamily == bodyFont } ?? .system
-        boldText = theme.light["body-weight"] == "600"
+        font = theme.documentFont ?? .system
+        boldText = theme.boldText
         palette = Palette(tokens: theme.palette(for: theme.appearance == .dark ? .dark : .light),
                           swatches: Self.defaultSwatches(dark: theme.appearance == .dark))
         darkPalette = theme.appearance == .system
@@ -165,12 +164,6 @@ nonisolated struct ThemePreset: Identifiable, Equatable, Sendable {
         defaults.set(id, forKey: Self.appliedPresetKey)
     }
 
-    /// Identity is explicit: custom colors never select a preset by coincidence.
-    /// Older installs with no gallery selection belong to Original.
-    static func applied(in defaults: UserDefaults = Self.defaults) -> ThemePreset {
-        builtIn.first { $0.id == defaults.string(forKey: appliedPresetKey) } ?? defaultPreset
-    }
-
     struct SavedLook: Codable, Equatable {
         var colors: ThemeColorsSetting
         var font: DocumentFontSetting
@@ -201,7 +194,7 @@ nonisolated struct ThemePreset: Identifiable, Equatable, Sendable {
     static var defaultPreset: ThemePreset { builtIn[0] }
 
     /// The built-in starter set, in gallery order — three rows of three:
-    /// the Apple Books set (Original, Quiet, Paper / Bold, Calm, Focus)
+    /// the Apple Books set (Original, Quiet, Paper / Pitch, Calm, Focus)
     /// first, then Ember and the remaining dark themes. Original leads — it is
     /// the default theme. The looks live in `Resources/Themes/<id>.css`.
     static let builtIn: [ThemePreset] = BuiltInThemes.galleryIDs.compactMap { id in

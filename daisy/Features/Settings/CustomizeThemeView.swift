@@ -134,7 +134,8 @@ struct CustomizeThemeView: View {
 
     /// The applied theme's look, which Reset Theme returns the draft to.
     private static func defaultDraft() -> Draft {
-        let base = SettingsModel.shared.appliedPreset
+        // Customize is unavailable for a reader's own theme (BR-13).
+        let base = SettingsModel.shared.appliedPreset ?? .defaultPreset
         return Draft(readerLayout: ReaderLayoutSetting(boldText: base.boldText),
                      documentFont: base.font,
                      themeColors: base.setting,
@@ -337,6 +338,8 @@ struct CustomizeThemeView: View {
     private func fontRow(_ setting: DocumentFontSetting) -> some View {
         Button {
             draft.documentFont = setting
+            // A theme's own body font would win over the picked face.
+            draft.themeColors.bodyFont = nil
         } label: {
             HStack {
                 Text(setting.title)

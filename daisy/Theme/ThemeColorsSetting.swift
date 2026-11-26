@@ -45,12 +45,49 @@ nonisolated enum ThemeColorSlot: String, CaseIterable, Codable, Sendable {
     case tableBorder
     /// Every other row of a striped table (`--table-stripe`).
     case tableStripe
+    /// Table header row text (`--table-header-text`); unset, the text color.
+    case tableHeaderText
+    /// Bold text (`--bold`); unset, the text color.
+    case boldText
+    /// The widget palette (`--widget-default`, `--widget-accent`, …,
+    /// `--widget-series-1`…`-8`), set by themes. Unset, the built-in
+    /// widget colors.
+    case widgetDefault, widgetAccent, widgetSuccess, widgetInfo, widgetWarning, widgetDanger
+    case widgetSeries1, widgetSeries2, widgetSeries3, widgetSeries4
+    case widgetSeries5, widgetSeries6, widgetSeries7, widgetSeries8
 
     /// The slot for heading `level` (1–6).
     static func heading(level: Int) -> ThemeColorSlot? {
         let slots: [ThemeColorSlot] = [.heading1, .heading2, .heading3, .heading4, .heading5, .heading6]
         return slots.indices.contains(level - 1) ? slots[level - 1] : nil
     }
+
+    /// The widget color a widget slot holds; nil for other slots.
+    var widgetColor: WidgetColor? {
+        switch self {
+        case .widgetDefault: .neutral
+        case .widgetAccent: .accent
+        case .widgetSuccess: .success
+        case .widgetInfo: .info
+        case .widgetWarning: .warning
+        case .widgetDanger: .danger
+        case .widgetSeries1: .series1
+        case .widgetSeries2: .series2
+        case .widgetSeries3: .series3
+        case .widgetSeries4: .series4
+        case .widgetSeries5: .series5
+        case .widgetSeries6: .series6
+        case .widgetSeries7: .series7
+        case .widgetSeries8: .series8
+        default: nil
+        }
+    }
+
+    /// Slots emitted as a page custom property of the same value
+    /// (`--table-header-text`, `--bold`, `--widget-…`), by property.
+    static let pageColorProperties: [(property: String, slot: ThemeColorSlot)] =
+        [("--table-header-text", .tableHeaderText), ("--bold", .boldText)]
+        + allCases.compactMap { slot in slot.widgetColor.map { ($0.cssProperty, slot) } }
 }
 
 nonisolated struct ThemeColorsSetting: Equatable, Codable, Sendable {
@@ -62,6 +99,14 @@ nonisolated struct ThemeColorsSetting: Equatable, Codable, Sendable {
     /// both schemes.
     var tableStyle: MarkdownHTML.TableStyle?
 
+    /// A theme's body, heading and code fonts (sanitized CSS font lists),
+    /// one value for both schemes. The body font is set only when it isn't
+    /// one of `DocumentFontSetting`'s faces; those go through the document
+    /// font. Nil leaves the page's own font.
+    var bodyFont: String?
+    var headingFont: String?
+    var codeFont: String?
+
     init() {}
 
     /// Theme tokens and the slot each fills.
@@ -71,7 +116,7 @@ nonisolated struct ThemeColorsSetting: Equatable, Codable, Sendable {
         "heading-1": .heading1, "heading-2": .heading2, "heading-3": .heading3,
         "heading-4": .heading4, "heading-5": .heading5, "heading-6": .heading6,
         "table-header-bg": .tableHeader, "table-border": .tableBorder, "table-stripe": .tableStripe,
-    ]
+    ].merging(ThemeColorSlot.pageColorProperties.map { (String($0.property.dropFirst(2)), $0.slot) }) { $1 }
 
     /// A theme's colors for both schemes; a light-only or dark-only theme
     /// gives its one palette to both.
@@ -83,11 +128,17 @@ nonisolated struct ThemeColorsSetting: Equatable, Codable, Sendable {
             }
         }
         tableStyle = theme.light["table-style"].flatMap(MarkdownHTML.TableStyle.init(rawValue:))
+        bodyFont = theme.documentFont == nil ? theme.light["font-body"] : nil
+        headingFont = theme.light["font-heading"]
+        codeFont = theme.light["font-code"]
     }
 
     // MARK: - Persistence
 
     static let tableStyleDefaultsKey = "MarkdownPreview.themeTableStyle"
+
+    /// `MarkdownPreview.themeFont.body` / `.heading` / `.code`.
+    static func fontDefaultsKey(_ name: String) -> String { "MarkdownPreview.themeFont.\(name)" }
 
     static func defaultsKey(_ scheme: ThemeColorScheme, _ slot: ThemeColorSlot) -> String {
         "MarkdownPreview.themeColor.\(scheme.rawValue).\(slot.rawValue)"
@@ -116,6 +167,12 @@ nonisolated struct ThemeColorsSetting: Equatable, Codable, Sendable {
         }
         setting.tableStyle = defaults.string(forKey: tableStyleDefaultsKey)
             .flatMap(MarkdownHTML.TableStyle.init(rawValue:))
+        func font(_ name: String) -> String? {
+            defaults.string(forKey: fontDefaultsKey(name)).flatMap(Theme.sanitizedFontFamily)
+        }
+        setting.bodyFont = font("body")
+        setting.headingFont = font("heading")
+        setting.codeFont = font("code")
         return setting
     }
 
@@ -126,6 +183,16 @@ nonisolated struct ThemeColorsSetting: Equatable, Codable, Sendable {
         } else {
             defaults.removeObject(forKey: tableStyleDefaultsKey)
         }
+        func store(_ name: String, _ font: String?) {
+            if let font {
+                defaults.set(font, forKey: fontDefaultsKey(name))
+            } else {
+                defaults.removeObject(forKey: fontDefaultsKey(name))
+            }
+        }
+        store("body", setting.bodyFont)
+        store("heading", setting.headingFont)
+        store("code", setting.codeFont)
         for scheme in ThemeColorScheme.allCases {
             for slot in ThemeColorSlot.allCases {
                 let key = defaultsKey(scheme, slot)
@@ -141,7 +208,8 @@ nonisolated struct ThemeColorsSetting: Equatable, Codable, Sendable {
     // MARK: - Values
 
     var isCustomized: Bool {
-        tableStyle != nil || values.values.contains { !$0.isEmpty }
+        tableStyle != nil || bodyFont != nil || headingFont != nil || codeFont != nil
+            || values.values.contains { !$0.isEmpty }
     }
 
     /// True when either scheme overrides the window background. UI-level
@@ -239,6 +307,13 @@ nonisolated struct ThemeColorsSetting: Equatable, Codable, Sendable {
             return NSColor(srgbRed: 0, green: 102 / 255, blue: 204 / 255, alpha: 1)
         case (.linkColor, .dark):
             return NSColor(srgbRed: 41 / 255, green: 151 / 255, blue: 255 / 255, alpha: 1)
+        case (.tableHeaderText, _), (.boldText, _):
+            return defaultColor(.textColor, scheme)
+        case (.widgetDefault, _), (.widgetAccent, _), (.widgetSuccess, _), (.widgetInfo, _),
+             (.widgetWarning, _), (.widgetDanger, _), (.widgetSeries1, _), (.widgetSeries2, _),
+             (.widgetSeries3, _), (.widgetSeries4, _), (.widgetSeries5, _), (.widgetSeries6, _),
+             (.widgetSeries7, _), (.widgetSeries8, _):
+            return slot.widgetColor.flatMap { color(fromHex: $0.defaultHex(dark: scheme == .dark)) } ?? .gray
         }
     }
 
@@ -276,13 +351,22 @@ nonisolated struct ThemeColorsSetting: Equatable, Codable, Sendable {
         }
         let lightTable = tableColors(.light)
         let darkTable = tableColors(.dark)
+        func pageColors(_ scheme: ThemeColorScheme) -> [String: String] {
+            Dictionary(uniqueKeysWithValues: ThemeColorSlot.pageColorProperties.compactMap { property, slot in
+                hexValue(slot, scheme).map { (property, $0) }
+            })
+        }
+        let lightColors = pageColors(.light)
+        let darkColors = pageColors(.dark)
         guard lightCode != nil || darkCode != nil
                 || lightPage != nil || darkPage != nil
                 || lightText != nil || darkText != nil
                 || lightLink != nil || darkLink != nil
                 || lightHeading != nil || darkHeading != nil
                 || !lightLevels.isEmpty || !darkLevels.isEmpty
-                || !lightTable.isEmpty || !darkTable.isEmpty || tableStyle != nil else { return nil }
+                || !lightTable.isEmpty || !darkTable.isEmpty || tableStyle != nil
+                || !lightColors.isEmpty || !darkColors.isEmpty
+                || bodyFont != nil || headingFont != nil || codeFont != nil else { return nil }
         return MarkdownHTML.ThemeOverrides(
             lightCodeBackground: lightCode,
             darkCodeBackground: darkCode,
@@ -298,7 +382,12 @@ nonisolated struct ThemeColorsSetting: Equatable, Codable, Sendable {
             darkHeadingLevels: darkLevels,
             lightTableColors: lightTable,
             darkTableColors: darkTable,
-            tableStyle: tableStyle
+            tableStyle: tableStyle,
+            lightColors: lightColors,
+            darkColors: darkColors,
+            bodyFont: bodyFont,
+            headingFont: headingFont,
+            codeFont: codeFont
         )
     }
 
@@ -326,6 +415,10 @@ nonisolated struct ThemeColorsSetting: Equatable, Codable, Sendable {
                     lines.append(":root { --heading-\(level): \(heading); }")
                 }
             }
+            // The editor shows widgets as text, so only bold text takes a color.
+            if let bold = sanitizedHex(.boldText, scheme) {
+                lines.append(":root { --bold: \(bold); }")
+            }
             // The editor follows the window color unless it has its own
             // override — one picked color themes both modes. Always emitted
             // (transparent when unthemed): the page template bakes the value
@@ -344,6 +437,9 @@ nonisolated struct ThemeColorsSetting: Equatable, Codable, Sendable {
             css += (css.isEmpty ? "" : "\n")
                 + "@media (prefers-color-scheme: dark) {\n\(dark)\n}"
         }
+        let fonts = MarkdownHTML.ThemeOverrides(bodyFont: bodyFont, headingFont: headingFont,
+                                                codeFont: codeFont).fontCSS
+        if !fonts.isEmpty { css += "\n" + fonts }
         return css
     }
 

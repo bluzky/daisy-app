@@ -10,7 +10,7 @@
 //                   height / grid / colors / x-axis / y-axis; legend, x-axis and
 //                   y-axis may be groups of indented `key: value` lines,
 //                   then a Markdown table
-//      ```progress  shape (first item) / label / value / max / color / text /
+//      ```progress  shape (first item) / label (optional) / value / max / color / text /
 //                   striped
 //
 //  Each block is `key: value` lines; a line of `---` separates items. A chart
@@ -313,6 +313,7 @@ nonisolated extension MarkdownHTML {
         margin: 1em 0;
         font-size: 0.9em;
     }
+    .md-widget-progress-unlabelled { grid-template-columns: minmax(60px, 1fr) max-content; }
     .md-widget-progress-item { display: contents; }
     .md-widget-progress-value {
         color: var(--widget-text);
@@ -759,7 +760,7 @@ nonisolated extension MarkdownHTML {
       }
       function meterAttributes(node, item, value, max, custom) {
         node.setAttribute('role', 'progressbar');
-        node.setAttribute('aria-label', item.label);
+        if (item.label) node.setAttribute('aria-label', item.label);
         node.setAttribute('aria-valuemin', '0');
         node.setAttribute('aria-valuemax', String(max));
         node.setAttribute('aria-valuenow', String(value));
@@ -794,7 +795,8 @@ nonisolated extension MarkdownHTML {
         }
         const size = shown.length > 6 ? ' md-widget-ring-text-xlong' : shown.length > 4 ? ' md-widget-ring-text-long' : '';
         meter.append(svg, el('div', 'md-widget-ring-text' + size, shown));
-        node.append(meter, el('div', 'md-widget-ring-label', item.label));
+        node.append(meter);
+        if (item.label) node.append(el('div', 'md-widget-ring-label', item.label));
         return node;
       }
       function progress(source) {
@@ -803,11 +805,15 @@ nonisolated extension MarkdownHTML {
         const shape = (items[0].shape || 'bar').toLowerCase();
         if (!SHAPES.includes(shape) || items.slice(1).some(item => 'shape' in item)) return null;
         const ring = shape === 'ring';
-        const list = el('div', ring ? 'md-widget-rings' : 'md-widget-progress');
+        // `label` is optional. Bars with none at all drop the label column;
+        // in a block where some have one, an empty cell keeps them lined up.
+        const labels = items.some(item => item.label);
+        const list = el('div', ring ? 'md-widget-rings'
+          : 'md-widget-progress' + (labels ? '' : ' md-widget-progress-unlabelled'));
         for (const item of items) {
           const value = num(item.value || '');
           const max = num(item.max || '');
-          if (!item.label || value == null || max == null || value < 0 || max <= 0) return null;
+          if (value == null || max == null || value < 0 || max <= 0) return null;
           const color = readColor(item.color);
           if (!color) return null;
           const striped = (item.striped || 'false').toLowerCase();
@@ -829,8 +835,8 @@ nonisolated extension MarkdownHTML {
           fill.style.width = (share * 100) + '%';
           track.append(fill);
           // An empty value cell keeps the block's columns lined up.
-          row.append(el('span', 'md-widget-progress-label', item.label), track,
-                     el('span', 'md-widget-progress-value', shown));
+          if (labels) row.append(el('span', 'md-widget-progress-label', item.label || ''));
+          row.append(track, el('span', 'md-widget-progress-value', shown));
           list.append(row);
         }
         return list;

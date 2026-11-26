@@ -290,4 +290,58 @@ final class DocumentCardsTests: XCTestCase {
         XCTAssertEqual(result?[16] as? String, "rgb(29, 29, 31)", "ink=dark sets a heading's color on any card")
         XCTAssertEqual(result?[17] as? String, "rgb(29, 29, 31)", "and the card's text")
     }
+
+    /// A lone card on a slide is as tall as the tallest column (the two
+    /// cards beside it), not the whole slide; lone cards side by side still
+    /// line up.
+    @MainActor
+    func testALoneSlideCardStretchesToTheTallestColumnNotTheSlide() async throws {
+        let rendered = MarkdownHTML.render(markdown: """
+        ---
+        slides: true
+        ---
+
+        ## Hub
+
+        <!-- columns -->
+        <!-- card -->
+        One
+        <!-- end-card -->
+
+        <!-- card -->
+        Two
+        <!-- end-card -->
+
+        <!-- column -->
+        <!-- card style=solid -->
+        Middle
+        <!-- end-card -->
+
+        <!-- column -->
+        <!-- card -->
+        Three
+        <!-- end-card -->
+        <!-- end-columns -->
+        """, vendorLoading: .lazy)
+        let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 1100, height: 900))
+        webView.loadHTMLString(rendered.html, baseURL: nil)
+        let deadline = Date().addingTimeInterval(10)
+        while webView.isLoading && Date() < deadline { try await Task.sleep(for: .milliseconds(50)) }
+        let result = try await webView.evaluateJavaScript("""
+        (() => {
+          const columns = Array.from(document.querySelectorAll('.mdp-slide-column'));
+          const bottom = c => Math.round(c.getBoundingClientRect().bottom);
+          const stack = columns[0].querySelectorAll('.md-card')[1];
+          const middle = columns[1].querySelector('.md-card');
+          const right = columns[2].querySelector('.md-card');
+          const slide = document.querySelector('.mdp-slide').getBoundingClientRect();
+          return [bottom(stack), bottom(middle), bottom(right), Math.round(slide.bottom)];
+        })()
+        """) as? [Int]
+        let values = try XCTUnwrap(result)
+        XCTAssertEqual(values[1], values[0], "The lone middle card ends with the two-card stack")
+        XCTAssertEqual(values[2], values[0], "and so does the lone card on the right")
+        XCTAssertLessThan(values[1], values[3] - 100, "well above the bottom of the slide")
+    }
 }
+

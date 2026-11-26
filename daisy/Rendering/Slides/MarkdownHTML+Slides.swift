@@ -399,9 +399,12 @@ nonisolated extension MarkdownHTML {
         display: grid;
         grid-auto-flow: column;
         grid-auto-columns: minmax(0, 1fr);
-        /* One row as tall as the space below the heading, so a column's
-           tall diagram or image shrinks to fit like it does in the body. */
-        grid-template-rows: minmax(0, 1fr);
+        /* One row as tall as the tallest column, and never taller than
+           the space below the heading, so a column's tall diagram or image
+           shrinks to fit like it does in the body. A lone card stretches
+           to the row, not to the bottom of the slide. */
+        grid-template-rows: fit-content(100%);
+        align-content: start;
         gap: 1.5em;
     }
     .mdp-slide-column { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
@@ -417,7 +420,8 @@ nonisolated extension MarkdownHTML {
        height they need, so those blocks follow right below them. */
     .mdp-slide-columns:not(:last-child) { flex-grow: 0; margin-bottom: 1em; }
     /* Cards (`<!-- card … -->`) keep the slide's block spacing; alone in a
-       column, a card fills it, so a row of cards lines up. */
+       column, a card is as tall as the tallest column, so a row of cards
+       lines up. */
     .mdp-slide .md-card { margin: 0 0 0.6em; }
     .mdp-slide .md-card:last-child { margin-bottom: 0; }
     .mdp-slide-column > .md-card:only-child { flex: 1 1 auto; }

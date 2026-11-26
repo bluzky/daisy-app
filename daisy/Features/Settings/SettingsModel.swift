@@ -38,7 +38,18 @@ final class SettingsModel {
     }
 
     var isAppearanceLocked: Bool {
-        appliedPreset.requiredAppearance != nil
+        appliedTheme.requiredAppearance != nil
+    }
+
+    /// Customize edits a built-in theme's saved look; a reader's own theme
+    /// is changed by editing its file (BR-13).
+    var isCustomizeAvailable: Bool {
+        appliedPreset != nil
+    }
+
+    /// Why Customize is unavailable, for the popover and Settings.
+    static var customizeUnavailableNote: String {
+        L("Your own themes are changed by editing their file.")
     }
 
     var documentFont: DocumentFontSetting {
@@ -288,11 +299,16 @@ final class SettingsModel {
                          readerLayout: ReaderLayoutSetting(), appearance: .automatic)
     }
 
-    /// The theme the reader last applied from a gallery. Remembered so Reset
-    /// puts *that* theme back — hand-edited colors, a swapped face or moved
-    /// sliders undo to the theme they were built on, rather than dropping the
-    /// reader onto the default one.
-    private(set) var appliedPreset = ThemePreset.applied()
+    /// The reading theme the reader last applied, from the gallery or
+    /// View ▸ Theme. Remembered so Reset puts *that* theme back — hand-edited
+    /// colors, a swapped face or moved sliders undo to the theme they were
+    /// built on, rather than dropping the reader onto the default one.
+    private(set) var appliedTheme = ThemeLibrary.applied()
+
+    /// The applied built-in theme; nil while a reader's own theme is applied.
+    var appliedPreset: ThemePreset? {
+        appliedTheme.preset
+    }
 
     /// Applies a whole reading look at once — what the Customize Theme sheet
     /// hands over when the reader saves. Coalesced, so the open documents
@@ -311,7 +327,9 @@ final class SettingsModel {
         appDelegate.withCoalescedPreviewReloads(apply)
     }
 
-    /// Customizing a theme retains its identity, even if its colors match another.
+    /// Customizing a theme retains its identity, even if its colors match
+    /// another. Nil while a reader's own theme is applied: no gallery card
+    /// is selected.
     var selectedPreset: ThemePreset? {
         appliedPreset
     }
@@ -324,19 +342,66 @@ final class SettingsModel {
     }
 
     private func applyPresetValues(_ preset: ThemePreset) {
-        // Another app sharing the suite may have changed the active look
-        // since this model was last refreshed. Save under its current owner.
-        ThemePreset.applied().save(.init(colors: ThemeColorsSetting.current,
-                                        font: DocumentFontSetting.current,
-                                        layout: ReaderLayoutSetting.current,
-                                        appearance: AppearanceMode.current))
+        saveOutgoingBuiltInLook()
         let look = preset.restoredLook()
         preset.recordApplied()
-        appliedPreset = preset
+        appliedTheme = .builtIn(preset)
         themeColors = look.colors
         appearance = look.appearance
         documentFont = look.font
         readerLayout = look.layout
+    }
+
+    /// Makes one of the reader's own themes the reading theme in every
+    /// window: its values go into the same stores a preset's do, with the
+    /// app's default spacing (BR-13) and its locked appearance or Automatic.
+    /// `keepsAppearance`: a re-read of the file leaves a system theme's
+    /// Light/Dark/Automatic choice as the reader set it (Q-33).
+    func applyUserTheme(_ theme: Theme, keepsAppearance: Bool = false) {
+        guard let appDelegate else { return applyUserThemeValues(theme, keepsAppearance: keepsAppearance) }
+        appDelegate.withCoalescedPreviewReloads { applyUserThemeValues(theme, keepsAppearance: keepsAppearance) }
+    }
+
+    private func applyUserThemeValues(_ theme: Theme, keepsAppearance: Bool) {
+        saveOutgoingBuiltInLook()
+        let look = ThemeLibrary.look(for: theme)
+        ThemeLibrary.recordApplied(theme)
+        appliedTheme = .user(theme)
+        // Font before colors: the colors carry the theme's own body font.
+        documentFont = look.font
+        themeColors = look.colors
+        if !keepsAppearance || theme.requiredAppearance != nil { appearance = look.appearance }
+        readerLayout = look.layout
+    }
+
+    /// Saves the current look as the outgoing theme's, when that theme is
+    /// built in. Read from the shared suite: another app may have changed
+    /// the active look since this model was last refreshed. A reader's own
+    /// theme never saves a look, and its colors must not land in a built-in's
+    /// (an install with no recorded theme belongs to Original).
+    private func saveOutgoingBuiltInLook() {
+        let id = ThemeLibrary.appliedID()
+        let outgoing: ThemePreset? = if let id { ThemePreset.all.first { $0.id == id } } else { .defaultPreset }
+        outgoing?.save(.init(colors: ThemeColorsSetting.current,
+                             font: DocumentFontSetting.current,
+                             layout: ReaderLayoutSetting.current,
+                             appearance: AppearanceMode.current))
+    }
+
+    /// Re-reads the reading theme's file when it is one of the reader's own:
+    /// applies it again when its values changed, or Original when the file
+    /// is gone or no longer valid (BR-14, BR-16). Nothing for a built-in.
+    func refreshAppliedUserTheme(catalog: [String: Theme] = ThemeLibrary.catalog()) {
+        let id = ThemeLibrary.appliedID()
+        let current = ThemePreset.SavedLook(colors: ThemeColorsSetting.current,
+                                            font: DocumentFontSetting.current,
+                                            layout: ReaderLayoutSetting.current,
+                                            appearance: AppearanceMode.current)
+        switch ThemeLibrary.refresh(appliedID: id, catalog: catalog, current: current) {
+        case .none: break
+        case .reapply(let theme): applyUserTheme(theme, keepsAppearance: true)
+        case .original: applyPreset(.defaultPreset)
+        }
     }
 
     var checksForUpdatesAutomatically: Bool {
@@ -454,7 +519,7 @@ final class SettingsModel {
         isRestoringExternalValues = true
         defer { isRestoringExternalValues = false }
 
-        appliedPreset = ThemePreset.applied()
+        appliedTheme = ThemeLibrary.applied()
         appLanguage = AppLanguageSetting.selection()
         appearance = AppearanceMode.current
         contentWidth = ContentWidthSetting.current

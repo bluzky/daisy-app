@@ -55,11 +55,11 @@ color: success
 ```
 ````
 
-`label`, `value` and `max` are required. `value` is zero or more and `max` above zero; a value above its maximum shows a full bar. Each bar is one row: its label, the bar, then `value / max`. The bars in one block stack, with their labels, bars and values lined up.
+`value` and `max` are required; `label` is optional. `value` is zero or more and `max` above zero; a value above its maximum shows a full bar. Each bar is one row: its label, the bar, then `value / max`. A bar without a label leaves its label cell empty; when no bar in the block has one, the bars take the whole width. The bars in one block stack, with their labels, bars and values lined up.
 
 | Key | Required | What it does |
 | --- | --- | --- |
-| `label` | yes | The bar's or ring's name. |
+| `label` | no | The bar's or ring's name. Without it, a ring shows no name under it. |
 | `value`, `max` | yes | How far along: `value` zero or more, `max` above zero. |
 | `shape` | no | `bar` (the default) or `ring`, on the **first item only**; it sets the whole block. `shape` on a later item leaves the block plain. |
 | `color` | no | The bar's or the ring's arc [color](#colors); the default is the accent. |
@@ -272,7 +272,7 @@ These are Apple's standard system colors, one set for every widget: a `warning` 
 
 Text, the progress track (a light tint of the text color) and the stat tile's outline follow the page's own theme colors; a stat tile's fill (`--widget-card`) is the theme's code block background, in every theme.
 
-Every app theme, and Quick Look, uses these two palettes; there is no setting for them. A slide deck's theme can change them on its slides. A theme file sets `--widget-default`, `--widget-accent`, `--widget-success`, `--widget-info`, `--widget-warning`, `--widget-danger` and `--widget-series-1` … `--widget-series-8`. A deck's `theme_overrides:` uses the `colors:` keys `widget_default`, `widget_accent`, … `widget_series_8`. See [Slides](slides.md#themes).
+The built-in themes, and Quick Look, use these two palettes; there is no setting for them. A theme file can change them: as the reading theme (**View → Theme**) for every document, or as a deck's `theme:` on its slides. A theme file sets `--widget-default`, `--widget-accent`, `--widget-success`, `--widget-info`, `--widget-warning`, `--widget-danger` and `--widget-series-1` … `--widget-series-8`. A deck's `theme_overrides:` uses the `colors:` keys `widget_default`, `widget_accent`, … `widget_series_8`. See [Slides](slides.md#themes).
 
 ## Invalid blocks and other viewers
 

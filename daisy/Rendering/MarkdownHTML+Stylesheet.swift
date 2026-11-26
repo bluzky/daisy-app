@@ -197,7 +197,7 @@ nonisolated extension MarkdownHTML {
         height: 0;
     }
     body {
-        font-family: var(--mdp-doc-font, \(bodyFontFamily));
+        font-family: var(--font-body, var(--mdp-doc-font, \(bodyFontFamily)));
         font-size: \(textScaled(bodyFontSize));
         font-weight: var(--mdp-body-weight, 400);
         line-height: var(--mdp-line-height, \(bodyLineHeight));
@@ -389,6 +389,7 @@ nonisolated extension MarkdownHTML {
     }
 
     h1, h2, h3, h4, h5, h6 {
+        font-family: var(--font-heading, inherit);
         font-weight: 600;
         line-height: 1.25;
         /* Top-only, like every block: the next block's own top margin is the
@@ -470,7 +471,7 @@ nonisolated extension MarkdownHTML {
     }
 
     code {
-        font-family: \(codeFontFamily);
+        font-family: var(--font-code, \(codeFontFamily));
         font-size: var(--mdp-code-font-size, 0.9em);
         padding: 0.15em 0.3em;
         background: var(--code-bg);
@@ -696,7 +697,7 @@ nonisolated extension MarkdownHTML {
         padding: 12px 16px;
         text-align: left;
         white-space: pre-wrap;
-        font-family: \(codeFontFamily);
+        font-family: var(--font-code, \(codeFontFamily));
         font-size: 0.88em;
     }
     .math-display {
@@ -712,7 +713,7 @@ nonisolated extension MarkdownHTML {
         background: var(--code-bg);
         padding: 4px 8px;
         border-radius: 6px;
-        font-family: \(codeFontFamily);
+        font-family: var(--font-code, \(codeFontFamily));
         font-size: 0.88em;
         white-space: pre-wrap;
     }
@@ -886,7 +887,9 @@ nonisolated extension MarkdownHTML {
        scales with slide text. A card alone in a column fills its height, so
        a row of cards lines up. */
     .md-card {
-        --md-card-color: var(--md-card-accent);
+        /* The widget color is read here, not only through the `:root`
+           palette, so a deck theme's colors (set on the slide) reach it. */
+        --md-card-color: var(--widget-accent, var(--md-card-accent));
         --md-card-bg: var(--code-bg);
         --md-card-border-color: var(--grid);
         --md-card-border-width: 1px;
@@ -902,7 +905,7 @@ nonisolated extension MarkdownHTML {
     }
     .md-card > :first-child { margin-top: 0; }
     .md-card > :last-child { margin-bottom: 0; }
-    \(CardStyle.paletteColors.map { ".md-card-color-\($0.rawValue) { --md-card-color: var(--md-card-\($0.rawValue)); }" }.joined(separator: "\n    "))
+    \(CardStyle.paletteColors.map { ".md-card-color-\($0.rawValue) { --md-card-color: var(\($0.cssProperty), var(--md-card-\($0.rawValue))); }" }.joined(separator: "\n    "))
     .md-card-colored { --md-card-border-color: var(--md-card-color); }
     /* With a bar, the color is the bar's and the border stays quiet. */
     :is(.md-card-bar-left, .md-card-bar-top).md-card-colored { --md-card-border-color: var(--grid); }
@@ -930,12 +933,16 @@ nonisolated extension MarkdownHTML {
     :is(.md-card-fill-solid, .md-card-ink-light, .md-card-ink-dark) {
         --heading: var(--md-card-ink);
         --link: var(--md-card-ink);
+        --bold: var(--md-card-ink);
         --secondary: color-mix(in srgb, var(--md-card-ink) 80%, transparent);
         --grid: color-mix(in srgb, var(--md-card-ink) 35%, transparent);
         color: var(--md-card-ink);
     }
     :is(.md-card-fill-solid, .md-card-ink-light, .md-card-ink-dark) a { text-decoration: underline; }
     :is(.md-card-fill-solid, .md-card-ink-light, .md-card-ink-dark) li::marker { color: inherit; }
+    /* A deck theme writes its bold color straight onto slide text; inside
+       such a card, bold text keeps the card's text color. */
+    .mdp-deck .mdp-slide :is(.md-card-fill-solid, .md-card-ink-light, .md-card-ink-dark) :is(strong, b) { color: inherit; }
     /* A shape inside a solid card would vanish into it in the same color:
        a solid one becomes the text color with the shape's color inside it,
        a tint or outline one takes the text color. */
@@ -1050,6 +1057,7 @@ nonisolated extension MarkdownHTML {
     }
 
     strong { font-weight: 600; }
+    strong, b { color: var(--bold, inherit); }
     em { font-style: italic; }
 
     [dir="rtl"] { text-align: right; }

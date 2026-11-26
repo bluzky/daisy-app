@@ -12,9 +12,9 @@ import Foundation
 
 nonisolated enum BuiltInThemes {
     /// The reading themes the aA popover's gallery shows, in gallery order.
-    static let galleryIDs = ["original", "quiet", "paper", "bold", "calm", "focus", "ember", "dusk", "midnight"]
-    /// Every built-in theme: the gallery's, then the former slide themes.
-    static let ids = galleryIDs + ["pitch", "paper-warm", "midnight-navy"]
+    static let galleryIDs = ["original", "quiet", "paper", "pitch", "calm", "focus", "ember", "dusk", "midnight"]
+    /// Every built-in theme: the gallery's, then the other former slide themes.
+    static let ids = galleryIDs + ["paper-warm", "midnight-navy"]
 
     static let files: [Theme.File] = files(in: directory)
 

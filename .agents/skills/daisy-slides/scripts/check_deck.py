@@ -26,7 +26,7 @@ LAYOUTS = {"title", "section", "quote", "code", "math", "title-image", "split",
            "full-bleed", "columns", "title-content", "blank"}
 CLASSES = {"center", "center-x", "center-y", "lead", "invert"}
 BG_KEYWORDS = {"left", "right", "fit", "contain", "dim", "blur"}
-THEMES = {"default", "original", "quiet", "paper", "bold", "calm", "focus", "ember", "dusk", "midnight",
+THEMES = {"default", "original", "quiet", "paper", "calm", "focus", "ember", "dusk", "midnight",
           "pitch", "paper-warm", "midnight-navy"}
 ASPECTS = {"16:9", "16:10", "4:3"}
 BREAK = re.compile(r"^ {0,3}(?:-{3,}|\*{3,}|_{3,})\s*$")
@@ -412,8 +412,8 @@ def check_widget(kind, body, line, report):
     for item in items:
         value = (item.get("value") or "").replace(",", "")
         maximum = (item.get("max") or "").replace(",", "")
-        if not item.get("label") or not NUMBER.match(value) or not NUMBER.match(maximum):
-            return plain("every bar needs `label`, and numbers for `value` and `max`")
+        if not NUMBER.match(value) or not NUMBER.match(maximum):
+            return plain("every bar needs numbers for `value` and `max`")
         if float(value) < 0 or float(maximum) <= 0:
             return plain("`value` must be zero or more and `max` above zero")
         if "color" in item and not is_color(item["color"]):
