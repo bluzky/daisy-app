@@ -55,7 +55,7 @@ Status `{{badge: "Build passing" color=success}}` `{{badge: "Docs behind" color=
 | API | `{{sparkline: 120, 132, 128, 150, 171}}` | `{{badge: Healthy color=success}}` |
 ````
 
-- **`stat`** — `label` and `value` required; `color` (the value), `delta`, `trend` (`up`/`down`/`flat`, colors the delta; ignored without a `delta`), `good: down` for metrics where down is good, `note`, `link` (an arrow to a URL, file or `#heading`). Tiles in one block share a row.
+- **`stat`** — `label` and `value` required; `color` (the value), `delta`, `trend` (`up`/`down`/`flat`, colors the delta; ignored without a `delta`), `good: down` for metrics where down is good, `note`, `link` (an arrow to a URL, file or `#heading`). Per tile, a card's look: `style` (plain, outline, filled, accent, solid), `fill`, `border`, `bar` (left, top), `ink` (light, dark), `padding` (compact, normal, roomy); with any of them `color` also tints the tile, and on `solid` everything takes the text color. No `shape`. Tiles in one block share a row.
 - **`progress`** — `value` (≥ 0), `max` (> 0), optional `label`; `color` (default accent), `striped: true` for work still moving (bars only). One row per bar: label, bar, `value / max`. `shape: ring` **on the first item** turns the whole block into rings side by side (percent in the middle, label under): the gauge for a KPI card. `text` changes the number shown, as a template: `{value} / {max}` (a bar's default), `{percent}` (a ring's default), `${value}k of ${max}k`, plain words, or `none`; keep ring text to ~6 characters.
 - **Shortcodes** — inline code `{{name: arguments}}`, the colon right after the name: the main value first, then `key=value` options, separated by spaces. Quote a value with spaces (`"In review"`); a value ending in a comma continues (`3, 5, 2`). Options a widget doesn't take and extra values are **ignored**, so `{{badge: In review}}` shows only "In".
 - **`{{sparkline: 3,5,2,8 color=… type=bar}}`** — two or more numbers as a text-height trend line, or bars from zero with `type=bar` (good for counts per day or week); `color` (default accent). Ideal in table cells, one per row.
@@ -65,7 +65,7 @@ Status `{{badge: "Build passing" color=success}}` `{{badge: "Docs behind" color=
 
 ## Colors
 
-One key, `color`, everywhere: a stat's value, a progress bar's fill, a sparkline's line, a badge's text and tint, a card's border, bar or fill (in a shortcode it's `color=success`). A chart's `colors` takes a comma list of the same. Values: `default` or `neutral` (the widget's normal look), `accent`, `success`, `info`, `warning`, `danger`, or a hex (`#6366F1`, `#fff`). Say what it *means*; each widget puts the color in the right place and keeps text readable in light and dark mode. Prefer names over hex: names follow the theme and dark mode, a hex is the same everywhere.
+One key, `color`, everywhere: a stat's value (and its tile, with a look option), a progress bar's fill, a sparkline's line, a badge's text and tint, a card's border, bar or fill (in a shortcode it's `color=success`). A chart's `colors` takes a comma list of the same. Values: `default` or `neutral` (the widget's normal look), `accent`, `success`, `info`, `warning`, `danger`, or a hex (`#6366F1`, `#fff`). Say what it *means*; each widget puts the color in the right place and keeps text readable in light and dark mode. Prefer names over hex: names follow the theme and dark mode, a hex is the same everywhere.
 
 ## Charts
 

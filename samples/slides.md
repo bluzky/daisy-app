@@ -198,22 +198,29 @@ color: success
 delta: +12%
 trend: up
 note: vs Q2
+style: solid
 ---
 label: Active users
 value: 3,204
 delta: +18%
 trend: up
+style: accent
+color: info
 ---
 label: Churn
 value: 2.1%
 delta: -0.4%
 trend: down
 good: down
+style: accent
+color: success
 ---
 label: NPS
 value: 54
 delta: +6
 trend: up
+style: accent
+color: accent
 ```
 
 `{{badge: "Revenue on plan" color=success}}` `{{badge: "Hiring behind" color=warning}}` `{{badge: "Notarization flaky" color=danger}}`
@@ -403,6 +410,10 @@ color: danger
 label: Days to release
 value: 9
 note: Code freeze on Friday
+fill: soft
+bar: top
+border: none
+color: warning
 ```
 
 `{{badge: "Beta feedback in" color=success}}` `{{badge: "Docs behind" color=warning}}`

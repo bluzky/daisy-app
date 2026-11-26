@@ -5,7 +5,8 @@
 //  Widgets in an ordinary document. In any document, three fenced
 //  blocks become widgets in the page:
 //
-//      ```stat      label / value / color / delta / trend / good / note / link
+//      ```stat      label / value / color / delta / trend / good / note / link /
+//                   style / fill / border / bar / ink / padding (a card's look)
 //      ```chart     type / title / legend / values / stacked / direction /
 //                   height / grid / colors / x-axis / y-axis; legend, x-axis and
 //                   y-axis may be groups of indented `key: value` lines,
@@ -227,13 +228,47 @@ nonisolated extension MarkdownHTML {
         margin: 1em 0;
     }
     .md-widget-stat {
+        /* A tile's look takes a card's options (`style`, `fill`, `border`,
+           `bar`, `ink`, `padding`) as classes the widget script sets.
+           `--md-widget-color` is the tile's `color` when one is painted on
+           it, else the accent. */
+        --md-stat-color: var(--md-widget-color, \(WidgetColor.accent.cssValue));
+        --md-stat-bg: var(--widget-card);
+        --md-stat-border-color: var(--widget-border);
+        --md-stat-border-width: 1px;
         flex: 1 1 160px;
         min-width: 0;
         padding: 14px 16px;
-        border: 1px solid var(--widget-border);
+        border: var(--md-stat-border-width) solid var(--md-stat-border-color);
         border-radius: 10px;
-        background: var(--widget-card);
+        background: var(--md-stat-bg);
     }
+    /* Only a tile with a look option and a `color` takes the color on its
+       border, so a tile with just `color` keeps its normal outline. With a
+       bar, the border keeps the separator color, as on a card. */
+    .md-widget-stat-colored { --md-stat-border-color: var(--md-stat-color); }
+    :is(.md-widget-stat-bar-left, .md-widget-stat-bar-top).md-widget-stat-colored { --md-stat-border-color: var(--widget-border); }
+    .md-widget-stat-fill-none { --md-stat-bg: transparent; }
+    .md-widget-stat-fill-soft { --md-stat-bg: color-mix(in srgb, var(--md-stat-color) 8%, var(--widget-card)); }
+    .md-widget-stat-fill-tint { --md-stat-bg: color-mix(in srgb, var(--md-stat-color) 14%, var(--widget-card)); }
+    .md-widget-stat-fill-solid { --md-stat-bg: var(--md-stat-color); --md-stat-ink: #fff; }
+    .md-widget-stat-fill-solid.md-widget-c-warning { --md-stat-ink: #1d1d1f; }
+    .md-widget-stat-border-none { --md-stat-border-width: 0px; }
+    .md-widget-stat-border-thick { --md-stat-border-width: 2px; }
+    .md-widget-stat-bar-left { border-left: 4px solid var(--md-stat-color); }
+    .md-widget-stat-bar-top { border-top: 4px solid var(--md-stat-color); }
+    .md-widget-stat.md-widget-stat-ink-light { --md-stat-ink: #fff; }
+    .md-widget-stat.md-widget-stat-ink-dark { --md-stat-ink: #1d1d1f; }
+    /* On a solid tile, or one with `ink`, everything takes the text color,
+       the value and delta included, so nothing vanishes into the fill; the
+       delta keeps its arrow. */
+    :is(.md-widget-stat-fill-solid, .md-widget-stat-ink-light, .md-widget-stat-ink-dark) {
+        --widget-text: color-mix(in srgb, var(--md-stat-ink) 80%, transparent);
+        color: var(--md-stat-ink);
+    }
+    .md-widget-stat:is(.md-widget-stat-fill-solid, .md-widget-stat-ink-light, .md-widget-stat-ink-dark) :is(.md-widget-value, .md-widget-delta) { color: inherit; }
+    .md-widget-stat-pad-compact { padding: 8px 12px; }
+    .md-widget-stat-pad-roomy { padding: 22px 24px; }
     .md-widget-stat-head {
         display: flex;
         align-items: center;
@@ -697,6 +732,50 @@ nonisolated extension MarkdownHTML {
         return icon;
       }
 
+      // A tile's look: a card's options and presets, minus `shape` and the
+      // `none` preset. `style` sets `fill`, `border` and `bar`; any of those
+      // written beside it overrides it. A value outside its list leaves the
+      // block plain.
+      const STAT_PRESETS = {
+        plain: { fill: 'surface', border: 'thin', bar: 'none' },
+        outline: { fill: 'none', border: 'thin', bar: 'none' },
+        filled: { fill: 'tint', border: 'none', bar: 'none' },
+        accent: { fill: 'surface', border: 'thin', bar: 'left' },
+        solid: { fill: 'solid', border: 'none', bar: 'none' },
+      };
+      const STAT_LOOK = {
+        fill: ['none', 'surface', 'soft', 'tint', 'solid'],
+        border: ['none', 'thin', 'thick'],
+        bar: ['none', 'left', 'top'],
+        ink: ['light', 'dark'],
+        padding: ['compact', 'normal', 'roomy'],
+      };
+      function statLook(item) {
+        const read = key => item[key] == null ? null : item[key].toLowerCase();
+        const style = read('style');
+        if (style != null && !Object.hasOwn(STAT_PRESETS, style)) return null;
+        const look = Object.assign({}, STAT_PRESETS[style || 'plain']);
+        for (const key of Object.keys(STAT_LOOK)) {
+          const value = read(key);
+          if (value == null) continue;
+          if (!STAT_LOOK[key].includes(value)) return null;
+          look[key] = value;
+        }
+        look.set = style != null || ['fill', 'border', 'bar', 'ink', 'padding'].some(key => item[key] != null);
+        return look;
+      }
+      function styleTile(tile, look, color) {
+        if (!look.set) return;
+        // The tile takes the color too, for its fill, border and bar.
+        paint(tile, color);
+        if (color.name !== 'default') tile.classList.add('md-widget-stat-colored');
+        if (look.fill !== 'surface') tile.classList.add('md-widget-stat-fill-' + look.fill);
+        if (look.border !== 'thin') tile.classList.add('md-widget-stat-border-' + look.border);
+        if (look.bar !== 'none') tile.classList.add('md-widget-stat-bar-' + look.bar);
+        if (look.ink) tile.classList.add('md-widget-stat-ink-' + look.ink);
+        if (look.padding && look.padding !== 'normal') tile.classList.add('md-widget-stat-pad-' + look.padding);
+      }
+
       function stat(source) {
         const items = parse(source);
         if (!items) return null;
@@ -712,8 +791,11 @@ nonisolated extension MarkdownHTML {
           // `color` colors the value.
           const color = readColor(item.color);
           if (!color) return null;
+          const look = statLook(item);
+          if (!look) return null;
 
           const tile = el('div', 'md-widget-stat');
+          styleTile(tile, look, color);
           const head = el('div', 'md-widget-stat-head');
           head.append(el('div', 'md-widget-label', item.label));
           if (href) {

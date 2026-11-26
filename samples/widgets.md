@@ -31,6 +31,38 @@ trend: up
 good: down
 ```
 
+Stat tiles take a card's look, one tile at a time:
+
+```stat
+label: Revenue
+value: $48.2k
+delta: +12%
+trend: up
+style: accent
+color: success
+---
+label: Uptime
+value: 99.98%
+note: last 30 days
+style: solid
+color: info
+---
+label: Incidents
+value: 3
+delta: +1
+trend: up
+good: down
+fill: soft
+bar: top
+border: none
+color: warning
+---
+label: Deploys
+value: 42
+style: outline
+padding: compact
+```
+
 ## Sales by month
 
 <!-- columns -->

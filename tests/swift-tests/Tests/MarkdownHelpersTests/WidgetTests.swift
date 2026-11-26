@@ -191,6 +191,70 @@ final class WidgetTests: XCTestCase {
         }
     }
 
+    @MainActor
+    func testStatTileTakesACardsLookOptions() async throws {
+        let webView = try await load("""
+        ```stat
+        label: Plain
+        value: 1
+        color: success
+        ---
+        label: Accent
+        value: 2
+        style: accent
+        color: success
+        ---
+        label: Solid
+        value: 3
+        delta: +1
+        trend: up
+        style: solid
+        color: info
+        ---
+        label: Override
+        value: 4
+        style: accent
+        bar: top
+        border: none
+        fill: soft
+        padding: compact
+        ---
+        label: Warning
+        value: 5
+        style: solid
+        color: warning
+        ```
+        """, colorScheme: .light)
+        let result = try await eval(webView, """
+        Array.from(document.querySelectorAll('.md-widget-stat')).map(tile => {
+          const s = getComputedStyle(tile);
+          const value = getComputedStyle(tile.querySelector('.md-widget-value')).color;
+          const delta = tile.querySelector('.md-widget-delta');
+          return [tile.className, s.borderLeftWidth, s.borderTopWidth, s.color, value,
+                  delta ? getComputedStyle(delta).color : ''].join('|');
+        })
+        """) as? [String]
+        let tiles = try XCTUnwrap(result)
+        XCTAssertEqual(tiles.count, 5)
+        // Only `color`: the tile keeps its normal look.
+        XCTAssertTrue(tiles[0].hasPrefix("md-widget-stat|1px|1px|"), tiles[0])
+        XCTAssertTrue(tiles[1].hasPrefix("md-widget-stat md-widget-c-success md-widget-stat-colored md-widget-stat-bar-left|4px|1px|"), tiles[1])
+        // Solid: white text, the value and delta included.
+        let solid = tiles[2].split(separator: "|").map(String.init)
+        XCTAssertTrue(solid[0].contains("md-widget-stat-fill-solid"))
+        XCTAssertEqual(solid[1], "0px")
+        XCTAssertEqual(Array(solid[3...]), ["rgb(255, 255, 255)", "rgb(255, 255, 255)", "rgb(255, 255, 255)"])
+        // Options beside `style` override it.
+        XCTAssertTrue(tiles[3].hasPrefix("md-widget-stat md-widget-stat-fill-soft md-widget-stat-border-none md-widget-stat-bar-top md-widget-stat-pad-compact|0px|4px|"), tiles[3])
+        // A solid warning tile has dark text.
+        XCTAssertTrue(tiles[4].contains("|rgb(29, 29, 31)|rgb(29, 29, 31)|"), tiles[4])
+
+        for bad in ["style: none", "fill: glow", "bar: right", "ink: grey", "padding: none", "shape: pill"] {
+            let drawn = try await count("```stat\nlabel: A\nvalue: 1\n\(bad)\n```", ".md-widget-stat")
+            XCTAssertEqual(drawn, bad == "shape: pill" ? 1 : 0, bad)
+        }
+    }
+
     // MARK: Progress (BR-4)
 
     @MainActor

@@ -60,7 +60,7 @@ Values may be quoted (`color="#6366F1"`). There is no way to write CSS in a card
 
 ### Solid cards
 
-On a `solid` card, or any card with `ink`, headings, links (underlined), list markers, quotes, rules and table lines take the card's text color instead of the theme's, so they stay readable; on a solid card, inline code does too. A [`shape`](widgets.md#shapes) inside one is drawn in the text color so it doesn't vanish into the card. Other widgets, such as stat tiles, charts and progress bars, keep their own colors; put them in a `fill=soft` or `tint` card instead. A solid card's text is white unless the color is `warning`; for a light hex color, add `ink=dark`.
+On a `solid` card, or any card with `ink`, headings, links (underlined), list markers, quotes, rules and table lines take the card's text color instead of the theme's, so they stay readable; on a solid card, inline code does too. A [`shape`](widgets.md#shapes) inside one is drawn in the text color so it doesn't vanish into the card. Other widgets, such as stat tiles, charts and progress bars, keep their own colors; put them in a `fill=soft` or `tint` card instead. A stat tile takes most of a card's options itself: see [a tile's look](widgets.md#a-tiles-look). A solid card's text is white unless the color is `warning`; for a light hex color, add `ink=dark`.
 
 ## Rules
 
