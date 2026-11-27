@@ -346,4 +346,11 @@ final class SlideDeckTests: XCTestCase {
     } while Date() < deadline
     XCTAssertEqual(drawn, [2, 2])
   }
+
+  /// While presenting, a diagram's pop-out button opens it full screen
+  /// above the slides, so the slides no longer hide that button.
+  func testPresentingKeepsTheMermaidPopOutButton() {
+    XCTAssertFalse(MarkdownHTML.slidesStylesheet.contains("[data-mdp-slides-presenting] .mermaid-hud-popup"))
+    XCTAssertTrue(MarkdownHTML.slidesStylesheet.contains(".mdp-slide .mermaid-hud-popup"))
+  }
 }

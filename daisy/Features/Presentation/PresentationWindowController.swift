@@ -41,7 +41,8 @@ private final class PresentationWindow: NSWindow {
 /// ready, and drops to a normal level while another app is active.
 ///
 /// Esc, closing the audience window or closing the document ends the
-/// presentation. Closing only the presenter window, or
+/// presentation. A Mermaid diagram's pop-out button shows the diagram full
+/// screen above the slides; Esc there closes only the diagram. Closing only the presenter window, or
 /// unplugging a display, keeps presenting on one screen.
 @MainActor
 final class PresentationWindowController: NSObject, NSWindowDelegate {
@@ -92,6 +93,7 @@ final class PresentationWindowController: NSObject, NSWindowDelegate {
         audienceWindow.delegate = self
         audienceWindow.keyHandler = { [weak self] event in self?.handleKey(event) ?? false }
         configureView(audienceView, hostStateID: MarkdownHTML.slidesPresentingStateID)
+        audienceView.mermaidPopupRequested = { [weak self] request in self?.showDiagramFullScreen(request) }
         audienceWindow.contentView = audienceView
 
         if externalScreen != nil {
@@ -163,10 +165,22 @@ final class PresentationWindowController: NSObject, NSWindowDelegate {
             ProcessInfo.processInfo.endActivity(displaySleepActivity)
             self.displaySleepActivity = nil
         }
+        MermaidDiagramPopup.shared.closeFullScreen()
         closePresenter()
         audienceWindow.close()
         documentWindow?.makeKeyAndOrderFront(nil)
         onEnd?()
+    }
+
+    /// A diagram's pop-out button on a slide: the diagram fills the
+    /// slides' display, above them, and closing it (Esc) returns to the
+    /// same slide and step with the keyboard back on the slides.
+    private func showDiagramFullScreen(_ request: MermaidDiagramPopup.Request) {
+        guard !hasEnded, let screen = audienceWindow.screen else { return }
+        MermaidDiagramPopup.shared.presentFullScreen(request, on: screen, above: Self.presentingLevel) { [weak self] in
+            guard let self, !self.hasEnded else { return }
+            self.audienceWindow.makeKeyAndOrderFront(nil)
+        }
     }
 
     // MARK: NSWindowDelegate
