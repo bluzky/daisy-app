@@ -7,6 +7,9 @@
 //  Mouse-wheel zoom and pointer dragging navigate the diagram independently
 //  of the panel size. Space restores the initial diagram scale and position.
 //
+//  A presentation opens the same diagram view full screen instead, above its
+//  slides; Esc or its close button returns to the slides.
+//
 
 import AppKit
 import WebKit
@@ -47,7 +50,14 @@ private final class MermaidPopupWebView: WKWebView {
             completionHandler: nil
         )
     }
+    /// Esc closes the full-screen view, which has no title bar.
+    var closesOnEscape = false
+
     override func keyDown(with event: NSEvent) {
+        if closesOnEscape, event.keyCode == 53 {
+            window?.close()
+            return
+        }
         guard event.keyCode == 49 else {
             super.keyDown(with: event)
             return
@@ -56,14 +66,34 @@ private final class MermaidPopupWebView: WKWebView {
     }
 }
 
+/// The full-screen view's window: borderless, so it must say it can take
+/// keys, and Esc reaches it as a cancel even before the web view has focus.
+private final class MermaidFullScreenPanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
+    override func cancelOperation(_ sender: Any?) { close() }
+}
 
 @MainActor
 final class MermaidDiagramPopup: NSObject, WKNavigationDelegate {
     static let shared = MermaidDiagramPopup()
 
-    private var panel: NSPanel?
-    private var webView: WKWebView?
-    private var pendingNavigation: WKNavigation?
+    /// One window and its diagram page: the floating pop-out, or the
+    /// full-screen view a presentation opens.
+    private final class Surface {
+        let panel: NSPanel
+        let webView: MermaidPopupWebView
+        var pendingNavigation: WKNavigation?
+        init(panel: NSPanel, webView: MermaidPopupWebView) {
+            self.panel = panel
+            self.webView = webView
+        }
+    }
+
+    private var windowed: Surface?
+    private var fullScreen: Surface?
+    /// Runs once when the full-screen view closes.
+    private var fullScreenOnClose: (() -> Void)?
 
     private override init() {
         super.init()
@@ -83,8 +113,9 @@ final class MermaidDiagramPopup: NSObject, WKNavigationDelegate {
         let visible = screen?.visibleFrame.size ?? CGSize(width: 1280, height: 800)
         let contentSize = MermaidPopupSizing.preferredContentSize(screen: visible)
 
-        let panel = ensurePanel()
-        webView?.alphaValue = 0
+        let surface = ensureWindowed()
+        let panel = surface.panel
+        surface.webView.alphaValue = 0
         // Detach from a previous parent so re-opening re-centers correctly.
         if let currentParent = panel.parent {
             currentParent.removeChildWindow(panel)
@@ -105,10 +136,39 @@ final class MermaidDiagramPopup: NSObject, WKNavigationDelegate {
         }
 
         panel.title = Self.title(for: request.sectionTitle)
-        load(svgHTML: request.svgHTML)
+        load(svgHTML: request.svgHTML, into: surface)
         panel.makeKeyAndOrderFront(nil)
-        panel.makeFirstResponder(webView)
+        panel.makeFirstResponder(surface.webView)
         NSApp.activate()
+    }
+
+    /// Shows the diagram filling `screen`, above windows at `level` (a
+    /// presentation's slides). Esc or the close button closes it, and
+    /// `onClose` runs then, to hand the keyboard back to the slides.
+    func presentFullScreen(_ request: Request, on screen: NSScreen, above level: NSWindow.Level,
+                           onClose: @escaping () -> Void) {
+        guard MermaidPopupSizing.canPresent(svgHTML: request.svgHTML) else { return }
+        let surface = ensureFullScreen()
+        let panel = surface.panel
+        // Reopening on another diagram replaces the view; the earlier
+        // caller's hand-back is no longer due.
+        fullScreenOnClose = nil
+        surface.webView.alphaValue = 0
+        panel.level = NSWindow.Level(rawValue: level.rawValue + 1)
+        panel.setFrame(screen.frame, display: false)
+        panel.title = Self.title(for: request.sectionTitle)
+        load(svgHTML: request.svgHTML, into: surface)
+        fullScreenOnClose = onClose
+        panel.makeKeyAndOrderFront(nil)
+        panel.makeFirstResponder(surface.webView)
+        NSApp.activate()
+    }
+
+    /// Closes the full-screen view without handing anything back, for a
+    /// presentation that is ending.
+    func closeFullScreen() {
+        fullScreenOnClose = nil
+        fullScreen?.panel.close()
     }
 
     private static func title(for sectionTitle: String?) -> String {
@@ -123,9 +183,9 @@ final class MermaidDiagramPopup: NSObject, WKNavigationDelegate {
         )
     }
 
-    private func ensurePanel() -> NSPanel {
-        if let panel {
-            return panel
+    private func ensureWindowed() -> Surface {
+        if let windowed {
+            return windowed
         }
 
         let panel = NSPanel(
@@ -146,6 +206,71 @@ final class MermaidDiagramPopup: NSObject, WKNavigationDelegate {
         panel.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
         panel.becomesKeyOnlyIfNeeded = false
 
+        let webView = makeWebView()
+        webView.autoresizingMask = [.width, .height]
+        panel.contentView = webView
+
+        let surface = Surface(panel: panel, webView: webView)
+        windowed = surface
+        observeClose(of: panel)
+        return surface
+    }
+
+    private func ensureFullScreen() -> Surface {
+        if let fullScreen {
+            return fullScreen
+        }
+
+        let panel = MermaidFullScreenPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 640, height: 480),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        // Above the slides only while Daisy is active, as the slides are.
+        panel.hidesOnDeactivate = true
+        panel.isReleasedWhenClosed = false
+        panel.becomesKeyOnlyIfNeeded = false
+        panel.animationBehavior = .none
+        panel.backgroundColor = .black
+        panel.collectionBehavior = [.fullScreenAuxiliary, .moveToActiveSpace]
+
+        let webView = makeWebView()
+        webView.closesOnEscape = true
+        let content = NSView()
+        let close = NSButton(
+            image: NSImage(systemSymbolName: "xmark.circle.fill",
+                           accessibilityDescription: NSLocalizedString(
+                            "Close", comment: "Closes the full-screen Mermaid diagram"))
+                ?? NSImage(),
+            target: panel,
+            action: #selector(NSWindow.close)
+        )
+        close.isBordered = false
+        close.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 22, weight: .regular)
+        close.contentTintColor = .secondaryLabelColor
+        close.toolTip = NSLocalizedString("Close (Esc)", comment: "Full-screen Mermaid diagram close button tooltip")
+        for view in [webView, close] as [NSView] {
+            view.translatesAutoresizingMaskIntoConstraints = false
+            content.addSubview(view)
+        }
+        NSLayoutConstraint.activate([
+            webView.topAnchor.constraint(equalTo: content.topAnchor),
+            webView.bottomAnchor.constraint(equalTo: content.bottomAnchor),
+            webView.leadingAnchor.constraint(equalTo: content.leadingAnchor),
+            webView.trailingAnchor.constraint(equalTo: content.trailingAnchor),
+            close.topAnchor.constraint(equalTo: content.topAnchor, constant: 16),
+            close.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -16),
+        ])
+        panel.contentView = content
+
+        let surface = Surface(panel: panel, webView: webView)
+        fullScreen = surface
+        observeClose(of: panel)
+        return surface
+    }
+
+    private func makeWebView() -> MermaidPopupWebView {
         let config = WKWebViewConfiguration()
         let webView = MermaidPopupWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = self
@@ -153,29 +278,37 @@ final class MermaidDiagramPopup: NSObject, WKNavigationDelegate {
         // popup canvas, so macOS does not turn them into page scrolling.
         webView.setValue(false, forKey: "drawsBackground")
         webView.allowsMagnification = false
-        webView.autoresizingMask = [.width, .height]
-        panel.contentView = webView
+        return webView
+    }
 
-        self.panel = panel
-        self.webView = webView
-
+    private func observeClose(of panel: NSPanel) {
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(panelWillClose(_:)),
             name: NSWindow.willCloseNotification,
             object: panel
         )
+    }
 
-        return panel
+    private func surface(for webView: WKWebView) -> Surface? {
+        [windowed, fullScreen].compactMap { $0 }.first { $0.webView === webView }
     }
 
     @objc private func panelWillClose(_ notification: Notification) {
-        pendingNavigation = nil
+        guard let panel = notification.object as? NSPanel,
+              let surface = [windowed, fullScreen].compactMap({ $0 }).first(where: { $0.panel === panel })
+        else { return }
+        surface.pendingNavigation = nil
         // Drop the heavy SVG document when the user closes the panel.
-        webView?.loadHTMLString("", baseURL: nil)
+        surface.webView.loadHTMLString("", baseURL: nil)
+        if surface === fullScreen {
+            let onClose = fullScreenOnClose
+            fullScreenOnClose = nil
+            onClose?()
+        }
     }
 
-    private func load(svgHTML: String) {
+    private func load(svgHTML: String, into surface: Surface) {
         let safeSVG = MermaidPopupSizing.sanitizedSVGHTML(svgHTML)
         let label = Self.htmlAttributeEscape(
             NSLocalizedString("Mermaid diagram", comment: "Mermaid diagram popup window title")
@@ -303,27 +436,28 @@ final class MermaidDiagramPopup: NSObject, WKNavigationDelegate {
         </body>
         </html>
         """
-        pendingNavigation = webView?.loadHTMLString(html, baseURL: nil)
+        surface.pendingNavigation = surface.webView.loadHTMLString(html, baseURL: nil)
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        guard let navigation, navigation === pendingNavigation else { return }
-        Task { @MainActor [weak self] in
+        guard let navigation, let surface = surface(for: webView),
+              navigation === surface.pendingNavigation else { return }
+        Task { @MainActor in
             do {
                 _ = try await webView.callAsyncJavaScript(
                     "await document.fonts.ready; window.mdPreviewReset();",
                     arguments: [:], in: nil, contentWorld: .page
                 )
-                guard let self, navigation === self.pendingNavigation else { return }
+                guard navigation === surface.pendingNavigation else { return }
                 // Wait for WebKit to render the prepared layout before revealing it.
                 _ = try await webView.takeSnapshot(configuration: nil)
-                guard navigation === self.pendingNavigation else { return }
-                self.pendingNavigation = nil
+                guard navigation === surface.pendingNavigation else { return }
+                surface.pendingNavigation = nil
                 webView.alphaValue = 1
             } catch {
-                guard let self, navigation === self.pendingNavigation else { return }
-                self.pendingNavigation = nil
-                self.panel?.close()
+                guard navigation === surface.pendingNavigation else { return }
+                surface.pendingNavigation = nil
+                surface.panel.close()
                 NSApp.presentError(error)
             }
         }

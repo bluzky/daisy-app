@@ -378,13 +378,13 @@ nonisolated extension MarkdownHTML {
         max-width: calc(var(--mm-natural-width, 100%) + 1.2em);
     }
     .mdp-slide .mermaid { padding: 0.6em; }
-    /* The zoom and fill-width controls stay, appearing on hover, in slide
-       units like the rest of the chrome. The pop-out window would open
-       behind the full-screen presentation, so that button is hidden then. */
+    /* The zoom, fill-width and pop-out controls stay, appearing on hover,
+       in slide units like the rest of the chrome. While presenting, the
+       pop-out opens the diagram full screen above the slides
+       (`PresentationWindowController`). */
     .mdp-slide .mermaid-hud { font-size: 0.55em; top: 0.5em; right: 0.5em; }
     .mdp-slide .mermaid-hud-width-symbol { font-size: 1.8em; }
     .mdp-slide .mermaid-hud-popup { font-size: 1.3em; }
-    :root[data-mdp-slides-presenting] .mermaid-hud-popup { display: none; }
     .mdp-slide--title-image .mdp-slide-body > p:last-of-type {
         flex: 1;
         min-height: 0;

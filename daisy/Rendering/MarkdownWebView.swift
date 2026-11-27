@@ -135,6 +135,9 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
     var queryTaskToggled: ((String, Int, Bool) -> Void)?
     /// A slide the reader clicked in the Slide Preview pane, by index.
     var slideClicked: ((Int) -> Void)?
+    /// Opens a Mermaid diagram's pop-out in place of the floating window;
+    /// a presentation shows it full screen above its slides.
+    var mermaidPopupRequested: ((MermaidDiagramPopup.Request) -> Void)?
     /// The Read mode comment bubble's field was submitted: the selection and the note.
     var commentAdded: ((MarkdownComments.PageSelection, String) -> Void)?
     /// Commented text was clicked: the comment's index in document order.
@@ -721,11 +724,12 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
     #if !QUICK_LOOK_EXTENSION
     private func presentMermaidPopup(_ payload: [String: Any]) {
         guard let svg = payload["svg"] as? String, !svg.isEmpty else { return }
-        let sectionTitle = payload["sectionTitle"] as? String
-        MermaidDiagramPopup.shared.present(
-            .init(svgHTML: svg, sectionTitle: sectionTitle),
-            relativeTo: window
-        )
+        let request = MermaidDiagramPopup.Request(svgHTML: svg, sectionTitle: payload["sectionTitle"] as? String)
+        if let mermaidPopupRequested {
+            mermaidPopupRequested(request)
+            return
+        }
+        MermaidDiagramPopup.shared.present(request, relativeTo: window)
     }
     #endif
 

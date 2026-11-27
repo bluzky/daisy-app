@@ -491,7 +491,7 @@ good: down
 
 **View → Present** (<kbd>⌥⌘P</kbd>) shows the deck full screen from the first slide, on an external display when there is one. **View → Present from Current Slide** (<kbd>⇧⌥⌘P</kbd>) starts at the slide the cursor is in, or in Read Mode at the slide at the top of the window. While editing, both present the editor's current text.
 
-With two displays, a presenter window on the other display shows the current slide with its notes, the next slide, the slide and step number, and the time since you started. Closing the presenter window keeps presenting, and so does unplugging a display. <kbd>esc</kbd> or closing the document ends the presentation. While another app is in front, the slides step back behind it. If the file changes while you present, the slides update and stay on the same slide.
+With two displays, a presenter window on the other display shows the current slide with its notes, the next slide, the slide and step number, and the time since you started. Closing the presenter window keeps presenting, and so does unplugging a display. <kbd>esc</kbd> or closing the document ends the presentation. The ⛶ button on a Mermaid diagram (shown when you point at it) opens the diagram full screen, where you can zoom with the scroll wheel and drag it; <kbd>esc</kbd> or its close button returns to the same slide. While another app is in front, the slides step back behind it. If the file changes while you present, the slides update and stay on the same slide.
 
 | Key | What it does |
 | --- | --- |
@@ -500,7 +500,7 @@ With two displays, a presenter window on the other display shows the current sli
 | <kbd>↖</kbd> / <kbd>↘</kbd> | First / last slide |
 | A number, then <kbd>↩</kbd> | Jumps to that slide; <kbd>↩</kbd> alone goes to the next step |
 | <kbd>B</kbd> / <kbd>W</kbd> | Blanks the screen to black / white; press again to show the slide |
-| <kbd>esc</kbd> | Ends the presentation |
+| <kbd>esc</kbd> | Ends the presentation, or closes a full-screen diagram |
 
 Presentation clickers send Page Up and Page Down, so they work without setup. The display stays awake while presenting.
 
